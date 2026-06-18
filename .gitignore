@@ -1,1 +1,27 @@
+# dependencies
 node_modules
+.pnp
+.pnp.js
+
+# next.js
+apps/web/.next
+apps/web/out
+
+# nest.js
+apps/api/dist
+
+# env files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
