@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  STUDENT
+  TRAINER
+  COORDINATOR
+  SUPPORT
+  ADMIN
+}
+
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  name          String
+  password      String?
+  googleId      String?         @unique
+  role          Role            @default(STUDENT)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  lastLoginAt   DateTime?
+  enrollments   Enrollment[]
+  videoProgress VideoProgress[]
+}
+
+model Track {
+  id           String        @id @default(uuid())
+  title        String
+  description  String?
+  isSequential Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  courses      TrackCourse[]
+}
+
+model Course {
+  id           String        @id @default(uuid())
+  title        String
+  description  String?
+  thumbnailUrl String?
+  price        Float
+  createdAt    DateTime      @default(now())
+  sections     Section[]
+  enrollments  Enrollment[]
+  tracks       TrackCourse[]
+}
+
+model TrackCourse {
+  id         String  @id @default(uuid())
+  track      Track   @relation(fields: [trackId], references: [id])
+  trackId    String
+  course     Course  @relation(fields: [courseId], references: [id])
+  courseId   String
+  orderIndex Int?
+
+  @@unique([trackId, courseId])
+}
+
+model Section {
+  id       String  @id @default(uuid())
+  title    String
+  order    Int
+  course   Course  @relation(fields: [courseId], references: [id])
+  courseId String
+  videos   Video[]
+}
+
+model Video {
+  id              String          @id @default(uuid())
+  title           String
+  vdoCipherId     String
+  durationSeconds Int
+  order           Int
+  section         Section         @relation(fields: [sectionId], references: [id])
+  sectionId       String
+  progress        VideoProgress[]
+}
+
+model Enrollment {
+  id         String   @id @default(uuid())
+  student    User     @relation(fields: [studentId], references: [id])
+  studentId  String
+  course     Course   @relation(fields: [courseId], references: [id])
+  courseId   String
+  amountPaid Float
+  enrolledAt DateTime @default(now())
+  status     String   @default("active")
+
+  @@unique([studentId, courseId])
+}
+
+model VideoProgress {
+  id                String    @id @default(uuid())
+  student           User      @relation(fields: [studentId], references: [id])
+  studentId         String
+  video             Video     @relation(fields: [videoId], references: [id])
+  videoId           String
+  uniqueSecsWatched Int       @default(0)
+  lastPositionSec   Int       @default(0)
+  isCompleted       Boolean   @default(false)
+  completedAt       DateTime?
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([studentId, videoId])
+}
