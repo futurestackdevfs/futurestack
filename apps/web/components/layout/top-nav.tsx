@@ -15,7 +15,7 @@ export function TopNav() {
         sessionStorage.setItem("fs-nav-animated", "true");
         setAnimate(true);
       }
-    } catch {}
+    } catch { }
   }, []);
   const pathname = usePathname();
 
@@ -31,16 +31,16 @@ export function TopNav() {
     setIsDark(next === "dark");
     try {
       localStorage.setItem("fs-theme", next);
-    } catch {}
+    } catch { }
   }
 
   const navLinks = [
-    { href: "/students/my-courses", label: "My Courses" },
+    { href: "/students/courses", label: "My Courses" },
     { href: "/students/paths", label: "Paths" },
     { href: "/students/live-classes", label: "Live Classes" },
     { href: "/students/certificates", label: "Certificates" },
     { href: "/students/jobs", label: "Jobs" },
-    { href: "/students/dashboard", label: "Dashboard" },
+    { href: "/students/my-dashboard", label: "Dashboard" },
   ];
 
   return (
@@ -50,7 +50,7 @@ export function TopNav() {
       </div>
 
       <div className="flex-1 max-w-[320px] flex items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 gap-2 h-[34px] transition-[border-color,box-shadow] duration-200 focus-within:border-[var(--blue2)] focus-within:shadow-[0_0_0_3px_var(--blue-d)]">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
         <input type="text" placeholder="Search courses, topics, or skills…" className="bg-transparent border-none outline-none text-[var(--text)] text-[13px] w-full placeholder:text-[var(--muted)]" />
         <span className="text-[10px] text-[var(--muted)] border border-[var(--border)] rounded px-[5px] py-[1px] shrink-0">Ctrl+K</span>
       </div>
@@ -80,11 +80,11 @@ export function TopNav() {
         </button>
 
         <Link href="/cart" className="bg-transparent border-none text-[var(--muted)] p-1.5 rounded-md flex relative cursor-pointer transition-all duration-150 hover:text-[var(--text)] hover:bg-[var(--bg)]" title="Cart">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
         </Link>
 
         <button className="bg-transparent border-none text-[var(--muted)] p-1.5 rounded-md flex relative cursor-pointer transition-all duration-150 hover:text-[var(--text)] hover:bg-[var(--bg)]" title="Notifications" onClick={() => window.dispatchEvent(new CustomEvent("toggle-notif-panel"))}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
           <span className="absolute right-[3px] top-[3px] h-1.5 w-1.5 rounded-full border-[1.5px] border-[var(--surface)] bg-[var(--orange)]"></span>
         </button>
 
@@ -94,7 +94,7 @@ export function TopNav() {
             <div className="font-semibold text-[12px] leading-[1.2]">Rahul Sharma</div>
             <div className="text-[10px] text-[var(--orange)] font-medium leading-[1.2]">Intermediate · 1240 XP</div>
           </div>
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: 4, color: "var(--muted)" }}><polyline points="6 9 12 15 18 9"/></svg>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: 4, color: "var(--muted)" }}><polyline points="6 9 12 15 18 9" /></svg>
         </div>
       </div>
     </nav>

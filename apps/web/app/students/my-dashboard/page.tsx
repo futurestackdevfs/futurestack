@@ -74,7 +74,7 @@ export default function MyDashboardPage() {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] mt-[56px] overflow-hidden bg-[#f4f6fa] dark:bg-[#0b0e14]">
+    <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden bg-[#f4f6fa] dark:bg-[#0b0e14]">
       <div className="flex flex-1 overflow-hidden">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (

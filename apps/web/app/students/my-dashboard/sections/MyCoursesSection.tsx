@@ -7,6 +7,14 @@ const courses = [
   { id: 2, emoji: "🐍", name: "Python Programming", sub: "Functions · OOP · Modules · APIs", tag1: "Programming", tag2: "Beginner", tag1Css: "tag-b", tag2Css: "tag-dim", pct: 30, modules: "Module 6 / 20", status: "progress", pillCss: "pill-new", barCss: "bar-b", color: "var(--blue2)", next: "List Comprehension", due: "Quiz due Thu", timeLeft: "36h left", cta: "blue", ctaText: "Continue →", extra: "📁 2 projects", insName: "Priya Joshi", insAv: "PJ", insBg: "linear-gradient(135deg,#2563eb,#3b82f6)", insRating: "⭐ 4.7", banner: "banner-python" },
   { id: 3, emoji: "📊", name: "Data Science with Pandas", sub: "NumPy · Pandas · Matplotlib · Sklearn", tag1: "Data Science", tag2: "Intermediate", tag1Css: "tag-p", tag2Css: "tag-dim", pct: 25, modules: "Module 4 / 16", status: "progress", pillCss: "pill-prog", barCss: "bar-p", color: "var(--purple)", next: "DataFrame Merging", due: "Jul 1", timeLeft: "44h left", cta: "purple", ctaText: "Continue →", extra: "📝 Quiz due Fri", insName: "Sanjay Mehta", insAv: "SM", insBg: "linear-gradient(135deg,#9333ea,#a855f7)", insRating: "⭐ 4.9", banner: "banner-ds" },
   { id: 4, emoji: "🎨", name: "HTML & CSS Mastery", sub: "Flexbox · Grid · Animations · Responsive", tag1: "Frontend", tag2: "Beginner", tag1Css: "tag-g", tag2Css: "tag-dim", pct: 100, modules: "All Modules Done", status: "completed", pillCss: "pill-done", barCss: "bar-g", color: "var(--green)", next: "🏅 Certificate Earned · Apr 14, 2025", due: "Score: 96%", timeLeft: "18h total", cta: "green", ctaText: "View Cert →", extra: "🎓 Verified cert", insName: "Kiran Das", insAv: "KD", insBg: "linear-gradient(135deg,#16a34a,#22c55e)", insRating: "⭐ 4.8", banner: "banner-html" },
+  { id: 5, emoji: "🧠", name: "Generative AI & LLM Engineering", sub: "Transformers · RAG · Fine-tuning · Agents", tag1: "AI/ML", tag2: "Advanced", tag1Css: "tag-p", tag2Css: "tag-dim", pct: 12, modules: "Module 2 / 28", status: "progress", pillCss: "pill-new", barCss: "bar-p", color: "var(--purple)", next: "Attention Mechanism", due: "Aug 10", timeLeft: "52h left", cta: "purple", ctaText: "▶ Start", extra: "🧪 5 labs", insName: "Dr. Arjun Singh", insAv: "AS", insBg: "linear-gradient(135deg,#7c3aed,#a855f7)", insRating: "⭐ 4.9", banner: "banner-ai" },
+  { id: 6, emoji: "☁️", name: "AWS Solutions Architect", sub: "EC2 · S3 · Lambda · VPC · IAM", tag1: "Cloud", tag2: "Advanced", tag1Css: "tag-o", tag2Css: "tag-dim", pct: 8, modules: "Module 1 / 24", status: "progress", pillCss: "pill-new", barCss: "bar-o", color: "var(--orange)", next: "AWS Global Infrastructure", due: "Sep 5", timeLeft: "60h left", cta: "orange", ctaText: "▶ Start", extra: "☁️ 3 sandbox labs", insName: "Rahul Verma", insAv: "RV", insBg: "linear-gradient(135deg,#f97316,#fb923c)", insRating: "⭐ 4.7", banner: "banner-aws" },
+  { id: 7, emoji: "📱", name: "React Native Mobile Dev", sub: "Expo · Navigation · APIs · Store", tag1: "Mobile", tag2: "Intermediate", tag1Css: "tag-b", tag2Css: "tag-dim", pct: 0, modules: "Not Started", status: "saved", pillCss: "pill-new", barCss: "bar-b", color: "var(--blue2)", next: "Environment Setup", due: "Flexible", timeLeft: "—", cta: "blue", ctaText: "Enroll →", extra: "📱 Cross-platform", insName: "Sneha Patel", insAv: "SP", insBg: "linear-gradient(135deg,#2563eb,#60a5fa)", insRating: "⭐ 4.6", banner: "banner-rn" },
+  { id: 8, emoji: "🔧", name: "Docker & Kubernetes", sub: "Containers · Orchestration · CI/CD · Helm", tag1: "DevOps", tag2: "Intermediate", tag1Css: "tag-g", tag2Css: "tag-dim", pct: 0, modules: "Not Started", status: "saved", pillCss: "pill-new", barCss: "bar-g", color: "var(--green)", next: "Docker Fundamentals", due: "Flexible", timeLeft: "—", cta: "green", ctaText: "Enroll →", extra: "🐳 6 hands-on labs", insName: "Aakash Verma", insAv: "AV", insBg: "linear-gradient(135deg,#16a34a,#4ade80)", insRating: "⭐ 4.8", banner: "banner-k8s" },
+  { id: 9, emoji: "🗄️", name: "PostgreSQL & Database Design", sub: "SQL · Indexing · Normalization · Transactions", tag1: "Database", tag2: "Intermediate", tag1Css: "tag-b", tag2Css: "tag-dim", pct: 45, modules: "Module 7 / 14", status: "progress", pillCss: "pill-prog", barCss: "bar-b", color: "var(--blue2)", next: "Query Optimization", due: "Jul 22", timeLeft: "20h left", cta: "blue", ctaText: "Continue →", extra: "📊 Performance tuning", insName: "Neha Gupta", insAv: "NG", insBg: "linear-gradient(135deg,#0ea5e9,#38bdf8)", insRating: "⭐ 4.5", banner: "banner-db" },
+  { id: 10, emoji: "🛡️", name: "Cybersecurity Fundamentals", sub: "Network Security · Cryptography · Ethical Hacking", tag1: "Security", tag2: "Beginner", tag1Css: "tag-g", tag2Css: "tag-dim", pct: 18, modules: "Module 3 / 18", status: "progress", pillCss: "pill-new", barCss: "bar-g", color: "var(--green)", next: "Threat Modeling", due: "Aug 5", timeLeft: "32h left", cta: "green", ctaText: "Continue →", extra: "🛡️ Capture The Flag", insName: "Vikram Rathore", insAv: "VR", insBg: "linear-gradient(135deg,#16a34a,#34d399)", insRating: "⭐ 4.6", banner: "banner-sec" },
+  { id: 11, emoji: "📈", name: "Machine Learning with Python", sub: "Regression · Classification · Clustering · Neural Nets", tag1: "AI/ML", tag2: "Advanced", tag1Css: "tag-p", tag2Css: "tag-dim", pct: 55, modules: "Module 8 / 16", status: "progress", pillCss: "pill-prog", barCss: "bar-p", color: "var(--purple)", next: "Neural Network Basics", due: "Jul 30", timeLeft: "24h left", cta: "purple", ctaText: "▶ Resume", extra: "🤖 Build a classifier", insName: "Dr. Arjun Singh", insAv: "AS", insBg: "linear-gradient(135deg,#7c3aed,#c084fc)", insRating: "⭐ 4.9", banner: "banner-ml" },
+  { id: 12, emoji: "🌐", name: "TypeScript Full Stack", sub: "Next.js · Prisma · tRPC · Tailwind", tag1: "Full Stack", tag2: "Advanced", tag1Css: "tag-o", tag2Css: "tag-dim", pct: 100, modules: "All Modules Done", status: "completed", pillCss: "pill-done", barCss: "bar-o", color: "var(--orange)", next: "🏅 Certificate Earned · May 28, 2025", due: "Score: 91%", timeLeft: "42h total", cta: "orange", ctaText: "View Cert →", extra: "🎓 Verified cert", insName: "Aakash Verma", insAv: "AV", insBg: "linear-gradient(135deg,#f05a1a,#ff7a3c)", insRating: "⭐ 4.8", banner: "banner-ts" },
 ];
 
 const sessions = [
@@ -21,9 +29,9 @@ export default function MyCoursesSection() {
   const [view, setView] = useState("grid");
 
   const filters = [
-    { key: "all", label: "All (4)" },
-    { key: "progress", label: "In Progress (3)" },
-    { key: "completed", label: "Completed (1)" },
+    { key: "all", label: "All (12)" },
+    { key: "progress", label: "In Progress (8)" },
+    { key: "completed", label: "Completed (2)" },
     { key: "saved", label: "Saved (2)" },
   ];
 
@@ -36,7 +44,7 @@ export default function MyCoursesSection() {
         <span className="text-[var(--orange)]">my-courses</span>
         <span className="ml-auto flex items-center gap-[6px]">
           <span className="text-[var(--green)] text-[10px]" style={{ animation: "pulse 1.6s ease infinite" }}>●</span>
-          <span>3 in progress · 1 completed · 47h studied</span>
+          <span>8 in progress · 2 completed · 112h studied</span>
         </span>
       </div>
 

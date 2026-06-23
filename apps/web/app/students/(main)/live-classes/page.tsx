@@ -11,7 +11,7 @@ const classes = [
 
 export default function LiveClassesPage() {
   return (
-    <div className="min-h-screen bg-[var(--bg)] pt-[56px]">
+    <div className="min-h-screen bg-[var(--bg)]">
       <div className="mx-auto max-w-6xl p-4 md:p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>

@@ -30,9 +30,9 @@ export function TopNav() {
 
   return (
     <nav className={`flex items-center gap-5 px-6 h-14 bg-[var(--surface)] border-b border-[var(--border)] fixed top-0 left-0 right-0 z-[999] shadow-[var(--shadow)] ${animate ? "[animation:slideDown_.4s_ease_both]" : ""}`}>
-      <div className="flex items-center gap-2.5 shrink-0">
+      <Link href="/students" className="flex items-center gap-2.5 shrink-0 no-underline">
         <img src="/images/logo.png" alt="FutureStack" style={{ height: 35 }} />
-      </div>
+      </Link>
 
       <div className="flex-1 max-w-[320px] flex items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 gap-2 h-[34px] transition-[border-color,box-shadow] duration-200 focus-within:border-[var(--blue2)] focus-within:shadow-[0_0_0_3px_var(--blue-d)]">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -42,12 +42,12 @@ export function TopNav() {
 
       <ul className="flex items-center gap-0.5 list-none">
         {[
-          { href: "/courses", label: "Courses" },
-          { href: "/paths", label: "Paths" },
-          { href: "/certifications", label: "Certifications" },
-          { href: "/live-projects", label: "Live Projects" },
-          { href: "/rnd-services", label: "R&D Services" },
-          { href: "/student", label: "My Dashboard" },
+          { href: "/students/courses", label: "Courses" },
+          { href: "/students/paths", label: "Career Paths" },
+          { href: "/students/certificates", label: "Certifications" },
+          { href: "/students/live-classes", label: "Live Classes" },
+          { href: "/students/jobs", label: "R&D Services" },
+          { href: "/students/my-dashboard", label: "My Dashboard" },
         ].map((link, i) => (
           <li key={link.label} style={animate ? { animation: `fadeUp .35s ${.08 + i * .05}s ease both` } : {}}>
             <Link href={link.href} className="px-2.5 py-1.5 rounded-md text-[13px] font-medium flex items-center gap-1 transition-all duration-150 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]">{link.label}</Link>

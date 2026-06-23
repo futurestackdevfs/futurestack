@@ -3,25 +3,27 @@
 import { useState, useMemo } from "react";
 
 const allCourses = [
-  { id: 1, category: "Web Development", title: "Full-Stack React & Node.js Mastery", desc: "Build production-grade web apps with modern React patterns, REST APIs, and cloud deployments.", hours: 38, students: "6.2k", level: "Intermediate", rating: 4.8, reviews: "2.4k", badge: "HOT", badgeClass: "bg-orange-500", mentor: "RK", mentorName: "Rahul Kumar", mentorColor: "from-orange-500 to-orange-400", img: "/images/C1.png", mode: "Mentor-Led", goal: "Get Hired", tech: "React / Next.js", duration: "20 – 50 hrs" },
+  { id: 1, category: "Web Development", title: "Full-Stack React & Node.js Mastery", desc: "Build production-grade web apps with modern React patterns, REST APIs, and cloud deployments.", hours: 38, students: "6.2k", level: "Intermediate", rating: 4.8, reviews: "2.4k", badge: "HOT", badgeClass: "bg-orange-500", mentor: "RK", mentorName: "Rahul Kumar", mentorColor: "from-orange-500 to-orange-400", img: "/images/C1.png", mode: "Mentor-Led", goal: "Get Hired", tech: "React / Node.js", duration: "20 – 50 hrs" },
   { id: 2, category: "Data Science", title: "Python for Data Science & ML", desc: "From NumPy to neural networks — a complete data science journey with real datasets and projects.", hours: 52, students: "11.8k", level: "Beginner", rating: 4.9, reviews: "5.1k", badge: "Bestseller", badgeClass: "bg-blue-600", mentor: "PS", mentorName: "Priya Singh", mentorColor: "from-blue-700 to-blue-500", img: "/images/C2.png", mode: "Self-Paced", goal: "Upskill", tech: "Python", duration: "50+ hrs" },
   { id: 3, category: "Cloud & DevOps", title: "AWS Solutions Architect – Pro Certification", desc: "Master cloud architecture, IAM, VPCs, Lambda, and pass the AWS SAP-C02 exam with confidence.", hours: 44, students: "3.4k", level: "Advanced", rating: 4.7, reviews: "892", badge: "NEW", badgeClass: "bg-green-500", mentor: "AV", mentorName: "Arun Verma", mentorColor: "from-green-500 to-green-600", img: "/images/C3.png", mode: "Live Cohort", goal: "Get Hired", tech: "AWS / Azure", duration: "20 – 50 hrs" },
   { id: 4, category: "AI / Machine Learning", title: "Generative AI & LLM Engineering", desc: "Build production-ready AI apps using GPT-4, LangChain, RAG pipelines, and vector databases.", hours: 28, students: "4.9k", level: "Intermediate", rating: 5.0, reviews: "1.3k", badge: "HOT", badgeClass: "bg-orange-500", mentor: "NJ", mentorName: "Neha Joshi", mentorColor: "from-purple-500 to-purple-700", img: "/images/C4.png", mode: "Self-Paced", goal: "Freelance", tech: "TensorFlow / PyTorch", duration: "20 – 50 hrs" },
   { id: 5, category: "Cloud & DevOps", title: "Docker, Kubernetes & CI/CD Pipelines", desc: "Containerize everything. From Dockerfile basics to Helm charts and GitHub Actions automation.", hours: 31, students: "8.2k", level: "Intermediate", rating: 4.6, reviews: "3.7k", badge: "Bestseller", badgeClass: "bg-blue-600", mentor: "SK", mentorName: "Suresh Kamath", mentorColor: "from-amber-500 to-amber-600", img: "/images/C5.png", mode: "Bootcamp", goal: "Get Hired", tech: "Docker / K8s", duration: "20 – 50 hrs" },
   { id: 6, category: "Cybersecurity", title: "Ethical Hacking & Penetration Testing", desc: "Learn offensive security, network exploitation, web app vulnerabilities, and CTF strategies.", hours: 22, students: "2.7k", level: "Advanced", rating: 4.5, reviews: "1.9k", badge: "Trending", badgeClass: "bg-purple-500", mentor: "MR", mentorName: "Meera Rao", mentorColor: "from-red-500 to-red-600", img: "/images/C6.png", mode: "Self-Paced", goal: "Start-up Ready", tech: "Python", duration: "20 – 50 hrs" },
-  { id: 7, category: "Mobile Development", title: "React Native – Cross-Platform Apps", desc: "Build iOS and Android apps from a single codebase with React Native and Expo.", hours: 26, students: "1.8k", level: "Intermediate", rating: 4.7, reviews: "1.1k", badge: "NEW", badgeClass: "bg-green-500", mentor: "AK", mentorName: "Anika Kapoor", mentorColor: "from-sky-500 to-sky-600", img: "/images/C7.png", mode: "Mentor-Led", goal: "Freelance", tech: "React / Next.js", duration: "20 – 50 hrs" },
-  { id: 8, category: "Web Development", title: "UI/UX Design & Design Systems", desc: "Master Figma, prototyping, user research, and build scalable design systems.", hours: 18, students: "3.2k", level: "Beginner", rating: 4.8, reviews: "2.1k", badge: "HOT", badgeClass: "bg-orange-500", mentor: "RT", mentorName: "Ravi Thakur", mentorColor: "from-pink-500 to-pink-600", img: "/images/C8.png", mode: "Self-Paced", goal: "Upskill", tech: "Node.js", duration: "5 – 20 hrs" },
+  { id: 7, category: "Mobile Development", title: "React Native – Cross-Platform Apps", desc: "Build iOS and Android apps from a single codebase with React Native and Expo.", hours: 26, students: "1.8k", level: "Intermediate", rating: 4.7, reviews: "1.1k", badge: "NEW", badgeClass: "bg-green-500", mentor: "AK", mentorName: "Anika Kapoor", mentorColor: "from-sky-500 to-sky-600", img: "/images/C7.png", mode: "Mentor-Led", goal: "Freelance", tech: "React / Node.js", duration: "20 – 50 hrs" },
+  { id: 8, category: "Web Development", title: "UI/UX Design & Design Systems", desc: "Master Figma, prototyping, user research, and build scalable design systems.", hours: 18, students: "3.2k", level: "Beginner", rating: 4.8, reviews: "2.1k", badge: "HOT", badgeClass: "bg-orange-500", mentor: "RT", mentorName: "Ravi Thakur", mentorColor: "from-pink-500 to-pink-600", img: "/images/C8.png", mode: "Self-Paced", goal: "Upskill", tech: "Figma", duration: "5 – 20 hrs" },
   { id: 9, category: "Cloud & DevOps", title: "Terraform & Infrastructure as Code", desc: "Automate cloud infrastructure with Terraform, workspaces, modules, and multi-cloud strategies.", hours: 20, students: "1.4k", level: "Advanced", rating: 4.6, reviews: "680", badge: "Trending", badgeClass: "bg-purple-500", mentor: "DP", mentorName: "Deepa Patel", mentorColor: "from-violet-500 to-violet-600", img: "/images/C9.png", mode: "Live Cohort", goal: "Get Hired", tech: "AWS / Azure", duration: "5 – 20 hrs" },
   { id: 10, category: "Data Science", title: "SQL for Data Analysis & Analytics", desc: "Write complex queries, window functions, CTEs, and optimize database performance.", hours: 14, students: "4.5k", level: "Beginner", rating: 4.9, reviews: "3.0k", badge: "Bestseller", badgeClass: "bg-blue-600", mentor: "SM", mentorName: "Sara Mendez", mentorColor: "from-cyan-500 to-cyan-600", img: "/images/C10.png", mode: "Self-Paced", goal: "Upskill", tech: "Node.js", duration: "5 – 20 hrs" },
+  { id: 11, category: "Data Science", title: "Machine Learning with Python", desc: "Master regression, classification, clustering, and neural networks with real-world datasets.", hours: 36, students: "5.3k", level: "Advanced", rating: 4.8, reviews: "2.8k", badge: "HOT", badgeClass: "bg-orange-500", mentor: "NJ", mentorName: "Neha Joshi", mentorColor: "from-purple-500 to-purple-700", img: "/images/C4.png", mode: "Bootcamp", goal: "Get Hired", tech: "Python", duration: "20 – 50 hrs" },
+  { id: 12, category: "Web Development", title: "TypeScript Full Stack with Next.js", desc: "Build type-safe full-stack apps with Next.js, Prisma, tRPC, and Tailwind CSS.", hours: 42, students: "2.1k", level: "Advanced", rating: 4.7, reviews: "1.4k", badge: "Trending", badgeClass: "bg-purple-500", mentor: "RK", mentorName: "Rahul Kumar", mentorColor: "from-orange-500 to-orange-400", img: "/images/C1.png", mode: "Mentor-Led", goal: "Freelance", tech: "React / Node.js", duration: "20 – 50 hrs" },
 ];
 
 const filterSections = [
   { key: "level", title: "Skill Level", items: ["Beginner", "Intermediate", "Advanced", "Expert"], field: "level" as const },
-  { key: "category", title: "Category", items: ["Web Development", "Data Science", "Cloud & DevOps", "AI / Machine Learning", "Cybersecurity", "Mobile Development", "UI / UX Design"], field: "category" as const },
-  { key: "duration", title: "Duration", items: ["0 – 5 hrs", "5 – 20 hrs", "20 – 50 hrs", "50+ hrs"], field: "duration" as const },
+  { key: "category", title: "Category", items: ["Web Development", "Data Science", "Cloud & DevOps", "AI / Machine Learning", "Cybersecurity", "Mobile Development"], field: "category" as const },
+  { key: "duration", title: "Duration", items: ["5 – 20 hrs", "20 – 50 hrs", "50+ hrs"], field: "duration" as const },
   { key: "mode", title: "Learning Mode", items: ["Self-Paced", "Live Cohort", "Mentor-Led", "Bootcamp"], field: "mode" as const },
   { key: "goal", title: "Career Goal", items: ["Get Hired", "Upskill", "Freelance", "Start-up Ready"], field: "goal" as const },
-  { key: "tech", title: "Technology Stack", items: ["React / Next.js", "Python", "Node.js", "AWS / Azure", "Docker / K8s", "TensorFlow / PyTorch"], field: "tech" as const },
+  { key: "tech", title: "Technology Stack", items: ["React / Node.js", "Python", "AWS / Azure", "Docker / K8s", "TensorFlow / PyTorch", "Figma"], field: "tech" as const },
 ];
 
 export default function CoursesPage() {
@@ -165,7 +167,7 @@ export default function CoursesPage() {
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-[252px] shrink-0 sticky top-[58px] h-[calc(100vh-58px)] overflow-y-auto border-r border-[var(--border)] bg-[var(--card)] p-4 pb-8 flex flex-col gap-1 max-lg:hidden">
+      <aside className="w-[252px] shrink-0 sticky top-[56px] h-[calc(100vh-56px)] overflow-y-auto border-r border-[var(--border)] bg-[var(--card)] p-4 pb-8 flex flex-col gap-1 max-lg:hidden">
         <div className="px-[13px] pb-3 text-[13px] font-bold text-[var(--text2)] tracking-[.3px]">Filters</div>
         {filterSections.map((s) => {
           const hasActive = [...selectedFilters].some((f) => f.startsWith(s.key + "-"));
@@ -181,7 +183,7 @@ export default function CoursesPage() {
                     const key = `${s.key}-${item}`;
                     return (
                       <div key={item} className="flex items-center gap-[9px] cursor-pointer px-[7px] py-[5px] rounded-[6px] hover:bg-[var(--blue-dim)]" onClick={() => toggleFilter(key)}>
-                        <input type="checkbox" checked={selectedFilters.has(key)} onChange={() => { }} className="accent-[var(--blue)] w-3.5 h-3.5 cursor-pointer pointer-events-none" />
+                        <input type="checkbox" checked={selectedFilters.has(key)} onChange={() => {}} className="accent-[var(--blue)] w-3.5 h-3.5 cursor-pointer pointer-events-none" />
                         <label className="flex-1 flex justify-between items-center text-[13px] text-[var(--text2)] cursor-pointer pointer-events-none">
                           {item} <span className="text-[11px] text-[var(--muted)] bg-[var(--bg)] px-[6px] py-[1px] rounded-[10px]">{countForFilter(s.key, item)}</span>
                         </label>
@@ -203,7 +205,7 @@ export default function CoursesPage() {
           <div className="flex items-center justify-between mb-3.5 max-md:flex-col max-md:items-start max-md:gap-2">
             <div className="flex flex-col gap-0.5">
               <h1 className="text-[22px] font-extrabold text-[var(--text)] tracking-[-.3px]">All Courses</h1>
-              <p className="text-[13px] text-[var(--muted)]">Explore industry-ready programs built for real outcomes</p>
+              <p className="text-[13px] text-[var(--muted)]">Browse our full catalog and find your next course</p>
             </div>
             <span className="bg-[var(--blue-dim)] border border-[#C7D8FF] text-[var(--blue)] text-[12px] font-bold px-3 py-1 rounded-full tracking-[.3px]">{filtered.length} Course{filtered.length !== 1 ? "s" : ""} Available</span>
           </div>

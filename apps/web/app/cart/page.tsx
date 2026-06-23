@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { TopNav } from "@/components/shared/top-nav";
+import { TopNav } from "@/components/layout/marketing-top-nav";
 import Link from "next/link";
 
 const initialItems = [
@@ -59,7 +59,7 @@ export default function CartPage() {
   return (
     <>
       <TopNav />
-      <div className="max-w-[1100px] mx-auto pt-20 pb-15 px-6">
+      <div className="max-w-[1100px] mx-auto pb-15 px-6 mt-14">
         {/* Steps */}
         <div className="flex items-center justify-center mb-7">
           <div className={stepCircle(1)}>
@@ -86,11 +86,11 @@ export default function CartPage() {
               <div className="font-['DM_Sans',system-ui,sans-serif] text-xs text-[var(--text3)]">{items.length} {items.length === 1 ? "course" : "courses"}</div>
             </div>
 
-            <div className="grid grid-cols-[1fr,340px] gap-[22px] items-start">
+            <div className="grid grid-cols-[1fr_340px] gap-[22px] items-start">
               <div>
                 <div className="flex flex-col gap-3">
                   {items.map(item => (
-                    <div key={item.id} className="bg-[var(--card)] border border-[var(--border)] rounded-[13px] p-4 grid grid-cols-[72px,1fr,auto] gap-3.5 items-center animate-[fadeUp_.3s_ease_both] transition-[border-color,box-shadow] duration-200 hover:border-[var(--border2)] hover:shadow-[var(--sh)]">
+                    <div key={item.id} className="bg-[var(--card)] border border-[var(--border)] rounded-[13px] p-4 grid grid-cols-[72px_1fr_auto] gap-3.5 items-center animate-[fadeUp_.3s_ease_both] transition-[border-color,box-shadow] duration-200 hover:border-[var(--border2)] hover:shadow-[var(--sh)]">
                       <div className={`w-[72px] h-[72px] rounded-[10px] flex items-center justify-center text-[30px] shrink-0 shadow-[0_3px_10px_rgba(0,0,0,.18)] relative overflow-hidden before:content-[''] before:absolute before:inset-0 before:bg-[linear-gradient(135deg,rgba(255,255,255,.1),transparent_60%)] ${item.thumbCls}`}>{item.emoji}</div>
                       <div className="min-w-0">
                         <div className="font-['DM_Sans',system-ui,sans-serif] text-[9px] text-[var(--text3)] uppercase tracking-[.06em] mb-[3px]">{item.cat}</div>
@@ -121,7 +121,7 @@ export default function CartPage() {
                     <div className="text-[56px] opacity-40 mb-4">🛒</div>
                     <div className="font-['Inter_Tight',sans-serif] text-[17px] font-bold text-[var(--text)] mb-1.5">Your cart is empty</div>
                     <div className="text-xs text-[var(--text3)] mb-5">Browse our courses and add something to get started.</div>
-                    <Link href="/courses" className="w-full py-[13px] rounded-[10px] bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13.5px] font-extrabold flex items-center justify-center gap-2 shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(240,90,26,.45)] mb-3 w-auto px-6 py-2.5 no-underline">Browse Courses</Link>
+                    <Link href="/students/courses" className="w-full py-[13px] rounded-[10px] bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13.5px] font-extrabold flex items-center justify-center gap-2 shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(240,90,26,.45)] mb-3 w-auto px-6 py-2.5 no-underline">Browse Courses</Link>
                   </div>
                 )}
 
@@ -202,7 +202,7 @@ export default function CartPage() {
               <div className="font-['DM_Sans',system-ui,sans-serif] text-xs text-[var(--text3)]">{items.length} courses · {formatPrice(total)}</div>
             </div>
 
-            <div className="grid grid-cols-[1fr,340px] gap-[22px] items-start">
+            <div className="grid grid-cols-[1fr_340px] gap-[22px] items-start">
               <div>
                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-[14px] p-[22px] mb-4">
                   <div className="font-['Inter_Tight',sans-serif] text-[14px] font-extrabold text-[var(--text)] mb-4 flex items-center gap-2">
@@ -316,7 +316,7 @@ export default function CartPage() {
             </div>
 
             <div className="flex gap-2.5">
-              <Link href="/students/my-courses" className="px-6 py-[11px] rounded-[9px] text-[12.5px] font-bold bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white shadow-[0_4px_14px_rgba(240,90,26,.3)] no-underline">Go to My Courses →</Link>
+              <Link href="/students/courses" className="px-6 py-[11px] rounded-[9px] text-[12.5px] font-bold bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white shadow-[0_4px_14px_rgba(240,90,26,.3)] no-underline">Go to Courses →</Link>
               <button className="px-6 py-[11px] rounded-[9px] text-[12.5px] font-bold bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)]">Download Invoice</button>
             </div>
           </div>

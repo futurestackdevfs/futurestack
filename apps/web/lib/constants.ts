@@ -2,7 +2,7 @@ export const APP_NAME = "FutureStack";
 export const APP_TAGLINE = "Think Ahead. Code Beyond.";
 export const ROUTES = {
   HOME: "/",
-  STUDENT: "/student",
+  STUDENT: "/students",
   ADMIN: "/admin",
   TEACHER: "/teacher",
   LOGIN: "/login",

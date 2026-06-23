@@ -13,7 +13,7 @@ const paths = [
 
 export default function PathsPage() {
   return (
-    <div className="min-h-screen bg-[var(--bg)] pt-[56px]">
+    <div className="min-h-screen bg-[var(--bg)]">
       <div className="mx-auto max-w-6xl p-4 md:p-6">
         <h1 className="mb-1 font-['Syne'] text-2xl font-bold text-[var(--text)]">Career Paths</h1>
         <p className="mb-6 text-sm text-[var(--muted)]">Choose a path and build skills for your dream career</p>
