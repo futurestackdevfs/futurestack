@@ -19,6 +19,8 @@ model User {
   email         String          @unique
   name          String
   password      String?
+  passwordResetToken    String?   @unique
+  passwordResetExpires  DateTime?
   googleId      String?         @unique
   role          Role            @default(STUDENT)
   isActive      Boolean         @default(true)

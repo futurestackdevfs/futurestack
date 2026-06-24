@@ -15,6 +15,8 @@ import { LoginDto } from './dto/login.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -63,5 +65,15 @@ export class AuthController {
     // Frontend reads the token off the query string and stores it,
     // then redirects into the right dashboard based on the JWT's role claim.
     return res.redirect(`${frontendUrl}/oauth/callback?token=${accessToken}`);
+  }
+
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+  
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
   }
 }

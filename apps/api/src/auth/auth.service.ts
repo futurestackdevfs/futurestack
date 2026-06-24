@@ -1,9 +1,12 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { Role, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
+import { ConfigService } from '@nestjs/config';
+import { MailService } from '../mail/mail.service';
 
 type SafeUser = Omit<User, 'password'>;
 
@@ -19,6 +22,8 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
+    private readonly config: ConfigService,
   ) {}
 
   private stripPassword(user: User): SafeUser {
@@ -146,5 +151,72 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+    
+  /**
+   * Always returns the same generic message regardless of whether the
+   * email exists, has no password (OAuth-only), or a reset email was
+   * actually sent — this prevents attackers from using this endpoint to
+   * enumerate which emails are registered.
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const genericResponse = {
+      message: 'If an account with that email exists, a reset link has been sent.',
+    };
+  
+    const user = await this.prisma.user.findUnique({ where: { email } });
+  
+    if (!user || !user.password) {
+      // No account, or an OAuth-only account with no local password to reset
+      return genericResponse;
+    }
+  
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+  
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetToken: hashedToken,
+        passwordResetExpires: expires,
+      },
+    });
+  
+    const frontendUrl =
+      this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
+  
+    await this.mailService.sendPasswordResetEmail(user.email, resetUrl);
+  
+    return genericResponse;
+  }
+  
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+  
+    const user = await this.prisma.user.findFirst({
+      where: {
+        passwordResetToken: hashedToken,
+        passwordResetExpires: { gt: new Date() },
+      },
+    });
+  
+    if (!user) {
+      throw new BadRequestException('Reset link is invalid or has expired');
+    }
+  
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+  
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetExpires: null,
+      },
+    });
+  
+    return { message: 'Password has been reset successfully' };
   }
 }
