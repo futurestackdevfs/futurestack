@@ -26,6 +26,9 @@ model User {
   lastLoginAt   DateTime?
   enrollments   Enrollment[]
   videoProgress VideoProgress[]
+  avatarUrl     String?
+  emailVerified Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
 }
 
 model Track {

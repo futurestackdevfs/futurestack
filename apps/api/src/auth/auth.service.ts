@@ -1,140 +1,150 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common'
-import { JwtService } from '@nestjs/jwt'
-import { PrismaService } from '../prisma/prisma.service'
-import * as bcrypt from 'bcrypt'
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
+import { Role, User } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { RegisterDto } from './dto/register.dto';
+
+type SafeUser = Omit<User, 'password'>;
+
+interface OAuthProfile {
+  email: string;
+  name: string;
+  googleId: string;
+  avatarUrl?: string;
+}
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
   ) {}
 
-  // validate user during login - called by LocalStrategy
-  async validateUser(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email }
-    })
-
-    if (!user || !user.password) {
-      throw new UnauthorizedException('Invalid credentials')
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password)
-
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials')
-    }
-
-    return user
+  private stripPassword(user: User): SafeUser {
+    const { password, ...safeUser } = user;
+    return safeUser;
   }
 
-  // generate JWT token
-  generateToken(user: { id: string; email: string; role: string }) {
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role
-    }
-    return this.jwtService.sign(payload)
+  private signToken(user: SafeUser) {
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    return this.jwtService.sign(payload);
   }
 
-  // student register
-  async register(data: {
-    name: string
-    email: string
-    password: string
-  }) {
-    // check if email already exists
+  /**
+   * Used by RegisterDto flow — students only, self-serve signup.
+   */
+  async register(dto: RegisterDto) {
     const existing = await this.prisma.user.findUnique({
-      where: { email: data.email }
-    })
+      where: { email: dto.email },
+    });
 
     if (existing) {
-      throw new ConflictException('Email already in use')
+      throw new ConflictException('An account with this email already exists');
     }
 
-    // hash password
-    const hashedPassword = await bcrypt.hash(data.password, 10)
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-    // create user
     const user = await this.prisma.user.create({
       data: {
-        name: data.name,
-        email: data.email,
+        email: dto.email,
+        name: dto.name,
         password: hashedPassword,
-        role: 'STUDENT'
-      }
-    })
+        role: Role.STUDENT,
+      },
+    });
 
-    // return token
-    const token = this.generateToken(user)
-
+    const safeUser = this.stripPassword(user);
     return {
-      accessToken: token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
-      }
-    }
+      accessToken: this.signToken(safeUser),
+      user: safeUser,
+    };
   }
 
-  // login - works for all roles
-  async login(user: any) {
-    const token = this.generateToken(user)
+  /**
+   * Used by LocalStrategy. Returns null on any failure so the strategy
+   * can throw a generic UnauthorizedException (don't leak which part failed).
+   */
+  async validateUser(email: string, password: string): Promise<SafeUser | null> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
 
-    // update last login
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() }
-    })
-
-    return {
-      accessToken: token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role
-      }
+    if (!user || !user.password) {
+      // user.password is null for OAuth-only accounts — no local login possible
+      return null;
     }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return null;
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account is suspended');
+    }
+
+    return this.stripPassword(user);
   }
 
-  // Google OAuth - find or create user
-  async googleAuth(googleUser: {
-    googleId: string
-    email: string
-    name: string
-  }) {
-    // check if user exists
+  /**
+   * Used by GoogleStrategy. Finds an existing user by googleId or email,
+   * links the googleId if missing, or creates a new STUDENT account.
+   * OAuth signup is student-only — staff roles are provisioned manually.
+   */
+  async validateOAuthUser(profile: OAuthProfile): Promise<SafeUser> {
     let user = await this.prisma.user.findUnique({
-      where: { email: googleUser.email }
-    })
+      where: { googleId: profile.googleId },
+    });
 
     if (!user) {
-      // create new student via Google
-      user = await this.prisma.user.create({
-        data: {
-          name: googleUser.name,
-          email: googleUser.email,
-          googleId: googleUser.googleId,
-          role: 'STUDENT'
-        }
-      })
+      user = await this.prisma.user.findUnique({
+        where: { email: profile.email },
+      });
+
+      if (user) {
+        // Existing email/password account signing in with Google for the first time
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { googleId: profile.googleId },
+        });
+      } else {
+        user = await this.prisma.user.create({
+          data: {
+            email: profile.email,
+            name: profile.name,
+            googleId: profile.googleId,
+            role: Role.STUDENT,
+            avatarUrl: profile.avatarUrl,
+            emailVerified: true
+          },
+        });
+      }
     }
 
-    const token = this.generateToken(user)
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account is suspended');
+    }
+
+    return this.stripPassword(user);
+  }
+
+  /**
+   * Used by /auth/login and /auth/google/callback once a user has
+   * already been validated by the relevant strategy.
+   */
+  async login(user: SafeUser) {
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
 
     return {
-      accessToken: token,
+      accessToken: this.signToken(user),
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role
-      }
-    }
+        role: user.role,
+      },
+    };
   }
 }

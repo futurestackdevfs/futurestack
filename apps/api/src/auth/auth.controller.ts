@@ -1,60 +1,67 @@
 import {
   Controller,
-  Post,
   Get,
+  Post,
   Body,
+  Req,
+  Res,
   UseGuards,
-  Request,
-  Res
-} from '@nestjs/common'
-import { AuthService } from './auth.service'
-import { LocalAuthGuard } from './guards/local-auth.guard'
-import { JwtAuthGuard } from './guards/jwt-auth.guard'
-import { GoogleAuthGuard } from './guards/google-auth.guard'
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { ConfigService } from '@nestjs/config';
+import { AuthService } from './auth.service';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { LocalAuthGuard } from './guards/local-auth.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
 
-  // POST /auth/register
   @Post('register')
-  async register(@Body() body: {
-    name: string
-    email: string
-    password: string
-  }) {
-    return this.authService.register(body)
+  async register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
-  // POST /auth/login
-  @Post('login')
+  // LocalAuthGuard runs LocalStrategy.validate() against the body,
+  // then attaches the result to req.user before this handler runs.
+  // @Body() dto here is just for Swagger/typing — LocalStrategy already
+  // read email/password directly off the request.
   @UseGuards(LocalAuthGuard)
-  async login(@Request() req: any) {
-    return this.authService.login(req.user)
+  @Post('login')
+  async login(@Body() _dto: LoginDto, @Req() req: Request) {
+    return this.authService.login(req.user as any);
   }
 
-  // GET /auth/me
-  @Get('me')
   @UseGuards(JwtAuthGuard)
-  async me(@Request() req: any) {
-    return req.user
+  @Get('me')
+  async me(@Req() req: Request) {
+    return req.user;
   }
 
-  // GET /auth/google
+  // Kicks off the redirect to Google's consent screen.
+  // No handler body needed — GoogleAuthGuard does the redirect.
+  @UseGuards(GoogleAuthGuard)
   @Get('google')
-  @UseGuards(GoogleAuthGuard)
-  async googleAuth() {
-    // Guard redirects to Google
-  }
+  async googleLogin() {}
 
-  // GET /auth/google/callback
-  @Get('google/callback')
+  // Google redirects back here after consent. GoogleStrategy has already
+  // upserted the user and attached it to req.user by this point.
   @UseGuards(GoogleAuthGuard)
-  async googleCallback(@Request() req: any, @Res() res: any) {
-    const result = await this.authService.googleAuth(req.user)
-    // redirect to frontend with token
-    res.redirect(
-      `http://localhost:3000/auth/callback?token=${result.accessToken}&role=${result.user.role}`
-    )
+  @Get('google/callback')
+  async googleCallback(@Req() req: Request, @Res() res: Response) {
+    const { accessToken } = await this.authService.login(req.user as any);
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+
+    // Frontend reads the token off the query string and stores it,
+    // then redirects into the right dashboard based on the JWT's role claim.
+    return res.redirect(`${frontendUrl}/oauth/callback?token=${accessToken}`);
   }
 }
