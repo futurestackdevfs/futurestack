@@ -9,7 +9,7 @@ export function proxy(request: NextRequest) {
   const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
 
   if (isProtected && !token) {
-    return NextResponse.redirect(new URL("/staff-login", request.url));
+    return NextResponse.redirect(new URL("/auth/staff-login", request.url));
   }
 
   return NextResponse.next();

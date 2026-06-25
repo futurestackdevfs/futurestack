@@ -76,8 +76,8 @@ const ctaCards: CtaCardProps[] = [
 export default function StudentPage() {
   return (
     <div className="flex min-h-screen flex-col">
-      <div className="shell-inner flex flex-col lg:flex-row gap-6 lg:gap-8 p-4 md:p-5 lg:p-6">
-        <main className="flex flex-col gap-2.5 flex-[3] min-h-0">
+      <div className="shell-inner flex flex-col lg:flex-row gap-3 lg:gap-4 p-2 md:p-3 lg:p-3">
+        <main className="flex flex-col gap-2.5 flex-[3] min-h-0 pt-1 pb-1">
           <Hero />
           <PopularCourses />
           <CareerPaths />
