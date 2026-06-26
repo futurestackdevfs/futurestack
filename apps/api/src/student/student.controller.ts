@@ -1,4 +1,4 @@
-import { Controller, Get, Req } from '@nestjs/common';
+import { Controller, Get, Param, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
@@ -13,5 +13,12 @@ export class StudentController {
   async getDashboard(@Req() req: Request) {
     const user = req.user as { id: string };
     return this.studentService.getDashboard(user.id);
+  }
+
+  @Auth(Role.STUDENT)
+  @Get('courses/:courseId')
+  async getCourseDetail(@Req() req: Request, @Param('courseId') courseId: string) {
+    const user = req.user as { id: string };
+    return this.studentService.getCourseDetail(user.id, courseId);
   }
 }

@@ -15,22 +15,30 @@ enum Role {
 }
 
 model User {
-  id            String          @id @default(uuid())
-  email         String          @unique
-  name          String
-  password      String?
-  passwordResetToken    String?   @unique
-  passwordResetExpires  DateTime?
-  googleId      String?         @unique
-  role          Role            @default(STUDENT)
-  isActive      Boolean         @default(true)
-  createdAt     DateTime        @default(now())
-  lastLoginAt   DateTime?
-  enrollments   Enrollment[]
-  videoProgress VideoProgress[]
-  avatarUrl     String?
-  emailVerified Boolean  @default(false)
-  updatedAt     DateTime @updatedAt
+  id                   String          @id @default(uuid())
+  email                String          @unique
+  name                 String
+  password             String?
+  passwordResetToken   String?         @unique
+  passwordResetExpires DateTime?
+  googleId             String?         @unique
+  role                 Role            @default(STUDENT)
+  isActive             Boolean         @default(true)
+  avatarUrl            String?
+  emailVerified        Boolean         @default(false)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  lastLoginAt          DateTime?
+
+  // Trainer-only profile fields (nullable — only populated for TRAINER role)
+  bio                  String?
+  yearsExperience      Int?
+  rating               Float?
+
+  enrollments          Enrollment[]
+  videoProgress        VideoProgress[]
+  quizAttempts         QuizAttempt[]              // ADDED — fixes missing back-relation
+  coursesTaught        Course[]        @relation("CourseTrainer")
 }
 
 model Track {
@@ -49,9 +57,31 @@ model Course {
   thumbnailUrl String?
   price        Float
   createdAt    DateTime      @default(now())
+
+  trainerId    String?
+  trainer      User?         @relation("CourseTrainer", fields: [trainerId], references: [id])
+
+  // Overview tab content
+  whatYoullLearn String[]    @default([])  // bullet list, e.g. ["Build production-grade apps", ...]
+  techStack      String[]    @default([])  // chips, e.g. ["MongoDB", "React.js", "Docker"]
+  careerTitle    String?                    // e.g. "High-demand skill — average salary ₹18L–₹40L/yr"
+  careerBody     String?                    // longer paragraph
+
   sections     Section[]
   enrollments  Enrollment[]
   tracks       TrackCourse[]
+  resources    CourseResource[]
+}
+
+model CourseResource {
+  id            String   @id @default(uuid())
+  course        Course   @relation(fields: [courseId], references: [id])
+  courseId      String
+  title         String                       // e.g. "MERN Stack Cheat Sheet"
+  fileType      String                       // "PDF" | "ZIP" | "FIGMA" | "PPT" — free text, frontend maps to icon
+  fileUrl       String                       // S3 url, or external link (Figma/GitHub)
+  fileSizeLabel String?                      // e.g. "4.2 MB" — display-only, not computed
+  createdAt     DateTime @default(now())
 }
 
 model TrackCourse {
@@ -71,7 +101,9 @@ model Section {
   order    Int
   course   Course  @relation(fields: [courseId], references: [id])
   courseId String
+
   videos   Video[]
+  quizzes  Quiz[]
 }
 
 model Video {
@@ -83,6 +115,30 @@ model Video {
   section         Section         @relation(fields: [sectionId], references: [id])
   sectionId       String
   progress        VideoProgress[]
+}
+
+model Quiz {
+  id             String        @id @default(uuid())
+  title          String
+  order          Int                          // same ordering convention as Video.order within a Section
+  section        Section       @relation(fields: [sectionId], references: [id])
+  sectionId      String
+  totalQuestions Int
+  passingScore   Int?                         // percentage, e.g. 70 — null means no pass/fail gate
+  attempts       QuizAttempt[]
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  student     User     @relation(fields: [studentId], references: [id])
+  studentId   String
+  quiz        Quiz     @relation(fields: [quizId], references: [id])
+  quizId      String
+  score       Int                              // percentage, e.g. 91
+  isCompleted Boolean  @default(true)           // a submitted attempt is complete by definition
+  completedAt DateTime @default(now())
+
+  @@unique([studentId, quizId])  // one attempt record per student per quiz (latest/best — your call on retake policy)
 }
 
 model Enrollment {
@@ -109,6 +165,7 @@ model VideoProgress {
   isCompleted       Boolean   @default(false)
   completedAt       DateTime?
   updatedAt         DateTime  @updatedAt
+  score             Int?                       // optional post-video check score, null if none exists
 
   @@unique([studentId, videoId])
 }
