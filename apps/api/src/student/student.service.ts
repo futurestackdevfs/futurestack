@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface NextVideo {
@@ -16,6 +16,22 @@ export interface CourseProgress {
   totalVideos: number;
   hoursRemaining: number;
   nextVideo: NextVideo | null;
+}
+
+// Shared shape for both video and quiz items in the curriculum list —
+// frontend renders them in one merged, ordered list per section.
+export interface CurriculumItem {
+  type: 'video' | 'quiz';
+  id: string;
+  title: string;
+  order: number;
+  durationSeconds?: number;   // videos only
+  totalQuestions?: number;    // quizzes only
+  passingScore?: number | null; // quizzes only
+  score: number | null;
+  isCompleted: boolean;
+  isCurrent: boolean;
+  isLocked: boolean;
 }
 
 @Injectable()
@@ -117,6 +133,164 @@ export class StudentService {
         role: user.role,
       },
       enrolledCourses,
+    };
+  }
+
+  async getCourseDetail(studentId: string, courseId: string) {
+    // Must be actively enrolled to view the full curriculum —
+    // prevents students from browsing paid content they haven't bought.
+    const enrollment = await this.prisma.enrollment.findUnique({
+      where: { studentId_courseId: { studentId, courseId } },
+    });
+
+    if (!enrollment || enrollment.status !== 'active') {
+      throw new ForbiddenException('You are not enrolled in this course');
+    }
+
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        trainer: {
+          include: {
+            _count: { select: { coursesTaught: true } },
+          },
+        },
+        resources: true,
+        sections: {
+          orderBy: { order: 'asc' },
+          include: {
+            videos: { orderBy: { order: 'asc' } },
+            quizzes: { orderBy: { order: 'asc' } },
+          },
+        },
+      },
+    });
+
+    if (!course) {
+      throw new NotFoundException('Course not found');
+    }
+
+    // Pull this student's progress/attempts once, up front — avoids
+    // N+1 queries while walking sections below.
+    const videoIds = course.sections.flatMap((s) => s.videos.map((v) => v.id));
+    const quizIds = course.sections.flatMap((s) => s.quizzes.map((q) => q.id));
+
+    const [videoProgressRows, quizAttemptRows] = await Promise.all([
+      this.prisma.videoProgress.findMany({
+        where: { studentId, videoId: { in: videoIds } },
+      }),
+      this.prisma.quizAttempt.findMany({
+        where: { studentId, quizId: { in: quizIds } },
+      }),
+    ]);
+
+    const videoProgressById = new Map(videoProgressRows.map((p) => [p.videoId, p]));
+    const quizAttemptById = new Map(quizAttemptRows.map((a) => [a.quizId, a]));
+
+    // Build one flat, ordered list of items per section (video + quiz
+    // merged by `order`), then walk the WHOLE course in order to apply
+    // strictly-sequential locking — the first incomplete item anywhere
+    // in the course is "current", everything after it is locked.
+    let foundCurrent = false;
+    let totalItems = 0;
+    let completedItems = 0;
+
+    const sections = course.sections.map((section) => {
+      const items: CurriculumItem[] = [
+        ...section.videos.map((v) => {
+          const progress = videoProgressById.get(v.id);
+          return {
+            type: 'video' as const,
+            id: v.id,
+            title: v.title,
+            order: v.order,
+            durationSeconds: v.durationSeconds,
+            score: progress?.score ?? null,
+            isCompleted: progress?.isCompleted ?? false,
+            isCurrent: false,
+            isLocked: false,
+          };
+        }),
+        ...section.quizzes.map((q) => {
+          const attempt = quizAttemptById.get(q.id);
+          return {
+            type: 'quiz' as const,
+            id: q.id,
+            title: q.title,
+            order: q.order,
+            totalQuestions: q.totalQuestions,
+            passingScore: q.passingScore,
+            score: attempt?.score ?? null,
+            isCompleted: attempt?.isCompleted ?? false,
+            isCurrent: false,
+            isLocked: false,
+          };
+        }),
+      ].sort((a, b) => a.order - b.order);
+
+      for (const item of items) {
+        totalItems += 1;
+        if (item.isCompleted) {
+          completedItems += 1;
+        } else if (!foundCurrent) {
+          item.isCurrent = true;
+          foundCurrent = true;
+        } else {
+          item.isLocked = true;
+        }
+      }
+
+      const sectionCompletedCount = items.filter((i) => i.isCompleted).length;
+
+      return {
+        id: section.id,
+        title: section.title,
+        order: section.order,
+        totalItems: items.length,
+        completedItems: sectionCompletedCount,
+        items,
+      };
+    });
+
+    const progressPercent =
+      totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+    return {
+      course: {
+        id: course.id,
+        title: course.title,
+        description: course.description,
+        thumbnailUrl: course.thumbnailUrl,
+        price: course.price,
+        whatYoullLearn: course.whatYoullLearn,
+        techStack: course.techStack,
+        careerTitle: course.careerTitle,
+        careerBody: course.careerBody,
+      },
+      instructor: course.trainer
+        ? {
+            id: course.trainer.id,
+            name: course.trainer.name,
+            avatarUrl: course.trainer.avatarUrl,
+            bio: course.trainer.bio,
+            yearsExperience: course.trainer.yearsExperience,
+            rating: course.trainer.rating,
+            coursesTaughtCount: course.trainer._count.coursesTaught,
+          }
+        : null,
+      progress: {
+        completedItems,
+        totalItems,
+        progressPercent,
+      },
+      resources: course.resources.map((r) => ({
+        id: r.id,
+        title: r.title,
+        fileType: r.fileType,
+        fileUrl: r.fileUrl,
+        fileSizeLabel: r.fileSizeLabel,
+      })),
+      sections,
     };
   }
 }
