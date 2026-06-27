@@ -1,58 +1,31 @@
 "use client";
 
-const courses = [
-  {
-    id: 1, status: "progress",
-    bannerBg: "bg-[#0c1f2e]", emoji: "⚛️",
-    tags: [{ label: "Full Stack", cls: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a] border border-orange-500/20" }, { label: "Advanced", cls: "bg-[#f0f2f7] dark:bg-[#10141e] text-[#6b7280] dark:text-[#7a859a] border border-[#e2e6ef] dark:border-[#1e2535]" }],
-    name: "MERN Stack Development",
-    sub: "Module 13/20 · React Hooks Deep Dive next",
-    instructor: { initials: "AV", name: "Aakash Verma", rating: "4.8", bg: "#f05a1a" },
-    progress: 65, barColor: "from-[#f05a1a] to-[#ff7a3c]", labelColor: "text-[#f05a1a] dark:text-[#ff6a1a]",
-    statusPill: "In Progress", pillCls: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a] border border-orange-500/30",
-    cta: "Resume →", ctaCls: "bg-[#f05a1a] dark:bg-[#ff6a1a] text-white hover:bg-[#ff7a3c] dark:hover:bg-[#ff8c42]",
-  },
-  {
-    id: 2, status: "progress",
-    bannerBg: "bg-[#181a0e]", emoji: "🐍",
-    tags: [{ label: "Programming", cls: "bg-blue-500/10 text-[#2563eb] dark:text-[#3b82f6] border border-blue-500/20" }, { label: "Beginner", cls: "bg-[#f0f2f7] dark:bg-[#10141e] text-[#6b7280] dark:text-[#7a859a] border border-[#e2e6ef] dark:border-[#1e2535]" }],
-    name: "Python Programming",
-    sub: "Module 6/20 · List Comprehension next",
-    instructor: { initials: "PJ", name: "Priya Joshi", rating: "4.7", bg: "#2563eb" },
-    progress: 30, barColor: "from-[#2563eb] to-[#3b82f6]", labelColor: "text-[#2563eb] dark:text-[#3b82f6]",
-    statusPill: "In Progress", pillCls: "bg-blue-500/10 text-[#2563eb] dark:text-[#3b82f6] border border-blue-500/30",
-    cta: "Continue →", ctaCls: "bg-[#2563eb] dark:bg-[#3b82f6] text-white hover:bg-[#3b82f6] dark:hover:bg-[#60a5fa]",
-  },
-  {
-    id: 3, status: "progress",
-    bannerBg: "bg-[#150f24]", emoji: "📊",
-    tags: [{ label: "Data Science", cls: "bg-purple-500/10 text-[#9333ea] dark:text-[#a855f7] border border-purple-500/20" }, { label: "Intermediate", cls: "bg-[#f0f2f7] dark:bg-[#10141e] text-[#6b7280] dark:text-[#7a859a] border border-[#e2e6ef] dark:border-[#1e2535]" }],
-    name: "Data Science with Pandas",
-    sub: "Module 4/16 · DataFrame Merging next",
-    instructor: { initials: "SM", name: "Sanjay Mehta", rating: "4.9", bg: "#9333ea" },
-    progress: 25, barColor: "from-[#9333ea] to-[#a855f7]", labelColor: "text-[#9333ea] dark:text-[#a855f7]",
-    statusPill: "In Progress", pillCls: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a] border border-orange-500/30",
-    cta: "Continue →", ctaCls: "bg-[#9333ea] text-white hover:opacity-85",
-  },
-  {
-    id: 4, status: "completed",
-    bannerBg: "bg-[#0d1810]", emoji: "🎨",
-    tags: [{ label: "Frontend", cls: "bg-green-500/10 text-[#16a34a] dark:text-[#22c55e] border border-green-500/20" }, { label: "Beginner", cls: "bg-[#f0f2f7] dark:bg-[#10141e] text-[#6b7280] dark:text-[#7a859a] border border-[#e2e6ef] dark:border-[#1e2535]" }],
-    name: "HTML & CSS Mastery",
-    sub: "Completed Apr 14, 2025 · Score 96%",
-    instructor: { initials: "KD", name: "Kiran Das", rating: "4.8", bg: "#16a34a" },
-    progress: 100, barColor: "from-[#16a34a] to-[#22c55e]", labelColor: "text-[#16a34a] dark:text-[#22c55e]",
-    statusPill: "Completed", pillCls: "bg-green-500/10 text-[#16a34a] dark:text-[#22c55e] border border-green-500/30",
-    cta: "View Cert →", ctaCls: "bg-[#16a34a] dark:bg-[#22c55e] text-white hover:opacity-85",
-  },
-];
+import Link from "next/link";
+import type { DashboardUser, EnrolledCourse } from "../../hooks/student-dashboard";
 
-const certificates = [
-  { emoji: "🎨", bg: "bg-green-500/10", name: "HTML & CSS Mastery", meta: "Earned Apr 14, 2025", tag: "Earned", tagCls: "bg-green-500/10 text-[#16a34a] dark:text-[#22c55e]" },
-  { emoji: "⚛️", bg: "bg-orange-500/10", name: "MERN Stack Development", meta: "65% complete", tag: "In Progress", tagCls: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a]" },
-  { emoji: "📊", bg: "bg-[#f0f2f7] dark:bg-[#10141e]", name: "Data Science with Pandas", meta: "25% complete", tag: "Locked", tagCls: "bg-[#f0f2f7] dark:bg-[#10141e] text-[#6b7280] dark:text-[#7a859a] border border-[#e2e6ef] dark:border-[#1e2535]" },
-  { emoji: "🐍", bg: "bg-[#f0f2f7] dark:bg-[#10141e]", name: "Python Programming", meta: "30% complete", tag: "Locked", tagCls: "bg-[#f0f2f7] dark:bg-[#10141e] text-[#6b7280] dark:text-[#7a859a] border border-[#e2e6ef] dark:border-[#1e2535]" },
-];
+interface Props {
+  user: DashboardUser | null;
+  enrolledCourses: EnrolledCourse[];
+  isLoading: boolean;
+}
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function getFormattedDate(): string {
+  const d = new Date();
+  const dow = d.toLocaleDateString("en-US", { weekday: "long" });
+  const month = d.toLocaleDateString("en-US", { month: "long" });
+  return `${dow}, ${month} ${d.getDate()}`;
+}
+
+function nameToSlug(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, ".");
+}
 
 const skills = [
   { n: "JavaScript", p: 78 },
@@ -68,13 +41,6 @@ const schedule = [
   { day: 1, dn: "THU", title: "Python Quiz · Chapter 3", meta: "Due by 11:59 PM", tag: "QUIZ", tc: "text-[#f05a1a] dark:text-[#ff6a1a] bg-orange-500/10" },
   { day: 2, dn: "FRI", title: "Node.js Auth — Live Session", meta: "2:00 PM — 4:00 PM · by Dr. Mehta", tag: "LIVE", tc: "text-green-500 dark:text-green-400 bg-green-500/10" },
   { day: 5, dn: "MON", title: "MERN Project Submission", meta: "Final deadline", tag: "SUBMIT", tc: "text-[#3b82f6] dark:text-[#60a5fa] bg-blue-500/10" },
-];
-
-const coursesSchedule = [
-  { day: 18, dow: "WED", name: "MERN — React Hooks Live Q&A", meta: "10:00 AM · Aakash Verma · 90 min", tag: "Live", tagCls: "bg-green-500/10 text-[#16a34a] dark:text-[#22c55e]" },
-  { day: 20, dow: "FRI", name: "Python — Chapter 6 Quiz", meta: "Due by 11:59 PM · 15 questions", tag: "Quiz", tagCls: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a]" },
-  { day: 22, dow: "SUN", name: "Data Science — Assignment 2", meta: "Submit by midnight · Pandas project", tag: "Submit", tagCls: "bg-blue-500/10 text-[#2563eb] dark:text-[#3b82f6]" },
-  { day: 25, dow: "WED", name: "Python — OOP Deep Dive Live", meta: "7:00 PM · Priya Joshi · 60 min", tag: "Live", tagCls: "bg-green-500/10 text-[#16a34a] dark:text-[#22c55e]" },
 ];
 
 const achievements = [
@@ -94,9 +60,27 @@ const leaderboard = [
   { r: 7, i: "K", n: "Karan Patel", s: 9, x: "1,180 XP", g: "from-amber-500 to-green-500" },
 ];
 
-const days = ["M", "T", "W", "T", "F", "S", "S"];
+export default function OverviewSection({ user, enrolledCourses, isLoading }: Props) {
+  const firstName = user?.name.split(" ")[0] ?? (isLoading ? "…" : "there");
+  const slug = user ? nameToSlug(user.name) : "student";
+  const greeting = getGreeting();
+  const dateLabel = getFormattedDate();
 
-export default function OverviewSection() {
+  const firstCourse = enrolledCourses.find(c => c.progressPercent < 100) ?? enrolledCourses[0] ?? null;
+  const ringPct = firstCourse?.progressPercent ?? 0;
+  const ringOffset = Number((188.5 * (1 - ringPct / 100)).toFixed(1));
+
+  const activeCourseCount = enrolledCourses.filter(c => c.progressPercent < 100).length;
+  const totalCompleted = enrolledCourses.reduce((sum, c) => sum + c.completedVideos, 0);
+
+  const welcomeBody = isLoading
+    ? "Loading your progress…"
+    : firstCourse
+      ? `You're ${firstCourse.progressPercent}% through ${firstCourse.title}. Complete today's module to stay on track.`
+      : "Welcome back! Browse our catalog to find your next course.";
+
+  const continueLabel = firstCourse ? `▶ Continue ${firstCourse.title}` : "Browse Courses";
+
   return (
     <div className="flex flex-col gap-3.5">
       {/* WELCOME */}
@@ -105,12 +89,16 @@ export default function OverviewSection() {
           <div className="p-[18px_22px] flex-1">
             <div className="flex items-center gap-1.5 mb-1.5 font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.12em] text-[#f05a1a] dark:text-[#ff6a1a]">
               <span className="w-[5px] h-[5px] rounded-full bg-[#f05a1a] dark:bg-[#ff6a1a] inline-block"></span>
-              Good morning, Rahul · Tuesday, May 30
+              {greeting}, {firstName} · {dateLabel}
             </div>
             <div className="font-['Syne',sans-serif] text-xl font-extrabold text-[#111827] dark:text-[#e8eaf0] leading-[1.2] mb-1.5">Keep the <span className="text-[#f05a1a] dark:text-[#ff6a1a]">momentum</span> going 🚀</div>
-            <div className="text-[11.5px] text-[#374151] dark:text-[#b0bac9] max-w-[400px] leading-[1.6]">You&apos;re 65% through MERN Stack. Complete today&apos;s module to stay on track for your June 15 target.</div>
+            <div className="text-[11.5px] text-[#374151] dark:text-[#b0bac9] max-w-[400px] leading-[1.6]">{welcomeBody}</div>
             <div className="flex gap-2 mt-3">
-              <button className="inline-flex items-center gap-1.5 px-4 py-[7px] rounded-[6px] bg-[#f05a1a] dark:bg-[#ff6a1a] text-white text-[11.5px] font-semibold shadow-[0_3px_14px_rgba(240,90,26,.35)] hover:bg-[#ff7a3c] dark:hover:bg-[#ff8c42] hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(240,90,26,.45)] transition-all">▶ Continue MERN Stack</button>
+              {firstCourse ? (
+                <button className="inline-flex items-center gap-1.5 px-4 py-[7px] rounded-[6px] bg-[#f05a1a] dark:bg-[#ff6a1a] text-white text-[11.5px] font-semibold shadow-[0_3px_14px_rgba(240,90,26,.35)] hover:bg-[#ff7a3c] dark:hover:bg-[#ff8c42] hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(240,90,26,.45)] transition-all">{continueLabel}</button>
+              ) : (
+                <Link href="/students/courses" className="inline-flex items-center gap-1.5 px-4 py-[7px] rounded-[6px] bg-[#f05a1a] dark:bg-[#ff6a1a] text-white text-[11.5px] font-semibold shadow-[0_3px_14px_rgba(240,90,26,.35)] hover:bg-[#ff7a3c] dark:hover:bg-[#ff8c42] hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(240,90,26,.45)] transition-all no-underline">Browse Courses</Link>
+              )}
               <button className="inline-flex items-center gap-1.5 px-3.5 py-[7px] rounded-[6px] bg-transparent text-[#374151] dark:text-[#b0bac9] border border-[#d0d6e4] dark:border-[#263048] text-[11.5px] font-medium hover:border-[#3b82f6] dark:hover:border-[#60a5fa] hover:text-[#3b82f6] dark:hover:text-[#60a5fa] hover:bg-blue-500/10 transition-all">📅 View Schedule</button>
             </div>
           </div>
@@ -118,10 +106,10 @@ export default function OverviewSection() {
             <div className="relative w-[72px] h-[72px] shrink-0">
               <svg width="72" height="72" viewBox="0 0 72 72" className="rotate-[-90deg]">
                 <circle cx="36" cy="36" r="30" fill="none" stroke="#e2e6ef" strokeWidth="5"/>
-                <circle cx="36" cy="36" r="30" fill="none" stroke="#f05a1a" strokeWidth="5" strokeDasharray="188.5" strokeDashoffset="71.6" strokeLinecap="round"/>
+                <circle cx="36" cy="36" r="30" fill="none" stroke="#f05a1a" strokeWidth="5" strokeDasharray="188.5" strokeDashoffset={ringOffset} strokeLinecap="round"/>
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="font-['Syne',sans-serif] text-sm font-extrabold text-[#111827] dark:text-[#e8eaf0]">62%</div>
+                <div className="font-['Syne',sans-serif] text-sm font-extrabold text-[#111827] dark:text-[#e8eaf0]">{isLoading ? "…" : `${ringPct}%`}</div>
                 <div className="font-['JetBrains_Mono',monospace] text-[8px] text-[#6b7280] dark:text-[#7a859a]">Level</div>
               </div>
             </div>
@@ -138,16 +126,16 @@ export default function OverviewSection() {
       <div className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-[#111520] border border-[#e2e6ef] dark:border-[#1e2535] rounded-[6px] font-['JetBrains_Mono',monospace] text-[10px] text-[#6b7280] dark:text-[#7a859a] shrink-0">
         <span>futurestack</span><span className="text-[#d0d6e4] dark:text-[#263048]">/</span>
         <span>students</span><span className="text-[#d0d6e4] dark:text-[#263048]">/</span>
-        <span className="text-[#374151] dark:text-[#b0bac9]">rahul.sharma</span><span className="text-[#d0d6e4] dark:text-[#263048]">/</span>
+        <span className="text-[#374151] dark:text-[#b0bac9]">{slug}</span><span className="text-[#d0d6e4] dark:text-[#263048]">/</span>
         <span className="text-[#374151] dark:text-[#b0bac9]">dashboard</span>
       </div>
 
       {/* KPI ROW */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
         {[
-          { icon: "📚", num: "3", lbl: "Active Courses", delta: "+1 this month", dc: "bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]", bc: "bg-orange-500/10" },
+          { icon: "📚", num: isLoading ? "…" : activeCourseCount.toString(), lbl: "Active Courses", delta: "+1 this month", dc: "bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]", bc: "bg-orange-500/10" },
           { icon: "⏱️", num: "47h", lbl: "Hours Studied", delta: "↑ 12h this week", dc: "bg-green-500/10 text-green-600 dark:text-green-500", bc: "bg-blue-500/10" },
-          { icon: "✅", num: "24", lbl: "Modules Done", delta: "↑ 6 this week", dc: "bg-green-500/10 text-green-600 dark:text-green-500", bc: "bg-green-500/10" },
+          { icon: "✅", num: isLoading ? "…" : totalCompleted.toString(), lbl: "Modules Done", delta: "↑ 6 this week", dc: "bg-green-500/10 text-green-600 dark:text-green-500", bc: "bg-green-500/10" },
           { icon: "🎯", num: "92%", lbl: "Quiz Avg.", delta: "Top 8%", dc: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a]", bc: "bg-purple-500/10" },
         ].map(k => (
           <div key={k.lbl} className="bg-white dark:bg-[#161b27] border border-[#e2e6ef] dark:border-[#1e2535] rounded-[9px] p-[13px_14px] flex items-start gap-2.5 cursor-default hover:border-[#d0d6e4] dark:hover:border-[#263048] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,0,0,.1)] dark:hover:shadow-[0_6px_24px_rgba(0,0,0,.45)] transition-all">

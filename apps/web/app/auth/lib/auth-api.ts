@@ -11,14 +11,6 @@ export type User = {
 
 export type AuthResponse = { accessToken: string; user: User };
 
-async function hashPassword(plain: string): Promise<string> {
-  const data = new TextEncoder().encode(plain);
-  const buffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(buffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
 async function request<T>(
   path: string,
   options: RequestInit & { token?: string },
@@ -64,18 +56,16 @@ async function request<T>(
 
 export const authApi = {
   async login(email: string, password: string) {
-    const hashedPassword = await hashPassword(password);
     return request<AuthResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password: hashedPassword }),
+      body: JSON.stringify({ email, password }),
     });
   },
 
   async register(name: string, email: string, password: string) {
-    const hashedPassword = await hashPassword(password);
     return request<AuthResponse>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password: hashedPassword }),
+      body: JSON.stringify({ name, email, password }),
     });
   },
 
@@ -91,10 +81,9 @@ export const authApi = {
   },
 
   async resetPassword(token: string, newPassword: string) {
-    const hashedPassword = await hashPassword(newPassword);
     return request<{ message: string }>('/auth/reset-password', {
       method: 'POST',
-      body: JSON.stringify({ token, newPassword: hashedPassword }),
+      body: JSON.stringify({ token, newPassword }),
     });
   },
 

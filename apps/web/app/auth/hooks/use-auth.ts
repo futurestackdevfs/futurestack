@@ -75,17 +75,20 @@ export function useAuth() {
   const login = useCallback(async (email: string, password: string) => {
     const { accessToken, user } = await authApi.login(email, password);
     await saveToken(user.id, accessToken);
+    document.cookie = `fs_token=${accessToken}; path=/; max-age=604800; SameSite=Lax`;
     emit({ user, isAuthenticated: true, isLoading: false });
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     const { accessToken, user } = await authApi.register(name, email, password);
     await saveToken(user.id, accessToken);
+    document.cookie = `fs_token=${accessToken}; path=/; max-age=604800; SameSite=Lax`;
     emit({ user, isAuthenticated: true, isLoading: false });
   }, []);
 
   const logout = useCallback(async () => {
     await clearToken();
+    document.cookie = 'fs_token=; path=/; max-age=0';
     bootstrapped = false;
     emit({ user: null, isAuthenticated: false, isLoading: false });
   }, []);

@@ -3,12 +3,18 @@ import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const token = request.cookies.get("session")?.value;
+  const token = request.cookies.get("fs_token")?.value;
 
-  const protectedPaths = ["/admin", "/teacher", "/dashboard"];
-  const isProtected = protectedPaths.some((p) => pathname.startsWith(p));
+  const studentPaths = ["/students"];
+  const staffPaths = ["/admin", "/teacher", "/dashboard"];
+  const isStudentRoute = studentPaths.some((p) => pathname.startsWith(p));
+  const isStaffRoute = staffPaths.some((p) => pathname.startsWith(p));
 
-  if (isProtected && !token) {
+  if (isStudentRoute && !token) {
+    return NextResponse.redirect(new URL("/students", request.url));
+  }
+
+  if (isStaffRoute && !token) {
     return NextResponse.redirect(new URL("/auth/staff-login", request.url));
   }
 
@@ -16,5 +22,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/teacher/:path*", "/dashboard/:path*"],
+  matcher: ["/students/:path+", "/admin/:path*", "/teacher/:path*", "/dashboard/:path*"],
 };

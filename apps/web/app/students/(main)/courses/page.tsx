@@ -1,21 +1,35 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import Link from "next/link";
+import { useState, useMemo, useEffect } from "react";
 
-const allCourses = [
-  { id: 1, category: "Web Development", title: "Full-Stack React & Node.js Mastery", desc: "Build production-grade web apps with modern React patterns, REST APIs, and cloud deployments.", hours: 38, students: "6.2k", level: "Intermediate", rating: 4.8, reviews: "2.4k", badge: "HOT", badgeClass: "bg-orange-500", mentor: "RK", mentorName: "Rahul Kumar", mentorColor: "from-orange-500 to-orange-400", img: "/images/C1.png", mode: "Mentor-Led", goal: "Get Hired", tech: "React / Node.js", duration: "20 – 50 hrs" },
-  { id: 2, category: "Data Science", title: "Python for Data Science & ML", desc: "From NumPy to neural networks — a complete data science journey with real datasets and projects.", hours: 52, students: "11.8k", level: "Beginner", rating: 4.9, reviews: "5.1k", badge: "Bestseller", badgeClass: "bg-blue-600", mentor: "PS", mentorName: "Priya Singh", mentorColor: "from-blue-700 to-blue-500", img: "/images/C2.png", mode: "Self-Paced", goal: "Upskill", tech: "Python", duration: "50+ hrs" },
-  { id: 3, category: "Cloud & DevOps", title: "AWS Solutions Architect – Pro Certification", desc: "Master cloud architecture, IAM, VPCs, Lambda, and pass the AWS SAP-C02 exam with confidence.", hours: 44, students: "3.4k", level: "Advanced", rating: 4.7, reviews: "892", badge: "NEW", badgeClass: "bg-green-500", mentor: "AV", mentorName: "Arun Verma", mentorColor: "from-green-500 to-green-600", img: "/images/C3.png", mode: "Live Cohort", goal: "Get Hired", tech: "AWS / Azure", duration: "20 – 50 hrs" },
-  { id: 4, category: "AI / Machine Learning", title: "Generative AI & LLM Engineering", desc: "Build production-ready AI apps using GPT-4, LangChain, RAG pipelines, and vector databases.", hours: 28, students: "4.9k", level: "Intermediate", rating: 5.0, reviews: "1.3k", badge: "HOT", badgeClass: "bg-orange-500", mentor: "NJ", mentorName: "Neha Joshi", mentorColor: "from-purple-500 to-purple-700", img: "/images/C4.png", mode: "Self-Paced", goal: "Freelance", tech: "TensorFlow / PyTorch", duration: "20 – 50 hrs" },
-  { id: 5, category: "Cloud & DevOps", title: "Docker, Kubernetes & CI/CD Pipelines", desc: "Containerize everything. From Dockerfile basics to Helm charts and GitHub Actions automation.", hours: 31, students: "8.2k", level: "Intermediate", rating: 4.6, reviews: "3.7k", badge: "Bestseller", badgeClass: "bg-blue-600", mentor: "SK", mentorName: "Suresh Kamath", mentorColor: "from-amber-500 to-amber-600", img: "/images/C5.png", mode: "Bootcamp", goal: "Get Hired", tech: "Docker / K8s", duration: "20 – 50 hrs" },
-  { id: 6, category: "Cybersecurity", title: "Ethical Hacking & Penetration Testing", desc: "Learn offensive security, network exploitation, web app vulnerabilities, and CTF strategies.", hours: 22, students: "2.7k", level: "Advanced", rating: 4.5, reviews: "1.9k", badge: "Trending", badgeClass: "bg-purple-500", mentor: "MR", mentorName: "Meera Rao", mentorColor: "from-red-500 to-red-600", img: "/images/C6.png", mode: "Self-Paced", goal: "Start-up Ready", tech: "Python", duration: "20 – 50 hrs" },
-  { id: 7, category: "Mobile Development", title: "React Native – Cross-Platform Apps", desc: "Build iOS and Android apps from a single codebase with React Native and Expo.", hours: 26, students: "1.8k", level: "Intermediate", rating: 4.7, reviews: "1.1k", badge: "NEW", badgeClass: "bg-green-500", mentor: "AK", mentorName: "Anika Kapoor", mentorColor: "from-sky-500 to-sky-600", img: "/images/C7.png", mode: "Mentor-Led", goal: "Freelance", tech: "React / Node.js", duration: "20 – 50 hrs" },
-  { id: 8, category: "Web Development", title: "UI/UX Design & Design Systems", desc: "Master Figma, prototyping, user research, and build scalable design systems.", hours: 18, students: "3.2k", level: "Beginner", rating: 4.8, reviews: "2.1k", badge: "HOT", badgeClass: "bg-orange-500", mentor: "RT", mentorName: "Ravi Thakur", mentorColor: "from-pink-500 to-pink-600", img: "/images/C8.png", mode: "Self-Paced", goal: "Upskill", tech: "Figma", duration: "5 – 20 hrs" },
-  { id: 9, category: "Cloud & DevOps", title: "Terraform & Infrastructure as Code", desc: "Automate cloud infrastructure with Terraform, workspaces, modules, and multi-cloud strategies.", hours: 20, students: "1.4k", level: "Advanced", rating: 4.6, reviews: "680", badge: "Trending", badgeClass: "bg-purple-500", mentor: "DP", mentorName: "Deepa Patel", mentorColor: "from-violet-500 to-violet-600", img: "/images/C9.png", mode: "Live Cohort", goal: "Get Hired", tech: "AWS / Azure", duration: "5 – 20 hrs" },
-  { id: 10, category: "Data Science", title: "SQL for Data Analysis & Analytics", desc: "Write complex queries, window functions, CTEs, and optimize database performance.", hours: 14, students: "4.5k", level: "Beginner", rating: 4.9, reviews: "3.0k", badge: "Bestseller", badgeClass: "bg-blue-600", mentor: "SM", mentorName: "Sara Mendez", mentorColor: "from-cyan-500 to-cyan-600", img: "/images/C10.png", mode: "Self-Paced", goal: "Upskill", tech: "Node.js", duration: "5 – 20 hrs" },
-  { id: 11, category: "Data Science", title: "Machine Learning with Python", desc: "Master regression, classification, clustering, and neural networks with real-world datasets.", hours: 36, students: "5.3k", level: "Advanced", rating: 4.8, reviews: "2.8k", badge: "HOT", badgeClass: "bg-orange-500", mentor: "NJ", mentorName: "Neha Joshi", mentorColor: "from-purple-500 to-purple-700", img: "/images/C4.png", mode: "Bootcamp", goal: "Get Hired", tech: "Python", duration: "20 – 50 hrs" },
-  { id: 12, category: "Web Development", title: "TypeScript Full Stack with Next.js", desc: "Build type-safe full-stack apps with Next.js, Prisma, tRPC, and Tailwind CSS.", hours: 42, students: "2.1k", level: "Advanced", rating: 4.7, reviews: "1.4k", badge: "Trending", badgeClass: "bg-purple-500", mentor: "RK", mentorName: "Rahul Kumar", mentorColor: "from-orange-500 to-orange-400", img: "/images/C1.png", mode: "Mentor-Led", goal: "Freelance", tech: "React / Node.js", duration: "20 – 50 hrs" },
-];
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3002';
+
+interface CourseCard {
+  id: string;
+  category: string;
+  title: string;
+  description: string;
+  hours: number;
+  students: string;
+  level: string;
+  rating: number;
+  reviews: string;
+  badge: string;
+  badgeClass: string;
+  mentor: string;
+  mentorName: string;
+  mentorColor: string;
+  img: string;
+  mode: string;
+  goal: string;
+  tech: string;
+  duration: string;
+}
+
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
 
 const filterSections = [
   { key: "level", title: "Skill Level", items: ["Beginner", "Intermediate", "Advanced", "Expert"], field: "level" as const },
@@ -32,9 +46,21 @@ export default function CoursesPage() {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("Most Popular");
   const [currentPage, setCurrentPage] = useState(1);
-  const [enrolled, setEnrolled] = useState<Set<number>>(new Set());
+  const [enrolled, setEnrolled] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [allCourses, setAllCourses] = useState<CourseCard[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const perPage = 9;
+
+  useEffect(() => {
+    fetch(`${API}/courses`)
+      .then((res) => res.json())
+      .then((data: CourseCard[]) => {
+        setAllCourses(data);
+        setIsLoading(false);
+      })
+      .catch(() => setIsLoading(false));
+  }, []);
 
   const toggleFilter = (key: string) => {
     setSelectedFilters((prev) => {
@@ -48,6 +74,13 @@ export default function CoursesPage() {
   const clearAllFilters = () => {
     setSelectedFilters(new Set());
     setCurrentPage(1);
+  };
+
+  const countForFilter = (sectionKey: string, item: string) => {
+    return allCourses.filter((c) => {
+      const field = filterSections.find((s) => s.key === sectionKey)!.field;
+      return c[field] === item;
+    }).length;
   };
 
   const filtered = useMemo(() => {
@@ -91,7 +124,7 @@ export default function CoursesPage() {
         c.title.toLowerCase().includes(q) ||
         c.category.toLowerCase().includes(q) ||
         c.mentorName.toLowerCase().includes(q) ||
-        c.desc.toLowerCase().includes(q)
+        c.description.toLowerCase().includes(q)
       );
     }
 
@@ -103,12 +136,12 @@ export default function CoursesPage() {
     }
 
     return result;
-  }, [selectedFilters, search, sort]);
+  }, [allCourses, selectedFilters, search, sort]);
 
   const totalPages = Math.ceil(filtered.length / perPage);
   const paginated = filtered.slice((currentPage - 1) * perPage, currentPage * perPage);
 
-  const handleEnroll = (id: number) => {
+  const handleEnroll = (id: string) => {
     setEnrolled((prev) => new Set(prev).add(id));
     setTimeout(() => {
       setEnrolled((prev) => {
@@ -119,32 +152,7 @@ export default function CoursesPage() {
     }, 1800);
   };
 
-  const countForFilter = (sectionKey: string, item: string) => {
-    const temp = new Set(selectedFilters);
-    const key = `${sectionKey}-${item}`;
-    if (!temp.has(key)) temp.add(key);
-    const matches = allCourses.filter((c) => {
-      const field = filterSections.find((s) => s.key === sectionKey)!.field;
-      const val = c[field];
-      const activeKeys = new Set<string>();
-      temp.forEach((k) => {
-        const [sk] = k.split("-");
-        if (sk !== sectionKey) activeKeys.add(sk);
-      });
-      for (const sk of activeKeys) {
-        const secItems = filterSections.find((s) => s.key === sk)!.items;
-        const hasActive = [...temp].some((f) => f.startsWith(sk + "-"));
-        if (hasActive) {
-          const secMatch = secItems.some((si) => temp.has(`${sk}-${si}`) && c[filterSections.find((s) => s.key === sk)!.field] === si);
-          if (!secMatch) return false;
-        }
-      }
-      return val === item;
-    });
-    return matches.length;
-  };
-
-  const renderStars = (rating: number, courseId: number) => {
+  const renderStars = (rating: number, courseId: string) => {
     const full = Math.floor(rating);
     return Array.from({ length: 5 }, (_, i) => (
       <svg key={`${courseId}-star-${i}`} className="w-[11px] h-[11px]" viewBox="0 0 20 20" style={{ fill: i < full ? "#F59E0B" : "#D1D5DB" }}>
@@ -234,33 +242,36 @@ export default function CoursesPage() {
               </div>
             </div>
           </div>
-
-          {selectedFilters.size > 0 && (
-            <div className="flex items-center flex-wrap gap-[7px] pt-2 min-h-[36px]">
-              {[...selectedFilters].map((key) => {
-                const label = key.includes("-") ? key.substring(key.indexOf("-") + 1) : key;
-                return (
-                  <span key={key} className="flex items-center gap-[5px] px-3 py-1 rounded-full border border-[#C7D8FF] bg-[var(--blue-dim)] text-[var(--blue)] text-[12px] font-semibold cursor-pointer hover:bg-[#dde8ff] hover:border-[var(--blue)] transition-[background,border-color]" onClick={() => toggleFilter(key)}>
-                    {label} <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                  </span>
-                );
-              })}
-              <span className="flex items-center gap-[5px] px-3 py-1 rounded-full border border-[#ffd0bb] bg-[var(--orange-pale,#FFF0EA)] text-[var(--orange)] text-[12px] font-semibold cursor-pointer hover:bg-[#ffe0cc] transition-[background,border-color]" onClick={clearAllFilters}>✕ Clear All</span>
-            </div>
-          )}
         </div>
 
+        {selectedFilters.size > 0 && (
+          <div className="flex items-center flex-wrap gap-[7px] pt-2 min-h-[36px]">
+            {[...selectedFilters].map((key) => {
+              const label = key.includes("-") ? key.substring(key.indexOf("-") + 1) : key;
+              return (
+                <span key={key} className="flex items-center gap-[5px] px-3 py-1 rounded-full border border-[#C7D8FF] bg-[var(--blue-dim)] text-[var(--blue)] text-[12px] font-semibold cursor-pointer hover:bg-[#dde8ff] hover:border-[var(--blue)] transition-[background,border-color]" onClick={() => toggleFilter(key)}>
+                  {label} <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </span>
+              );
+            })}
+            <span className="flex items-center gap-[5px] px-3 py-1 rounded-full border border-[#ffd0bb] bg-[var(--orange-pale,#FFF0EA)] text-[var(--orange)] text-[12px] font-semibold cursor-pointer hover:bg-[#ffe0cc] transition-[background,border-color]" onClick={clearAllFilters}>✕ Clear All</span>
+          </div>
+        )}
+
         <section className="pt-[18px]">
-          {paginated.length === 0 ? (
+          {isLoading ? (
             <div className="text-center py-16 text-[var(--muted)]">
-              <p className="text-lg font-semibold text-[var(--text2)]">No courses match your filters</p>
-              <p className="mt-1">Try adjusting or clearing your filters</p>
-              <button className="mt-4 text-[var(--orange)] font-semibold underline" onClick={clearAllFilters}>Clear all filters</button>
+              <p className="text-lg font-semibold text-[var(--text2)]">Loading courses…</p>
+            </div>
+          ) : paginated.length === 0 ? (
+            <div className="text-center py-16 text-[var(--muted)]">
+              <p className="text-lg font-semibold text-[var(--text2)]">No courses found</p>
+              <p className="mt-1">Try adjusting your search</p>
             </div>
           ) : (
             <div className="grid gap-4" style={{ gridTemplateColumns: viewMode === "list" ? "1fr" : "repeat(auto-fill, minmax(270px, 1fr))" }}>
               {paginated.map((course) => (
-                <article key={course.id} className={`border border-[var(--border)] rounded-xl bg-[var(--card)] overflow-hidden cursor-pointer relative flex flex-col transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-[5px] hover:shadow-[var(--shadow-lg)] hover:border-[#C7D8FF] ${viewMode === "list" ? "md:flex-row" : ""}`}>
+                <Link key={course.id} href={`/students/courses/${slugify(course.title)}`} className={`border border-[var(--border)] rounded-xl bg-[var(--card)] overflow-hidden cursor-pointer relative flex flex-col transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-[5px] hover:shadow-[var(--shadow-lg)] hover:border-[#C7D8FF] ${viewMode === "list" ? "md:flex-row" : ""} no-underline`}>
                   <div className={`relative overflow-hidden ${viewMode === "list" ? "w-full md:w-[200px] h-full min-h-[120px]" : "h-[90px]"}`}>
                     <img src={course.img} alt={course.title} className="w-full h-full object-cover transition-transform duration-[350ms] hover:scale-105" />
                     <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[rgba(13,31,92,.55)]"></div>
@@ -269,7 +280,7 @@ export default function CoursesPage() {
                   <div className="p-[14px_15px_12px] flex-1 flex flex-col gap-2">
                     <div className="text-[11px] font-bold uppercase tracking-[.6px] text-[var(--orange)]">{course.category}</div>
                     <div className="font-['Syne',sans-serif] text-[14.5px] font-bold text-[var(--text)] leading-[1.35] line-clamp-2">{course.title}</div>
-                    <div className="text-[12.5px] text-[var(--muted)] leading-[1.5] line-clamp-2 flex-1">{course.desc}</div>
+                    <div className="text-[12.5px] text-[var(--muted)] leading-[1.5] line-clamp-2 flex-1">{course.description}</div>
                     <div className="flex items-center gap-1">
                       <div className="flex gap-[1px]">{renderStars(course.rating, course.id)}</div>
                       <span className="text-[12px] font-bold text-[var(--text2)]">{course.rating}</span>
@@ -296,7 +307,7 @@ export default function CoursesPage() {
                       {enrolled.has(course.id) ? "✓ Added!" : "Enroll →"}
                     </button>
                   </div>
-                </article>
+                </Link>
               ))}
             </div>
           )}

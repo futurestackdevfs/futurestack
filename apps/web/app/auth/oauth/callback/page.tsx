@@ -21,8 +21,9 @@ function OAuthHandler() {
       .me(token)
       .then(async (user) => {
         await saveToken(user.id, token);
+        document.cookie = `fs_token=${token}; path=/; max-age=604800; SameSite=Lax`;
         showToast('Signed in with Google!');
-        router.replace('/students');
+        router.replace('/students/my-dashboard');
       })
       .catch(() => {
         setError('Authentication failed. Please try again.');
