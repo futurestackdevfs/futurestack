@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3002';
+const API = '/api';
 
 function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -106,7 +106,7 @@ export default function CourseDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-56px)] gap-4">
         <div className="text-lg font-semibold text-[var(--text2)]">Course not found</div>
-        <Link href="/students/courses" className="text-[var(--orange)] font-semibold underline">Browse all courses</Link>
+        <Link href="/courses" className="text-[var(--orange)] font-semibold underline">Browse all courses</Link>
       </div>
     );
   }
@@ -127,9 +127,9 @@ export default function CourseDetailPage() {
       {/* Breadcrumb */}
       <div className="max-w-[1700px] mx-auto px-6">
         <div className="flex items-center gap-[6px] py-4 text-[12.5px] text-[var(--text3)]">
-          <Link href="/students" className="hover:text-[var(--blue)] transition-colors">Home</Link>
+          <Link href="/" className="hover:text-[var(--blue)] transition-colors">Home</Link>
           <span className="text-[var(--border2)]">/</span>
-          <Link href="/students/courses" className="hover:text-[var(--blue)] transition-colors">Courses</Link>
+          <Link href="/courses" className="hover:text-[var(--blue)] transition-colors">Courses</Link>
           <span className="text-[var(--border2)]">/</span>
           <span className="font-medium text-[var(--text2)]">{course.title}</span>
         </div>
@@ -542,7 +542,7 @@ export default function CourseDetailPage() {
             <div className="font-['Syne',sans-serif] text-[20px] font-bold text-[var(--text)] pb-3 border-b border-[var(--border)] mb-3.5">Related Courses</div>
             <div className="grid grid-cols-3 gap-4">
               {related.map((rc) => (
-                <Link key={rc.id} href={`/students/courses/${slugify(rc.title)}`}
+                <Link key={rc.id} href={`/courses/${slugify(rc.title)}`}
                   className="border border-[var(--border)] rounded-xl overflow-hidden cursor-pointer transition-all hover:border-[var(--blue-dim)] hover:shadow-[var(--shadow)] hover:-translate-y-[3px] bg-[var(--card)] no-underline">
                   <div className="h-[100px] overflow-hidden">
                     <img src={rc.img} alt={rc.title} className="w-full h-full object-cover transition-transform hover:scale-105" />

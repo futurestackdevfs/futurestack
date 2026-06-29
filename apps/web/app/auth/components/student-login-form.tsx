@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../hooks/use-auth';
@@ -76,7 +76,7 @@ export function StudentLoginForm() {
         await login(email, password);
         showToast('Welcome back! Signed in successfully.');
       }
-      router.push('/students/my-dashboard');
+      router.push('/my-dashboard');
     } catch (ex) {
       setErrors({ api: ex instanceof Error ? ex.message : 'Something went wrong. Please try again.' });
     } finally {

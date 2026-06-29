@@ -1,9 +1,9 @@
 "use client";
 
-import { Hero } from "@/app/students/components/hero";
-import { PopularCourses } from "@/app/students/components/popular-courses";
-import { CareerPaths } from "@/app/students/components/career-paths";
-import { HomeSidebar } from "@/app/students/components/home-sidebar";
+import { Hero } from "@/app/(student)/components/hero";
+import { PopularCourses } from "@/app/(student)/components/popular-courses";
+import { CareerPaths } from "@/app/(student)/components/career-paths";
+import { HomeSidebar } from "@/app/(student)/components/home-sidebar";
 
 const eyebrowColors: Record<string, string> = {
   "cta-certs": "#7c3aed",

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { TopNav } from "@/components/layout/marketing-top-nav";
@@ -121,7 +121,7 @@ export default function CartPage() {
                     <div className="text-[56px] opacity-40 mb-4">🛒</div>
                     <div className="font-['Inter_Tight',sans-serif] text-[17px] font-bold text-[var(--text)] mb-1.5">Your cart is empty</div>
                     <div className="text-xs text-[var(--text3)] mb-5">Browse our courses and add something to get started.</div>
-                    <Link href="/students/courses" className="w-full py-[13px] rounded-[10px] bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13.5px] font-extrabold flex items-center justify-center gap-2 shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(240,90,26,.45)] mb-3 w-auto px-6 py-2.5 no-underline">Browse Courses</Link>
+                    <Link href="/courses" className="w-full py-[13px] rounded-[10px] bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13.5px] font-extrabold flex items-center justify-center gap-2 shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(240,90,26,.45)] mb-3 w-auto px-6 py-2.5 no-underline">Browse Courses</Link>
                   </div>
                 )}
 
@@ -316,7 +316,7 @@ export default function CartPage() {
             </div>
 
             <div className="flex gap-2.5">
-              <Link href="/students/courses" className="px-6 py-[11px] rounded-[9px] text-[12.5px] font-bold bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white shadow-[0_4px_14px_rgba(240,90,26,.3)] no-underline">Go to Courses →</Link>
+              <Link href="/courses" className="px-6 py-[11px] rounded-[9px] text-[12.5px] font-bold bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white shadow-[0_4px_14px_rgba(240,90,26,.3)] no-underline">Go to Courses →</Link>
               <button className="px-6 py-[11px] rounded-[9px] text-[12.5px] font-bold bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)]">Download Invoice</button>
             </div>
           </div>

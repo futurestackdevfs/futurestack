@@ -1,3 +1,3 @@
 export default function StaffLoginLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return <div className="self-stretch w-full flex">{children}</div>;
 }

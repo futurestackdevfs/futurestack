@@ -229,15 +229,8 @@ export class AuthService {
     });
 
     const frontendUrl =
-<<<<<<< HEAD
-      this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
-    const resetUrl = `${frontendUrl}/auth/reset-password?token=${rawToken}`;
-  
-=======
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
-    const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
-
->>>>>>> 6b056dc7a95e2d8de25e98037e56cc82b2902b43
+    const resetUrl = `${frontendUrl}/auth/reset-password?token=${rawToken}`;
     await this.mailService.sendPasswordResetEmail(user.email, resetUrl);
 
     return genericResponse;

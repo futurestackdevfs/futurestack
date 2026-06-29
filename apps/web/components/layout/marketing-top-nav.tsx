@@ -53,12 +53,12 @@ export function TopNav() {
     setProfileOpen(false);
     await logout();
     showToast("You've been signed out successfully.");
-    router.push("/students");
+    router.push("/");
   }, [logout, router]);
 
   return (
     <nav className={`flex items-center gap-5 px-6 h-14 bg-[var(--surface)] border-b border-[var(--border)] fixed top-0 left-0 right-0 z-[999] shadow-[var(--shadow)] ${animate ? "[animation:slideDown_.4s_ease_both]" : ""}`}>
-      <Link href="/students" className="flex items-center gap-2.5 shrink-0 no-underline">
+      <Link href="/" className="flex items-center gap-2.5 shrink-0 no-underline">
         <img src="/images/logo.png" alt="FutureStack" style={{ height: 35 }} />
       </Link>
 
@@ -70,12 +70,12 @@ export function TopNav() {
 
       <ul className="flex items-center gap-0.5 list-none">
         {[
-          { href: "/students/courses", label: "Courses" },
-          { href: "/students/paths", label: "Career Paths" },
-          { href: "/students/certificates", label: "Certifications" },
-          { href: "/students/live-classes", label: "Live Classes" },
-          { href: "/students/jobs", label: "R&D Services" },
-          { href: "/students/my-dashboard", label: "My Dashboard" },
+          { href: "/courses", label: "Courses" },
+          { href: "/paths", label: "Career Paths" },
+          { href: "/certificates", label: "Certifications" },
+          { href: "/live-classes", label: "Live Classes" },
+          { href: "/jobs", label: "R&D Services" },
+          { href: "/my-dashboard", label: "My Dashboard" },
         ].map((link, i) => (
           <li key={link.label} style={animate ? { animation: `fadeUp .35s ${.08 + i * .05}s ease both` } : {}}>
             <Link href={link.href} className="px-2.5 py-1.5 rounded-md text-[13px] font-medium flex items-center gap-1 transition-all duration-150 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]">{link.label}</Link>
@@ -105,10 +105,10 @@ export function TopNav() {
           <button
             onClick={() => {
               if (!isAuthenticated) {
-                if (pathname === '/students') {
+                if (pathname === '/') {
                   window.dispatchEvent(new CustomEvent('fs:highlight-login'));
                 } else {
-                  router.push('/students#student-login');
+                  router.push('/#student-login');
                 }
                 return;
               }
@@ -197,7 +197,7 @@ export function TopNav() {
                   {/* Menu links */}
                   <div className="py-1">
                     <Link
-                      href="/students/my-dashboard"
+                      href="/my-dashboard"
                       onClick={() => setProfileOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
                     >
@@ -208,7 +208,7 @@ export function TopNav() {
                       My Dashboard
                     </Link>
                     <Link
-                      href="/students"
+                      href="/courses"
                       onClick={() => setProfileOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
                     >
@@ -219,7 +219,7 @@ export function TopNav() {
                       My Courses
                     </Link>
                     <Link
-                      href="/students/certificates"
+                      href="/certificates"
                       onClick={() => setProfileOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
                     >
@@ -234,7 +234,7 @@ export function TopNav() {
                   {/* Settings */}
                   <div className="border-t border-[var(--border)] py-1">
                     <Link
-                      href="/students/profile"
+                      href="/profile"
                       onClick={() => setProfileOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
                     >

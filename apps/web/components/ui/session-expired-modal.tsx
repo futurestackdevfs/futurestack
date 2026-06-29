@@ -14,7 +14,7 @@ export function SessionExpiredModal() {
 
   const signIn = useCallback(() => {
     dismiss();
-    router.push('/students');
+    router.push('/');
   }, [dismiss, router]);
 
   // Listen for the session-expired event

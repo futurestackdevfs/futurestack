@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -147,7 +147,7 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
             <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--text3)]">// enrolled</span>
             <span className="font-['Syne',sans-serif] text-[13px] font-bold text-[var(--text)]">Enrolled Courses</span>
             <div className="flex-1 h-[1px] bg-[var(--border)]"></div>
-            <Link href="/students/courses" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[var(--blue2)] px-[8px] py-[2px] border border-[rgba(59,130,246,.2)] rounded-[4px] transition-all whitespace-nowrap hover:bg-[var(--blue-d)] no-underline">Browse Catalog →</Link>
+            <Link href="/courses" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[var(--blue2)] px-[8px] py-[2px] border border-[rgba(59,130,246,.2)] rounded-[4px] transition-all whitespace-nowrap hover:bg-[var(--blue-d)] no-underline">Browse Catalog →</Link>
           </div>
 
           {isLoading ? (
@@ -244,7 +244,7 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
           <div className="flex items-center justify-between px-[14px] py-[10px] border-b border-[var(--border)]">
             <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--text3)]">Upcoming Sessions</span>
-            <Link href="/students/courses" className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--blue2)] no-underline">View all →</Link>
+            <Link href="/courses" className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--blue2)] no-underline">View all →</Link>
           </div>
           {STATIC_SESSIONS.map(s => (
             <div key={s.name} className="flex items-center gap-[10px] px-[14px] py-[10px] border-b border-[var(--border)] last:border-b-0 transition-all hover:bg-[var(--card-h)] cursor-pointer">

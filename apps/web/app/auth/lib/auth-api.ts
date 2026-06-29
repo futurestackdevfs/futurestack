@@ -1,4 +1,5 @@
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3002';
+// Calls go to /api/* (Next.js BFF proxy) — backend URL never exposed to browser
+const API = '/api';
 
 export type User = {
   id: string;
@@ -35,7 +36,7 @@ async function request<T>(
   if (!contentType.includes('application/json')) {
     throw new Error(
       `API returned ${res.status} (${res.statusText}) — expected JSON but got HTML. ` +
-      `Check that NEXT_PUBLIC_API_URL is set correctly (currently: ${API}).`,
+      `Check that the BFF proxy is running correctly (current API path: ${API}).`,
     );
   }
 
@@ -58,7 +59,14 @@ export const authApi = {
   async login(email: string, password: string) {
     return request<AuthResponse>('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, portal: 'student' }),
+    });
+  },
+
+  async loginOps(email: string, password: string) {
+    return request<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, portal: 'ops' }),
     });
   },
 
@@ -69,8 +77,8 @@ export const authApi = {
     });
   },
 
-  me(token: string) {
-    return request<User>('/auth/me', { method: 'GET', token });
+  me(token?: string) {
+    return request<User>('/auth/me', { method: 'GET', ...(token ? { token } : {}) });
   },
 
   forgotPassword(email: string) {
@@ -88,6 +96,6 @@ export const authApi = {
   },
 
   loginWithGoogle() {
-    window.location.href = `${API}/auth/google`;
+    window.location.href = `/api/auth/google`;
   },
 };

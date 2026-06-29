@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -53,7 +53,7 @@ function ResetPasswordForm() {
       await authApi.resetPassword(token, newPassword);
       showToast('Password reset successfully!');
       setSuccess(true);
-      setTimeout(() => router.replace('/students/my-dashboard'), 2500);
+      setTimeout(() => router.replace('/my-dashboard'), 2500);
     } catch (ex) {
       setApiError(ex instanceof Error ? ex.message : 'Reset failed. The link may have expired.');
     } finally {
@@ -132,9 +132,9 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="w-full max-w-md mx-auto rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl bg-white dark:bg-gray-900 p-8 sm:p-10">
+    <div className="w-full max-w-md mx-auto rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl bg-white dark:bg-gray-900 p-8 sm:p-10 m-3 md:m-4">
       <div className="flex flex-col items-center text-center space-y-6">
-        <Link href="/students">
+        <Link href="/">
           <img src="/images/logo.png" alt="" className="h-9" />
         </Link>
         <div className="space-y-1.5">
@@ -148,11 +148,11 @@ export default function ResetPasswordPage() {
         </Suspense>
         <p className="text-xs text-muted-foreground">
           Remember your password?{' '}
-          <Link href="/students" className="text-primary font-bold hover:underline">Sign in</Link>
+          <Link href="/" className="text-primary font-bold hover:underline">Sign in</Link>
         </p>
         <p className="text-xs text-muted-foreground">
           Don&apos;t have an account?{' '}
-          <Link href="/students" className="text-primary font-bold hover:underline">Create an account</Link>
+          <Link href="/" className="text-primary font-bold hover:underline">Create an account</Link>
         </p>
       </div>
     </div>

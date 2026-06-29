@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { authApi, type User } from '../lib/auth-api';
-import { saveToken, loadToken, clearToken } from '../lib/token-store';
 import { showToast } from '@/lib/toast';
 
 type AuthState = {
@@ -23,30 +22,36 @@ function emit(next: AuthState) {
 
 let bootstrapped = false;
 
+async function setHttpOnlyCookie(token: string) {
+  await fetch('/api/auth/set-token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token }),
+  });
+}
+
+async function clearHttpOnlyCookie() {
+  await fetch('/api/auth/set-token', { method: 'DELETE' });
+}
+
 async function bootstrap() {
   try {
-    const token = await loadToken();
-    if (!token) {
-      emit({ user: null, isAuthenticated: false, isLoading: false });
-      return;
-    }
-    const user = await authApi.me(token);
+    // No token needed — proxy reads HttpOnly cookie and forwards it to backend
+    const user = await authApi.me();
     emit({ user, isAuthenticated: true, isLoading: false });
   } catch (err) {
-    await clearToken();
+    await clearHttpOnlyCookie();
     emit({ user: null, isAuthenticated: false, isLoading: false });
-    // Token was present but rejected — session expired between visits
     if (err instanceof Error && (err as Error & { isSessionExpired?: boolean }).isSessionExpired) {
       showToast('Your session has expired. Please sign in again.');
     }
   }
 }
 
-// Mid-session expiry: any authenticated API call returns 401 while user is logged in
 if (typeof window !== 'undefined') {
   window.addEventListener('fs:session-expired', async () => {
-    if (!shared.isAuthenticated) return; // bootstrap case already handled above
-    await clearToken();
+    if (!shared.isAuthenticated) return;
+    await clearHttpOnlyCookie();
     bootstrapped = false;
     emit({ user: null, isAuthenticated: false, isLoading: false });
     showToast('Your session has expired. Please sign in again.');
@@ -74,21 +79,18 @@ export function useAuth() {
 
   const login = useCallback(async (email: string, password: string) => {
     const { accessToken, user } = await authApi.login(email, password);
-    await saveToken(user.id, accessToken);
-    document.cookie = `fs_token=${accessToken}; path=/; max-age=604800; SameSite=Lax`;
+    await setHttpOnlyCookie(accessToken);
     emit({ user, isAuthenticated: true, isLoading: false });
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     const { accessToken, user } = await authApi.register(name, email, password);
-    await saveToken(user.id, accessToken);
-    document.cookie = `fs_token=${accessToken}; path=/; max-age=604800; SameSite=Lax`;
+    await setHttpOnlyCookie(accessToken);
     emit({ user, isAuthenticated: true, isLoading: false });
   }, []);
 
   const logout = useCallback(async () => {
-    await clearToken();
-    document.cookie = 'fs_token=; path=/; max-age=0';
+    await clearHttpOnlyCookie();
     bootstrapped = false;
     emit({ user: null, isAuthenticated: false, isLoading: false });
   }, []);

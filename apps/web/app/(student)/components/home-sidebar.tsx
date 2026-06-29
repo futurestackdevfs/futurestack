@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { StudentLoginForm } from "@/app/auth/components/student-login-form";
@@ -51,7 +51,7 @@ export function HomeSidebar() {
             </div>
 
             <Link
-              href="/students/my-dashboard"
+              href="/my-dashboard"
               className="relative z-10 flex items-center justify-center gap-2 h-[34px] rounded-xl bg-[linear-gradient(135deg,#ff6b00,#2563eb)] text-white text-[12px] font-semibold no-underline shadow-[0_4px_12px_rgba(37,99,235,0.18)] hover:opacity-90 transition-opacity"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

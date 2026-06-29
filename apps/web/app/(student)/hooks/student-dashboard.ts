@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { loadToken } from '@/app/auth/lib/token-store';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3002';
+const API = '/api';
 
 export interface DashboardUser {
   id: string;
@@ -50,17 +49,9 @@ export function useStudentDashboard(): UseStudentDashboardResult {
 
     async function fetchDashboard() {
       try {
-        const token = await loadToken();
-        if (!token) {
-          if (!cancelled) {
-            setError('Not authenticated');
-            setIsLoading(false);
-          }
-          return;
-        }
-
+        // Token is in HttpOnly cookie — proxy forwards it automatically
         const res = await fetch(`${API}/student/dashboard`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'same-origin',
         });
 
         if (res.status === 401) {

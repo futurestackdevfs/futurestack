@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authApi } from '../../lib/auth-api';
@@ -23,7 +23,7 @@ function OAuthHandler() {
         await saveToken(user.id, token);
         document.cookie = `fs_token=${token}; path=/; max-age=604800; SameSite=Lax`;
         showToast('Signed in with Google!');
-        router.replace('/students/my-dashboard');
+        router.replace('/my-dashboard');
       })
       .catch(() => {
         setError('Authentication failed. Please try again.');
@@ -34,7 +34,7 @@ function OAuthHandler() {
     return (
       <div className="flex flex-col items-center gap-3">
         <p className="text-sm text-red-500">{error}</p>
-        <a href="/students" className="text-xs text-primary font-semibold hover:underline">
+        <a href="/" className="text-xs text-primary font-semibold hover:underline">
           Back to login
         </a>
       </div>

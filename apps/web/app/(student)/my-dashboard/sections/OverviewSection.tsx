@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import type { DashboardUser, EnrolledCourse } from "../../hooks/student-dashboard";
@@ -97,7 +97,7 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
               {firstCourse ? (
                 <button className="inline-flex items-center gap-1.5 px-4 py-[7px] rounded-[6px] bg-[#f05a1a] dark:bg-[#ff6a1a] text-white text-[11.5px] font-semibold shadow-[0_3px_14px_rgba(240,90,26,.35)] hover:bg-[#ff7a3c] dark:hover:bg-[#ff8c42] hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(240,90,26,.45)] transition-all">{continueLabel}</button>
               ) : (
-                <Link href="/students/courses" className="inline-flex items-center gap-1.5 px-4 py-[7px] rounded-[6px] bg-[#f05a1a] dark:bg-[#ff6a1a] text-white text-[11.5px] font-semibold shadow-[0_3px_14px_rgba(240,90,26,.35)] hover:bg-[#ff7a3c] dark:hover:bg-[#ff8c42] hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(240,90,26,.45)] transition-all no-underline">Browse Courses</Link>
+                <Link href="/courses" className="inline-flex items-center gap-1.5 px-4 py-[7px] rounded-[6px] bg-[#f05a1a] dark:bg-[#ff6a1a] text-white text-[11.5px] font-semibold shadow-[0_3px_14px_rgba(240,90,26,.35)] hover:bg-[#ff7a3c] dark:hover:bg-[#ff8c42] hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(240,90,26,.45)] transition-all no-underline">Browse Courses</Link>
               )}
               <button className="inline-flex items-center gap-1.5 px-3.5 py-[7px] rounded-[6px] bg-transparent text-[#374151] dark:text-[#b0bac9] border border-[#d0d6e4] dark:border-[#263048] text-[11.5px] font-medium hover:border-[#3b82f6] dark:hover:border-[#60a5fa] hover:text-[#3b82f6] dark:hover:text-[#60a5fa] hover:bg-blue-500/10 transition-all">📅 View Schedule</button>
             </div>
@@ -125,9 +125,8 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 px-3 py-2 bg-white dark:bg-[#111520] border border-[#e2e6ef] dark:border-[#1e2535] rounded-[6px] font-['JetBrains_Mono',monospace] text-[10px] text-[#6b7280] dark:text-[#7a859a] shrink-0">
         <span>futurestack</span><span className="text-[#d0d6e4] dark:text-[#263048]">/</span>
-        <span>students</span><span className="text-[#d0d6e4] dark:text-[#263048]">/</span>
-        <span className="text-[#374151] dark:text-[#b0bac9]">{slug}</span><span className="text-[#d0d6e4] dark:text-[#263048]">/</span>
-        <span className="text-[#374151] dark:text-[#b0bac9]">dashboard</span>
+        <span>my-dashboard</span><span className="text-[#d0d6e4] dark:text-[#263048]">/</span>
+        <span className="text-[#374151] dark:text-[#b0bac9]">{slug}</span>
       </div>
 
       {/* KPI ROW */}

@@ -1,9 +1,9 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState, useMemo, useEffect } from "react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3002';
+const API = '/api';
 
 interface CourseCard {
   id: string;
@@ -271,7 +271,7 @@ export default function CoursesPage() {
           ) : (
             <div className="grid gap-4" style={{ gridTemplateColumns: viewMode === "list" ? "1fr" : "repeat(auto-fill, minmax(270px, 1fr))" }}>
               {paginated.map((course) => (
-                <Link key={course.id} href={`/students/courses/${slugify(course.title)}`} className={`border border-[var(--border)] rounded-xl bg-[var(--card)] overflow-hidden cursor-pointer relative flex flex-col transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-[5px] hover:shadow-[var(--shadow-lg)] hover:border-[#C7D8FF] ${viewMode === "list" ? "md:flex-row" : ""} no-underline`}>
+                <Link key={course.id} href={`/courses/${slugify(course.title)}`} className={`border border-[var(--border)] rounded-xl bg-[var(--card)] overflow-hidden cursor-pointer relative flex flex-col transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-[5px] hover:shadow-[var(--shadow-lg)] hover:border-[#C7D8FF] ${viewMode === "list" ? "md:flex-row" : ""} no-underline`}>
                   <div className={`relative overflow-hidden ${viewMode === "list" ? "w-full md:w-[200px] h-full min-h-[120px]" : "h-[90px]"}`}>
                     <img src={course.img} alt={course.title} className="w-full h-full object-cover transition-transform duration-[350ms] hover:scale-105" />
                     <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[rgba(13,31,92,.55)]"></div>

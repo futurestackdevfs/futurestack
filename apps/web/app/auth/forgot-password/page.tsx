@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import * as React from 'react';
 import Link from 'next/link';
 import { Label } from '@/components/ui/label';
@@ -40,12 +40,12 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl bg-white dark:bg-gray-900 p-8 sm:p-10">
+    <div className="w-full max-w-md mx-auto rounded-2xl border border-gray-200 dark:border-gray-800 shadow-2xl bg-white dark:bg-gray-900 p-8 sm:p-10 m-3 md:m-4">
       <div className="flex flex-col items-center text-center space-y-6">
-        <Link href="/students">
+        <Link href="/">
           <img src="/images/logo.png" alt="" className="h-9" />
         </Link>
-        <Link href="/students" className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+        <Link href="/" className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
           ← Back to home
         </Link>
 
@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
               </svg>
               <span>Check your inbox — a password reset link has been sent (valid for 1 hour).</span>
             </div>
-            <Link href="/students" className="block w-full py-3.5 font-semibold text-xs rounded-xl text-center bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all duration-200">
+            <Link href="/" className="block w-full py-3.5 font-semibold text-xs rounded-xl text-center bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-md hover:shadow-lg active:scale-[0.98] transition-all duration-200">
               Continue to Dashboard
             </Link>
           </div>
@@ -110,14 +110,14 @@ export default function ForgotPasswordPage() {
 
             <p className="text-xs text-muted-foreground">
               Remember your password?{' '}
-              <Link href="/students" className="text-primary font-bold hover:underline">Sign in</Link>
+              <Link href="/" className="text-primary font-bold hover:underline">Sign in</Link>
             </p>
           </form>
         )}
 
         <p className="text-xs text-muted-foreground">
           Don&apos;t have an account?{' '}
-          <Link href="/students" className="text-primary font-bold hover:underline">Create an account</Link>
+          <Link href="/" className="text-primary font-bold hover:underline">Create an account</Link>
         </p>
       </div>
     </div>
