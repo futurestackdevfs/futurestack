@@ -1,8 +1,9 @@
-import { Controller, Get, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { StudentService } from './student.service';
+import { UpdateVideoProgressDto } from './dto/update-video-progress.dto';
 
 @Controller('student')
 export class StudentController {
@@ -20,5 +21,16 @@ export class StudentController {
   async getCourseDetail(@Req() req: Request, @Param('courseId') courseId: string) {
     const user = req.user as { id: string };
     return this.studentService.getCourseDetail(user.id, courseId);
+  }
+
+  @Auth(Role.STUDENT)
+  @Post('videos/:videoId/progress')
+  async updateVideoProgress(
+    @Req() req: Request,
+    @Param('videoId') videoId: string,
+    @Body() dto: UpdateVideoProgressDto,
+  ) {
+    const user = req.user as { id: string };
+    return this.studentService.updateVideoProgress(user.id, videoId, dto.positionSec);
   }
 }
