@@ -4,6 +4,8 @@ export interface AuthUser {
   email: string
   name: string
   role: 'STUDENT' | 'TRAINER' | 'COORDINATOR' | 'SUPPORT' | 'ADMIN'
+  avatarUrl: string | null
+  emailVerified: boolean
 }
 
 export interface AuthResponse {

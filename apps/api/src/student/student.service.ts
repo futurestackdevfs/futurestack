@@ -34,6 +34,15 @@ export interface CurriculumItem {
   isLocked: boolean;
 }
 
+export interface VideoProgressResult {
+  videoId: string;
+  uniqueSecsWatched: number;
+  lastPositionSec: number;
+  isCompleted: boolean;
+  completedAt: Date | null;
+  justCompleted: boolean; // true only on the update that crosses the completion threshold
+}
+
 @Injectable()
 export class StudentService {
   constructor(private readonly prisma: PrismaService) {}
@@ -291,6 +300,84 @@ export class StudentService {
         fileSizeLabel: r.fileSizeLabel,
       })),
       sections,
+    };
+  }
+
+  /**
+   * Called repeatedly by the video player (e.g. every 5-10s, and on
+   * pause/unmount) with the student's current playback position.
+   *
+   * uniqueSecsWatched tracks the FURTHEST position ever reached, not
+   * cumulative playback time — this is a standard, simple proxy for
+   * "unique seconds watched" that resists trivial gaming (replaying the
+   * same 10 seconds doesn't inflate the count) without the complexity
+   * of true interval tracking.
+   */
+  async updateVideoProgress(
+    studentId: string,
+    videoId: string,
+    positionSec: number,
+  ): Promise<VideoProgressResult> {
+    const video = await this.prisma.video.findUnique({
+      where: { id: videoId },
+      include: { section: { include: { course: true } } },
+    });
+
+    if (!video) {
+      throw new NotFoundException('Video not found');
+    }
+
+    const courseId = video.section.courseId;
+
+    const enrollment = await this.prisma.enrollment.findUnique({
+      where: { studentId_courseId: { studentId, courseId } },
+    });
+
+    if (!enrollment || enrollment.status !== 'active') {
+      throw new ForbiddenException('You are not enrolled in this course');
+    }
+
+    // Clamp defensively — a stray client-side bug sending a negative
+    // number or something past the video's actual length shouldn't
+    // corrupt stored progress.
+    const clampedPosition = Math.max(0, Math.min(positionSec, video.durationSeconds));
+
+    const existing = await this.prisma.videoProgress.findUnique({
+      where: { studentId_videoId: { studentId, videoId } },
+    });
+
+    const newUniqueSecsWatched = Math.max(existing?.uniqueSecsWatched ?? 0, clampedPosition);
+    const wasCompleted = existing?.isCompleted ?? false;
+    const isNowCompleted = newUniqueSecsWatched >= video.durationSeconds;
+    const justCompleted = isNowCompleted && !wasCompleted;
+
+    const updated = await this.prisma.videoProgress.upsert({
+      where: { studentId_videoId: { studentId, videoId } },
+      create: {
+        studentId,
+        videoId,
+        uniqueSecsWatched: newUniqueSecsWatched,
+        lastPositionSec: clampedPosition,
+        isCompleted: isNowCompleted,
+        completedAt: isNowCompleted ? new Date() : null,
+      },
+      update: {
+        uniqueSecsWatched: newUniqueSecsWatched,
+        lastPositionSec: clampedPosition,
+        isCompleted: isNowCompleted,
+        // Only set completedAt the first time it crosses the threshold —
+        // don't keep bumping it on every subsequent heartbeat call.
+        ...(justCompleted ? { completedAt: new Date() } : {}),
+      },
+    });
+
+    return {
+      videoId: updated.videoId,
+      uniqueSecsWatched: updated.uniqueSecsWatched,
+      lastPositionSec: updated.lastPositionSec,
+      isCompleted: updated.isCompleted,
+      completedAt: updated.completedAt,
+      justCompleted,
     };
   }
 }

@@ -6,12 +6,19 @@ datasource db {
   provider = "postgresql"
 }
 
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum Role {
   STUDENT
   TRAINER
   COORDINATOR
   SUPPORT
   ADMIN
+  CONTENT_MANAGER
 }
 
 model User {
@@ -39,6 +46,7 @@ model User {
   videoProgress        VideoProgress[]
   quizAttempts         QuizAttempt[]              // ADDED — fixes missing back-relation
   coursesTaught        Course[]        @relation("CourseTrainer")
+  approvalStatus       ApprovalStatus?
 }
 
 model Track {
