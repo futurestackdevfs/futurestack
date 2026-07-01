@@ -12,8 +12,8 @@ export class StudentController {
   @Auth(Role.STUDENT)
   @Get('dashboard')
   async getDashboard(@Req() req: Request) {
-    const user = req.user as { id: string };
-    return this.studentService.getDashboard(user.id);
+    const user = req.user as { id: string; email: string; name: string; role: string };
+    return this.studentService.getDashboard(user.id, user);
   }
 
   @Auth(Role.STUDENT)

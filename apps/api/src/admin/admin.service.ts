@@ -8,6 +8,26 @@ import { CreateStaffDto } from './dto/create-staff.dto';
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async listAllTrainers() {
+    const trainers = await this.prisma.user.findMany({
+      where: { role: Role.TRAINER },
+      select: {
+        id: true, name: true, email: true, bio: true,
+        yearsExperience: true, rating: true, avatarUrl: true,
+        approvalStatus: true, isActive: true, createdAt: true,
+        _count: { select: { coursesTaught: true, enrollments: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return trainers.map((t) => ({
+      id: t.id, name: t.name, email: t.email, bio: t.bio,
+      yearsExperience: t.yearsExperience, rating: t.rating,
+      avatarUrl: t.avatarUrl, approvalStatus: t.approvalStatus ?? 'PENDING',
+      isActive: t.isActive, createdAt: t.createdAt,
+      coursesTaught: t._count.coursesTaught, totalStudents: t._count.enrollments,
+    }));
+  }
+
   async listPendingTrainers() {
     const trainers = await this.prisma.user.findMany({
       where: { role: Role.TRAINER, approvalStatus: 'PENDING' },
@@ -63,9 +83,9 @@ export class AdminService {
       throw new NotFoundException('Trainer not found');
     }
 
-    if (trainer.approvalStatus !== 'PENDING') {
+    if (trainer.approvalStatus === 'APPROVED' || trainer.approvalStatus === 'REJECTED') {
       throw new ConflictException(
-        `This trainer's application has already been ${trainer.approvalStatus?.toLowerCase()}`,
+        `This trainer's application has already been ${trainer.approvalStatus.toLowerCase()}`,
       );
     }
 
@@ -92,6 +112,8 @@ export class AdminService {
         name: dto.name,
         password: hashedPassword,
         role: dto.role as Role,
+        // Admin-created trainers are pre-approved — no pending review needed
+        ...(dto.role === 'TRAINER' && { approvalStatus: 'APPROVED' }),
       },
     });
 

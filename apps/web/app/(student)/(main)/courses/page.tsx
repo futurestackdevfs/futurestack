@@ -1,9 +1,8 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useState, useMemo, useEffect } from "react";
-
-const API = '/api';
+import { useState, useMemo } from "react";
+import useSWR from "swr";
 
 interface CourseCard {
   id: string;
@@ -48,19 +47,10 @@ export default function CoursesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [enrolled, setEnrolled] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [allCourses, setAllCourses] = useState<CourseCard[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const perPage = 9;
 
-  useEffect(() => {
-    fetch(`${API}/courses`)
-      .then((res) => res.json())
-      .then((data: CourseCard[]) => {
-        setAllCourses(data);
-        setIsLoading(false);
-      })
-      .catch(() => setIsLoading(false));
-  }, []);
+  const { data, isLoading } = useSWR<CourseCard[]>('/api/courses');
+  const allCourses: CourseCard[] = Array.isArray(data) ? data : [];
 
   const toggleFilter = (key: string) => {
     setSelectedFilters((prev) => {

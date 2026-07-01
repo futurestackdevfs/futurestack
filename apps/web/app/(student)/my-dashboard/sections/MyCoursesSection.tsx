@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -7,7 +7,7 @@ import type { EnrolledCourse } from "../../hooks/student-dashboard";
 interface Props {
   enrolledCourses: EnrolledCourse[];
   isLoading: boolean;
-  onCourseClick?: (courseTitle: string) => void;
+  onCourseClick?: (courseId: string) => void;
 }
 
 const CARD_COLORS = [
@@ -76,6 +76,8 @@ function SkeletonCard() {
 export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseClick }: Props) {
   const [filter, setFilter] = useState("all");
   const [view, setView] = useState("grid");
+  const [searchText, setSearchText] = useState("");
+  const [sort, setSort] = useState("progress");
 
   const inProgress = enrolledCourses.filter(c => c.progressPercent < 100);
   const completed = enrolledCourses.filter(c => c.progressPercent === 100);
@@ -87,11 +89,19 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
     { key: "saved", label: "Saved (0)" },
   ];
 
-  const visibleCourses =
+  const baseFiltered =
     filter === "all" ? enrolledCourses
     : filter === "progress" ? inProgress
     : filter === "completed" ? completed
     : [];
+
+  const searched = searchText.trim()
+    ? baseFiltered.filter(c => c.title.toLowerCase().includes(searchText.toLowerCase()))
+    : baseFiltered;
+
+  const visibleCourses = sort === "title"
+    ? [...searched].sort((a, b) => a.title.localeCompare(b.title))
+    : [...searched].sort((a, b) => b.progressPercent - a.progressPercent);
 
   return (
     <div className="flex flex-col bg-[var(--bg)] font-['DM_Sans',sans-serif] text-[var(--text)]">
@@ -124,13 +134,22 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
           </div>
           <div className="flex items-center gap-[6px] bg-[var(--bg2)] border border-[var(--border)] rounded-[7px] px-[10px] h-[30px] w-[160px] transition-all focus-within:border-[var(--blue2)]">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--text3)]"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" placeholder="Search courses…" className="bg-transparent border-none outline-none font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text)] w-full placeholder:text-[var(--text3)]" />
+            <input
+              type="text"
+              placeholder="Search courses…"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              className="bg-transparent border-none outline-none font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text)] w-full placeholder:text-[var(--text3)]"
+            />
           </div>
           <div className="flex items-center gap-[5px] ml-auto bg-[var(--bg2)] border border-[var(--border)] rounded-[7px] px-[10px] py-[4px] font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)]">
             <span>Sort:</span>
-            <select className="bg-transparent border-none outline-none font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)] cursor-pointer">
-              <option>Progress %</option>
-              <option>Title A–Z</option>
+            <select
+              value={sort}
+              onChange={e => setSort(e.target.value)}
+              className="bg-transparent border-none outline-none font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)] cursor-pointer">
+              <option value="progress">Progress %</option>
+              <option value="title">Title A–Z</option>
             </select>
           </div>
           <div className="flex bg-[var(--bg2)] border border-[var(--border)] rounded-[7px] overflow-hidden">
@@ -159,7 +178,9 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
               <div className="text-4xl mb-3">📭</div>
               <div className="font-['Syne',sans-serif] text-[14px] font-bold text-[var(--text)] mb-1">No courses here</div>
               <div className="font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)]">
-                {filter === "saved" ? "You haven't saved any courses yet." : "Nothing matches this filter."}
+                {filter === "saved" ? "You haven't saved any courses yet."
+                  : searchText ? `No courses match "${searchText}".`
+                  : "Nothing matches this filter."}
               </div>
             </div>
           ) : (
@@ -180,12 +201,11 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
                   ? "View Cert →"
                   : course.progressPercent === 0
                     ? "▶ Start"
-                    : idx === 0
-                      ? "▶ Resume"
-                      : "Continue →";
+                    : "▶ Resume";
 
                 return (
                   <div key={course.courseId}
+                    onClick={() => onCourseClick?.(course.courseId)}
                     className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden transition-all cursor-pointer flex flex-col hover:translate-y-[-3px] hover:shadow-[0_10px_28px_rgba(0,0,0,.11)] hover:border-[var(--border2)]"
                     style={view === "list" ? { display: "grid", gridTemplateColumns: "72px 1fr", borderRadius: "10px" } : {}}>
 
@@ -200,7 +220,9 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
                         style={{ background: colors.pill.bg, color: colors.pill.color, borderColor: colors.pill.border }}>
                         {isCompleted ? "✓ Completed" : "● In Progress"}
                       </span>
-                      <button className="text-sm text-[rgba(255,255,255,.4)] bg-[rgba(255,255,255,.06)] border border-[rgba(255,255,255,.1)] rounded-[5px] w-[20px] h-[20px] flex items-center justify-center transition-all relative z-[1] hover:text-white hover:bg-[rgba(255,255,255,.14)]">⋯</button>
+                      <button
+                        onClick={e => e.stopPropagation()}
+                        className="text-sm text-[rgba(255,255,255,.4)] bg-[rgba(255,255,255,.06)] border border-[rgba(255,255,255,.1)] rounded-[5px] w-[20px] h-[20px] flex items-center justify-center transition-all relative z-[1] hover:text-white hover:bg-[rgba(255,255,255,.14)]">⋯</button>
                     </div>
 
                     {/* BODY */}
@@ -226,7 +248,8 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
 
                       {/* FOOTER */}
                       <div className="flex items-center justify-end pt-[9px] border-t border-[var(--border)] mt-auto">
-                        <button onClick={() => onCourseClick?.(course.title)}
+                        <button
+                          onClick={e => { e.stopPropagation(); onCourseClick?.(course.courseId); }}
                           className="px-[11px] py-[4px] rounded-[6px] text-[10px] font-bold text-white whitespace-nowrap border-none flex items-center gap-[4px] transition-all no-underline cursor-pointer"
                           style={{ background: colors.cta.bg, boxShadow: colors.cta.shadow }}>
                           {ctaText}

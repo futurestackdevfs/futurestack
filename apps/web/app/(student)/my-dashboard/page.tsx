@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import OverviewSection from "./sections/OverviewSection";
 import MyCoursesSection from "./sections/MyCoursesSection";
 import CourseLearningView from "./sections/CourseLearningView";
@@ -35,13 +36,9 @@ const activity = [
   { text: <>Earned <span className="font-semibold">7-Day Streak</span> badge 🔥</>, time: "2 days ago · +50 XP", c: "#eab308" },
 ];
 
-function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
 export default function MyDashboardPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
-  const [selectedCourseSlug, setSelectedCourseSlug] = useState<string | null>(null);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [doneSet, setDoneSet] = useState<Set<number>>(new Set([0, 3]));
   const [notifOpen, setNotifOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -50,6 +47,7 @@ export default function MyDashboardPage() {
 
   const enrolledCourses = data?.enrolledCourses ?? [];
   const courseCount = enrolledCourses.length;
+  const selectedCourse = enrolledCourses.find(c => c.courseId === selectedCourseId) ?? null;
 
   const tabs: { id: TabId; icon: string; label: string; badge?: string; badgeCls?: string }[] = [
     { id: "overview", icon: "⊞", label: "Overview" },
@@ -75,8 +73,14 @@ export default function MyDashboardPage() {
   }, [activeTab]);
 
   const renderSection = () => {
-    if (activeTab === "courses" && selectedCourseSlug) {
-      return <CourseLearningView courseSlug={selectedCourseSlug} onBack={() => setSelectedCourseSlug(null)} />;
+    if (activeTab === "courses" && selectedCourseId && selectedCourse) {
+      return (
+        <CourseLearningView
+          courseId={selectedCourseId}
+          enrolledCourse={selectedCourse}
+          onBack={() => setSelectedCourseId(null)}
+        />
+      );
     }
     return (
       <>
@@ -91,7 +95,7 @@ export default function MyDashboardPage() {
           <MyCoursesSection
             enrolledCourses={enrolledCourses}
             isLoading={isLoading}
-            onCourseClick={(title) => setSelectedCourseSlug(slugify(title))}
+            onCourseClick={(courseId) => setSelectedCourseId(courseId)}
           />
         )}
         {activeTab === "schedule" && <ScheduleSection />}
@@ -101,6 +105,27 @@ export default function MyDashboardPage() {
       </>
     );
   };
+
+  const isForbidden = !isLoading && !!error && /forbidden|unauthorized/i.test(error);
+
+  if (isForbidden) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-56px)] bg-[#f4f6fa] dark:bg-[#0b0e14] text-center px-6">
+        <div className="text-5xl mb-5">🔒</div>
+        <h2 className="font-['Syne',sans-serif] font-bold text-[22px] text-[#111827] dark:text-[#e8eaf0] mb-2">Sign in to continue</h2>
+        <p className="text-[13px] text-[#6b7280] dark:text-[#7a859a] mb-6 max-w-[320px] leading-relaxed">
+          Please sign in to view your dashboard and access your courses.
+        </p>
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-[9px] bg-[#f05a1a] text-white text-[13px] font-semibold shadow-[0_4px_12px_rgba(240,90,26,.35)] hover:bg-[#d94e14] hover:shadow-[0_6px_18px_rgba(240,90,26,.4)] transition-all duration-200 no-underline"
+        >
+          Sign In
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="size-[13px]"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden bg-[#f4f6fa] dark:bg-[#0b0e14]">
@@ -134,7 +159,7 @@ export default function MyDashboardPage() {
             {tabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => { setActiveTab(tab.id); if (tab.id !== "courses") setSelectedCourseSlug(null); }}
+                onClick={() => { setActiveTab(tab.id); if (tab.id !== "courses") setSelectedCourseId(null); }}
                 className={`flex items-center gap-2.5 px-2.5 py-[7px] rounded-[6px] w-full text-left text-[11.5px] cursor-pointer transition-all no-underline border-none ${activeTab === tab.id
                   ? "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a] font-semibold"
                   : "text-[#374151] dark:text-[#b0bac9] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0]"

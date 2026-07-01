@@ -82,12 +82,16 @@ export class AuthController {
   async googleCallback(@Req() req: Request, @Res() res: Response) {
     const { accessToken } = await this.authService.login(req.user as any);
 
+    const googleRedirect =
+      this.configService.get<string>('GOOGLE_REDIRECT_URL');
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
-    // Frontend reads the token off the query string and stores it,
-    // then redirects into the right dashboard based on the JWT's role claim.
-    return res.redirect(`${frontendUrl}/auth/oauth/callback?token=${accessToken}`);
+    const redirectUrl = googleRedirect ?? `${frontendUrl}/api/auth/oauth/session`;
+
+    // BFF reads the token off the query string server-side, sets an HttpOnly
+    // cookie, and redirects to the dashboard — the token never reaches the browser.
+    return res.redirect(`${redirectUrl}?token=${accessToken}`);
   }
 
   @Post('forgot-password')

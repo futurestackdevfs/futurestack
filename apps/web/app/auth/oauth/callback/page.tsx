@@ -1,9 +1,10 @@
-﻿'use client';
+'use client';
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authApi } from '../../lib/auth-api';
 import { saveToken } from '../../lib/token-store';
 import { showToast } from '@/lib/toast';
+import { emit } from '../../hooks/use-auth';
 
 function OAuthHandler() {
   const router = useRouter();
@@ -21,7 +22,13 @@ function OAuthHandler() {
       .me(token)
       .then(async (user) => {
         await saveToken(user.id, token);
-        document.cookie = `fs_token=${token}; path=/; max-age=604800; SameSite=Lax`;
+        // Set HttpOnly session cookie so the BFF proxy can forward it
+        await fetch('/api/auth/set-token', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token }),
+        });
+        emit({ user, isAuthenticated: true, isLoading: false });
         showToast('Signed in with Google!');
         router.replace('/my-dashboard');
       })

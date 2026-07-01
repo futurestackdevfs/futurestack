@@ -47,34 +47,40 @@ export interface VideoProgressResult {
 export class StudentService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboard(studentId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: studentId } });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const enrollments = await this.prisma.enrollment.findMany({
-      where: { studentId, status: 'active' },
-      include: {
-        course: {
-          include: {
-            sections: {
-              orderBy: { order: 'asc' },
-              include: {
-                videos: { orderBy: { order: 'asc' } },
+  async getDashboard(
+    studentId: string,
+    userInfo: { id: string; email: string; name: string; role: string },
+  ) {
+    // Run both queries in parallel — videoProgress doesn't depend on enrollments
+    const [enrollments, allProgress] = await Promise.all([
+      this.prisma.enrollment.findMany({
+        where: { studentId, status: 'active' },
+        select: {
+          course: {
+            select: {
+              id: true,
+              title: true,
+              thumbnailUrl: true,
+              sections: {
+                orderBy: { order: 'asc' },
+                select: {
+                  title: true,
+                  videos: {
+                    orderBy: { order: 'asc' },
+                    select: { id: true, title: true, durationSeconds: true },
+                  },
+                },
               },
             },
           },
         },
-      },
-    });
+      }),
+      this.prisma.videoProgress.findMany({
+        where: { studentId },
+        select: { videoId: true, isCompleted: true },
+      }),
+    ]);
 
-    // Fetch all of this student's video progress once, rather than
-    // per-enrollment, to avoid N+1 queries.
-    const allProgress = await this.prisma.videoProgress.findMany({
-      where: { studentId },
-    });
     const progressByVideoId = new Map(allProgress.map((p) => [p.videoId, p]));
 
     const enrolledCourses: CourseProgress[] = enrollments.map((enrollment) => {
@@ -135,45 +141,41 @@ export class StudentService {
     });
 
     return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
+      user: userInfo,
       enrolledCourses,
     };
   }
 
   async getCourseDetail(studentId: string, courseId: string) {
-    // Must be actively enrolled to view the full curriculum —
-    // prevents students from browsing paid content they haven't bought.
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { studentId_courseId: { studentId, courseId } },
-    });
+    // Fetch enrollment check and full course data in parallel —
+    // both are independent reads, no need to wait for enrollment before fetching course.
+    const [enrollment, course] = await Promise.all([
+      this.prisma.enrollment.findUnique({
+        where: { studentId_courseId: { studentId, courseId } },
+      }),
+      this.prisma.course.findUnique({
+        where: { id: courseId },
+        include: {
+          trainer: {
+            include: {
+              _count: { select: { coursesTaught: true } },
+            },
+          },
+          resources: true,
+          sections: {
+            orderBy: { order: 'asc' },
+            include: {
+              videos: { orderBy: { order: 'asc' } },
+              quizzes: { orderBy: { order: 'asc' } },
+            },
+          },
+        },
+      }),
+    ]);
 
     if (!enrollment || enrollment.status !== 'active') {
       throw new ForbiddenException('You are not enrolled in this course');
     }
-
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-      include: {
-        trainer: {
-          include: {
-            _count: { select: { coursesTaught: true } },
-          },
-        },
-        resources: true,
-        sections: {
-          orderBy: { order: 'asc' },
-          include: {
-            videos: { orderBy: { order: 'asc' } },
-            quizzes: { orderBy: { order: 'asc' } },
-          },
-        },
-      },
-    });
 
     if (!course) {
       throw new NotFoundException('Course not found');

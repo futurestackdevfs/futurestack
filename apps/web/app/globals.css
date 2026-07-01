@@ -50,9 +50,20 @@ button { cursor: pointer; font-family: inherit; }
   --border2:   #d0d6e4;
   --orange:    #f05a1a;
   --orange2:   #ff7a3c;
+  --orange-d:  rgba(240,90,26,.1);
   --blue:      #2563eb;
   --blue-dim:  #dbeafe;
+  --blue-d:    rgba(37,99,235,.1);
   --green:     #16a34a;
+  --green-d:   rgba(22,163,74,.1);
+  --red:       #dc2626;
+  --red-d:     rgba(220,38,38,.1);
+  --amber:     #d97706;
+  --amber-d:   rgba(217,119,6,.1);
+  --purple:    #7c3aed;
+  --purple-d:  rgba(124,58,237,.1);
+  --pink:      #db2777;
+  --pink-d:    rgba(219,39,119,.1);
   --text:      #111827;
   --text2:     #374151;
   --muted:     #6b7280;
@@ -60,9 +71,13 @@ button { cursor: pointer; font-family: inherit; }
   --bg2:       #eef0f5;
   --shadow:    0 2px 12px rgba(0,0,0,.08);
   --shadow-lg: 0 8px 32px rgba(0,0,0,.12);
+  --panel:     #f7f8fb;
+  --row-alt:   #f7f8fb;
+  --row-h:     #eef3fb;
   --hero-bg:   #0b1120;
   --invert-icon: 0;
   --mono: 'DM Sans', system-ui, sans-serif;
+  --overlay:   rgba(20,24,32,.45);
 }
 
 [data-theme="dark"] {
@@ -74,19 +89,34 @@ button { cursor: pointer; font-family: inherit; }
   --border2:   #263048;
   --orange:    #ff6a1a;
   --orange2:   #ff8c42;
+  --orange-d:  rgba(255,106,26,.12);
   --blue:      #3b82f6;
   --blue-dim:  #1e3a6e;
+  --blue-d:    rgba(59,130,246,.12);
   --green:     #22c55e;
+  --green-d:   rgba(34,197,94,.12);
+  --red:       #ef4444;
+  --red-d:     rgba(239,68,68,.12);
+  --amber:     #f59e0b;
+  --amber-d:   rgba(245,158,11,.12);
+  --purple:    #a78bfa;
+  --purple-d:  rgba(167,139,250,.12);
+  --pink:      #f472b6;
+  --pink-d:    rgba(244,114,182,.12);
   --text:      #e8eaf0;
   --text2:     #b0bac9;
   --muted:     #7a859a;
   --text3:     #7a859a;
   --bg2:       #0f1219;
+  --panel:     #10141d;
+  --row-alt:   #0c1018;
+  --row-h:     #16202f;
   --shadow:    0 4px 24px rgba(0,0,0,.45);
   --shadow-lg: 0 12px 40px rgba(0,0,0,.6);
   --hero-bg:   #070d1a;
   --invert-icon: 1;
   --mono: 'DM Sans', system-ui, sans-serif;
+  --overlay:   rgba(0,0,0,.6);
 }
 
 @keyframes fadeUp {

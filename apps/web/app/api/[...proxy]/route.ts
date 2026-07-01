@@ -26,11 +26,21 @@ async function proxy(req: NextRequest) {
     ? await req.arrayBuffer()
     : undefined;
 
-  const backendRes = await fetch(url, {
-    method: req.method,
-    headers,
-    body: body ? Buffer.from(body) : undefined,
-  });
+  let backendRes: Response;
+  try {
+    backendRes = await fetch(url, {
+      method: req.method,
+      headers,
+      body: body ? Buffer.from(body) : undefined,
+      cache: 'no-store',
+    });
+  } catch (err) {
+    // Backend unreachable (ECONNREFUSED, timeout, DNS failure, etc.)
+    return NextResponse.json(
+      { statusCode: 502, message: 'Backend unreachable', error: String(err) },
+      { status: 502 },
+    );
+  }
 
   const resBody = await backendRes.arrayBuffer();
   const resHeaders = new Headers();

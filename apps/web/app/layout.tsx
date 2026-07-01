@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ToastContainer } from "@/components/ui/toast-container";
 import { SessionExpiredModal } from "@/components/ui/session-expired-modal";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -51,9 +52,11 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
-        {children}
-        <ToastContainer />
-        <SessionExpiredModal />
+        <Providers>
+          {children}
+          <ToastContainer />
+          <SessionExpiredModal />
+        </Providers>
       </body>
     </html>
   );

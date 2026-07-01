@@ -11,6 +11,12 @@ export class AdminController {
 
   // Trainer approval is content-management work — shared with Content Manager.
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get('trainers')
+  async listAllTrainers() {
+    return this.adminService.listAllTrainers();
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Get('trainers/pending')
   async listPendingTrainers() {
     return this.adminService.listPendingTrainers();

@@ -33,7 +33,14 @@ export class AuthService {
   }
 
   private signToken(user: SafeUser) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      avatarUrl: user.avatarUrl ?? null,
+      emailVerified: user.emailVerified ?? false,
+    };
     return this.jwtService.sign(payload);
   }
 

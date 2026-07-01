@@ -12,9 +12,6 @@ export class CreateStaffDto {
   @MinLength(8)
   password: string;
 
-  // Deliberately restricted — STUDENT and TRAINER each have their own
-  // dedicated signup flow and shouldn't be provisionable through this
-  // generic "admin creates staff" endpoint.
-  @IsIn(['COORDINATOR', 'SUPPORT', 'ADMIN', 'CONTENT_MANAGER'])
-  role: 'COORDINATOR' | 'SUPPORT' | 'ADMIN' | 'CONTENT_MANAGER';
+  @IsIn(['TRAINER', 'COORDINATOR', 'SUPPORT', 'ADMIN', 'CONTENT_MANAGER'])
+  role: 'TRAINER' | 'COORDINATOR' | 'SUPPORT' | 'ADMIN' | 'CONTENT_MANAGER';
 }
