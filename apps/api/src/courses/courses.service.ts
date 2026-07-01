@@ -28,7 +28,7 @@ export class CoursesService {
 
   async featuredCourses() {
     const courses = await this.prisma.course.findMany({
-      where: { isFeatured: true },
+      where: { isFeatured: true, status: 'ACTIVE' },
       orderBy: { displayOrder: 'asc' },
       select: {
         id: true,

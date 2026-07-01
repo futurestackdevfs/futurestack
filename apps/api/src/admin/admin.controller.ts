@@ -9,11 +9,23 @@ import { RejectTrainerDto } from './dto/reject-trainer.dto';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get('stats')
+  async getPlatformStats() {
+    return this.adminService.getPlatformStats();
+  }
+
   // Trainer approval is content-management work — shared with Content Manager.
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Get('trainers/pending')
   async listPendingTrainers() {
     return this.adminService.listPendingTrainers();
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get('trainers/approved')
+  async listApprovedTrainers() {
+    return this.adminService.listApprovedTrainers();
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
