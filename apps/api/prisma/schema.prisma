@@ -54,6 +54,8 @@ model Track {
   title        String
   description  String?
   isSequential Boolean       @default(false)
+  isFeatured   Boolean       @default(false)
+  displayOrder Int           @default(0)
   createdAt    DateTime      @default(now())
   courses      TrackCourse[]
 }
@@ -64,6 +66,8 @@ model Course {
   description  String?
   thumbnailUrl String?
   price        Float
+  isFeatured   Boolean       @default(false)
+  displayOrder Int           @default(0)
   createdAt    DateTime      @default(now())
 
   trainerId    String?

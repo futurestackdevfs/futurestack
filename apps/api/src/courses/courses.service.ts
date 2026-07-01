@@ -17,10 +17,88 @@ import { UpdateVideoDto } from './dto/update-video.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { CreateResourceDto } from './dto/create-resource.dto';
+import { FeatureDto } from './dto/feature.dto';
+import { ReorderItemsDto } from './dto/reorder-items.dto';
 
 @Injectable()
 export class CoursesService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // ==================== PUBLIC ====================
+
+  async featuredCourses() {
+    const courses = await this.prisma.course.findMany({
+      where: { isFeatured: true },
+      orderBy: { displayOrder: 'asc' },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        thumbnailUrl: true,
+        price: true,
+        techStack: true,
+        displayOrder: true,
+        trainer: { select: { name: true } },
+        _count: { select: { sections: true } },
+        sections: { select: { _count: { select: { videos: true } } } },
+      },
+    });
+    // Prisma can't count videos directly on Course, so we aggregate from sections.
+    return courses.map(({ sections, ...rest }) => ({
+      ...rest,
+      totalVideos: sections.reduce((sum, s) => sum + s._count.videos, 0),
+    }));
+  }
+
+  async featuredTracks() {
+    return this.prisma.track.findMany({
+      where: { isFeatured: true },
+      orderBy: { displayOrder: 'asc' },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        displayOrder: true,
+        _count: { select: { courses: true } },
+      },
+    });
+  }
+
+  // ==================== FEATURE + REORDER ====================
+
+  async featureCourse(id: string, dto: FeatureDto) {
+    await this.findCourseOrFail(id);
+    return this.prisma.course.update({ where: { id }, data: dto });
+  }
+
+  async featureTrack(id: string, dto: FeatureDto) {
+    await this.findTrackOrFail(id);
+    return this.prisma.track.update({ where: { id }, data: dto });
+  }
+
+  async reorderFeaturedCourses(dto: ReorderItemsDto) {
+    await this.prisma.$transaction(
+      dto.items.map((item) =>
+        this.prisma.course.update({
+          where: { id: item.id },
+          data: { displayOrder: item.displayOrder },
+        }),
+      ),
+    );
+    return { message: 'Courses reordered' };
+  }
+
+  async reorderFeaturedTracks(dto: ReorderItemsDto) {
+    await this.prisma.$transaction(
+      dto.items.map((item) =>
+        this.prisma.track.update({
+          where: { id: item.id },
+          data: { displayOrder: item.displayOrder },
+        }),
+      ),
+    );
+    return { message: 'Tracks reordered' };
+  }
 
   // ==================== TRACKS ====================
 
