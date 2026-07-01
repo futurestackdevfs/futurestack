@@ -12,6 +12,12 @@ enum ApprovalStatus {
   REJECTED
 }
 
+enum CourseStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
 enum Role {
   STUDENT
   TRAINER
@@ -54,6 +60,8 @@ model Track {
   title        String
   description  String?
   isSequential Boolean       @default(false)
+  isFeatured   Boolean       @default(false)
+  displayOrder Int           @default(0)
   createdAt    DateTime      @default(now())
   courses      TrackCourse[]
 }
@@ -64,6 +72,9 @@ model Course {
   description  String?
   thumbnailUrl String?
   price        Float
+  status       CourseStatus  @default(DRAFT)
+  isFeatured   Boolean       @default(false)
+  displayOrder Int           @default(0)
   createdAt    DateTime      @default(now())
 
   trainerId    String?
