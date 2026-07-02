@@ -10,6 +10,7 @@ import {
 import type { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -29,11 +30,13 @@ export class AuthController {
     private readonly configService: ConfigService,
   ) {}
 
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('register')
   async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('register-trainer')
   async registerTrainer(@Body() dto: RegisterTrainerDto) {
     return this.authService.registerTrainer(dto);
@@ -43,6 +46,7 @@ export class AuthController {
   // then attaches the result to req.user before this handler runs.
   // @Body() dto here is just for Swagger/typing — LocalStrategy already
   // read email/password directly off the request.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   async login(@Body() dto: LoginDto, @Req() req: Request) {
@@ -94,11 +98,13 @@ export class AuthController {
     return res.redirect(`${redirectUrl}?token=${accessToken}`);
   }
 
+  @Throttle({ default: { limit: 3, ttl: 900_000 } })
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
-  
+
+  @Throttle({ default: { limit: 5, ttl: 900_000 } })
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.newPassword);

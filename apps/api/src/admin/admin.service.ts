@@ -92,6 +92,60 @@ export class AdminService {
     return trainer;
   }
 
+  async listApprovedTrainers() {
+    return this.prisma.user.findMany({
+      where: { role: Role.TRAINER, approvalStatus: 'APPROVED' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        bio: true,
+        yearsExperience: true,
+        rating: true,
+        avatarUrl: true,
+        createdAt: true,
+        _count: { select: { coursesTaught: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async getPlatformStats() {
+    const [
+      totalCourses,
+      activeCourses,
+      draftCourses,
+      totalTracks,
+      totalTrainers,
+      pendingTrainers,
+      totalStudents,
+      totalEnrollments,
+      activeEnrollments,
+    ] = await this.prisma.$transaction([
+      this.prisma.course.count(),
+      this.prisma.course.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.course.count({ where: { status: 'DRAFT' } }),
+      this.prisma.track.count(),
+      this.prisma.user.count({ where: { role: Role.TRAINER, approvalStatus: 'APPROVED' } }),
+      this.prisma.user.count({ where: { role: Role.TRAINER, approvalStatus: 'PENDING' } }),
+      this.prisma.user.count({ where: { role: Role.STUDENT } }),
+      this.prisma.enrollment.count(),
+      this.prisma.enrollment.count({ where: { status: 'active' } }),
+    ]);
+
+    return {
+      totalCourses,
+      activeCourses,
+      draftCourses,
+      totalTracks,
+      totalTrainers,
+      pendingTrainers,
+      totalStudents,
+      totalEnrollments,
+      activeEnrollments,
+    };
+  }
+
   /**
    * Admin directly creates a Coordinator, Support, or Admin account.
    * Unlike trainer self-registration, this account is immediately usable —
