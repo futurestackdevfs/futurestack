@@ -94,7 +94,7 @@ model Course {
 
 model CourseResource {
   id            String   @id @default(uuid())
-  course        Course   @relation(fields: [courseId], references: [id])
+  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId      String
   title         String                       // e.g. "MERN Stack Cheat Sheet"
   fileType      String                       // "PDF" | "ZIP" | "FIGMA" | "PPT" — free text, frontend maps to icon
@@ -105,9 +105,9 @@ model CourseResource {
 
 model TrackCourse {
   id         String  @id @default(uuid())
-  track      Track   @relation(fields: [trackId], references: [id])
+  track      Track   @relation(fields: [trackId], references: [id], onDelete: Cascade)
   trackId    String
-  course     Course  @relation(fields: [courseId], references: [id])
+  course     Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId   String
   orderIndex Int?
 
@@ -118,7 +118,7 @@ model Section {
   id       String  @id @default(uuid())
   title    String
   order    Int
-  course   Course  @relation(fields: [courseId], references: [id])
+  course   Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId String
 
   videos   Video[]
@@ -131,7 +131,7 @@ model Video {
   vdoCipherId     String
   durationSeconds Int
   order           Int
-  section         Section         @relation(fields: [sectionId], references: [id])
+  section         Section         @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   sectionId       String
   progress        VideoProgress[]
 }
@@ -140,7 +140,7 @@ model Quiz {
   id             String        @id @default(uuid())
   title          String
   order          Int                          // same ordering convention as Video.order within a Section
-  section        Section       @relation(fields: [sectionId], references: [id])
+  section        Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   sectionId      String
   totalQuestions Int
   passingScore   Int?                         // percentage, e.g. 70 — null means no pass/fail gate
@@ -149,9 +149,9 @@ model Quiz {
 
 model QuizAttempt {
   id          String   @id @default(uuid())
-  student     User     @relation(fields: [studentId], references: [id])
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId   String
-  quiz        Quiz     @relation(fields: [quizId], references: [id])
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
   quizId      String
   score       Int                              // percentage, e.g. 91
   isCompleted Boolean  @default(true)           // a submitted attempt is complete by definition
@@ -162,9 +162,9 @@ model QuizAttempt {
 
 model Enrollment {
   id         String   @id @default(uuid())
-  student    User     @relation(fields: [studentId], references: [id])
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId  String
-  course     Course   @relation(fields: [courseId], references: [id])
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId   String
   amountPaid Float
   enrolledAt DateTime @default(now())
@@ -175,9 +175,9 @@ model Enrollment {
 
 model VideoProgress {
   id                String    @id @default(uuid())
-  student           User      @relation(fields: [studentId], references: [id])
+  student           User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId         String
-  video             Video     @relation(fields: [videoId], references: [id])
+  video             Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
   videoId           String
   uniqueSecsWatched Int       @default(0)
   lastPositionSec   Int       @default(0)
