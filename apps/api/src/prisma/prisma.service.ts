@@ -12,6 +12,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       min: 2, // pre-create 2 connections at startup so first requests don't cold-start
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
+      ssl: { rejectUnauthorized: false },
     })
     const adapter = new PrismaPg(pool)
     super({ adapter })

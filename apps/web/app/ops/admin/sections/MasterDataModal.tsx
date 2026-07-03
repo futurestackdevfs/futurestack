@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export interface FieldDef {
   key: string;
   label: string;
-  type: "text" | "number" | "select" | "email" | "date" | "textarea";
+  type: "text" | "number" | "select" | "email" | "date" | "textarea" | "file" | "duration";
   required?: boolean;
   placeholder?: string;
   full?: boolean;
@@ -22,6 +22,7 @@ interface MasterDataModalProps {
   data: Record<string, any>;
   editing: boolean;
   extraOptions?: Record<string, { label: string; value: string }[]>;
+  token?: string;
   onSave: (formData: Record<string, any>) => void;
   onClose: () => void;
 }
@@ -35,16 +36,39 @@ export function MasterDataModal({
   data,
   editing,
   extraOptions,
+  token,
   onSave,
   onClose,
 }: MasterDataModalProps) {
   const [form, setForm] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+  const [units, setUnits] = useState<Record<string, "hr" | "min">>({});
+  const fileInputRef = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     setForm({ ...data });
     setErrors({});
   }, [data, open]);
+
+  async function handleFileUpload(fieldKey: string, file: File) {
+    if (!token) return;
+    setUploading((prev) => ({ ...prev, [fieldKey]: true }));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setForm((prev) => ({ ...prev, [fieldKey]: result.url }));
+      }
+    } catch {}
+    setUploading((prev) => ({ ...prev, [fieldKey]: false }));
+  }
 
   function handleChange(key: string, value: any) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -207,6 +231,93 @@ export function MasterDataModal({
                       </option>
                     ))}
                   </select>
+                ) : field.type === "duration" ? (
+                  <div className="flex gap-1.5 items-center">
+                    <input
+                      type="number"
+                      value={form[field.key] ?? ""}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      placeholder={field.placeholder}
+                      className="flex-1 text-[12px] px-2.5 py-1.5 rounded outline-none"
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        border: errors[field.key]
+                          ? "1px solid var(--red)"
+                          : "1px solid var(--border)",
+                        background: "var(--bg)",
+                        color: "var(--text)",
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = "var(--orange)";
+                        e.currentTarget.style.background = "var(--surface)";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = errors[field.key]
+                          ? "var(--red)"
+                          : "var(--border)";
+                        e.currentTarget.style.background = "var(--bg)";
+                      }}
+                    />
+                    <button
+                      onClick={() =>
+                        setUnits((prev) => ({
+                          ...prev,
+                          [field.key]: prev[field.key] === "min" ? "hr" : "min",
+                        }))
+                      }
+                      className="font-mono text-[10px] font-bold px-2 py-1.5 rounded cursor-pointer shrink-0"
+                      style={{
+                        border: "1px solid var(--border)",
+                        background: "var(--panel)",
+                        color: "var(--orange)",
+                        minWidth: 36,
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--orange-d)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--panel)"; }}
+                    >
+                      {units[field.key] || "hr"}
+                    </button>
+                  </div>
+                ) : field.type === "file" ? (
+                  <div className="flex flex-col gap-1.5">
+                    {form[field.key] ? (
+                      <div className="relative w-full rounded overflow-hidden" style={{ border: "1px solid var(--border)", background: "var(--bg)", maxHeight: 120 }}>
+                        <img
+                          src={form[field.key]}
+                          alt="Thumbnail"
+                          className="w-full h-full object-cover"
+                          style={{ maxHeight: 120 }}
+                        />
+                        <button
+                          onClick={() => setForm((prev) => ({ ...prev, [field.key]: "" }))}
+                          className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] cursor-pointer"
+                          style={{ background: "rgba(0,0,0,0.6)", color: "#fff" }}
+                        >✕</button>
+                      </div>
+                    ) : null}
+                    <label
+                      className="cursor-pointer inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-1.5 rounded"
+                      style={{
+                        border: "1px dashed var(--border2)",
+                        color: "var(--text2)",
+                        background: "var(--panel)",
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--orange)"; (e.currentTarget as HTMLElement).style.color = "var(--orange)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)"; (e.currentTarget as HTMLElement).style.color = "var(--text2)"; }}
+                    >
+                      {uploading[field.key] ? "Uploading..." : form[field.key] ? "Change Image" : "Choose Image"}
+                      <input
+                        ref={(el) => { fileInputRef.current[field.key] = el; }}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(field.key, file);
+                        }}
+                      />
+                    </label>
+                  </div>
                 ) : (
                   <input
                     type={field.type}

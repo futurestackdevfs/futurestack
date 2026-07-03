@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { opsFetch } from "@/app/ops/lib/ops-fetch";
 
 interface PendingTrainer {
   id: string;
@@ -18,7 +19,7 @@ function PendingApprovalsPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/admin/trainers/pending")
+    opsFetch("/api/admin/trainers/pending")
       .then((r) => r.json())
       .then((data) => { if (!cancelled && Array.isArray(data)) setPending(data); })
       .catch(() => {})
@@ -29,9 +30,8 @@ function PendingApprovalsPanel() {
   async function decide(id: string, action: "approve" | "reject") {
     setActing(id);
     try {
-      await fetch(`/api/admin/trainers/${id}/${action}`, {
+      await opsFetch(`/api/admin/trainers/${id}/${action}`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: action === "reject" ? JSON.stringify({ reason: "Rejected by admin" }) : undefined,
       });
       setPending((prev) => prev.filter((t) => t.id !== id));

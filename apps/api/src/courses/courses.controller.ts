@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { CoursesService } from './courses.service';
@@ -147,6 +147,29 @@ export class CoursesController {
   @Get('public/featured-tracks')
   featuredTracks() {
     return this.coursesService.featuredTracks();
+  }
+
+  @Get('public/cards')
+  publicCards(
+    @Query('page') page?: string,
+    @Query('perPage') perPage?: string,
+    @Query('search') search?: string,
+    @Query('sort') sort?: string,
+    @Query('filters') filters?: string,
+  ) {
+    const p = page ? parseInt(page, 10) : 1;
+    const pp = perPage ? parseInt(perPage, 10) : 12;
+    return this.coursesService.findAllCards({ page: p, perPage: pp, search, sort, filters: filters ? JSON.parse(filters) : undefined });
+  }
+
+  @Get('public/slug/:slug')
+  publicCourseBySlug(@Param('slug') slug: string) {
+    return this.coursesService.publicCourseBySlug(slug);
+  }
+
+  @Get('public/:id')
+  publicCourseDetail(@Param('id') id: string) {
+    return this.coursesService.publicCourseDetail(id);
   }
 
   // ================================================================

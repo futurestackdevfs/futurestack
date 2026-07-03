@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useMemo } from "react";
 import { authApi } from "@/app/auth/lib/auth-api";
+import { loadStaffToken, clearStaffToken } from "@/app/auth/lib/token-store";
 import { AdminTopbar } from "./sections/AdminTopbar";
 import { AdminSidebar } from "./sections/AdminSidebar";
 import { Statusbar } from "./sections/Statusbar";
@@ -12,12 +13,14 @@ import { EntityTable, StatusBadge, YesNoBadge, type ColumnDef } from "./sections
 import { MasterDataModal, type FieldDef } from "./sections/MasterDataModal";
 import { CurriculumBuilder } from "./sections/CurriculumBuilder";
 import { ProfileModal } from "./sections/ProfileModal";
+import FeaturedManager from "./sections/FeaturedManager";
 import AdminDashboardContent from "./console/AdminDashboardContent";
 import SalesDashboardContent from "./console/SalesDashboardContent";
 import TrainerDashboardContent from "./console/TrainerDashboardContent";
 import CoordinatorDashboardContent from "./console/CoordinatorDashboardContent";
 import SupportDashboardContent from "./console/SupportDashboardContent";
 import ContentMgrDashboardContent from "./console/ContentMgrDashboardContent";
+import UsersDashboardContent from "./console/UsersDashboardContent";
 
 /* ───────────────────────────────────────────────
    TYPES
@@ -48,6 +51,12 @@ interface Department {
   id: number; code: string; name: string; head: string; roles: string; headcount: number; status: string;
 }
 
+interface CourseStats {
+  totalCourses: number; activeCourses: number; draftCourses: number;
+  totalTracks: number; totalTrainers: number; pendingTrainers: number;
+  totalStudents: number; totalEnrollments: number; activeEnrollments: number;
+}
+
 interface CurriculumEntry {
   nextSectionId: number;
   sections: { id: number; num: string; title: string; lessons: { id: number; name: string; type: string; duration: string }[] }[];
@@ -74,19 +83,27 @@ const ENTITY_NAMES: Record<string, string> = {
 
 const SCHEMAS: Record<string, FieldDef[]> = {
   courses: [
-    { key: "code", label: "Course Code", type: "text", required: true, placeholder: "e.g. CRS-MERN-01" },
-    { key: "name", label: "Course Name", type: "text", required: true, placeholder: "e.g. MERN Stack Development", full: true },
-    { key: "category", label: "Category", type: "select", required: true, options: ["Full Stack", "Data Science", "AI / ML", "DevOps", "Cybersecurity", "Programming", "Cloud"] },
-    { key: "level", label: "Level", type: "select", required: true, options: ["Beginner", "Intermediate", "Advanced"] },
-    { key: "duration", label: "Duration (weeks)", type: "number", required: true, placeholder: "e.g. 16" },
-    { key: "modules", label: "Total Modules", type: "number", required: true, placeholder: "e.g. 20" },
+    // NOTE: category, level, duration, modules, totalLessons, totalHours are
+    // display-only — the backend Course model has no columns for them, so they
+    // render in the form but are not persisted (saveRecord only sends backend-known
+    // keys). They are intentionally NOT `required`, otherwise the modal's validate()
+    // would block saving on fields that never save.
+    { key: "title", label: "Course Name", type: "text", required: true, placeholder: "e.g. MERN Stack Development", full: true },
+    { key: "category", label: "Category", type: "select", options: ["Full Stack", "Data Science", "AI / ML", "DevOps", "Cybersecurity", "Programming", "Cloud"] },
+    { key: "level", label: "Level", type: "select", options: ["Beginner", "Intermediate", "Advanced"] },
+    { key: "duration", label: "Duration", type: "duration", placeholder: "e.g. 16" },
+    { key: "modules", label: "Total Modules", type: "number", placeholder: "e.g. 20" },
     { key: "totalLessons", label: "Total Lessons", type: "number", placeholder: "e.g. 96" },
     { key: "totalHours", label: "Total Duration (hours)", type: "number", placeholder: "e.g. 80" },
+    { key: "price", label: "Price (₹)", type: "number", required: true, placeholder: "e.g. 45000" },
     { key: "description", label: "About This Course", type: "textarea", full: true, placeholder: "Long-form description shown on the course detail page…" },
-    { key: "learnOutcomes", label: "What You'll Learn (one per line)", type: "textarea", full: true },
-    { key: "technologies", label: "Technologies Covered", type: "text", full: true, placeholder: "MongoDB, Express.js, React.js, Node.js" },
-    { key: "instructor", label: "Primary Instructor", type: "select", required: true, optionsFrom: "instructors" },
-    { key: "status", label: "Status", type: "select", required: true, options: ["Active", "Draft", "Archived"] },
+    { key: "whatYoullLearn", label: "What You'll Learn (one per line)", type: "textarea", full: true, placeholder: "Build production-grade full-stack apps with the MERN stack\nDesign scalable REST APIs with Express.js and Node.js\n…" },
+    { key: "techStack", label: "Technologies Covered (comma separated)", type: "text", full: true, placeholder: "MongoDB, Mongoose, Express.js, React.js, Node.js, Redux Toolkit, JWT Auth" },
+    { key: "careerTitle", label: "Career Relevance — Headline", type: "text", full: true, placeholder: "e.g. High-demand skill — average salary ₹18L – ₹40L/yr" },
+    { key: "careerBody", label: "Career Relevance — Body", type: "textarea", full: true, placeholder: "Companies that hire for this skill, salary context, market demand…" },
+    { key: "trainerId", label: "Primary Instructor", type: "select", required: true, optionsFrom: "instructors" },
+    { key: "thumbnailUrl", label: "Thumbnail Image", type: "file", full: true },
+    { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
   ],
   batches: [
     { key: "code", label: "Batch Code", type: "text", required: true, placeholder: "e.g. BAT-MERN-WD-04" },
@@ -143,12 +160,23 @@ const SCHEMAS: Record<string, FieldDef[]> = {
 const COLUMNS: Record<string, ColumnDef[]> = {
   courses: [
     { key: "code", label: "Course Code", mono: true, strong: true },
-    { key: "name", label: "Course Name" },
+    { key: "name", label: "Course Name", strong: true },
     { key: "category", label: "Category" },
-    { key: "duration", label: "Duration", render: (v) => `${v} weeks` },
-    { key: "totalLessons", label: "Lessons", mono: true },
+    { key: "duration", label: "Duration", render: (v) => (v ? `${v} wks` : "—") },
+    {
+      key: "totalLessons",
+      label: "Lessons",
+      render: (v, r) => (
+        <div className="flex flex-col leading-tight">
+          <span className="font-mono">{v ?? "—"}</span>
+          {r.totalHours ? (
+            <span className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>{`${r.totalHours}h total`}</span>
+          ) : null}
+        </div>
+      ),
+    },
     { key: "level", label: "Level" },
-    { key: "status", label: "Status", render: (v) => <StatusBadge status={v} /> },
+    { key: "status", label: "Status", render: (v) => <StatusBadge status={v === "ACTIVE" ? "Active" : v === "DRAFT" ? "Draft" : v === "ARCHIVED" ? "Archived" : v} /> },
   ],
   batches: [
     { key: "code", label: "Batch Code", mono: true, strong: true },
@@ -160,11 +188,10 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "status", label: "Status", render: (v) => <StatusBadge status={v} /> },
   ],
   instructors: [
-    { key: "instId", label: "ID", mono: true, strong: true },
     { key: "name", label: "Name" },
-    { key: "specialization", label: "Specialization" },
     { key: "email", label: "Email" },
-    { key: "activeBatches", label: "Active Batches", mono: true },
+    { key: "specialization", label: "Specialization" },
+    { key: "activeBatches", label: "Courses Taught", mono: true },
     { key: "rating", label: "Rating", render: (v) => `${v ?? "—"} ⭐` },
     { key: "status", label: "Status", render: (v) => <StatusBadge status={v} /> },
   ],
@@ -207,61 +234,105 @@ export default function AdminMasterDataPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [cbOpen, setCbOpen] = useState(false);
-  const [cbCourse, setCbCourse] = useState<{ code: string; name: string } | null>(null);
+  const [cbCourse, setCbCourse] = useState<{ code: string; name: string; id: string } | null>(null);
+  const [expandedCourseId, setExpandedCourseId] = useState<string | number | null>(null);
+  const [expandedCurriculums, setExpandedCurriculums] = useState<Record<string|number, any[]>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
   const [db, setDb] = useState(DB);
   const [curriculumDb, setCurriculumDb] = useState(CURRICULUM_SEED);
   const [user, setUser] = useState<Record<string, any> | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
-
+  const [token, setToken] = useState<string | null>(null);
+  const [stats, setStats] = useState<CourseStats | null>(null);
   const [profileModal, setProfileModal] = useState<{ open: boolean; mode: "profile" | "settings" }>({ open: false, mode: "profile" });
 
   useEffect(() => {
-    authApi.me().then((u) => {
-      setUser({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        role: u.role,
-        initials: u.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "U",
-        phone: "",
-        department: "",
-        joined: "",
-      });
-    }).catch(() => {
-      window.location.href = "/auth/staff-login";
-    }).finally(() => {
-      setSessionLoading(false);
-    });
+    (async () => {
+      // Staff-only: use the staff token for BOTH identity and data fetches.
+      // No student-token fallback — this is a staff portal, so a missing staff
+      // session means "not logged in as staff", not "fall back to student".
+      // Passing the token explicitly also stops the proxy from leaking the
+      // student cookie (fs_token) identity into the admin panel.
+      const t = await loadStaffToken().catch(() => null);
+      if (!t) {
+        window.location.href = "/auth/staff-login";
+        return;
+      }
+      setToken(t);
+      try {
+        const u = await authApi.me(t ?? undefined);
+        setUser({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          initials: u.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "U",
+          phone: "",
+          department: "",
+          joined: "",
+        });
+      } catch {
+        window.location.href = "/auth/staff-login";
+      } finally {
+        setSessionLoading(false);
+      }
+    })();
   }, []);
 
   useEffect(() => {
-    fetch("/api/courses").then((r) => r.json()).then((data: any[]) => {
-      if (!Array.isArray(data)) return;
-      const mapped = data.map((c: any, i: number) => ({
-        id: i + 1,
-        code: c.id?.toString() || c.code || `CRS-${i + 1}`,
-        name: c.title || c.name || "Untitled",
-        category: c.category || "General",
-        level: c.level || "Intermediate",
-        duration: c.hours || c.duration || 0,
-        modules: c.modules || 0,
-        totalLessons: c.totalLessons || 0,
-        totalHours: c.hours || c.totalHours || 0,
+    if (!token) return;
+
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    headers["Authorization"] = `Bearer ${token}`;
+
+    let cancelled = false;
+
+    Promise.all([
+      fetch("/api/admin/stats", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => null),
+      fetch("/api/courses", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => []),
+      fetch("/api/admin/trainers/approved", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => []),
+    ]).then(([statsData, coursesData, trainersData]) => {
+      if (cancelled) return;
+      if (statsData && typeof statsData.totalCourses === "number") setStats(statsData);
+
+      const mappedCourses = (Array.isArray(coursesData) ? coursesData : []).map((c: any) => ({
+        id: c.id,
+        _backendId: c.id,
+        code: typeof c.id === "string" ? c.id.slice(0, 8) : "",
+        title: c.title || "",
+        name: c.title || "Untitled",
         description: c.description || "",
-        learnOutcomes: (c.whatYoullLearn || []).join("\n") || "",
-        technologies: Array.isArray(c.techStack) ? c.techStack.join(", ") : (c.technologies || ""),
+        price: c.price ?? 0,
+        status: c.status || "DRAFT",
+        trainerId: c.trainerId || c.trainer?.id || "",
+        modules: c._count?.sections ?? 0,
+        instructor: c.trainer?.name || "",
+        instructorEmail: c.trainer?.email || "",
+        thumbnailUrl: c.thumbnailUrl || "",
+        techStack: Array.isArray(c.techStack) ? c.techStack : [],
+        whatYoullLearn: Array.isArray(c.whatYoullLearn) ? c.whatYoullLearn : [],
         careerTitle: c.careerTitle || "",
         careerBody: c.careerBody || "",
-        instructor: c.mentorName || "",
-        thumbnailLabel: c.title?.split(" ").slice(0, 3).join(" ") || "",
+        enrollments: c._count?.enrollments ?? 0,
+      }));
+      setDb((prev) => ({ ...prev, courses: mappedCourses }));
+
+      const mappedInstructors = (Array.isArray(trainersData) ? trainersData : []).map((t: any, i: number) => ({
+        id: t.id,
+        instId: typeof t.id === "string" ? t.id.slice(0, 8) : `INS-${i + 1}`,
+        name: t.name || "",
+        email: t.email || "",
+        specialization: t.bio || t.yearsExperience ? `${t.yearsExperience || 0} yrs exp` : "",
+        phone: "",
+        activeBatches: t._count?.coursesTaught ?? 0,
+        rating: t.rating ?? 0,
         status: "Active",
       }));
-      setDb((prev) => ({ ...prev, courses: mapped }));
-      if (mapped.length > 0) nextId.courses = mapped.length + 1;
-    }).catch(() => {});
-  }, []);
+      setDb((prev) => ({ ...prev, instructors: mappedInstructors }));
+    });
+    return () => { cancelled = true; };
+  }, [token]);
 
   function addToast(msg: string, type: "success" | "danger" = "success") {
     const id = Date.now();
@@ -293,10 +364,22 @@ export default function AdminMasterDataPage() {
     return i ? i.name : id;
   }
 
-  const extraOptions = useMemo(() => ({
-    courses: (db.courses as Course[]).map((c) => ({ label: `${c.code} — ${c.name}`, value: c.code })),
-    instructors: (db.instructors as Instructor[]).map((i) => ({ label: `${i.instId} — ${i.name}`, value: i.instId })),
-  }), [db]);
+  const extraOptions = useMemo(() => {
+    const approvedInstructors = (db.instructors as Instructor[]).map((i) => ({ label: `${i.instId} — ${i.name}`, value: i.id }));
+    // A course's assigned trainer may not be in the "approved" list (e.g. approval
+    // revoked, or assigned before approval). Still surface them as an option so the
+    // dropdown shows the real value instead of appearing blank/unset.
+    const approvedIds = new Set(approvedInstructors.map((i) => i.value));
+    const unapproved = (db.courses as any[])
+      .filter((c) => c.trainerId && !approvedIds.has(c.trainerId))
+      .map((c) => ({ label: `${c.instructor || c.trainerId} (not approved)`, value: c.trainerId }));
+    const dedupedUnapproved = Array.from(new Map(unapproved.map((o) => [o.value, o])).values());
+
+    return {
+      courses: (db.courses as any[]).map((c) => ({ label: c.name || c.title || "", value: c.id })),
+      instructors: [...approvedInstructors, ...dedupedUnapproved],
+    };
+  }, [db]);
 
   function getDefaultForm(entity: string): Record<string, any> {
     const defaults: Record<string, any> = {};
@@ -320,13 +403,13 @@ export default function AdminMasterDataPage() {
   ], [db]);
 
   const kpiItems = useMemo(() => [
-    { label: "Courses", value: db.courses.length, delta: `${db.courses.filter((c: Course) => c.status === "Active").length} active`, color: "var(--orange)" },
+    { label: "Courses", value: stats?.totalCourses ?? db.courses.length, delta: `${stats?.activeCourses ?? 0} active`, color: "var(--orange)" },
     { label: "Batches", value: db.batches.length, delta: `${db.batches.filter((b: Batch) => b.status === "Running").length} running`, color: "var(--blue)" },
-    { label: "Instructors", value: db.instructors.length, delta: `${db.instructors.filter((i: Instructor) => i.status === "Active").length} active`, color: "var(--purple)" },
+    { label: "Instructors", value: stats?.totalTrainers ?? db.instructors.length, delta: `${stats?.pendingTrainers ?? 0} pending approval`, color: "var(--purple)" },
     { label: "Fee Plans", value: db.feeplans.length, delta: "configured", color: "var(--green)" },
     { label: "Cert. Templates", value: db.certs.length, delta: "configured", color: "var(--pink)" },
     { label: "Departments", value: db.departments.length, delta: `${db.departments.length} roles`, color: "var(--amber)" },
-  ], [db]);
+  ], [db, stats]);
 
   /* ── Modal handlers ── */
   function openAddModal() {
@@ -335,7 +418,24 @@ export default function AdminMasterDataPage() {
   }
 
   function openEditModal(record: any) {
-    setEditingRecord({ ...record });
+    if (currentEntity === "courses") {
+      const mapped: Record<string, any> = {
+        id: record.id,
+        title: record.title || record.name || "",
+        price: record.price ?? 0,
+        trainerId: record.trainerId || "",
+        description: record.description || "",
+        whatYoullLearn: Array.isArray(record.whatYoullLearn) ? record.whatYoullLearn.join("\n") : (record.whatYoullLearn || ""),
+        techStack: Array.isArray(record.techStack) ? record.techStack.join(", ") : (record.techStack || ""),
+        careerTitle: record.careerTitle || "",
+        careerBody: record.careerBody || "",
+        thumbnailUrl: record.thumbnailUrl || "",
+        status: record.status || "DRAFT",
+      };
+      setEditingRecord(mapped);
+    } else {
+      setEditingRecord({ ...record });
+    }
     setModalOpen(true);
   }
 
@@ -344,7 +444,95 @@ export default function AdminMasterDataPage() {
     setEditingRecord(null);
   }
 
-  function saveRecord(formData: Record<string, any>) {
+  async function saveRecord(formData: Record<string, any>) {
+    if (currentEntity === "courses" && token) {
+      try {
+        const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+        let whatYoullLearn: string[] | undefined;
+        if (typeof formData.whatYoullLearn === "string") {
+          whatYoullLearn = formData.whatYoullLearn.split("\n").filter(Boolean);
+        } else if (Array.isArray(formData.whatYoullLearn)) {
+          whatYoullLearn = formData.whatYoullLearn;
+        }
+
+        let techStack: string[] | undefined;
+        if (typeof formData.techStack === "string") {
+          techStack = formData.techStack.split(",").map((s: string) => s.trim()).filter(Boolean);
+        } else if (Array.isArray(formData.techStack)) {
+          techStack = formData.techStack;
+        }
+
+        const body: Record<string, any> = {};
+
+        if (formData.title !== undefined) body.title = formData.title;
+        if (formData.price !== undefined) body.price = Number(formData.price);
+        // Only send trainerId when the admin actually changed it — the backend
+        // re-validates trainerId as an approved trainer on every update, so
+        // resending the unchanged value can fail a save (e.g. Status-only edits)
+        // if that trainer's approval status has since changed.
+        if (!formData.id || formData.trainerId !== editingRecord?.trainerId) {
+          if (formData.trainerId) body.trainerId = formData.trainerId;
+        }
+        if (formData.description !== undefined) body.description = formData.description;
+        if (whatYoullLearn !== undefined) body.whatYoullLearn = whatYoullLearn;
+        if (techStack !== undefined) body.techStack = techStack;
+        if (formData.careerTitle !== undefined) body.careerTitle = formData.careerTitle;
+        if (formData.careerBody !== undefined) body.careerBody = formData.careerBody;
+        if (formData.thumbnailUrl !== undefined) body.thumbnailUrl = formData.thumbnailUrl;
+        if (formData.status !== undefined) body.status = formData.status;
+
+        if (formData.id) {
+          const res = await fetch(`/api/courses/${formData.id}`, {
+            method: "PATCH", headers, body: JSON.stringify(body),
+          });
+          if (res.ok) {
+            const updated = await res.json();
+            setDb((prev) => ({
+              ...prev,
+              courses: prev.courses.map((r: any) =>
+                r.id === formData.id ? { ...r, ...body, name: body.title || r.name } : r
+              ),
+            }));
+            addToast(`Course updated successfully`);
+          } else {
+            const err = await res.json().catch(() => ({}));
+            addToast(err.message || "Failed to update course", "danger");
+          }
+        } else {
+          const res = await fetch("/api/courses", {
+            method: "POST", headers, body: JSON.stringify(body),
+          });
+          if (res.ok) {
+            const created = await res.json();
+            setDb((prev) => ({
+              ...prev,
+              courses: [...prev.courses, {
+                id: created.id, _backendId: created.id,
+                name: created.title || body.title,
+                title: created.title || body.title,
+                description: created.description || "",
+                price: created.price ?? 0,
+                status: created.status || "DRAFT",
+                modules: 0, instructor: "", instructorEmail: "",
+                thumbnailUrl: created.thumbnailUrl || "",
+                techStack: [], whatYoullLearn: [],
+                careerTitle: "", careerBody: "", enrollments: 0,
+              }],
+            }));
+            addToast(`Course added successfully`);
+          } else {
+            const err = await res.json().catch(() => ({}));
+            addToast(err.message || "Failed to create course", "danger");
+          }
+        }
+      } catch (e: any) {
+        addToast(e.message || "Network error", "danger");
+      }
+      closeModal();
+      return;
+    }
+
     if (formData.id) {
       setDb((prev) => ({
         ...prev,
@@ -364,7 +552,37 @@ export default function AdminMasterDataPage() {
     closeModal();
   }
 
-  function deleteRecord(record: any) {
+  async function deleteRecord(record: any) {
+    if (currentEntity === "courses" && token) {
+      const confirmed = window.confirm(
+        `Are you sure you want to delete "${record.name || record.title}"?\nThis cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      try {
+        const res = await fetch(`/api/courses/${record.id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        });
+        if (res.ok) {
+          setDb((prev) => ({
+            ...prev,
+            courses: prev.courses.filter((r: any) => r.id !== record.id),
+          }));
+          addToast(`Course "${record.name || record.title}" deleted`, "danger");
+        } else if (res.status === 409) {
+          const err = await res.json();
+          addToast(err.message || "Cannot delete — course has active enrollments", "danger");
+        } else {
+          const err = await res.json().catch(() => ({}));
+          addToast(err.message || "Failed to delete course", "danger");
+        }
+      } catch (e: any) {
+        addToast(e.message || "Network error", "danger");
+      }
+      return;
+    }
+
     setDb((prev) => ({
       ...prev,
       [currentEntity]: prev[currentEntity].filter((r: any) => r.id !== record.id),
@@ -374,14 +592,18 @@ export default function AdminMasterDataPage() {
 
   /* ── Curriculum Builder ── */
   function openCurriculumBuilder(course: any) {
-    setCbCourse({ code: course.code, name: course.name });
+    setCbCourse({ code: course.code, name: course.name, id: course.id });
     setCbOpen(true);
   }
 
-  function saveCurriculum(data: CurriculumEntry) {
+  function saveCurriculum() {
+    addToast(`Curriculum saved`);
     if (cbCourse) {
-      setCurriculumDb((prev) => ({ ...prev, [cbCourse.code]: data }));
-      addToast(`Curriculum saved for ${cbCourse.name}`);
+      setExpandedCurriculums((prev) => {
+        const next = { ...prev };
+        delete next[cbCourse.id];
+        return next;
+      });
     }
     setCbOpen(false);
     setCbCourse(null);
@@ -390,6 +612,242 @@ export default function AdminMasterDataPage() {
   function closeCurriculumBuilder() {
     setCbOpen(false);
     setCbCourse(null);
+  }
+
+  /* ── Expandable Course Curriculum ── */
+  async function handleToggleExpand(courseId: string | number) {
+    if (expandedCourseId === courseId) {
+      setExpandedCourseId(null);
+      return;
+    }
+    setExpandedCourseId(courseId);
+    if (!token) return;
+    console.log('[expand] fetching /api/courses/' + courseId, {token: token?.slice(0,10) + '...'});
+    try {
+      const res = await fetch(`/api/courses/${courseId}`, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      });
+      console.log('[expand] status:', res.status, res.statusText);
+      if (res.ok) {
+        const data = await res.json();
+        console.log('[expand] data sections:', data.sections?.length ?? 0, data.sections);
+        const sections = (data.sections || []).map((s: any) => ({
+          id: s.id, title: s.title || "", order: s.order ?? 0,
+          videos: (s.videos || []).map((v: any) => ({ id: v.id, title: v.title || "", durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0 })),
+          quizzes: (s.quizzes || []).map((q: any) => ({ id: q.id, title: q.title || "", totalQuestions: q.totalQuestions ?? 0, order: q.order ?? 0 })),
+        }));
+        console.log('[expand] mapped sections:', sections);
+        setExpandedCurriculums((prev) => ({ ...prev, [courseId]: sections }));
+      } else {
+        const errBody = await res.json().catch(() => ({}));
+        console.warn('[expand] fetch not ok:', res.status, errBody);
+      }
+    } catch (e) {
+      console.warn('[expand] fetch error:', e);
+    }
+  }
+
+  async function apiPatch(endpoint: string, body: any) {
+    if (!token) return;
+    await fetch(`/api${endpoint}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  async function apiDelete(endpoint: string) {
+    if (!token) return;
+    await fetch(`/api${endpoint}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  function updateSectionTitle(sectionId: string, title: string, courseId: string | number) {
+    apiPatch(`/courses/sections/${sectionId}`, { title });
+    setExpandedCurriculums((prev) => ({
+      ...prev,
+      [courseId]: (prev[courseId] || []).map((s) => s.id === sectionId ? { ...s, title } : s),
+    }));
+  }
+
+  function updateLessonTitle(sectionId: string, lessonId: string, title: string, kind: "video" | "quiz", courseId: string | number) {
+    if (kind === "video") {
+      apiPatch(`/courses/videos/${lessonId}`, { title });
+    } else {
+      apiPatch(`/courses/quizzes/${lessonId}`, { title });
+    }
+    setExpandedCurriculums((prev) => ({
+      ...prev,
+      [courseId]: (prev[courseId] || []).map((s) =>
+        s.id === sectionId
+          ? {
+              ...s,
+              videos: kind === "video" ? s.videos.map((v: any) => v.id === lessonId ? { ...v, title } : v) : s.videos,
+              quizzes: kind === "quiz" ? s.quizzes.map((q: any) => q.id === lessonId ? { ...q, title } : q) : s.quizzes,
+            }
+          : s
+      ),
+    }));
+  }
+
+  async function deleteSection(sectionId: string, courseId: string | number) {
+    if (!confirm("Delete this section and all its content?")) return;
+    await apiDelete(`/courses/sections/${sectionId}`);
+    setExpandedCurriculums((prev) => ({
+      ...prev,
+      [courseId]: (prev[courseId] || []).filter((s) => s.id !== sectionId),
+    }));
+    setDb((prev) => ({
+      ...prev,
+      courses: prev.courses.map((c: any) =>
+        c.id === courseId ? { ...c, modules: Math.max(0, (c.modules || 1) - 1) } : c
+      ),
+    }));
+  }
+
+  async function deleteLesson(sectionId: string, lessonId: string, kind: "video" | "quiz", courseId: string | number) {
+    if (kind === "video") {
+      await apiDelete(`/courses/videos/${lessonId}`);
+    } else {
+      await apiDelete(`/courses/quizzes/${lessonId}`);
+    }
+    setExpandedCurriculums((prev) => ({
+      ...prev,
+      [courseId]: (prev[courseId] || []).map((s) =>
+        s.id === sectionId
+          ? {
+              ...s,
+              videos: kind === "video" ? s.videos.filter((v: any) => v.id !== lessonId) : s.videos,
+              quizzes: kind === "quiz" ? s.quizzes.filter((q: any) => q.id !== lessonId) : s.quizzes,
+            }
+          : s
+      ),
+    }));
+  }
+
+  function renderExpandedCourse(row: any) {
+    const courseId = row.id;
+    const sections = expandedCurriculums[courseId] || [];
+
+    if (sections.length === 0) {
+      return (
+        <div className="px-4 py-3 font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
+          No curriculum data loaded.
+        </div>
+      );
+    }
+
+    return (
+      <div className="px-4 py-3" style={{ maxWidth: "100%" }}>
+        {sections.map((section: any, si: number) => {
+          const lessons = [
+            ...section.videos.map((v: any) => ({ ...v, kind: "video" as const })),
+            ...section.quizzes.map((q: any) => ({ ...q, kind: "quiz" as const })),
+          ].sort((a: any, b: any) => a.order - b.order);
+
+          return (
+            <div
+              key={section.id}
+              className="rounded mb-2 overflow-hidden"
+              style={{ border: "1px solid var(--border)", background: "var(--surface)" }}
+            >
+              <div
+                className="flex items-center gap-2 px-2.5 py-1.5"
+                style={{ background: "var(--panel)", borderBottom: "1px solid var(--border)" }}
+              >
+                <span className="font-mono text-[9px] font-bold shrink-0" style={{ color: "var(--orange)", width: 20 }}>
+                  {String(si + 1).padStart(2, "0")}
+                </span>
+                <input
+                  defaultValue={section.title}
+                  className="flex-1 text-[11px] font-bold rounded px-1.5 py-0.5 outline-none"
+                  style={{
+                    color: "var(--text)",
+                    background: "transparent",
+                    border: "1px solid transparent",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "var(--border)";
+                    e.currentTarget.style.background = "var(--surface)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "transparent";
+                    e.currentTarget.style.background = "transparent";
+                    if (e.currentTarget.value !== section.title) {
+                      updateSectionTitle(section.id, e.currentTarget.value, courseId);
+                    }
+                  }}
+                />
+                <span className="font-mono text-[9px]" style={{ color: "var(--text3)", whiteSpace: "nowrap" }}>
+                  {lessons.length} lessons
+                </span>
+                <button
+                  onClick={() => deleteSection(section.id, courseId)}
+                  className="flex items-center justify-center w-[18px] h-[18px] rounded text-[9px] cursor-pointer"
+                  style={{ color: "var(--text3)" }}
+                  title="Delete Section"
+                >
+                  🗑
+                </button>
+              </div>
+
+              {lessons.length > 0 && (
+                <div className="px-2.5 py-1">
+                  {lessons.map((lesson: any) => (
+                    <div
+                      key={lesson.id}
+                      className="flex items-center gap-2 py-0.5"
+                    >
+                      <span
+                        className="font-mono text-[8px] px-1 rounded"
+                        style={{
+                          color: lesson.kind === "video" ? "var(--green)" : "var(--blue)",
+                          background: lesson.kind === "video" ? "var(--green-d)" : "var(--blue-d)",
+                        }}
+                      >
+                        {lesson.kind === "video" ? "VID" : "QUIZ"}
+                      </span>
+                      <input
+                        defaultValue={lesson.title}
+                        className="flex-1 text-[10.5px] px-1.5 py-0.5 rounded outline-none"
+                        style={{
+                          border: "1px solid transparent",
+                          background: "transparent",
+                          color: "var(--text2)",
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = "var(--border)";
+                          e.currentTarget.style.background = "var(--bg)";
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = "transparent";
+                          e.currentTarget.style.background = "transparent";
+                          if (e.currentTarget.value !== lesson.title) {
+                            updateLessonTitle(section.id, lesson.id, e.currentTarget.value, lesson.kind, courseId);
+                          }
+                        }}
+                      />
+                      <span className="font-mono text-[8px]" style={{ color: "var(--text3)", whiteSpace: "nowrap" }}>
+                        {lesson.kind === "video" ? `${Math.round((lesson.durationSeconds || 0) / 60)}m` : `${lesson.totalQuestions || 0}q`}
+                      </span>
+                      <button
+                        onClick={() => deleteLesson(section.id, lesson.id, lesson.kind, courseId)}
+                        className="flex items-center justify-center w-[16px] h-[16px] rounded text-[8px] cursor-pointer"
+                        style={{ color: "var(--text3)" }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
   }
 
   /* ── export ── */
@@ -432,11 +890,12 @@ export default function AdminMasterDataPage() {
         onSearch={setSearchQuery}
         onMyProfile={() => setProfileModal({ open: true, mode: "profile" })}
         onAccountSettings={() => setProfileModal({ open: true, mode: "settings" })}
-        onSignOut={async () => {
-          await fetch("/api/auth/set-token", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ token: "" }) });
-          setUser(null);
-          window.location.href = "/auth/staff-login";
-        }}
+                    onSignOut={async () => {
+                      await clearStaffToken();
+                      await fetch("/api/auth/set-token-staff", { method: "DELETE" });
+                      setUser(null);
+                      window.location.href = "/auth/staff-login";
+                    }}
       />
 
       <div className="flex" style={{ flex: 1, overflow: "hidden" }}>
@@ -445,6 +904,10 @@ export default function AdminMasterDataPage() {
         {view === "admin-dashboard" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
             <AdminDashboardContent db={db} />
+          </main>
+        ) : view === "featured" ? (
+          <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
+            <FeaturedManager token={token || ""} />
           </main>
         ) : view === "master-data" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
@@ -494,6 +957,9 @@ export default function AdminMasterDataPage() {
                     onEdit={openEditModal} onDelete={deleteRecord}
                     onManageCurriculum={currentEntity === "courses" ? openCurriculumBuilder : undefined}
                     emptyMessage={`No ${ENTITY_NAMES[currentEntity].toLowerCase()}s found.`}
+                    expandedId={currentEntity === "courses" ? expandedCourseId : undefined}
+                    onToggleExpand={currentEntity === "courses" ? handleToggleExpand : undefined}
+                    renderExpanded={currentEntity === "courses" ? renderExpandedCourse : undefined}
                   />
                 </div>
               </div>
@@ -501,6 +967,7 @@ export default function AdminMasterDataPage() {
           </main>
         ) : (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
+            {view === "users" && <UsersDashboardContent />}
             {view === "sales" && <SalesDashboardContent />}
             {view === "trainer" && <TrainerDashboardContent />}
             {view === "coordinator" && <CoordinatorDashboardContent />}
@@ -522,6 +989,7 @@ export default function AdminMasterDataPage() {
         data={editingRecord || {}}
         editing={!!editingRecord?.id}
         extraOptions={extraOptions}
+        token={token || ""}
         onSave={saveRecord}
         onClose={closeModal}
       />
@@ -529,13 +997,10 @@ export default function AdminMasterDataPage() {
       {/* Curriculum Builder Modal */}
       <CurriculumBuilder
         open={cbOpen}
+        courseId={cbCourse?.id || ""}
         courseName={cbCourse?.name || ""}
         courseCode={cbCourse?.code || ""}
-        curriculum={
-          cbCourse
-            ? curriculumDb[cbCourse.code] || { nextSectionId: 1, sections: [] }
-            : { nextSectionId: 1, sections: [] }
-        }
+        token={token || ""}
         onSave={saveCurriculum}
         onClose={closeCurriculumBuilder}
       />

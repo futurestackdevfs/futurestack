@@ -53,4 +53,10 @@ export class AdminController {
   async createStaffAccount(@Body() dto: CreateStaffDto) {
     return this.adminService.createStaffAccount(dto);
   }
+
+  @Auth(Role.ADMIN)
+  @Get('users')
+  async listAllUsers() {
+    return this.adminService.listAllUsers();
+  }
 }

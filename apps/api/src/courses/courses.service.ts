@@ -20,16 +20,48 @@ import { CreateResourceDto } from './dto/create-resource.dto';
 import { FeatureDto } from './dto/feature.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
 
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+// DB values are sometimes stored as bare relative paths (e.g. "images/foo.png")
+// which the browser resolves against the current page URL instead of the site
+// root, causing 404s. Normalize to an absolute path/URL.
+function normalizeThumbnail(url: string | null | undefined, fallback: string | null = null): string | null {
+  if (!url) return fallback;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) return url;
+  return `/${url}`;
+}
+
 @Injectable()
 export class CoursesService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ==================== PUBLIC ====================
 
+  private async getVideoStats(courseIds: string[]): Promise<Map<string, { totalSeconds: number; videoCount: number }>> {
+    if (courseIds.length === 0) return new Map();
+    const rows: { courseId: string; totalSeconds: number | null; videoCount: number | null }[] =
+      await this.prisma.$queryRawUnsafe(
+        `SELECT s."courseId", COALESCE(SUM(v."durationSeconds"), 0) as "totalSeconds", COUNT(v.id) as "videoCount"
+         FROM "Section" s LEFT JOIN "Video" v ON v."sectionId" = s."id"
+         WHERE s."courseId" = ANY($1)
+         GROUP BY s."courseId"`,
+        courseIds,
+      );
+    const map = new Map<string, { totalSeconds: number; videoCount: number }>();
+    for (const row of rows) {
+      map.set(row.courseId, { totalSeconds: Number(row.totalSeconds ?? 0), videoCount: Number(row.videoCount ?? 0) });
+    }
+    return map;
+  }
+
   async featuredCourses() {
+    const SLOT_COUNT = 5;
     const courses = await this.prisma.course.findMany({
       where: { isFeatured: true, status: 'ACTIVE' },
       orderBy: { displayOrder: 'asc' },
+      take: SLOT_COUNT,
       select: {
         id: true,
         title: true,
@@ -38,22 +70,43 @@ export class CoursesService {
         price: true,
         techStack: true,
         displayOrder: true,
+        whatYoullLearn: true,
+        careerTitle: true,
+        careerBody: true,
+        createdAt: true,
         trainer: { select: { name: true } },
-        _count: { select: { sections: true } },
-        sections: { select: { _count: { select: { videos: true } } } },
+        _count: { select: { sections: true, enrollments: true } },
       },
     });
-    // Prisma can't count videos directly on Course, so we aggregate from sections.
-    return courses.map(({ sections, ...rest }) => ({
-      ...rest,
-      totalVideos: sections.reduce((sum, s) => sum + s._count.videos, 0),
-    }));
+
+    const videoStats = await this.getVideoStats(courses.map((c) => c.id));
+
+    const enrollmentCounts = courses.map((c) => c._count.enrollments).sort((a, b) => b - a);
+    const trendingThreshold = enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+    return courses.map(({ createdAt, ...rest }) => {
+      const stats = videoStats.get(rest.id) ?? { totalSeconds: 0, videoCount: 0 };
+      const isTrending = rest._count.enrollments > 0 && rest._count.enrollments >= trendingThreshold;
+      const isNew = createdAt >= fourteenDaysAgo;
+
+      return {
+        ...rest,
+        thumbnailUrl: normalizeThumbnail(rest.thumbnailUrl),
+        totalVideos: stats.videoCount,
+        durationHours: Math.round(stats.totalSeconds / 3600) || 1,
+        badge: isTrending ? '🔥 Trending' : isNew ? '✨ New' : null,
+        badgeClass: isTrending ? 'bg-orange-500' : 'bg-blue-500',
+      };
+    });
   }
 
   async featuredTracks() {
+    const SLOT_COUNT = 5;
     return this.prisma.track.findMany({
       where: { isFeatured: true },
       orderBy: { displayOrder: 'asc' },
+      take: SLOT_COUNT,
       select: {
         id: true,
         title: true,
@@ -62,6 +115,72 @@ export class CoursesService {
         _count: { select: { courses: true } },
       },
     });
+  }
+
+  async publicCourseBySlug(slug: string) {
+    const courses = await this.prisma.course.findMany({
+      where: { status: 'ACTIVE' },
+      select: { id: true, title: true },
+    });
+    const matched = courses.find((c) => slugify(c.title) === slug);
+    if (!matched) throw new NotFoundException('Course not found');
+    return this.publicCourseDetail(matched.id);
+  }
+
+  async publicCourseDetail(id: string) {
+    const course = await this.prisma.course.findFirst({
+      where: { id, status: 'ACTIVE' },
+      include: {
+        trainer: {
+          select: { id: true, name: true, avatarUrl: true, bio: true, yearsExperience: true, rating: true, coursesTaught: { select: { id: true } } },
+        },
+        resources: { orderBy: { createdAt: 'asc' } },
+        sections: {
+          orderBy: { order: 'asc' },
+          include: {
+            videos: { orderBy: { order: 'asc' } },
+            quizzes: { orderBy: { order: 'asc' } },
+          },
+        },
+        _count: { select: { enrollments: true } },
+      },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+
+    const totalVideos = course.sections.reduce((sum, s) => sum + s.videos.length, 0);
+    const totalQuizzes = course.sections.reduce((sum, s) => sum + s.quizzes.length, 0);
+
+    return {
+      id: course.id,
+      slug: slugify(course.title),
+      title: course.title,
+      description: course.description ?? '',
+      thumbnailUrl: normalizeThumbnail(course.thumbnailUrl),
+      price: course.price,
+      whatYoullLearn: course.whatYoullLearn,
+      techStack: course.techStack,
+      careerTitle: course.careerTitle,
+      careerBody: course.careerBody,
+      category: course.techStack[0] ?? 'General',
+      hours: Math.round(
+        course.sections.reduce((sum, s) => sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0), 0) / 3600,
+      ) || 1,
+      level: 'Intermediate',
+      rating: course.trainer?.rating ?? 4.7,
+      students: course._count.enrollments,
+      mentorInitials: (course.trainer?.name ?? 'TM').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+      mentorName: course.trainer?.name ?? 'Team',
+      mentorAvatar: course.trainer?.avatarUrl ?? null,
+      mentorBio: course.trainer?.bio ?? null,
+      mentorYearsExp: course.trainer?.yearsExperience ?? null,
+      mentorRating: course.trainer?.rating ?? null,
+      mentorCoursesTaught: course.trainer?.coursesTaught.length ?? null,
+      totalLessons: totalVideos + totalQuizzes,
+      totalVideos,
+      totalQuizzes,
+      sections: course.sections,
+      resources: course.resources,
+    };
   }
 
   // ==================== FEATURE + REORDER ====================
@@ -154,6 +273,125 @@ export class CoursesService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async findAllCards(opts: { page: number; perPage: number; search?: string; sort?: string; filters?: Record<string, string[]> }) {
+    const where: any = { status: 'ACTIVE' };
+
+    if (opts.search?.trim()) {
+      const q = opts.search.trim();
+      where.OR = [
+        { title: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { techStack: { has: q } },
+        { careerTitle: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    // Only `tech` is a real DB field; everything else is computed post-fetch
+    const inMemoryFilters: { field: string; values: string[] }[] = [];
+    if (opts.filters) {
+      for (const [field, values] of Object.entries(opts.filters)) {
+        if (values.length === 0) continue;
+        if (field === 'tech') {
+          where.techStack = { hasSome: values };
+        } else {
+          inMemoryFilters.push({ field, values });
+        }
+      }
+    }
+
+    let orderBy: any = { createdAt: 'desc' };
+    if (opts.sort === 'Highest Rated') orderBy = { trainer: { rating: 'desc' } };
+    else if (opts.sort === 'Newest First') orderBy = { createdAt: 'desc' };
+    else if (opts.sort === 'Duration: Shortest') orderBy = { id: 'asc' }; // will sort after
+
+    const [total, courses] = await this.prisma.$transaction([
+      this.prisma.course.count({ where }),
+      this.prisma.course.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          thumbnailUrl: true,
+          price: true,
+          techStack: true,
+          whatYoullLearn: true,
+          careerTitle: true,
+          careerBody: true,
+          createdAt: true,
+          trainer: { select: { name: true, rating: true } },
+          _count: { select: { enrollments: true } },
+        },
+        orderBy: opts.sort === 'Most Popular' ? { _count: { enrollments: 'desc' } } : orderBy,
+        skip: (opts.page - 1) * opts.perPage,
+        take: opts.perPage,
+      }),
+    ]);
+
+    const videoStats = await this.getVideoStats(courses.map((c) => c.id));
+
+    // Build computed card data
+    const enrollmentCounts = courses.map((c) => c._count.enrollments).sort((a, b) => b - a);
+    const trendingThreshold = enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+    let data = courses.map((course) => {
+      const stats = videoStats.get(course.id) ?? { totalSeconds: 0, videoCount: 0 };
+      const totalHours = Math.round(stats.totalSeconds / 3600);
+
+      const isTrending = course._count.enrollments > 0 && course._count.enrollments >= trendingThreshold;
+      const isNew = course.createdAt >= fourteenDaysAgo;
+      const badge = isTrending ? '🔥 Trending' : isNew ? '✨ New' : null;
+      const badgeClass = isTrending ? 'bg-orange-500' : 'bg-blue-500';
+      const category = course.techStack[0] ?? 'General';
+      const durationLabel = totalHours > 50 ? '50+ hrs' : totalHours > 20 ? '20 – 50 hrs' : '5 – 20 hrs';
+
+      return {
+        id: course.id,
+        slug: slugify(course.title),
+        category,
+        title: course.title,
+        description: course.description ?? '',
+        hours: totalHours || 20,
+        students: `${((course._count.enrollments / 1000) * 10).toFixed(1).replace('.0', '')}k`,
+        level: 'Intermediate',
+        rating: course.trainer?.rating ?? 4.7,
+        reviews: `${course._count.enrollments}`,
+        badge,
+        badgeClass,
+        mentor: (course.trainer?.name ?? 'TM').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+        mentorName: course.trainer?.name ?? 'Team',
+        mentorColor: 'from-blue-500 to-blue-600',
+        img: normalizeThumbnail(course.thumbnailUrl, '/images/C1.png'),
+        mode: 'Self-Paced',
+        goal: 'Upskill',
+        tech: category,
+        duration: durationLabel,
+        price: course.price,
+        techStack: course.techStack,
+        whatYoullLearn: course.whatYoullLearn,
+        careerTitle: course.careerTitle,
+        careerBody: course.careerBody,
+      };
+    });
+
+    // Apply in-memory filters for computed fields (level, category, mode, goal, duration)
+    for (const { field, values } of inMemoryFilters) {
+      if (field === 'duration') {
+        data = data.filter((c) => values.includes(c.duration));
+      } else {
+        data = data.filter((c) => values.includes(String((c as any)[field])));
+      }
+    }
+
+    // Post-sort for computed fields
+    if (opts.sort === 'Duration: Shortest') {
+      data.sort((a, b) => a.hours - b.hours);
+    }
+
+    return { data, total, page: opts.page, perPage: opts.perPage };
   }
 
   async getCourse(id: string) {

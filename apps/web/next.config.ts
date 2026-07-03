@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const BACKEND = process.env.API_URL ?? "http://localhost:3002";
+
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   headers: async () => [
@@ -10,11 +12,18 @@ const nextConfig: NextConfig = {
         { key: "X-Frame-Options", value: "DENY" },
         { key: "X-XSS-Protection", value: "1; mode=block" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-        // Hides that this is Next.js
         { key: "X-Powered-By", value: "" },
       ],
     },
   ],
+  async rewrites() {
+    return [
+      {
+        source: "/uploads/:path*",
+        destination: `${BACKEND}/uploads/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

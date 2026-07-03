@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { opsFetch } from "@/app/ops/lib/ops-fetch";
 
 interface Trainer {
   id: string;
@@ -44,7 +45,7 @@ export default function TrainerDashboardContent() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch("/api/admin/trainers")
+    opsFetch("/api/admin/trainers")
       .then((r) => { if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); })
       .then((data) => { if (!cancelled && Array.isArray(data)) setTrainers(data); })
       .catch((e) => { if (!cancelled) setError(e.message); })
@@ -57,9 +58,8 @@ export default function TrainerDashboardContent() {
     setCreating(true);
     setCreateError(null);
     try {
-      const res = await fetch("/api/admin/staff", {
+      const res = await opsFetch("/api/admin/staff", {
         method: "POST",
-        headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...createForm, role: "TRAINER" }),
       });
       if (!res.ok) {
@@ -69,7 +69,7 @@ export default function TrainerDashboardContent() {
       setCreateOpen(false);
       setCreateForm({ name: "", email: "", password: "" });
       // Refresh list after creation
-      fetch("/api/admin/trainers")
+      opsFetch("/api/admin/trainers")
         .then((r) => r.json())
         .then((data) => { if (Array.isArray(data)) setTrainers(data); })
         .catch(() => {});
@@ -105,11 +105,10 @@ export default function TrainerDashboardContent() {
     const previous = trainers;
     setTrainers((prev) => prev.map((t) => t.id === id ? { ...t, approvalStatus: status } : t));
     try {
-      const res = await fetch(
+      const res = await opsFetch(
         `/api/admin/trainers/${id}/${status === "APPROVED" ? "approve" : "reject"}`,
         {
           method: "POST",
-          headers: { "content-type": "application/json" },
           body: status === "REJECTED" ? JSON.stringify({ reason: "Rejected by admin" }) : undefined,
         }
       );

@@ -31,7 +31,7 @@ const roles: RoleCard[] = [
 
 const adminNav: NavItem[] = [
   { icon: "▣", label: "Dashboard", view: "admin-dashboard" },
-  { icon: "👤", label: "User Accounts", badge: { text: "4820", color: "var(--blue)", bg: "var(--blue-d)" } },
+  { icon: "👤", label: "User Accounts", view: "users" },
   { icon: "🖥", label: "System Health" },
   { icon: "🚨", label: "Escalations", badge: { text: "2", color: "var(--red)", bg: "var(--red-d)" } },
   { icon: "💾", label: "Backups" },
@@ -40,6 +40,7 @@ const adminNav: NavItem[] = [
 
 const configNav: NavItem[] = [
   { icon: "🗄", label: "Master Data", badge: { text: "6", color: "var(--orange)", bg: "var(--orange-d)" }, view: "master-data" },
+  { icon: "⭐", label: "Featured Content", view: "featured" },
 ];
 
 const reportNav: NavItem[] = [

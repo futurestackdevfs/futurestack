@@ -7,16 +7,14 @@ import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { StudentModule } from './student/student.module';
-import { CourseModule } from './course/course.module';
 import { AdminModule } from './admin/admin.module';
 import { CoursesModule } from './courses/courses.module';
+import { UploadModule } from './upload/upload.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-<<<<<<< HEAD
-=======
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
@@ -28,14 +26,13 @@ import { CoursesModule } from './courses/courses.module';
           },
         ],
       }),
->>>>>>> d5a8b6af85fe3061dad671c1770ed1b66101ebad
     }),
     PrismaModule,
     AuthModule,
     StudentModule,
-    CourseModule,
     AdminModule,
     CoursesModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [

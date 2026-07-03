@@ -17,8 +17,9 @@ async function proxy(req: NextRequest) {
   if (auth) headers.set('authorization', auth);
 
   // Forward the HttpOnly cookie token as Authorization if no explicit header
+  // Try student token first, fallback to staff token
   if (!auth) {
-    const cookie = req.cookies.get('fs_token');
+    const cookie = req.cookies.get('fs_token') ?? req.cookies.get('fs_token_staff');
     if (cookie) headers.set('authorization', `Bearer ${cookie.value}`);
   }
 

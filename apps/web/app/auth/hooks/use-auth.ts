@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { authApi, type User } from '../lib/auth-api';
-import { saveToken, loadToken, clearToken } from '../lib/token-store';
+import { saveToken, loadToken, clearToken, clearStaffToken } from '../lib/token-store';
 import { showToast } from '@/lib/toast';
 
 // Decode JWT payload client-side — avoids a network round-trip on every page load.
@@ -110,6 +110,8 @@ export function useAuth() {
 
   const login = useCallback(async (email: string, password: string) => {
     const { accessToken, user } = await authApi.login(email, password);
+    await clearStaffToken();
+    await fetch('/api/auth/set-token-staff', { method: 'DELETE' });
     await saveToken(user.id, accessToken);
     await setSessionCookie(accessToken);
     emit({ user, isAuthenticated: true, isLoading: false });
@@ -117,6 +119,8 @@ export function useAuth() {
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     const { accessToken, user } = await authApi.register(name, email, password);
+    await clearStaffToken();
+    await fetch('/api/auth/set-token-staff', { method: 'DELETE' });
     await saveToken(user.id, accessToken);
     await setSessionCookie(accessToken);
     emit({ user, isAuthenticated: true, isLoading: false });

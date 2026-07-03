@@ -1,17 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import useSWR from "swr";
 
 const API = '/api';
-
-function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 interface CourseDetail {
   id: string;
+  slug: string;
   title: string;
   description: string;
   thumbnailUrl: string | null;
@@ -47,6 +46,7 @@ interface CourseDetail {
 
 interface CourseCard {
   id: string;
+  slug: string;
   title: string;
   img: string;
   students: string;
@@ -60,35 +60,17 @@ interface CourseCard {
 export default function CourseDetailPage() {
   const params = useParams();
   const slug = params?.slug as string;
-  const [course, setCourse] = useState<CourseDetail | null>(null);
-  const [related, setRelated] = useState<CourseCard[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [plan, setPlan] = useState("annual");
   const [openFaq, setOpenFaq] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`${API}/courses`);
-        const all: CourseCard[] = await res.json();
-        const matched = all.find((c) => slugify(c.title) === slug);
-        if (matched) {
-          const [detailRes] = await Promise.all([
-            fetch(`${API}/courses/${matched.id}`),
-          ]);
-          const detail: CourseDetail = await detailRes.json();
-          setCourse(detail);
-          setRelated(all.filter((c) => c.id !== matched.id).slice(0, 3));
-        }
-      } catch {
-        // ignore
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    load();
-  }, [slug]);
+  const { data: course, isLoading: isLoadingCourse } = useSWR<CourseDetail>(
+    slug ? `${API}/courses/public/slug/${slug}` : null,
+    fetcher,
+  );
+  const { data: allCards } = useSWR<{ data: CourseCard[] }>(`${API}/courses/public/cards`, fetcher);
+  const related = (allCards?.data ?? []).filter((c) => c.id !== course?.id).slice(0, 3);
+  const isLoading = isLoadingCourse;
 
   const totalDuration = course?.sections.reduce(
     (sum, s) => sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0), 0
@@ -126,7 +108,7 @@ export default function CourseDetailPage() {
     <div className="min-h-screen bg-[var(--bg)]">
       {/* Breadcrumb */}
       <div className="max-w-[1700px] mx-auto px-6">
-        <div className="flex items-center gap-[6px] py-4 text-[12.5px] text-[var(--text3)]">
+        <div className="flex items-center gap-[6px] py-2 text-[12.5px] text-[var(--text3)]">
           <Link href="/" className="hover:text-[var(--blue)] transition-colors">Home</Link>
           <span className="text-[var(--border2)]">/</span>
           <Link href="/courses" className="hover:text-[var(--blue)] transition-colors">Courses</Link>
@@ -136,30 +118,30 @@ export default function CourseDetailPage() {
       </div>
 
       {/* Hero */}
-      <div className="bg-[var(--hero-bg)] py-7 relative overflow-hidden">
-        <div className="max-w-[1700px] mx-auto px-6 flex items-center gap-5 relative z-[1]">
+      <div className="bg-[var(--hero-bg)] py-2 relative overflow-hidden">
+        <div className="max-w-[1700px] mx-auto px-2 flex items-center gap-5 relative z-[1]">
           <div className="flex-1">
-            <div className="inline-flex items-center gap-[6px] bg-[rgba(255,255,255,.1)] border border-[rgba(255,255,255,.15)] px-3 py-[4px] rounded-[20px] text-[11.5px] font-semibold text-[rgba(255,255,255,.85)] uppercase tracking-[.4px] mb-2.5">
-              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <div className="inline-flex items-center gap-[6px] bg-[rgba(255,255,255,.1)] border border-[rgba(255,255,255,.15)] px-3 py-[2x] rounded-[20px] text-[11.5px] font-semibold text-[rgba(255,255,255,.85)] uppercase tracking-[.4px] mb-2.5">
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
               {course.category}
             </div>
             <h1 className="text-[28px] font-bold font-['Syne',sans-serif] text-white leading-[1.25] mb-2.5 max-w-[560px]">{course.title}</h1>
             <div className="flex items-center gap-4 flex-wrap">
               <span className="flex items-center gap-[5px] text-[13px] text-[rgba(255,255,255,.75)]">
-                <svg width="14" height="14" fill="#F59E0B" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                <svg width="14" height="14" fill="#F59E0B" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
                 <span className="font-bold text-[#F59E0B]">{course.rating}</span>
                 <span className="font-normal text-[rgba(255,255,255,.55)]">({course.students} reviews)</span>
               </span>
               <span className="flex items-center gap-[5px] text-[13px] text-[rgba(255,255,255,.75)]">
-                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
                 {course.students} enrolled
               </span>
               <span className="flex items-center gap-[5px] text-[13px] text-[rgba(255,255,255,.75)]">
-                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
                 {course.hours}h · {course.totalLessons} lessons
               </span>
               <span className="flex items-center gap-[5px] text-[13px] text-[rgba(255,255,255,.75)]">
-                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
                 {course.mentorName}
               </span>
             </div>
@@ -191,7 +173,7 @@ export default function CourseDetailPage() {
               <div className="p-3.5 border-t border-[var(--border)]">
                 <div className="text-[13px] font-bold text-[var(--text)]">Introduction to {course.title}</div>
                 <div className="text-[12px] text-[var(--text3)] flex items-center gap-1 mt-1">
-                  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                   Watch free · No login required
                 </div>
               </div>
@@ -239,11 +221,10 @@ export default function CourseDetailPage() {
             <div className="flex gap-0 bg-[var(--card)] border border-[var(--border)] rounded-xl p-1 mb-4 shadow-[var(--shadow)]">
               {["overview", "curriculum", "projects", "reviews"].map((tab) => (
                 <button key={tab} onClick={() => setActiveTab(tab)}
-                  className={`flex-1 py-[9px] px-3 rounded-[10px] text-[13px] font-semibold text-center transition-all ${
-                    activeTab === tab
+                  className={`flex-1 py-[9px] px-3 rounded-[10px] text-[13px] font-semibold text-center transition-all ${activeTab === tab
                       ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white shadow-[0_2px_8px_rgba(240,90,26,.3)]"
                       : "text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--text)]"
-                  }`}>
+                    }`}>
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
               ))}
@@ -262,7 +243,7 @@ export default function CourseDetailPage() {
                       {course.whatYoullLearn.map((item, i) => (
                         <div key={i} className="flex items-start gap-[9px] p-[10px_12px] bg-[var(--blue-dim)]/20 border border-[var(--blue-dim)]/50 rounded-[8px]">
                           <div className="w-[18px] h-[18px] rounded-full bg-gradient-to-br from-[var(--blue)] to-[var(--blue-dim)] flex items-center justify-center flex-shrink-0 mt-[1px]">
-                            <svg width="10" height="10" fill="none" stroke="#fff" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                            <svg width="10" height="10" fill="none" stroke="#fff" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                           </div>
                           <span className="text-[12.5px] text-[var(--text2)] leading-[1.4]">{item}</span>
                         </div>
@@ -276,7 +257,7 @@ export default function CourseDetailPage() {
                     <div className="text-[13px] font-bold uppercase tracking-[.6px] text-[var(--muted)] mb-2.5 mt-4">Career Relevance</div>
                     <div className="bg-gradient-to-r from-[var(--orange)]/5 to-[var(--blue)]/5 border border-[var(--border)] rounded-[10px] p-[14px_16px] flex items-center gap-3">
                       <div className="w-10 h-10 rounded-[8px] bg-gradient-to-br from-[var(--orange)] to-[var(--orange2)] flex items-center justify-center flex-shrink-0">
-                        <svg width="20" height="20" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                        <svg width="20" height="20" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
                       </div>
                       <div>
                         <strong className="text-[13px] text-[var(--text)] block mb-0.5">{course.careerTitle}</strong>
@@ -319,7 +300,7 @@ export default function CourseDetailPage() {
                             <span className="text-[13px] font-bold">{section.title}</span>
                           </div>
                           <span className="text-[12px] text-[rgba(255,255,255,.55)] flex items-center gap-[5px]">
-                            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                            <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                             {items.length} items
                           </span>
                         </div>
@@ -330,7 +311,7 @@ export default function CourseDetailPage() {
                           return (
                             <div key={item.id} className={`flex items-center gap-3 p-3 rounded-[10px] border border-[var(--border)] bg-[var(--card)] transition-all ${isFree ? "hover:border-[var(--green)]/50 hover:shadow-[var(--shadow)] hover:translate-x-[2px]" : "opacity-65 bg-[var(--bg)]"}`}>
                               <div className={`w-7 h-7 rounded-[6px] flex items-center justify-center text-[11px] font-extrabold flex-shrink-0 ${isFree ? "bg-[var(--green)] text-white" : "bg-[var(--border)] text-[var(--muted)]"}`}>
-                                {isFree ? "✔" : <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>}
+                                {isFree ? "✔" : <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="text-[13.5px] font-semibold text-[var(--text)] flex items-center gap-[7px]">
@@ -340,7 +321,7 @@ export default function CourseDetailPage() {
                                 {isVideo && (
                                   <div className="text-[12px] text-[var(--muted)] mt-[2px] flex items-center gap-2">
                                     <span className="flex items-center gap-[3px] font-mono text-[11px]">
-                                      <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                      <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
                                       {Math.floor((item as any).durationSeconds / 60)}:{(item as any).durationSeconds % 60}
                                     </span>
                                   </div>
@@ -349,12 +330,12 @@ export default function CourseDetailPage() {
                               <div className="flex-shrink-0">
                                 {isFree ? (
                                   <button className="px-4 py-[6px] rounded-[6px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[12px] font-bold flex items-center gap-[5px] hover:opacity-90 hover:-translate-y-px transition-all">
-                                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                    <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                                     Watch
                                   </button>
                                 ) : (
                                   <button className="px-4 py-[6px] rounded-[6px] bg-[var(--bg2)] text-[var(--muted)] text-[12px] font-semibold cursor-not-allowed flex items-center gap-[5px]">
-                                    <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                                    <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                                     Locked
                                   </button>
                                 )}
@@ -381,7 +362,7 @@ export default function CourseDetailPage() {
                         <div className={`w-full h-full ${i > 0 ? "blur-[4px] scale-105" : ""}`} style={{ background: `hsl(${i * 60 + 200}, 50%, ${i === 0 ? "70%" : "85%"})` }}></div>
                         {i > 0 && (
                           <div className="absolute inset-0 bg-[rgba(11,14,20,.6)] flex items-center justify-center">
-                            <svg width="28" height="28" fill="none" stroke="#fff" strokeWidth="1.5" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                            <svg width="28" height="28" fill="none" stroke="#fff" strokeWidth="1.5" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
                           </div>
                         )}
                       </div>
@@ -437,11 +418,10 @@ export default function CourseDetailPage() {
               <div className="flex p-3 border-b border-[var(--border)] gap-2">
                 {(["monthly", "annual"] as const).map((p) => (
                   <button key={p} onClick={() => setPlan(p)}
-                    className={`flex-1 py-2 rounded-[8px] text-center text-[13px] font-semibold transition-all relative ${
-                      plan === p
+                    className={`flex-1 py-2 rounded-[8px] text-center text-[13px] font-semibold transition-all relative ${plan === p
                         ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white shadow-[0_2px_8px_rgba(240,90,26,.3)]"
                         : "text-[var(--muted)] bg-[var(--bg)]"
-                    }`}>
+                      }`}>
                     {p.charAt(0).toUpperCase() + p.slice(1)}
                     {p === "annual" && (
                       <span className="absolute -top-[10px] right-1 bg-[var(--orange)] text-white text-[9.5px] font-extrabold px-1.5 py-[2px] rounded-[4px] uppercase tracking-[.3px]">Save 40%</span>
@@ -479,7 +459,7 @@ export default function CourseDetailPage() {
                 ].map((f, i) => (
                   <div key={i} className="flex items-start gap-[9px] mb-2.5">
                     <div className="w-[18px] h-[18px] rounded-full bg-[var(--green)] flex items-center justify-center flex-shrink-0 mt-[1px]">
-                      <svg width="10" height="10" fill="none" stroke="#fff" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+                      <svg width="10" height="10" fill="none" stroke="#fff" strokeWidth="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                     </div>
                     <div className="text-[13px] text-[var(--text2)]">{f.title}<small className="block text-[11.5px] text-[var(--muted)]">{f.sub}</small></div>
                   </div>
@@ -489,7 +469,7 @@ export default function CourseDetailPage() {
               <div className="p-4">
                 <button className="w-full py-3.5 rounded-[10px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[15px] font-extrabold shadow-[0_4px_20px_rgba(240,90,26,.35)] hover:opacity-90 hover:-translate-y-0.5 hover:shadow-[0_6px_28px_rgba(240,90,26,.45)] transition-all mb-2.5">🔓 Unlock Full Course</button>
                 <button className="w-full py-2.5 rounded-[10px] border-[1.5px] border-[var(--blue-dim)] text-[var(--blue)] text-[13.5px] font-bold hover:bg-[var(--blue-dim)]/20 transition-all">▶ Start Free Preview</button>
-                <div className="text-[11.5px] text-[var(--muted)] text-center mt-2.5 leading-[1.5]">No commitment. Cancel anytime.<br/>Prices in INR · GST applicable</div>
+                <div className="text-[11.5px] text-[var(--muted)] text-center mt-2.5 leading-[1.5]">No commitment. Cancel anytime.<br />Prices in INR · GST applicable</div>
               </div>
             </div>
 
@@ -497,7 +477,7 @@ export default function CourseDetailPage() {
               <div className="text-[60px] font-extrabold text-[var(--blue-dim)]/20 right-[-10px] bottom-[-14px] absolute tracking-[-2px] leading-none pointer-events-none font-['Syne',sans-serif] select-none">CERTIFICATE</div>
               <div className="flex items-center gap-2.5 mb-3 relative z-[1]">
                 <div className="w-9 h-9 rounded-[8px] bg-gradient-to-r from-[var(--blue)] to-[var(--blue-dim)] flex items-center justify-center flex-shrink-0">
-                  <svg width="18" height="18" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+                  <svg width="18" height="18" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6" /><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" /></svg>
                 </div>
                 <div>
                   <div className="text-[13px] font-bold text-[var(--text)]">Industry Certificate Included</div>
@@ -512,7 +492,7 @@ export default function CourseDetailPage() {
             </div>
 
             <div className="flex items-center gap-2.5 mt-3 p-3 rounded-[10px] bg-[var(--green)]/10 border border-[var(--green)]/20">
-              <svg width="22" height="22" fill="none" stroke="var(--green)" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <svg width="22" height="22" fill="none" stroke="var(--green)" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
               <div className="text-[12px] font-semibold text-[var(--green)]">7-Day Money-Back Guarantee<small className="block font-normal opacity-80">Full refund if you're not satisfied</small></div>
             </div>
           </aside>
@@ -542,7 +522,7 @@ export default function CourseDetailPage() {
             <div className="font-['Syne',sans-serif] text-[20px] font-bold text-[var(--text)] pb-3 border-b border-[var(--border)] mb-3.5">Related Courses</div>
             <div className="grid grid-cols-3 gap-4">
               {related.map((rc) => (
-                <Link key={rc.id} href={`/courses/${slugify(rc.title)}`}
+                <Link key={rc.id} href={`/courses/${rc.slug}`}
                   className="border border-[var(--border)] rounded-xl overflow-hidden cursor-pointer transition-all hover:border-[var(--blue-dim)] hover:shadow-[var(--shadow)] hover:-translate-y-[3px] bg-[var(--card)] no-underline">
                   <div className="h-[100px] overflow-hidden">
                     <img src={rc.img} alt={rc.title} className="w-full h-full object-cover transition-transform hover:scale-105" />

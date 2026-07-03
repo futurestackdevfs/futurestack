@@ -146,6 +146,25 @@ export class AdminService {
     };
   }
 
+  async listAllUsers() {
+    return this.prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        emailVerified: true,
+        avatarUrl: true,
+        approvalStatus: true,
+        createdAt: true,
+        lastLoginAt: true,
+        _count: { select: { enrollments: true, coursesTaught: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   /**
    * Admin directly creates a Coordinator, Support, or Admin account.
    * Unlike trainer self-registration, this account is immediately usable —
