@@ -53,6 +53,7 @@ model User {
   bio                  String?
   yearsExperience      Int?
   rating               Float?
+  trainerCode          String?         @unique
 
   enrollments          Enrollment[]
   videoProgress        VideoProgress[]
