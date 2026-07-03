@@ -143,7 +143,19 @@ export class CoursesService {
 
   async createCourse(dto: CreateCourseDto) {
     if (dto.trainerId) await this.validateApprovedTrainer(dto.trainerId);
-    return this.prisma.course.create({ data: dto });
+    const course = await this.prisma.course.create({ data: dto });
+
+    // Build a 2-4 letter prefix from category initials, e.g. "Full Stack" → "FS"
+    const prefix = dto.category
+      ? dto.category.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 4)
+      : 'CRS';
+
+    const existingCount = await this.prisma.course.count({
+      where: { code: { startsWith: `${prefix}-` } },
+    });
+    const code = `${prefix}-${String(existingCount + 1).padStart(2, '0')}`;
+
+    return this.prisma.course.update({ where: { id: course.id }, data: { code } });
   }
 
   async listCourses() {

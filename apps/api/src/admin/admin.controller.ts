@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { AdminService } from './admin.service';
@@ -9,6 +10,7 @@ import { RejectTrainerDto } from './dto/reject-trainer.dto';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Get('stats')
   async getPlatformStats() {
@@ -16,24 +18,28 @@ export class AdminController {
   }
 
   // Trainer approval is content-management work — shared with Content Manager.
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Get('trainers/pending')
   async listPendingTrainers() {
     return this.adminService.listPendingTrainers();
   }
 
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Get('trainers/approved')
   async listApprovedTrainers() {
     return this.adminService.listApprovedTrainers();
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Post('trainers/:id/approve')
   async approveTrainer(@Param('id') id: string) {
     return this.adminService.approveTrainer(id);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Post('trainers/:id/reject')
   async rejectTrainer(@Param('id') id: string, @Body() dto: RejectTrainerDto) {
@@ -42,6 +48,7 @@ export class AdminController {
 
   // Account provisioning stays ADMIN-only — a Content Manager shouldn't be
   // able to create more staff accounts (including more Content Managers).
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Auth(Role.ADMIN)
   @Post('staff')
   async createStaffAccount(@Body() dto: CreateStaffDto) {

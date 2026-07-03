@@ -18,6 +18,12 @@ enum CourseStatus {
   ARCHIVED
 }
 
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
 enum Role {
   STUDENT
   TRAINER
@@ -47,6 +53,7 @@ model User {
   bio                  String?
   yearsExperience      Int?
   rating               Float?
+  trainerCode          String?         @unique
 
   enrollments          Enrollment[]
   videoProgress        VideoProgress[]
@@ -79,6 +86,10 @@ model Course {
 
   trainerId    String?
   trainer      User?         @relation("CourseTrainer", fields: [trainerId], references: [id])
+
+  category     String?
+  skillLevel   SkillLevel?
+  code         String?       @unique
 
   // Overview tab content
   whatYoullLearn String[]    @default([])  // bullet list, e.g. ["Build production-grade apps", ...]

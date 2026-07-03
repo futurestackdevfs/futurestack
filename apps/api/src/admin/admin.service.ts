@@ -9,7 +9,7 @@ export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
   async listPendingTrainers() {
-    const trainers = await this.prisma.user.findMany({
+    return this.prisma.user.findMany({
       where: { role: Role.TRAINER, approvalStatus: 'PENDING' },
       select: {
         id: true,
@@ -17,25 +17,30 @@ export class AdminService {
         email: true,
         bio: true,
         yearsExperience: true,
+        trainerCode: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'asc' }, // oldest applications first
     });
-
-    return trainers;
   }
 
   async approveTrainer(trainerId: string) {
     const trainer = await this.findPendingTrainer(trainerId);
 
+    const approvedCount = await this.prisma.user.count({
+      where: { role: Role.TRAINER, approvalStatus: 'APPROVED' },
+    });
+    const trainerCode = `TR-${String(approvedCount + 1).padStart(2, '0')}`;
+
     const updated = await this.prisma.user.update({
       where: { id: trainer.id },
-      data: { approvalStatus: 'APPROVED' },
+      data: { approvalStatus: 'APPROVED', trainerCode },
     });
 
     return {
       message: `${updated.name} has been approved as a trainer.`,
       trainerId: updated.id,
+      trainerCode: updated.trainerCode,
     };
   }
 
@@ -83,6 +88,7 @@ export class AdminService {
         yearsExperience: true,
         rating: true,
         avatarUrl: true,
+        trainerCode: true,
         createdAt: true,
         _count: { select: { coursesTaught: true } },
       },

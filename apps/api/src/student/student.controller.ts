@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Param, Body, Req } from '@nestjs/common';
 import type { Request } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { StudentService } from './student.service';
@@ -9,6 +10,7 @@ import { UpdateVideoProgressDto } from './dto/update-video-progress.dto';
 export class StudentController {
   constructor(private readonly studentService: StudentService) {}
 
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Auth(Role.STUDENT)
   @Get('dashboard')
   async getDashboard(@Req() req: Request) {
@@ -16,6 +18,7 @@ export class StudentController {
     return this.studentService.getDashboard(user.id);
   }
 
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Auth(Role.STUDENT)
   @Get('courses/:courseId')
   async getCourseDetail(@Req() req: Request, @Param('courseId') courseId: string) {
@@ -23,6 +26,7 @@ export class StudentController {
     return this.studentService.getCourseDetail(user.id, courseId);
   }
 
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Auth(Role.STUDENT)
   @Post('videos/:videoId/progress')
   async updateVideoProgress(

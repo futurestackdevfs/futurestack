@@ -88,9 +88,14 @@ export class AuthController {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
-    // Frontend reads the token off the query string and stores it,
-    // then redirects into the right dashboard based on the JWT's role claim.
-    return res.redirect(`${frontendUrl}/oauth/callback?token=${accessToken}`);
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days, matches JWT expiry
+    });
+
+    return res.redirect(`${frontendUrl}/students/my-dashboard`);
   }
 
   @Throttle({ default: { limit: 3, ttl: 900_000 } })
