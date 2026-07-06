@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 interface OpsTopbarProps {
   role: { name: string; email: string; role: string; initials: string };
@@ -44,11 +45,7 @@ export function OpsTopbar({ role, breadcrumb, onSearch }: OpsTopbarProps) {
       className="flex items-center px-3.5 gap-2.5 shrink-0"
     >
       <div className="flex items-center gap-2 font-extrabold text-[13px] shrink-0 tracking-wide">
-        <div
-          style={{ width: 22, height: 22, background: "linear-gradient(135deg, var(--orange), #ff8a4d)", borderRadius: 4 }}
-          className="flex items-center justify-center font-bold text-[11px] text-white shrink-0 font-mono"
-        >F</div>
-        <span>FutureStack</span>
+        <Image src="/images/logo.png" alt="FutureStack" width={120} height={22} style={{ height: 22, width: "auto" }} />
         <span style={{ color: "var(--border2)" }}>/</span>
         <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="uppercase">
           OPS CONSOLE
