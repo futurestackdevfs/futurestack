@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 
-const SLOT_COUNT = 5;
+const MAX_SLOT_COUNT = 10;
 
 interface Item {
   id: string;
@@ -41,8 +41,25 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [openSlot, setOpenSlot] = useState<{ section: SectionKey; index: number } | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<"down" | "up">("down");
   const [search, setSearch] = useState("");
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
+
+  useEffect(() => {
+    if (openSlot) {
+      setDropdownPos("down");
+      const timer = setTimeout(() => {
+        const el = document.getElementById("featured-dropdown");
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.bottom > window.innerHeight) {
+            setDropdownPos("up");
+          }
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [openSlot]);
 
   function addToast(msg: string, type: "success" | "danger" = "success") {
     const id = Date.now();
@@ -194,7 +211,7 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
 
    function renderSection(section: SectionKey, label: string, emoji: string) {
     const featured = getFeatured(section);
-    const slots: (Item | null)[] = Array.from({ length: SLOT_COUNT }, (_, i) => featured.find(f => f.displayOrder === i) ?? null);
+    const slots: (Item | null)[] = Array.from({ length: MAX_SLOT_COUNT }, (_, i) => featured.find(f => f.displayOrder === i) ?? null);
     const available = getAvailable(section).filter((i) =>
       i.title.toLowerCase().includes(search.toLowerCase()),
     );
@@ -215,7 +232,7 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
             {emoji} {label}
           </span>
           <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>
-            {featured.length}/{SLOT_COUNT} slots filled — shown on homepage in this order
+            {featured.length}/{MAX_SLOT_COUNT} slots filled — shown on homepage in this order
           </span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5">
@@ -227,7 +244,7 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
                   style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
                 >
                   <div className="flex items-start justify-between gap-1">
-                    <span className="font-mono text-[10px] font-semibold shrink-0" style={{ color: "var(--text3)" }}>#{i + 1}</span>
+                    <span className="font-mono text-[10px] font-semibold shrink-0" style={{ color: "var(--text3)" }}>{i + 1}</span>
                     <div className="flex items-center gap-1">
                       <button
                         disabled={acting}
@@ -273,7 +290,7 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
                   style={{ border: "1.5px dashed var(--border2, var(--border))", color: "var(--text3)", background: "transparent" }}
                 >
                   <span className="text-[22px] leading-none font-light">+</span>
-                  <span className="font-mono text-[10px] font-semibold" style={{ color: "var(--text3)" }}>Slot #{i + 1}</span>
+                  <span className="font-mono text-[10px] font-semibold" style={{ color: "var(--text3)" }}>Slot {i + 1}</span>
                 </button>
               )}
 
@@ -281,7 +298,10 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => { setOpenSlot(null); setSearch(""); }} />
                   <div
-                    className="absolute z-50 top-full mt-1 left-0 w-[220px] rounded-lg overflow-hidden"
+                    id="featured-dropdown"
+                    className={`absolute z-50 left-0 w-[220px] rounded-lg overflow-hidden ${
+                      dropdownPos === "up" ? "bottom-full mb-1" : "top-full mt-1"
+                    }`}
                     style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 8px 24px rgba(0,0,0,.18)" }}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -330,7 +350,7 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
   }
 
   return (
-    <div className="p-4 pb-7">
+    <div className="p-4 pb-64">
       <div className="flex items-baseline gap-2.5 mb-4">
         <span className="text-[17px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>
           ⭐ Homepage Layout

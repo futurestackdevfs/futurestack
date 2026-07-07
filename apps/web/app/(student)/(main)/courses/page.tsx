@@ -32,11 +32,23 @@ interface CourseCard {
   careerBody: string | null;
 }
 
+interface FacetOption {
+  value: string;
+  count: number;
+}
+
+interface Facet {
+  key: string;
+  title: string;
+  options: FacetOption[];
+}
+
 interface CardsResponse {
   data: CourseCard[];
   total: number;
   page: number;
   perPage: number;
+  facets: Facet[];
 }
 
 function formatTechLine(techStack: string[]): string {
@@ -55,15 +67,6 @@ function buildFilters(selectedFilters: Set<string>) {
   }
   return filters;
 }
-
-const filterSections = [
-  { key: "level", title: "Skill Level", items: ["Beginner", "Intermediate", "Advanced", "Expert"], field: "level" as const },
-  { key: "category", title: "Category", items: ["Web Development", "Data Science", "Cloud & DevOps", "AI / Machine Learning", "Cybersecurity", "Mobile Development"], field: "category" as const },
-  { key: "duration", title: "Duration", items: ["5 – 20 hrs", "20 – 50 hrs", "50+ hrs"], field: "duration" as const },
-  { key: "mode", title: "Learning Mode", items: ["Self-Paced", "Live Cohort", "Mentor-Led", "Bootcamp"], field: "mode" as const },
-  { key: "goal", title: "Career Goal", items: ["Get Hired", "Upskill", "Freelance", "Start-up Ready"], field: "goal" as const },
-  { key: "tech", title: "Technology Stack", items: ["React / Node.js", "Python", "AWS / Azure", "Docker / K8s", "TensorFlow / PyTorch", "Figma"], field: "tech" as const },
-];
 
 export default function CoursesPage() {
   const [openSection, setOpenSection] = useState<string | null>(null);
@@ -86,9 +89,10 @@ export default function CoursesPage() {
     return p.toString();
   }, [currentPage, search, sort, selectedFilters]);
 
-  const { data, isLoading } = useSWR<CardsResponse>(`/api/courses/public/cards?${params}`);
+  const { data, isLoading } = useSWR<CardsResponse>(`/api/courses/public/cards?${params}`, { keepPreviousData: true });
   const allCourses: CourseCard[] = data?.data ?? [];
   const total = data?.total ?? 0;
+  const facets: Facet[] = data?.facets ?? [];
 
   const toggleFilter = (key: string) => {
     setSelectedFilters((prev) => {
@@ -102,13 +106,6 @@ export default function CoursesPage() {
   const clearAllFilters = () => {
     setSelectedFilters(new Set());
     setCurrentPage(1);
-  };
-
-  const countForFilter = (sectionKey: string, item: string) => {
-    return allCourses.filter((c) => {
-      const field = filterSections.find((s) => s.key === sectionKey)!.field;
-      return c[field] === item;
-    }).length;
   };
 
   const totalPages = Math.ceil(total / perPage);
@@ -149,7 +146,10 @@ export default function CoursesPage() {
     <div className="flex min-h-screen">
       <aside className="w-[252px] shrink-0 sticky top-[56px] h-[calc(100vh-56px)] overflow-y-auto border-r border-[var(--border)] bg-[var(--card)] p-4 pb-8 flex flex-col gap-1 max-lg:hidden">
         <div className="px-[13px] pb-3 text-[13px] font-bold text-[var(--text2)] tracking-[.3px]">Filters</div>
-        {filterSections.map((s) => {
+        {facets.length === 0 && (
+          <div className="px-[13px] py-2 text-[12px] text-[var(--muted)]">Loading filters…</div>
+        )}
+        {facets.map((s) => {
           const hasActive = [...selectedFilters].some((f) => f.startsWith(s.key + "-"));
           return (
             <div key={s.key} className="border border-[var(--border)] rounded-[10px] overflow-hidden mb-2">
@@ -158,14 +158,14 @@ export default function CoursesPage() {
                 <svg className={`w-3.5 h-3.5 transition-transform ${openSection === s.key ? "" : "-rotate-90"}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
               </div>
               {openSection === s.key && (
-                <div className="px-[13px] py-2.5 flex flex-col gap-[7px]">
-                  {s.items.map((item) => {
-                    const key = `${s.key}-${item}`;
+                <div className="px-[13px] py-2.5 flex flex-col gap-[7px] max-h-[240px] overflow-y-auto overscroll-contain">
+                  {s.options.map((opt) => {
+                    const key = `${s.key}-${opt.value}`;
                     return (
-                      <div key={item} className="flex items-center gap-[9px] cursor-pointer px-[7px] py-[5px] rounded-[6px] hover:bg-[var(--blue-dim)]" onClick={() => toggleFilter(key)}>
+                      <div key={opt.value} className="flex items-center gap-[9px] cursor-pointer px-[7px] py-[5px] rounded-[6px] hover:bg-[var(--blue-dim)]" onClick={() => toggleFilter(key)}>
                         <input type="checkbox" checked={selectedFilters.has(key)} onChange={() => {}} className="accent-[var(--blue)] w-3.5 h-3.5 cursor-pointer pointer-events-none" />
                         <label className="flex-1 flex justify-between items-center text-[13px] text-[var(--text2)] cursor-pointer pointer-events-none">
-                          {item} <span className="text-[11px] text-[var(--muted)] bg-[var(--bg)] px-[6px] py-[1px] rounded-[10px]">{countForFilter(s.key, item)}</span>
+                          {opt.value} <span className="text-[11px] text-[var(--muted)] bg-[var(--bg)] px-[6px] py-[1px] rounded-[10px]">{opt.count}</span>
                         </label>
                       </div>
                     );

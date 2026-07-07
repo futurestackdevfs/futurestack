@@ -18,6 +18,12 @@ enum CourseStatus {
   ARCHIVED
 }
 
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
 enum Role {
   STUDENT
   TRAINER
@@ -85,6 +91,9 @@ model Course {
   techStack      String[]    @default([])  // chips, e.g. ["MongoDB", "React.js", "Docker"]
   careerTitle    String?                    // e.g. "High-demand skill — average salary ₹18L–₹40L/yr"
   careerBody     String?                    // longer paragraph
+  category       String?                    // e.g. "Web Development"
+  code           String?     @unique        // internal course code
+  skillLevel     SkillLevel?
 
   sections     Section[]
   enrollments  Enrollment[]

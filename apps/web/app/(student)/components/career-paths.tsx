@@ -21,7 +21,7 @@ const iconClasses = [
 
 export function CareerPaths() {
   const { data, isLoading } = useSWR<FeaturedTrack[]>("/api/courses/public/featured-tracks");
-  const paths = (Array.isArray(data) ? data : []).slice(0, 5);
+  const paths = (Array.isArray(data) ? data : []).slice(0, 10);
 
   if (!isLoading && paths.length === 0) return null;
 

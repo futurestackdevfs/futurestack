@@ -11,6 +11,7 @@ import { KpiStrip } from "./sections/KpiStrip";
 import { EntityTabs, type EntityTab } from "./sections/EntityTabs";
 import { EntityTable, StatusBadge, YesNoBadge, type ColumnDef } from "./sections/EntityTable";
 import { MasterDataModal, type FieldDef } from "./sections/MasterDataModal";
+import { ConfirmDialog, type ConfirmOptions } from "./sections/ConfirmDialog";
 import { CurriculumBuilder } from "./sections/CurriculumBuilder";
 import { ProfileModal } from "./sections/ProfileModal";
 import FeaturedManager from "./sections/FeaturedManager";
@@ -77,33 +78,43 @@ const ENTITY_ICONS: Record<string, string> = {
   courses: "📚", batches: "📅", instructors: "🎓", feeplans: "💳", certs: "🏅", departments: "🏢",
 };
 
+// Course.skillLevel enum (BEGINNER/…) ↔ display label
+const SKILL_LEVEL_LABELS: Record<string, string> = {
+  BEGINNER: "Beginner",
+  INTERMEDIATE: "Intermediate",
+  ADVANCED: "Advanced",
+};
+const SKILL_LEVEL_ENUM: Record<string, string> = Object.fromEntries(
+  Object.entries(SKILL_LEVEL_LABELS).map(([k, v]) => [v, k]),
+);
+
 const ENTITY_NAMES: Record<string, string> = {
   courses: "Course", batches: "Batch", instructors: "Instructor", feeplans: "Fee Plan", certs: "Certification Template", departments: "Department",
 };
 
 const SCHEMAS: Record<string, FieldDef[]> = {
   courses: [
-    // NOTE: category, level, duration, modules, totalLessons, totalHours are
-    // display-only — the backend Course model has no columns for them, so they
-    // render in the form but are not persisted (saveRecord only sends backend-known
-    // keys). They are intentionally NOT `required`, otherwise the modal's validate()
-    // would block saving on fields that never save.
+    // NOTE: category & level persist to the backend (Course.category /
+    // Course.skillLevel). duration, modules, totalLessons, totalHours are
+    // computed server-side from the curriculum (sections/videos/quizzes) and
+    // are read-only here — editing them in the form has no effect.
     { key: "title", label: "Course Name", type: "text", required: true, placeholder: "e.g. MERN Stack Development", full: true },
-    { key: "category", label: "Category", type: "select", options: ["Full Stack", "Data Science", "AI / ML", "DevOps", "Cybersecurity", "Programming", "Cloud"] },
-    { key: "level", label: "Level", type: "select", options: ["Beginner", "Intermediate", "Advanced"] },
+    { key: "category", label: "Category", type: "select", required: true, options: ["Full Stack", "Data Science", "AI / ML", "DevOps", "Cybersecurity", "Programming", "Cloud"], allowCustom: true, full: true },
+    { key: "level", label: "Level", type: "select", required: true, options: ["Beginner", "Intermediate", "Advanced"] },
+    { key: "price", label: "Price (₹)", type: "number", required: true, placeholder: "e.g. 45000" },
+    { key: "description", label: "About This Course", type: "textarea", required: true, full: true, placeholder: "Long-form description shown on the course detail page…" },
+    { key: "whatYoullLearn", label: "What You'll Learn (one per line)", type: "textarea", required: true, full: true, placeholder: "Build production-grade full-stack apps with the MERN stack\nDesign scalable REST APIs with Express.js and Node.js\n…" },
+    { key: "techStack", label: "Technologies Covered (comma separated)", type: "text", required: true, full: true, placeholder: "MongoDB, Mongoose, Express.js, React.js, Node.js, Redux Toolkit, JWT Auth" },
+    { key: "careerTitle", label: "Career Relevance — Headline", type: "text", required: true, full: true, placeholder: "e.g. High-demand skill — average salary ₹18L – ₹40L/yr" },
+    { key: "careerBody", label: "Career Relevance — Body", type: "textarea", required: true, full: true, placeholder: "Companies that hire for this skill, salary context, market demand…" },
+    { key: "trainerId", label: "Primary Instructor", type: "select", required: true, optionsFrom: "instructors" },
+    { key: "thumbnailUrl", label: "Thumbnail Image", type: "file", required: true, full: true },
+    { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
+    // Computed from the curriculum — optional, kept at the very end of the form
     { key: "duration", label: "Duration", type: "duration", placeholder: "e.g. 16" },
     { key: "modules", label: "Total Modules", type: "number", placeholder: "e.g. 20" },
     { key: "totalLessons", label: "Total Lessons", type: "number", placeholder: "e.g. 96" },
     { key: "totalHours", label: "Total Duration (hours)", type: "number", placeholder: "e.g. 80" },
-    { key: "price", label: "Price (₹)", type: "number", required: true, placeholder: "e.g. 45000" },
-    { key: "description", label: "About This Course", type: "textarea", full: true, placeholder: "Long-form description shown on the course detail page…" },
-    { key: "whatYoullLearn", label: "What You'll Learn (one per line)", type: "textarea", full: true, placeholder: "Build production-grade full-stack apps with the MERN stack\nDesign scalable REST APIs with Express.js and Node.js\n…" },
-    { key: "techStack", label: "Technologies Covered (comma separated)", type: "text", full: true, placeholder: "MongoDB, Mongoose, Express.js, React.js, Node.js, Redux Toolkit, JWT Auth" },
-    { key: "careerTitle", label: "Career Relevance — Headline", type: "text", full: true, placeholder: "e.g. High-demand skill — average salary ₹18L – ₹40L/yr" },
-    { key: "careerBody", label: "Career Relevance — Body", type: "textarea", full: true, placeholder: "Companies that hire for this skill, salary context, market demand…" },
-    { key: "trainerId", label: "Primary Instructor", type: "select", required: true, optionsFrom: "instructors" },
-    { key: "thumbnailUrl", label: "Thumbnail Image", type: "file", full: true },
-    { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
   ],
   batches: [
     { key: "code", label: "Batch Code", type: "text", required: true, placeholder: "e.g. BAT-MERN-WD-04" },
@@ -246,6 +257,18 @@ export default function AdminMasterDataPage() {
   const [token, setToken] = useState<string | null>(null);
   const [stats, setStats] = useState<CourseStats | null>(null);
   const [profileModal, setProfileModal] = useState<{ open: boolean; mode: "profile" | "settings" }>({ open: false, mode: "profile" });
+  const [confirmState, setConfirmState] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
+
+  // Promise-based styled confirmation popup — replaces window.confirm/alert.
+  // Usage: if (!(await askConfirm({ title, message, danger }))) return;
+  function askConfirm(opts: ConfirmOptions): Promise<boolean> {
+    return new Promise((resolve) => setConfirmState({ ...opts, resolve }));
+  }
+
+  function resolveConfirm(ok: boolean) {
+    confirmState?.resolve(ok);
+    setConfirmState(null);
+  }
 
   useEffect(() => {
     (async () => {
@@ -299,13 +322,18 @@ export default function AdminMasterDataPage() {
       const mappedCourses = (Array.isArray(coursesData) ? coursesData : []).map((c: any) => ({
         id: c.id,
         _backendId: c.id,
-        code: typeof c.id === "string" ? c.id.slice(0, 8) : "",
+        code: c.code || (typeof c.id === "string" ? c.id.slice(0, 8) : ""),
         title: c.title || "",
         name: c.title || "Untitled",
         description: c.description || "",
         price: c.price ?? 0,
         status: c.status || "DRAFT",
         trainerId: c.trainerId || c.trainer?.id || "",
+        category: c.category || (Array.isArray(c.techStack) && c.techStack[0]) || "",
+        level: SKILL_LEVEL_LABELS[c.skillLevel] || "",
+        duration: c.durationWeeks || 0,
+        totalLessons: c.totalLessons ?? 0,
+        totalHours: c.totalHours ?? 0,
         modules: c._count?.sections ?? 0,
         instructor: c.trainer?.name || "",
         instructorEmail: c.trainer?.email || "",
@@ -431,6 +459,12 @@ export default function AdminMasterDataPage() {
         careerBody: record.careerBody || "",
         thumbnailUrl: record.thumbnailUrl || "",
         status: record.status || "DRAFT",
+        category: record.category || "",
+        level: record.level || "",
+        duration: record.duration || "",
+        totalLessons: record.totalLessons || "",
+        totalHours: record.totalHours || "",
+        modules: record.modules || "",
       };
       setEditingRecord(mapped);
     } else {
@@ -444,7 +478,34 @@ export default function AdminMasterDataPage() {
     setEditingRecord(null);
   }
 
+  // Cancel/✕/backdrop on the master-data modal — confirm before discarding
+  // so the admin can go back to the form instead of losing their input.
+  async function requestCloseModal() {
+    const ok = await askConfirm({
+      title: "Discard Changes?",
+      message: "Any unsaved changes in this form will be lost.",
+      confirmLabel: "Discard",
+      cancelLabel: "Keep Editing",
+      danger: true,
+    });
+    if (ok) closeModal();
+  }
+
   async function saveRecord(formData: Record<string, any>) {
+    const draftNote =
+      currentEntity === "courses" && formData.status === "DRAFT"
+        ? '\n\n📝 Note: This course will be saved as DRAFT — it will NOT be visible to students. Set its status to ACTIVE when you want it visible to all.'
+        : "";
+    const saveOk = await askConfirm({
+      title: formData.id ? `Update ${ENTITY_NAMES[currentEntity]}?` : `Add ${ENTITY_NAMES[currentEntity]}?`,
+      message:
+        (formData.id
+          ? `Save changes to "${formData.title || formData.name || "this record"}"?`
+          : `Create new ${ENTITY_NAMES[currentEntity].toLowerCase()} "${formData.title || formData.name || ""}"?`) + draftNote,
+      confirmLabel: "💾 Save",
+    });
+    if (!saveOk) return;
+
     if (currentEntity === "courses" && token) {
       try {
         const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
@@ -481,6 +542,8 @@ export default function AdminMasterDataPage() {
         if (formData.careerBody !== undefined) body.careerBody = formData.careerBody;
         if (formData.thumbnailUrl !== undefined) body.thumbnailUrl = formData.thumbnailUrl;
         if (formData.status !== undefined) body.status = formData.status;
+        if (formData.category) body.category = formData.category;
+        if (formData.level && SKILL_LEVEL_ENUM[formData.level]) body.skillLevel = SKILL_LEVEL_ENUM[formData.level];
 
         if (formData.id) {
           const res = await fetch(`/api/courses/${formData.id}`, {
@@ -491,7 +554,14 @@ export default function AdminMasterDataPage() {
             setDb((prev) => ({
               ...prev,
               courses: prev.courses.map((r: any) =>
-                r.id === formData.id ? { ...r, ...body, name: body.title || r.name } : r
+                r.id === formData.id
+                  ? {
+                      ...r,
+                      ...body,
+                      name: body.title || r.name,
+                      level: body.skillLevel ? SKILL_LEVEL_LABELS[body.skillLevel] : r.level,
+                    }
+                  : r
               ),
             }));
             addToast(`Course updated successfully`);
@@ -516,6 +586,9 @@ export default function AdminMasterDataPage() {
                 status: created.status || "DRAFT",
                 modules: 0, instructor: "", instructorEmail: "",
                 thumbnailUrl: created.thumbnailUrl || "",
+                category: created.category || body.category || "",
+                level: SKILL_LEVEL_LABELS[created.skillLevel || body.skillLevel] || "",
+                duration: 0, totalLessons: 0, totalHours: 0,
                 techStack: [], whatYoullLearn: [],
                 careerTitle: "", careerBody: "", enrollments: 0,
               }],
@@ -553,12 +626,15 @@ export default function AdminMasterDataPage() {
   }
 
   async function deleteRecord(record: any) {
-    if (currentEntity === "courses" && token) {
-      const confirmed = window.confirm(
-        `Are you sure you want to delete "${record.name || record.title}"?\nThis cannot be undone.`
-      );
-      if (!confirmed) return;
+    const confirmed = await askConfirm({
+      title: `Delete ${ENTITY_NAMES[currentEntity]}?`,
+      message: `Are you sure you want to delete "${record.name || record.title || record.code}"?\nThis cannot be undone.`,
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!confirmed) return;
 
+    if (currentEntity === "courses" && token) {
       try {
         const res = await fetch(`/api/courses/${record.id}`, {
           method: "DELETE",
@@ -693,7 +769,13 @@ export default function AdminMasterDataPage() {
   }
 
   async function deleteSection(sectionId: string, courseId: string | number) {
-    if (!confirm("Delete this section and all its content?")) return;
+    const ok = await askConfirm({
+      title: "Delete Section?",
+      message: "Delete this section and all its videos & quizzes?\nThis cannot be undone.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     await apiDelete(`/courses/sections/${sectionId}`);
     setExpandedCurriculums((prev) => ({
       ...prev,
@@ -708,6 +790,14 @@ export default function AdminMasterDataPage() {
   }
 
   async function deleteLesson(sectionId: string, lessonId: string, kind: "video" | "quiz", courseId: string | number) {
+    const ok = await askConfirm({
+      title: kind === "video" ? "Delete Video?" : "Delete Quiz?",
+      message: `Are you sure you want to remove this ${kind}?\nThis cannot be undone.`,
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+
     if (kind === "video") {
       await apiDelete(`/courses/videos/${lessonId}`);
     } else {
@@ -991,7 +1081,19 @@ export default function AdminMasterDataPage() {
         extraOptions={extraOptions}
         token={token || ""}
         onSave={saveRecord}
-        onClose={closeModal}
+        onClose={requestCloseModal}
+      />
+
+      {/* Confirmation popup for save / cancel / delete operations */}
+      <ConfirmDialog
+        open={!!confirmState}
+        title={confirmState?.title || ""}
+        message={confirmState?.message || ""}
+        confirmLabel={confirmState?.confirmLabel}
+        cancelLabel={confirmState?.cancelLabel}
+        danger={confirmState?.danger}
+        onConfirm={() => resolveConfirm(true)}
+        onCancel={() => resolveConfirm(false)}
       />
 
       {/* Curriculum Builder Modal */}

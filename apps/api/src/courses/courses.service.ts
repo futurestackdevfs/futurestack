@@ -20,6 +20,12 @@ import { CreateResourceDto } from './dto/create-resource.dto';
 import { FeatureDto } from './dto/feature.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
 
+const SKILL_LEVEL_LABELS: Record<string, string> = {
+  BEGINNER: 'Beginner',
+  INTERMEDIATE: 'Intermediate',
+  ADVANCED: 'Advanced',
+};
+
 function slugify(text: string): string {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
@@ -57,9 +63,9 @@ export class CoursesService {
   }
 
   async featuredCourses() {
-    const SLOT_COUNT = 5;
+    const SLOT_COUNT = 10;
     const courses = await this.prisma.course.findMany({
-      where: { isFeatured: true, status: 'ACTIVE' },
+      where: { isFeatured: true, status: 'ACTIVE', displayOrder: { lt: SLOT_COUNT } },
       orderBy: { displayOrder: 'asc' },
       take: SLOT_COUNT,
       select: {
@@ -79,13 +85,23 @@ export class CoursesService {
       },
     });
 
-    const videoStats = await this.getVideoStats(courses.map((c) => c.id));
+    // Filter out duplicates in case of database inconsistencies
+    const uniqueCourses: typeof courses = [];
+    const seenOrders = new Set();
+    for (const c of courses) {
+      if (!seenOrders.has(c.displayOrder)) {
+        seenOrders.add(c.displayOrder);
+        uniqueCourses.push(c);
+      }
+    }
 
-    const enrollmentCounts = courses.map((c) => c._count.enrollments).sort((a, b) => b - a);
+    const videoStats = await this.getVideoStats(uniqueCourses.map((c) => c.id));
+
+    const enrollmentCounts = uniqueCourses.map((c) => c._count.enrollments).sort((a, b) => b - a);
     const trendingThreshold = enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-    return courses.map(({ createdAt, ...rest }) => {
+    return uniqueCourses.map(({ createdAt, ...rest }) => {
       const stats = videoStats.get(rest.id) ?? { totalSeconds: 0, videoCount: 0 };
       const isTrending = rest._count.enrollments > 0 && rest._count.enrollments >= trendingThreshold;
       const isNew = createdAt >= fourteenDaysAgo;
@@ -102,9 +118,9 @@ export class CoursesService {
   }
 
   async featuredTracks() {
-    const SLOT_COUNT = 5;
-    return this.prisma.track.findMany({
-      where: { isFeatured: true },
+    const SLOT_COUNT = 10;
+    const tracks = await this.prisma.track.findMany({
+      where: { isFeatured: true, displayOrder: { lt: SLOT_COUNT } },
       orderBy: { displayOrder: 'asc' },
       take: SLOT_COUNT,
       select: {
@@ -115,6 +131,16 @@ export class CoursesService {
         _count: { select: { courses: true } },
       },
     });
+
+    const uniqueTracks: typeof tracks = [];
+    const seenOrders = new Set();
+    for (const t of tracks) {
+      if (!seenOrders.has(t.displayOrder)) {
+        seenOrders.add(t.displayOrder);
+        uniqueTracks.push(t);
+      }
+    }
+    return uniqueTracks;
   }
 
   async publicCourseBySlug(slug: string) {
@@ -161,11 +187,11 @@ export class CoursesService {
       techStack: course.techStack,
       careerTitle: course.careerTitle,
       careerBody: course.careerBody,
-      category: course.techStack[0] ?? 'General',
+      category: course.category ?? course.techStack[0] ?? 'General',
       hours: Math.round(
         course.sections.reduce((sum, s) => sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0), 0) / 3600,
       ) || 1,
-      level: 'Intermediate',
+      level: SKILL_LEVEL_LABELS[course.skillLevel ?? 'INTERMEDIATE'],
       rating: course.trainer?.rating ?? 4.7,
       students: course._count.enrollments,
       mentorInitials: (course.trainer?.name ?? 'TM').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
@@ -266,13 +292,42 @@ export class CoursesService {
   }
 
   async listCourses() {
-    return this.prisma.course.findMany({
+    const courses = await this.prisma.course.findMany({
       include: {
         trainer: { select: { id: true, name: true, email: true } },
         _count: { select: { enrollments: true, sections: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const [videoStats, quizCounts] = await Promise.all([
+      this.getVideoStats(courses.map((c) => c.id)),
+      this.getQuizCounts(courses.map((c) => c.id)),
+    ]);
+
+    return courses.map((course) => {
+      const stats = videoStats.get(course.id) ?? { totalSeconds: 0, videoCount: 0 };
+      const totalHours = Math.round(stats.totalSeconds / 3600);
+      return {
+        ...course,
+        totalLessons: stats.videoCount + (quizCounts.get(course.id) ?? 0),
+        totalHours,
+        durationWeeks: totalHours > 0 ? Math.max(1, Math.round(totalHours / 10)) : 0,
+      };
+    });
+  }
+
+  private async getQuizCounts(courseIds: string[]): Promise<Map<string, number>> {
+    if (courseIds.length === 0) return new Map();
+    const rows: { courseId: string; quizCount: number | null }[] =
+      await this.prisma.$queryRawUnsafe(
+        `SELECT s."courseId", COUNT(q.id) as "quizCount"
+         FROM "Section" s LEFT JOIN "Quiz" q ON q."sectionId" = s."id"
+         WHERE s."courseId" = ANY($1)
+         GROUP BY s."courseId"`,
+        courseIds,
+      );
+    return new Map(rows.map((r) => [r.courseId, Number(r.quizCount ?? 0)]));
   }
 
   async findAllCards(opts: { page: number; perPage: number; search?: string; sort?: string; filters?: Record<string, string[]> }) {
@@ -288,47 +343,40 @@ export class CoursesService {
       ];
     }
 
-    // Only `tech` is a real DB field; everything else is computed post-fetch
-    const inMemoryFilters: { field: string; values: string[] }[] = [];
+    // `category` and `duration` are computed fields, so all filtering happens
+    // in memory AFTER building the cards but BEFORE pagination — this keeps
+    // `total` and page numbers correct. The catalog is small enough for this.
+    const activeFilters: { field: string; values: string[] }[] = [];
     if (opts.filters) {
       for (const [field, values] of Object.entries(opts.filters)) {
-        if (values.length === 0) continue;
-        if (field === 'tech') {
-          where.techStack = { hasSome: values };
-        } else {
-          inMemoryFilters.push({ field, values });
-        }
+        if (values.length > 0) activeFilters.push({ field, values });
       }
     }
 
     let orderBy: any = { createdAt: 'desc' };
     if (opts.sort === 'Highest Rated') orderBy = { trainer: { rating: 'desc' } };
-    else if (opts.sort === 'Newest First') orderBy = { createdAt: 'desc' };
-    else if (opts.sort === 'Duration: Shortest') orderBy = { id: 'asc' }; // will sort after
+    else if (opts.sort === 'Most Popular') orderBy = { enrollments: { _count: 'desc' } };
 
-    const [total, courses] = await this.prisma.$transaction([
-      this.prisma.course.count({ where }),
-      this.prisma.course.findMany({
-        where,
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          thumbnailUrl: true,
-          price: true,
-          techStack: true,
-          whatYoullLearn: true,
-          careerTitle: true,
-          careerBody: true,
-          createdAt: true,
-          trainer: { select: { name: true, rating: true } },
-          _count: { select: { enrollments: true } },
-        },
-        orderBy: opts.sort === 'Most Popular' ? { _count: { enrollments: 'desc' } } : orderBy,
-        skip: (opts.page - 1) * opts.perPage,
-        take: opts.perPage,
-      }),
-    ]);
+    const courses = await this.prisma.course.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        thumbnailUrl: true,
+        price: true,
+        techStack: true,
+        whatYoullLearn: true,
+        careerTitle: true,
+        careerBody: true,
+        category: true,
+        skillLevel: true,
+        createdAt: true,
+        trainer: { select: { name: true, rating: true } },
+        _count: { select: { enrollments: true } },
+      },
+      orderBy,
+    });
 
     const videoStats = await this.getVideoStats(courses.map((c) => c.id));
 
@@ -345,7 +393,8 @@ export class CoursesService {
       const isNew = course.createdAt >= fourteenDaysAgo;
       const badge = isTrending ? '🔥 Trending' : isNew ? '✨ New' : null;
       const badgeClass = isTrending ? 'bg-orange-500' : 'bg-blue-500';
-      const category = course.techStack[0] ?? 'General';
+      const category = course.category ?? course.techStack[0] ?? 'General';
+      const level = SKILL_LEVEL_LABELS[course.skillLevel ?? 'INTERMEDIATE'];
       const durationLabel = totalHours > 50 ? '50+ hrs' : totalHours > 20 ? '20 – 50 hrs' : '5 – 20 hrs';
 
       return {
@@ -356,7 +405,7 @@ export class CoursesService {
         description: course.description ?? '',
         hours: totalHours || 20,
         students: `${((course._count.enrollments / 1000) * 10).toFixed(1).replace('.0', '')}k`,
-        level: 'Intermediate',
+        level,
         rating: course.trainer?.rating ?? 4.7,
         reviews: `${course._count.enrollments}`,
         badge,
@@ -377,21 +426,69 @@ export class CoursesService {
       };
     });
 
-    // Apply in-memory filters for computed fields (level, category, mode, goal, duration)
-    for (const { field, values } of inMemoryFilters) {
-      if (field === 'duration') {
-        data = data.filter((c) => values.includes(c.duration));
-      } else {
+    // Facets are computed from the search-matched set (before filters), so the
+    // sidebar always shows every available option with its true catalog count.
+    const countBy = (getValues: (c: (typeof data)[number]) => string[]) => {
+      const counts = new Map<string, number>();
+      for (const c of data) {
+        for (const v of getValues(c)) {
+          if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+        }
+      }
+      return [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([value, count]) => ({ value, count }));
+    };
+    // Fixed option lists shown even when no course matches them (count 0).
+    // level/mode/goal are not DB fields yet — every card carries the defaults,
+    // so most of these stay at 0 until real columns exist.
+    const fixedOptions = (items: string[], getValue: (c: (typeof data)[number]) => string) =>
+      items.map((value) => ({ value, count: data.filter((c) => getValue(c) === value).length }));
+
+    const DURATION_ORDER = ['5 – 20 hrs', '20 – 50 hrs', '50+ hrs'];
+    const facets = [
+      {
+        key: 'level',
+        title: 'Skill Level',
+        options: fixedOptions(Object.values(SKILL_LEVEL_LABELS), (c) => c.level),
+      },
+      { key: 'category', title: 'Category', options: countBy((c) => [c.category]) },
+      {
+        key: 'duration',
+        title: 'Duration',
+        options: fixedOptions(DURATION_ORDER, (c) => c.duration),
+      },
+      {
+        key: 'mode',
+        title: 'Learning Mode',
+        options: fixedOptions(['Self-Paced', 'Live Cohort', 'Mentor-Led', 'Bootcamp'], (c) => c.mode),
+      },
+      {
+        key: 'goal',
+        title: 'Career Goal',
+        options: fixedOptions(['Get Hired', 'Upskill', 'Freelance', 'Start-up Ready'], (c) => c.goal),
+      },
+      { key: 'tech', title: 'Technology Stack', options: countBy((c) => c.techStack) },
+    ];
+
+    // Apply filters (tech matches any chip in the stack; others match the computed field)
+    for (const { field, values } of activeFilters) {
+      if (field === 'tech') {
+        data = data.filter((c) => c.techStack.some((t) => values.includes(t)));
+      } else if (['duration', 'category', 'level', 'mode', 'goal'].includes(field)) {
         data = data.filter((c) => values.includes(String((c as any)[field])));
       }
     }
 
-    // Post-sort for computed fields
     if (opts.sort === 'Duration: Shortest') {
       data.sort((a, b) => a.hours - b.hours);
     }
 
-    return { data, total, page: opts.page, perPage: opts.perPage };
+    const total = data.length;
+    const start = (opts.page - 1) * opts.perPage;
+    data = data.slice(start, start + opts.perPage);
+
+    return { data, total, page: opts.page, perPage: opts.perPage, facets };
   }
 
   async getCourse(id: string) {

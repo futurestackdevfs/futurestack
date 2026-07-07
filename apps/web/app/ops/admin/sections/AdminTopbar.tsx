@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 
 interface AdminTopbarProps {
   user: { name: string; email: string; role: string; initials: string };
@@ -47,7 +48,7 @@ export function AdminTopbar({ user, currentView, onSearch, onMyProfile, onAccoun
     const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
     html.setAttribute("data-theme", next);
     setIsDark(next === "dark");
-    try { localStorage.setItem("fs-theme", next); } catch {}
+    try { localStorage.setItem("fs-theme", next); } catch { }
   }
 
   function handleSearch(e: React.ChangeEvent<HTMLInputElement>) {
@@ -66,18 +67,7 @@ export function AdminTopbar({ user, currentView, onSearch, onMyProfile, onAccoun
     >
       {/* Logo */}
       <div className="flex items-center gap-2 font-extrabold text-[13px] shrink-0 tracking-wide">
-        <div
-          style={{
-            width: 22,
-            height: 22,
-            background: "linear-gradient(135deg, var(--orange), #ff8a4d)",
-            borderRadius: 4,
-          }}
-          className="flex items-center justify-center font-bold text-[11px] text-white shrink-0 font-mono"
-        >
-          F
-        </div>
-        <span>FutureStack</span>
+        <Image src="/images/logo.png" alt="FutureStack" width={120} height={28} style={{ height: 22, width: "auto" }} />
         <span style={{ color: "var(--border2)" }}>/</span>
         <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="uppercase">
           OPS CONSOLE

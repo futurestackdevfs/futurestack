@@ -11,6 +11,9 @@ export interface FieldDef {
   full?: boolean;
   options?: string[];
   optionsFrom?: string;
+  // Adds an "Others" option to a select; picking it opens a free-text input
+  // next to the select so the admin can type a new value.
+  allowCustom?: boolean;
 }
 
 interface MasterDataModalProps {
@@ -44,11 +47,20 @@ export function MasterDataModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [units, setUnits] = useState<Record<string, "hr" | "min">>({});
+  const [customMode, setCustomMode] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     setForm({ ...data });
     setErrors({});
+    // Pre-existing values not in a custom-enabled select's options → "Others" mode
+    const custom: Record<string, boolean> = {};
+    for (const field of fields) {
+      if (field.allowCustom && field.options && data[field.key] && !field.options.includes(data[field.key])) {
+        custom[field.key] = true;
+      }
+    }
+    setCustomMode(custom);
   }, [data, open]);
 
   async function handleFileUpload(fieldKey: string, file: File) {
@@ -95,6 +107,16 @@ export function MasterDataModal({
   function handleSubmit() {
     if (validate()) {
       onSave(form);
+    } else {
+      // Scroll the first missing field into view so the admin can fill it in
+      setTimeout(() => {
+        const firstMissing = fields.find((f) => f.required && !form[f.key]);
+        if (firstMissing) {
+          document
+            .querySelector(`[data-field-key="${firstMissing.key}"]`)
+            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 0);
     }
   }
 
@@ -164,6 +186,7 @@ export function MasterDataModal({
             {fields.map((field) => (
               <div
                 key={field.key}
+                data-field-key={field.key}
                 className={field.full ? "col-span-2 flex flex-col gap-1" : "flex flex-col gap-1"}
               >
                 <label
@@ -201,10 +224,19 @@ export function MasterDataModal({
                     }}
                   />
                 ) : field.type === "select" ? (
+                  <div className="flex gap-1.5 items-center">
                   <select
-                    value={form[field.key] ?? ""}
-                    onChange={(e) => handleChange(field.key, e.target.value)}
-                    className="w-full text-[12px] px-2.5 py-1.5 rounded outline-none"
+                    value={customMode[field.key] ? "__other__" : (form[field.key] ?? "")}
+                    onChange={(e) => {
+                      if (e.target.value === "__other__") {
+                        setCustomMode((prev) => ({ ...prev, [field.key]: true }));
+                        handleChange(field.key, "");
+                      } else {
+                        setCustomMode((prev) => ({ ...prev, [field.key]: false }));
+                        handleChange(field.key, e.target.value);
+                      }
+                    }}
+                    className={`text-[12px] px-2.5 py-1.5 rounded outline-none ${customMode[field.key] ? "w-[45%] shrink-0" : "w-full"}`}
                     style={{
                       fontFamily: "'Inter', sans-serif",
                       border: errors[field.key]
@@ -230,7 +262,27 @@ export function MasterDataModal({
                         {opt.label}
                       </option>
                     ))}
+                    {field.allowCustom && <option value="__other__">Others…</option>}
                   </select>
+                  {field.allowCustom && customMode[field.key] && (
+                    <input
+                      type="text"
+                      autoFocus
+                      value={form[field.key] ?? ""}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      placeholder={`New ${field.label.toLowerCase()}…`}
+                      className="flex-1 min-w-0 text-[12px] px-2.5 py-1.5 rounded outline-none"
+                      style={{
+                        fontFamily: "'Inter', sans-serif",
+                        border: errors[field.key] ? "1px solid var(--red)" : "1px solid var(--orange)",
+                        background: "var(--bg)",
+                        color: "var(--text)",
+                      }}
+                      onFocus={(e) => { e.currentTarget.style.background = "var(--surface)"; }}
+                      onBlur={(e) => { e.currentTarget.style.background = "var(--bg)"; }}
+                    />
+                  )}
+                  </div>
                 ) : field.type === "duration" ? (
                   <div className="flex gap-1.5 items-center">
                     <input

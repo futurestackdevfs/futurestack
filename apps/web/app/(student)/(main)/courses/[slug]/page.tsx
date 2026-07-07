@@ -6,7 +6,14 @@ import Link from "next/link";
 import useSWR from "swr";
 
 const API = '/api';
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = async (url: string) => {
+  const r = await fetch(url);
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.message || `HTTP ${r.status}`);
+  }
+  return r.json();
+};
 
 interface CourseDetail {
   id: string;
@@ -72,7 +79,7 @@ export default function CourseDetailPage() {
   const related = (allCards?.data ?? []).filter((c) => c.id !== course?.id).slice(0, 3);
   const isLoading = isLoadingCourse;
 
-  const totalDuration = course?.sections.reduce(
+  const totalDuration = course?.sections?.reduce(
     (sum, s) => sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0), 0
   ) ?? 0;
 

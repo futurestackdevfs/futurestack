@@ -23,7 +23,7 @@ const fallbackGradient = "linear-gradient(135deg,#0d1f3c,#0a2a1a)";
 
 export function PopularCourses() {
   const { data, isLoading } = useSWR<FeaturedCourse[]>("/api/courses/public/featured-courses");
-  const courses = (Array.isArray(data) ? data : []).slice(0, 5);
+  const courses = (Array.isArray(data) ? data : []).slice(0, 10);
 
   if (!isLoading && courses.length === 0) return null;
 
