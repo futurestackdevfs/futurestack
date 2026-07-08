@@ -88,14 +88,7 @@ export class AuthController {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days, matches JWT expiry
-    });
-
-    return res.redirect(`${frontendUrl}/students/my-dashboard`);
+    return res.redirect(`${frontendUrl}/api/auth/oauth/session?token=${accessToken}`);
   }
 
   @Throttle({ default: { limit: 3, ttl: 900_000 } })
