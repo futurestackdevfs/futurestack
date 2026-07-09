@@ -59,6 +59,10 @@ model User {
   quizAttempts         QuizAttempt[]              // ADDED — fixes missing back-relation
   coursesTaught        Course[]        @relation("CourseTrainer")
   approvalStatus       ApprovalStatus?
+
+  discussionMessages  CourseDiscussion[]       @relation("DiscussionAuthor")
+  discussionReplies   CourseDiscussionReply[]  @relation("ReplyAuthor")
+  discussionUpvotes   DiscussionUpvote[]
 }
 
 model Track {
@@ -99,6 +103,7 @@ model Course {
   enrollments  Enrollment[]
   tracks       TrackCourse[]
   resources    CourseResource[]
+  discussions  CourseDiscussion[]
 }
 
 model CourseResource {
@@ -196,4 +201,55 @@ model VideoProgress {
   score             Int?                       // optional post-video check score, null if none exists
 
   @@unique([studentId, videoId])
+}
+
+enum MessageTag {
+  DOUBT
+  TIP
+  ANNOUNCEMENT
+  RESOURCE
+}
+
+model CourseDiscussion {
+  id            String        @id @default(uuid())
+  course        Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId      String
+  author        User          @relation("DiscussionAuthor", fields: [authorId], references: [id])
+  authorId      String
+  body          String
+  tag           MessageTag    @default(DOUBT)
+  isPinned      Boolean       @default(false)
+  isAnswered    Boolean       @default(false)
+  attachmentUrl String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  replies       CourseDiscussionReply[]
+  upvotes       DiscussionUpvote[]
+}
+
+model CourseDiscussionReply {
+  id        String          @id @default(uuid())
+  message   CourseDiscussion @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId String
+  author    User            @relation("ReplyAuthor", fields: [authorId], references: [id])
+  authorId  String
+  body      String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  upvotes   DiscussionUpvote[]
+}
+
+model DiscussionUpvote {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  messageId String?
+  replyId   String?
+  createdAt DateTime @default(now())
+
+  message   CourseDiscussion?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reply     CourseDiscussionReply? @relation(fields: [replyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@unique([userId, replyId])
 }

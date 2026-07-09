@@ -91,11 +91,15 @@ export class AuthController {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
+<<<<<<< HEAD
     const redirectUrl = googleRedirect ?? `${frontendUrl}/api/auth/oauth/session`;
 
     // BFF reads the token off the query string server-side, sets an HttpOnly
     // cookie, and redirects to the dashboard — the token never reaches the browser.
     return res.redirect(`${redirectUrl}?token=${accessToken}`);
+=======
+    return res.redirect(`${frontendUrl}/api/auth/oauth/session?token=${accessToken}`);
+>>>>>>> 6e97d375bd37f084083c28b8923d2bc07267d32d
   }
 
   @Throttle({ default: { limit: 3, ttl: 900_000 } })
