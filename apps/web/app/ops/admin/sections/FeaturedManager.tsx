@@ -85,7 +85,7 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
       setAllCourses(mk(all, false));
       setFeaturedTracks(mk(ft, true).sort((a, b) => a.displayOrder - b.displayOrder));
       setAllTracks(mk(allT, false));
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => { }).finally(() => setLoading(false));
   }
 
   useEffect(load, [token]);
@@ -209,7 +209,7 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
     setActing(false);
   }
 
-   function renderSection(section: SectionKey, label: string, emoji: string) {
+  function renderSection(section: SectionKey, label: string, emoji: string) {
     const featured = getFeatured(section);
     const slots: (Item | null)[] = Array.from({ length: MAX_SLOT_COUNT }, (_, i) => featured.find(f => f.displayOrder === i) ?? null);
     const available = getAvailable(section).filter((i) =>
@@ -299,9 +299,8 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
                   <div className="fixed inset-0 z-40" onClick={() => { setOpenSlot(null); setSearch(""); }} />
                   <div
                     id="featured-dropdown"
-                    className={`absolute z-50 left-0 w-[220px] rounded-lg overflow-hidden ${
-                      dropdownPos === "up" ? "bottom-full mb-1" : "top-full mt-1"
-                    }`}
+                    className={`absolute z-50 left-0 w-[220px] rounded-lg overflow-hidden ${dropdownPos === "up" ? "bottom-full mb-1" : "top-full mt-1"
+                      }`}
                     style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 8px 24px rgba(0,0,0,.18)" }}
                     onClick={(e) => e.stopPropagation()}
                   >

@@ -9,11 +9,8 @@ import { AppService } from './app.service';
 import { StudentModule } from './student/student.module';
 import { AdminModule } from './admin/admin.module';
 import { CoursesModule } from './courses/courses.module';
-<<<<<<< HEAD
 import { UploadModule } from './upload/upload.module';
-=======
 import { DiscussionModule } from './discussion/discussion.module';
->>>>>>> 6e97d375bd37f084083c28b8923d2bc07267d32d
 
 @Module({
   imports: [
@@ -36,11 +33,8 @@ import { DiscussionModule } from './discussion/discussion.module';
     StudentModule,
     AdminModule,
     CoursesModule,
-<<<<<<< HEAD
     UploadModule,
-=======
     DiscussionModule,
->>>>>>> 6e97d375bd37f084083c28b8923d2bc07267d32d
   ],
   controllers: [AppController],
   providers: [

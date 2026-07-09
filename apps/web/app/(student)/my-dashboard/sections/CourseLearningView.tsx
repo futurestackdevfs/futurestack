@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import useSWR from "swr";
 import type { EnrolledCourse } from "../../hooks/student-dashboard";
+import DiscussionTab from "./DiscussionTab";
 
 interface CurriculumItem {
   type: 'video' | 'quiz';
@@ -70,7 +71,7 @@ const TAB_LABELS: Record<Tab, { label: string; icon: string; badge?: string }> =
   curriculum: { label: "Curriculum", icon: "📋" },
   overview: { label: "Overview", icon: "ℹ️" },
   resources: { label: "Resources", icon: "📎" },
-  discussion: { label: "Discussion", icon: "💬", badge: "24" },
+  discussion: { label: "Discussion", icon: "💬" },
 };
 
 function getInitials(name: string): string {
@@ -88,6 +89,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
     enrolledCourse.nextVideo?.id ?? null,
   );
   const [sectionsInitialized, setSectionsInitialized] = useState(false);
+  const [discussionCount, setDiscussionCount] = useState<number | null>(null);
 
   const { data: detail, isLoading } = useSWR<StudentCourseDetail>(
     `/api/student/courses/${courseId}`,
@@ -291,6 +293,9 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
                   {info.badge && (
                     <span className="text-[9px] bg-[var(--orange-d)] text-[var(--orange)] px-[5px] py-[1px] rounded-[3px] ml-[3px]">{info.badge}</span>
                   )}
+                  {tab === "discussion" && discussionCount !== null && discussionCount > 0 && (
+                    <span className="text-[9px] bg-[var(--orange-d)] text-[var(--orange)] px-[5px] py-[1px] rounded-[3px] ml-[3px]">{discussionCount}</span>
+                  )}
                 </button>
               );
             })}
@@ -472,41 +477,9 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
             </div>
           </div>
 
-          {/* DISCUSSION — static until a discussion API exists */}
+          {/* DISCUSSION */}
           <div className={`flex-1 overflow-y-auto ${activeTab === "discussion" ? "flex flex-col" : "hidden"}`}>
-            <div className="p-4 flex flex-col gap-[10px]">
-              <div className="flex gap-[8px] items-start p-3 bg-[var(--card)] border border-[var(--border)] rounded-[10px]">
-                <div className="w-7 h-7 rounded-full bg-gradient-to-r from-[var(--blue2)] to-[var(--orange)] flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-[2px]">R</div>
-                <div className="flex-1 bg-[var(--bg2)] border border-[var(--border)] rounded-[7px] px-3 py-2 text-[11.5px] text-[var(--text3)] cursor-text transition-all hover:border-[var(--border2)]">
-                  Ask a question or share your progress…
-                </div>
-                <button className="px-[14px] py-[7px] rounded-[6px] bg-[var(--orange)] text-white text-[10.5px] font-bold border-none cursor-pointer whitespace-nowrap hover:bg-[var(--orange2)] transition-all">
-                  Post
-                </button>
-              </div>
-              {[
-                { initials: "P", color: "linear-gradient(135deg,#f05a1a,#ff7a3c)", name: "Priya Mehta", time: "2h ago", badge: "doubt", bColor: "var(--blue-d)", bText: "var(--blue2)", text: <>I&apos;m confused about <strong>useEffect</strong> cleanup functions. When exactly do they run?</> },
-                { initials: "A", color: "linear-gradient(135deg,#2563eb,#3b82f6)", name: "Aakash Verma", time: "5h ago", badge: "instructor", bColor: "var(--orange-d)", bText: "var(--orange)", text: <>🎉 Congrats to everyone who completed <strong>Module 12</strong>! Solutions are now in Resources.</> },
-                { initials: "K", color: "linear-gradient(135deg,#9333ea,#a855f7)", name: "Karan Patel", time: "Yesterday", badge: "tip", bColor: "var(--green-d)", bText: "var(--green)", text: <>For those struggling with <strong>Redux setup</strong>, I made a quick reference diagram.</> },
-              ].map((item, i) => (
-                <div key={i} className={`flex gap-[10px] p-[14px] bg-[var(--card)] border border-[var(--border)] rounded-[10px] transition-all hover:border-[var(--border2)] ${i === 1 ? "border-[rgba(240,90,26,.2)] bg-[rgba(240,90,26,.02)]" : ""}`}>
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-[1px]" style={{ background: item.color }}>{item.initials}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-[8px] mb-[6px] flex-wrap">
-                      <span className="text-[12px] font-bold text-[var(--text)]">{item.name}</span>
-                      <span className="text-[9px] text-[var(--text3)]">{item.time}</span>
-                      <span className="text-[8px] font-bold px-[6px] py-[2px] rounded-[3px]" style={{ background: item.bColor, color: item.bText }}>{item.badge}</span>
-                    </div>
-                    <div className="text-[11.5px] text-[var(--text2)] leading-[1.6] mb-[8px]">{item.text}</div>
-                    <div className="flex gap-3">
-                      {["👍 12", "💬 Reply · 3", "🔖 Save"].map(act => (
-                        <span key={act} className="text-[9px] text-[var(--text3)] cursor-pointer hover:text-[var(--text2)] transition-all">{act}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <DiscussionTab courseId={courseId} onCountChange={setDiscussionCount} />
           </div>
         </div>
       </div>
