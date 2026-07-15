@@ -60,6 +60,7 @@ model User {
   quizAttempts         QuizAttempt[]              // ADDED — fixes missing back-relation
   coursesTaught        Course[]        @relation("CourseTrainer")
   approvalStatus       ApprovalStatus?
+  certificates         Certificate[]
 
   discussionMessages  CourseDiscussion[]       @relation("DiscussionAuthor")
   discussionReplies   CourseDiscussionReply[]  @relation("ReplyAuthor")
@@ -106,6 +107,7 @@ model Course {
   tracks       TrackCourse[]
   resources    CourseResource[]
   discussions  CourseDiscussion[]
+  certificates Certificate[]
 }
 
 model CourseResource {
@@ -254,4 +256,18 @@ model DiscussionUpvote {
 
   @@unique([userId, messageId])
   @@unique([userId, replyId])
+}
+
+model Certificate {
+  id           String   @id @default(uuid())
+  student      User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId    String
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId     String
+  credentialId String   @unique
+  score        Int?
+  rank         Int?
+  issuedAt     DateTime @default(now())
+
+  @@unique([studentId, courseId])
 }
