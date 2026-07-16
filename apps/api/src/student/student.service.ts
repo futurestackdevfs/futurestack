@@ -388,4 +388,49 @@ export class StudentService {
       justCompleted,
     };
   }
+
+  async submitQuiz(studentId: string, quizId: string, score: number) {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id: quizId },
+      include: { section: { include: { course: true } } },
+    });
+    
+    if (!quiz) {
+      throw new NotFoundException('Quiz not found');
+    }
+
+    const enrollment = await this.prisma.enrollment.findUnique({
+      where: { studentId_courseId: { studentId, courseId: quiz.section.courseId } },
+    });
+    
+    if (!enrollment || enrollment.status !== 'active') {
+      throw new ForbiddenException('You are not enrolled in this course');
+    }
+
+    const attempt = await this.prisma.quizAttempt.upsert({
+      where: { studentId_quizId: { studentId, quizId } },
+      create: {
+        studentId,
+        quizId,
+        score,
+        isCompleted: true,
+        completedAt: new Date(),
+      },
+      update: {
+        score,
+        completedAt: new Date(),
+      },
+    });
+
+    await this.certificatesService.checkAndIssueCertificate(studentId, quiz.section.courseId);
+
+    return {
+      quizId: attempt.quizId,
+      score: attempt.score,
+      isCompleted: attempt.isCompleted,
+      completedAt: attempt.completedAt,
+      passed: quiz.passingScore !== null ? score >= quiz.passingScore : null,
+      passingScore: quiz.passingScore,
+    };
+  }
 }

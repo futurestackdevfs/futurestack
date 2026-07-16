@@ -65,6 +65,9 @@ model User {
   discussionMessages  CourseDiscussion[]       @relation("DiscussionAuthor")
   discussionReplies   CourseDiscussionReply[]  @relation("ReplyAuthor")
   discussionUpvotes   DiscussionUpvote[]
+
+  revenueLedger       RevenueLedger[] @relation("TrainerLedger")
+  payouts             Payout[]        @relation("TrainerPayouts")
 }
 
 model Track {
@@ -187,6 +190,8 @@ model Enrollment {
   amountPaid Float
   enrolledAt DateTime @default(now())
   status     String   @default("active")
+  
+  revenueLedger RevenueLedger?
 
   @@unique([studentId, courseId])
 }
@@ -270,4 +275,26 @@ model Certificate {
   issuedAt     DateTime @default(now())
 
   @@unique([studentId, courseId])
+}
+
+model RevenueLedger {
+  id           String     @id @default(uuid())
+  trainer      User       @relation("TrainerLedger", fields: [trainerId], references: [id])
+  trainerId    String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
+  enrollmentId String     @unique
+  gross        Float
+  platformCut  Float
+  trainerShare Float
+  createdAt    DateTime   @default(now())
+}
+
+model Payout {
+  id        String   @id @default(uuid())
+  trainer   User     @relation("TrainerPayouts", fields: [trainerId], references: [id])
+  trainerId String
+  amount    Float
+  period    String
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
 }

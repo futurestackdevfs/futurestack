@@ -11,6 +11,7 @@ import { AdminModule } from './admin/admin.module';
 import { CoursesModule } from './courses/courses.module';
 import { DiscussionModule } from './discussion/discussion.module';
 import { CertificatesModule } from './certificates/certificates.module';
+import { TrainerModule } from './trainer/trainer.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { CertificatesModule } from './certificates/certificates.module';
     CoursesModule,
     DiscussionModule,
     CertificatesModule,
+    TrainerModule,
   ],
   controllers: [AppController],
   providers: [
