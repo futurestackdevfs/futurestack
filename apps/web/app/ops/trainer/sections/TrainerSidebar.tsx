@@ -27,6 +27,8 @@ const NAV_GROUPS: NavGroup[] = [
       { icon: "📅", label: "My Batches", view: "batches" },
       { icon: "🎥", label: "Sessions", view: "sessions" },
       { icon: "📈", label: "Student Progress", view: "progress", badgeKey: "behind", badgeColor: { color: "var(--amber)", bg: "var(--amber-d)" } },
+
+      { icon: "▤", label: "Content Library", view: "content-library" },
     ],
   },
   {
@@ -46,6 +48,20 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Earnings",
     items: [
       { icon: "💰", label: "Revenue & Payouts", view: "revenue" },
+    ],
+  },
+  {
+    group: "Assessment",
+    items: [
+      { icon: "📝", label: "Grading Queue", view: "grading", badgeKey: "grading", badgeColor: { color: "var(--red)", bg: "var(--red-d)" } },
+      { icon: "🛠", label: "Mentees", view: "mentees", badgeKey: "mentees", badgeColor: { color: "var(--blue)", bg: "var(--blue-d)" } },
+    ],
+  },
+  {
+    group: "Reports",
+    items: [
+      { icon: "▤", label: "Reports", view: "reports" },
+      { icon: "▧", label: "Session History", view: "session-history" },
     ],
   },
 ];

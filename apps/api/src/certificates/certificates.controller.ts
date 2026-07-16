@@ -1,12 +1,16 @@
-import { Controller, Get, Param, Req, NotFoundException } from '@nestjs/common';
+import { Controller, Get, Post, Param, Req, NotFoundException } from '@nestjs/common';
 import type { Request } from 'express';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CertificatesService } from './certificates.service';
 
 @Controller('certificates')
 export class CertificatesController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly certificatesService: CertificatesService
+  ) {}
 
   @Get('my')
   @Auth(Role.STUDENT)
@@ -138,6 +142,17 @@ export class CertificatesController {
     }));
 
     return { earned, inProgress, locked };
+  }
+
+  @Post('claim/:courseId')
+  @Auth(Role.STUDENT)
+  async claimCertificate(
+    @Req() req: Request,
+    @Param('courseId') courseId: string
+  ) {
+    const user = req.user as { id: string };
+    const result = await this.certificatesService.checkAndIssueCertificate(user.id, courseId);
+    return result;
   }
 
   @Get('my/:courseId')

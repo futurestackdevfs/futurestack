@@ -49,7 +49,7 @@ export default function BatchesView({ batches, sessions, searchQuery }: BatchesV
                 <Td mono color="var(--text)"><b>{b.code}</b></Td>
                 <Td>{b.course}</Td>
                 <Td mono>{b.schedule}</Td>
-                <Td mono color="var(--text)">{b.enrolled}/{b.seats}</Td>
+                <Td mono color="var(--text)">{b.enrolled}</Td>
                 <Td mono>{b.startDate}</Td>
                 <Td mono>{b.currentModule}</Td>
                 <Td><ProgressBar pct={b.progressPct} /></Td>

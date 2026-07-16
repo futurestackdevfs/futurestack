@@ -117,7 +117,7 @@ export default function DashboardHome({
             <div key={b.id} className="flex items-center gap-2 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
               <div className="flex-1 min-w-0">
                 <div className="font-mono text-[10px] font-bold truncate" style={{ color: "var(--text)" }}>{b.code}</div>
-                <div className="text-[9.5px] truncate" style={{ color: "var(--text3)" }}>{b.course} · {b.enrolled}/{b.seats} students</div>
+                <div className="text-[9.5px] truncate" style={{ color: "var(--text3)" }}>{b.course} · {b.enrolled} students</div>
               </div>
               <ProgressBar pct={b.progressPct} />
               <Pill value={b.status} />
@@ -205,14 +205,6 @@ export default function DashboardHome({
           <StatPair label="Drafts not yet submitted" value={feedback.filter((f) => f.status === "Draft").length} color="var(--purple)" />
         </Card>
 
-        {/* Revenue transparency */}
-        <Card icon="💰" title="Revenue Transparency" onOpen={() => onNavigate("revenue")}>
-          <StatPair label="Registrations in my batches" value={enrollments.length} color="var(--blue)" />
-          <StatPair label="Total revenue collected" value={INR(stats.collected)} color="var(--text)" />
-          <StatPair label={`My share (${TRAINER_SHARE_PCT}%)`} value={INR(stats.myShare)} color="var(--green)" />
-          <StatPair label="Already paid out" value={INR(stats.paidOut)} color="var(--green)" />
-          <StatPair label="Pending payout" value={INR(stats.pendingPayout)} color="var(--amber)" />
-        </Card>
       </div>
     </div>
   );

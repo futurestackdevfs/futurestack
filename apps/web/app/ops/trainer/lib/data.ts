@@ -13,7 +13,6 @@ export interface TrainerBatch {
   course: string;
   schedule: string;
   enrolled: number;
-  seats: number;
   startDate: string;
   progressPct: number;
   currentModule: string;

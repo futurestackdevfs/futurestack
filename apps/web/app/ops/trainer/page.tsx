@@ -146,7 +146,6 @@ export default function TrainerDashboardPage() {
         course: c.title ?? "Untitled",
         schedule: "—",
         enrolled: c.students ?? 0,
-        seats: (c.students ?? 0) + 5,
         startDate: "—",
         progressPct: 0,
         currentModule: `${c.modules ?? 0} modules`,
@@ -176,13 +175,36 @@ export default function TrainerDashboardPage() {
       const localSubmissions = loadLocal<ProjectSubmission[]>(user.id, "submissions", []);
       const localFeedback = loadLocal<CurriculumFeedback[]>(user.id, "feedback", []);
 
-      /* Revenue & payouts from backend API */
-      const revenue = await opsFetch("/api/courses/trainer/revenue")
-        .then((r) => (r.ok ? r.json() : { enrollments: [] }))
-        .catch(() => ({ enrollments: [] }));
-      const payoutsFromApi = await opsFetch("/api/courses/trainer/payouts")
-        .then((r) => (r.ok ? r.json() : []))
-        .catch(() => []);
+      /* Revenue & payouts from trainer API */
+      const trainerData = await opsFetch("/api/trainer/revenue")
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+
+      if (trainerData) {
+        setEnrollments(
+          (trainerData.studentRegistrations ?? []).map((r: any, i: number) => ({
+            id: `enroll-${i}`,
+            student: r.studentName,
+            batchCode: r.courseTitle.slice(0, 8).toUpperCase(),
+            course: r.courseTitle,
+            courseFee: r.courseFee,
+            paymentMode: r.paidSoFar >= r.courseFee ? "Full" : r.paidSoFar > 0 ? "EMI" : "Pending",
+            enrolledOn: new Date(r.enrolledOn).toISOString().slice(0, 10),
+          }))
+        );
+        setPayouts(
+          (trainerData.payoutHistory ?? []).map((p: any, i: number) => ({
+            id: i,
+            period: p.period,
+            batchCode: "",
+            amount: p.amount,
+            status: p.status === "PAID" ? "Paid" : "Pending",
+          }))
+        );
+      } else {
+        setEnrollments([]);
+        setPayouts([]);
+      }
 
       if (cancelled) return;
       setBatches(fromApi);
@@ -191,8 +213,6 @@ export default function TrainerDashboardPage() {
       setSubmissions(localSubmissions);
       setDoubts(allDiscussions);
       setFeedback(localFeedback);
-      setEnrollments((revenue.enrollments ?? []) as RevenueEnrollment[]);
-      setPayouts((Array.isArray(payoutsFromApi) ? payoutsFromApi : []) as PayoutRecord[]);
       setDataLoading(false);
     })();
 
@@ -403,6 +423,18 @@ export default function TrainerDashboardPage() {
               )}
               {view === "feedback" && <FeedbackView feedback={feedback} searchQuery={searchQuery} onAdd={addFeedback} onSubmitDraft={submitFeedbackDraft} />}
               {view === "revenue" && <RevenueView enrollments={enrollments} payouts={payouts} batches={batches} searchQuery={searchQuery} addToast={addToast} />}
+              {["grading","mentees","content-library","reports","ratings","session-history"].includes(view) && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="font-mono text-[13px]" style={{ color: "var(--text3)" }}>
+                    {view === "grading" ? "Grading Queue" :
+                     view === "mentees" ? "Mentees" :
+                     view === "content-library" ? "Content Library" :
+                     view === "reports" ? "Reports" :
+                     view === "ratings" ? "Student Ratings" :
+                     "Session History"} — coming soon
+                  </div>
+                </div>
+              )}
             </>
           )}
         </main>

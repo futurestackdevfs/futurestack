@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Param, Body, Req } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';

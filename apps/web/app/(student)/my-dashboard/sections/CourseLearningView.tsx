@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import useSWR from "swr";
+import { useState, useEffect, useCallback } from "react";
+import useSWR, { mutate } from "swr";
 import type { EnrolledCourse } from "../../hooks/student-dashboard";
 import DiscussionTab from "./DiscussionTab";
+import VideoPlayer from "./VideoPlayer";
+import QuizPlayer from "./QuizPlayer";
 
 interface CurriculumItem {
   type: 'video' | 'quiz';
@@ -12,6 +14,7 @@ interface CurriculumItem {
   order: number;
   durationSeconds?: number;
   totalQuestions?: number;
+  passingScore?: number | null;
   score: number | null;
   isCompleted: boolean;
   isCurrent: boolean;
@@ -90,6 +93,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
   );
   const [sectionsInitialized, setSectionsInitialized] = useState(false);
   const [discussionCount, setDiscussionCount] = useState<number | null>(null);
+  const [certEarned, setCertEarned] = useState(false);
 
   const { data: detail, isLoading } = useSWR<StudentCourseDetail>(
     `/api/student/courses/${courseId}`,
@@ -154,7 +158,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
   const { course, instructor } = detail;
   const instructorInitials = instructor ? getInitials(instructor.name) : '?';
   const resumeLabel = progress.progressPercent === 0 ? 'Start Learning'
-    : progress.progressPercent === 100 ? 'Review Course'
+    : progress.progressPercent === 100 ? 'View Certificate'
     : 'Resume Learning';
 
   return (
@@ -176,41 +180,55 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
       <div className="flex-1 overflow-hidden" style={{ display: "grid", gridTemplateColumns: "385px 1fr" }}>
         {/* LEFT PANEL — player + info */}
         <div className="bg-[var(--surface)] border-r border-[var(--border)] overflow-y-auto flex flex-col">
-          {/* Video placeholder */}
-          <div className="relative bg-black cursor-pointer shrink-0">
-            <div className="aspect-[16/9] flex items-center justify-center relative overflow-hidden"
-              style={{ background: "linear-gradient(135deg,#040c1a 0%,#061522 40%,#080f04 100%)" }}>
-              <div className="absolute inset-0 pointer-events-none"
-                style={{ background: "radial-gradient(ellipse at 65% 40%,rgba(59,130,246,.15),transparent 55%),radial-gradient(ellipse at 25% 75%,rgba(240,90,26,.1),transparent 50%)" }} />
-              <svg className="absolute inset-0 w-full h-full opacity-[0.07] pointer-events-none" viewBox="0 0 330 185" preserveAspectRatio="none">
-                <defs>
-                  <pattern id="g" width="33" height="33" patternUnits="userSpaceOnUse">
-                    <path d="M33 0H0V33" fill="none" stroke="#ffffff" strokeWidth=".35"/>
-                  </pattern>
-                </defs>
-                <rect width="330" height="185" fill="url(#g)"/>
-                <polyline points="0,140 55,110 110,125 165,72 220,90 275,46 330,62" fill="none" stroke="rgba(59,130,246,.55)" strokeWidth="1.5"/>
-                <polyline points="0,160 80,150 165,138 250,118 330,94" fill="none" stroke="rgba(240,90,26,.45)" strokeWidth="1.2"/>
-              </svg>
-              <span className="absolute top-[10px] left-[10px] z-[2] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[8px] font-bold px-[9px] py-[3px] rounded-[4px] uppercase tracking-[.06em]"
-                style={{ boxShadow: "0 2px 8px rgba(240,90,26,.4)" }}>
-                {currentItem?.type === 'quiz' ? '📝 Quiz' : '▶ Now Playing'}
-              </span>
-              {currentItem?.durationSeconds && (
-                <span className="absolute bottom-[8px] right-[10px] z-[2] bg-black/65 text-white text-[10px] px-[7px] py-[2px] rounded-[4px]">
-                  {fmtMins(currentItem.durationSeconds)}
-                </span>
-              )}
-              <div className="flex flex-col items-center gap-3 relative z-[1]">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[var(--orange)] to-[var(--orange2)] flex items-center justify-center transition-transform hover:scale-110"
-                  style={{ boxShadow: "0 6px 28px rgba(240,90,26,.55)" }}>
-                  <div className="w-0 h-0 border-solid border-t-[11px] border-b-[11px] border-l-[20px] border-transparent border-l-white ml-[4px]" />
-                </div>
-                <div className="text-white text-[12.5px] font-bold text-center px-4 leading-[1.35]">
-                  {currentItem?.title ?? course.title}
-                </div>
+          {/* Real Video or Quiz Player */}
+          <div className="shrink-0">
+            {currentItem?.type === 'video' ? (
+              <VideoPlayer
+                videoId={currentItem.id}
+                title={currentItem.title}
+                durationSeconds={currentItem.durationSeconds ?? 0}
+                isCompleted={currentItem.isCompleted}
+                onComplete={async () => {
+                  await mutate(`/api/student/courses/${courseId}`);
+                  const refreshed = await fetch(`/api/student/courses/${courseId}`, { credentials: "same-origin" }).then(r => r.json());
+                  const allDone = refreshed.sections.every((s: { items: { isCompleted: boolean }[] }) =>
+                    s.items.every((item: { isCompleted: boolean }) => item.isCompleted),
+                  );
+                  if (allDone) {
+                    await mutate("/api/certificates/my");
+                    setCertEarned(true);
+                  }
+                }}
+              />
+            ) : currentItem?.type === 'quiz' ? (
+              <div className="aspect-[16/9]">
+                <QuizPlayer
+                  quizId={currentItem.id}
+                  title={currentItem.title}
+                  totalQuestions={currentItem.totalQuestions ?? 5}
+                  passingScore={currentItem.passingScore ?? null}
+                  previousScore={currentItem.score}
+                  isCompleted={currentItem.isCompleted}
+                  onComplete={async () => {
+                    await mutate(`/api/student/courses/${courseId}`);
+                    const refreshed = await fetch(`/api/student/courses/${courseId}`, { credentials: "same-origin" }).then(r => r.json());
+                    const allDone = refreshed.sections.every((s: { items: { isCompleted: boolean }[] }) =>
+                      s.items.every((item: { isCompleted: boolean }) => item.isCompleted),
+                    );
+                    if (allDone) {
+                      await mutate("/api/certificates/my");
+                      setCertEarned(true);
+                    }
+                  }}
+                />
               </div>
-            </div>
+            ) : (
+              /* Fallback placeholder */
+              <div className="relative bg-black aspect-[16/9] flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg,#040c1a 0%,#061522 40%,#080f04 100%)" }}>
+                <div className="text-white text-[12.5px] font-bold text-center px-4">{course.title}</div>
+              </div>
+            )}
           </div>
 
           {/* Progress info */}
@@ -233,12 +251,43 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
             <div className="text-[11px] text-[var(--text3)] mb-3">
               <strong className="text-[var(--orange)]">{progress.completedItems} of {progress.totalItems}</strong> lessons completed
             </div>
-            <button className="w-full py-[9px] rounded-[8px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[12px] font-bold flex items-center justify-center gap-[6px] transition-all hover:opacity-90"
+            <button 
+              onClick={async () => {
+                if (progress.progressPercent === 100) {
+                  const res = await fetch(`/api/certificates/claim/${courseId}`, {
+                    method: "POST",
+                    credentials: "same-origin"
+                  });
+                  if (res.ok) {
+                    await mutate("/api/certificates/my");
+                    setCertEarned(true);
+                  }
+                }
+              }}
+              className="w-full py-[9px] rounded-[8px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[12px] font-bold flex items-center justify-center gap-[6px] transition-all hover:opacity-90"
               style={{ boxShadow: "0 3px 14px rgba(240,90,26,.35)" }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               {resumeLabel}
             </button>
           </div>
+
+          {/* Certificate Earned Banner */}
+          {certEarned && (
+            <div className="mx-4 mb-3 p-3 rounded-[10px] bg-green-500/10 border border-green-500/20 flex items-center gap-3"
+              style={{ animation: "fadeUp .4s ease both" }}>
+              <span className="text-[24px]">🏆</span>
+              <div className="flex-1">
+                <div className="text-[12px] font-bold text-green-600 dark:text-green-400">Certificate Earned!</div>
+                <div className="text-[10px] text-[var(--text3)]">View it in your Certificates tab</div>
+              </div>
+              <button
+                onClick={onBack}
+                className="px-3 py-1.5 rounded-[6px] text-[10px] font-bold bg-green-600 text-white border-none cursor-pointer hover:bg-green-700 transition-all"
+              >
+                Back to Courses →
+              </button>
+            </div>
+          )}
 
           {/* Instructor */}
           {instructor && (
