@@ -230,7 +230,7 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
             <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em] text-[#6b7280] dark:text-[#7a859a]">// rank</span>
             <span className="font-['Syne',sans-serif] text-[13.5px] font-bold text-[#111827] dark:text-[#e8eaf0]">Batch Leaderboard</span>
             <div className="flex-1 h-px bg-[#e2e6ef] dark:bg-[#1e2535]"></div>
-            <a href="#" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[#3b82f6] dark:text-[#60a5fa] px-2 py-0.5 border border-blue-500/25 rounded-[4px] hover:bg-blue-500/10 hover:border-[#3b82f6] dark:hover:border-[#60a5fa] transition-all whitespace-nowrap">Full Rankings →</a>
+            <Link href="/leaderboard" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[#3b82f6] dark:text-[#60a5fa] px-2 py-0.5 border border-blue-500/25 rounded-[4px] hover:bg-blue-500/10 hover:border-[#3b82f6] dark:hover:border-[#60a5fa] transition-all whitespace-nowrap no-underline">Full Rankings →</Link>
           </div>
           <div className="bg-white dark:bg-[#161b27] border border-[#e2e6ef] dark:border-[#1e2535] rounded-[9px] overflow-hidden">
             {leaderboard.map((l, i) => (

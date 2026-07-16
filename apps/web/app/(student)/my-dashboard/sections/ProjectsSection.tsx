@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 const projects = [
   {
     id: 1, emoji: "🛒", bannerBg: "linear-gradient(135deg,#040c1a 0%,#071822 55%,#081008 100%)", status: "Live", statusCls: "bg-[rgba(34,197,94,.2)] text-[#86efac] border border-[rgba(34,197,94,.3)]",
@@ -76,7 +78,7 @@ export default function ProjectsSection() {
           <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--text3)]">{"// active"}</span>
           <span className="font-['Syne',sans-serif] text-[13.5px] font-bold text-[var(--text)]">Active Projects</span>
           <span className="flex-1 h-[1px] bg-[var(--border)]" />
-          <a className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[var(--blue2)] px-2 py-[2px] border border-[rgba(59,130,246,.25)] rounded-[4px] transition-all duration-[0.15s] whitespace-nowrap hover:bg-[var(--blue-d)] hover:border-[var(--blue2)]" href="#">GitHub Portfolio →</a>
+          <Link href="https://github.com" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[var(--blue2)] px-2 py-[2px] border border-[rgba(59,130,246,.25)] rounded-[4px] transition-all duration-[0.15s] whitespace-nowrap hover:bg-[var(--blue-d)] hover:border-[var(--blue2)] no-underline" target="_blank" rel="noopener noreferrer">GitHub Portfolio →</Link>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

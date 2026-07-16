@@ -1,9 +1,11 @@
+import Link from "next/link";
+
 export function ResumeLearning() {
   return (
     <div>
       <div className="font-['Syne'] text-[14px] font-bold text-[var(--text)] flex justify-between items-center mb-3">
         <span>Resume Learning</span>
-        <a href="#" className="text-[11px] font-semibold text-[var(--blue)] font-['DM_Sans']">View All</a>
+        <Link href="/my-dashboard" className="text-[11px] font-semibold text-[var(--blue)] font-['DM_Sans'] no-underline">View All</Link>
       </div>
 
       <div className="mb-2 flex cursor-pointer gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 shadow-[var(--shadow)] hover:border-[var(--orange)]">

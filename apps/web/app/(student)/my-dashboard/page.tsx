@@ -9,9 +9,10 @@ import ScheduleSection from "./sections/ScheduleSection";
 import AssignmentsSection from "./sections/AssignmentsSection";
 import CertificatesSection from "./sections/CertificatesSection";
 import ProjectsSection from "./sections/ProjectsSection";
+import DiscussionTab from "./sections/DiscussionTab";
 import { useStudentDashboard } from "../hooks/student-dashboard";
 
-type TabId = "overview" | "courses" | "schedule" | "assignments" | "certificates" | "projects";
+type TabId = "overview" | "courses" | "schedule" | "assignments" | "certificates" | "projects" | "discussion";
 
 const notifs = [
   { icon: "📡", text: <><span className="font-semibold">Live session starting</span> in 2 hours — React Hooks Deep Dive</>, time: "10 min ago", ic: "bg-orange-500/10" },
@@ -39,6 +40,9 @@ const activity = [
 export default function MyDashboardPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [discussionCourseId, setDiscussionCourseId] = useState<string | null>(null);
+  const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
+  const [loadingCounts, setLoadingCounts] = useState(false);
   const [doneSet, setDoneSet] = useState<Set<number>>(new Set([0, 3]));
   const [notifOpen, setNotifOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -72,6 +76,28 @@ export default function MyDashboardPage() {
     setSidebarOpen(false);
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab === "discussion" && !discussionCourseId && enrolledCourses.length > 0) {
+      setLoadingCounts(true);
+      Promise.all(
+        enrolledCourses.map(async (course) => {
+          try {
+            const res = await fetch(`/api/discussion/${course.courseId}?page=1&limit=50`, { credentials: "same-origin" });
+            const data = await res.json();
+            return { courseId: course.courseId, count: Array.isArray(data) ? data.length : 0 };
+          } catch {
+            return { courseId: course.courseId, count: 0 };
+          }
+        }),
+      ).then((results) => {
+        const counts: Record<string, number> = {};
+        results.forEach((r) => { counts[r.courseId] = r.count; });
+        setMessageCounts(counts);
+        setLoadingCounts(false);
+      });
+    }
+  }, [activeTab, discussionCourseId, enrolledCourses]);
+
   const renderSection = () => {
     if (activeTab === "courses" && selectedCourseId && selectedCourse) {
       return (
@@ -102,6 +128,58 @@ export default function MyDashboardPage() {
         {activeTab === "assignments" && <AssignmentsSection />}
         {activeTab === "certificates" && <CertificatesSection />}
         {activeTab === "projects" && <ProjectsSection />}
+        {activeTab === "discussion" && (
+          <>
+            {discussionCourseId ? (
+              <div className="flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-[10px] overflow-hidden flex-1 min-h-0">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]" style={{ background: "var(--surface)" }}>
+                  <button onClick={() => setDiscussionCourseId(null)} className="font-mono text-[9.5px] font-semibold cursor-pointer bg-transparent border-none flex items-center gap-1" style={{ color: "var(--text3)" }}>
+                    ← Back to courses
+                  </button>
+                  <span className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>
+                    {enrolledCourses.find(c => c.courseId === discussionCourseId)?.title || ""}
+                  </span>
+                </div>
+                <DiscussionTab courseId={discussionCourseId} />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em]" style={{ color: "var(--text3)" }}>// discussions</span>
+                  <span className="font-['Syne',sans-serif] text-[13.5px] font-bold" style={{ color: "var(--text)" }}>Select a Course</span>
+                  <div className="flex-1 h-px bg-[var(--border)]" />
+                </div>
+                {isLoading ? (
+                  <div className="text-[11px] font-mono" style={{ color: "var(--text3)" }}>Loading courses…</div>
+                ) : enrolledCourses.length === 0 ? (
+                  <div className="text-[11px] font-mono" style={{ color: "var(--text3)" }}>No enrolled courses yet. Browse the catalog to get started!</div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2">
+                    {enrolledCourses.map((course) => {
+                      const msgCount = messageCounts[course.courseId] ?? -1;
+                      return (
+                        <button
+                          key={course.courseId}
+                          onClick={() => setDiscussionCourseId(course.courseId)}
+                          className="flex items-center gap-3 px-4 py-3 rounded-[8px] text-left cursor-pointer transition-all w-full border"
+                          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+                        >
+                          <span className="text-lg shrink-0">💬</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[12px] font-semibold truncate" style={{ color: "var(--text)" }}>{course.title}</div>
+                          </div>
+                          <span className="font-mono text-[8px] font-bold px-2 py-1 rounded shrink-0" style={{ background: "var(--orange-d)", color: "var(--orange)" }}>
+                            {loadingCounts || msgCount < 0 ? "💬 …" : `💬 ${msgCount}`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
       </>
     );
   };
@@ -191,27 +269,27 @@ export default function MyDashboardPage() {
           {/* Explore */}
           <div className="px-2.5 py-1">
             <div className="text-[9px] font-semibold uppercase tracking-[.1em] text-[#6b7280] dark:text-[#7a859a] mb-1 px-2">Explore</div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">🔥</span><span className="flex-1">Trending</span><span className="font-['JetBrains_Mono',monospace] text-[7.5px] font-semibold px-[4px] py-px rounded-[3px] bg-green-500/10 text-green-600 dark:text-green-500">New</span></div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">🧠</span><span className="flex-1">AI / ML</span></div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">🌐</span><span className="flex-1">Full Stack</span></div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">🔧</span><span className="flex-1">DevOps</span></div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">📊</span><span className="flex-1">Data Science</span></div>
+            <Link href="/courses?trending=1" className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🔥</span><span className="flex-1">Trending</span><span className="font-['JetBrains_Mono',monospace] text-[7.5px] font-semibold px-[4px] py-px rounded-[3px] bg-green-500/10 text-green-600 dark:text-green-500">New</span></Link>
+            <Link href="/courses?category=ai-ml" className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🧠</span><span className="flex-1">AI / ML</span></Link>
+            <Link href="/courses?category=full-stack" className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🌐</span><span className="flex-1">Full Stack</span></Link>
+            <Link href="/courses?category=devops" className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🔧</span><span className="flex-1">DevOps</span></Link>
+            <Link href="/courses?category=data-science" className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">📊</span><span className="flex-1">Data Science</span></Link>
           </div>
 
           {/* Community */}
           <div className="px-2.5 py-1">
             <div className="text-[9px] font-semibold uppercase tracking-[.1em] text-[#6b7280] dark:text-[#7a859a] mb-1 px-2">Community</div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[7.5px] font-semibold px-[4px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></div>
+            <button onClick={() => { setActiveTab("discussion"); setDiscussionCourseId(null); }} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-xs shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[7.5px] font-semibold px-[4px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
+            <Link href="/skill-tests" className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></Link>
+            <Link href="/leaderboard" className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></Link>
+            <Link href="/study-groups" className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></Link>
           </div>
 
           {/* Account */}
           <div className="px-2.5 py-1">
             <div className="text-[9px] font-semibold uppercase tracking-[.1em] text-[#6b7280] dark:text-[#7a859a] mb-1 px-2">Account</div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></div>
-            <div className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] cursor-pointer transition-all"><span className="text-xs shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></div>
+            <Link href="/settings" className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
+            <Link href="/help" className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
           </div>
 
           {/* Sidebar Footer */}
@@ -233,7 +311,7 @@ export default function MyDashboardPage() {
             <div className="p-4 border-b border-[#e2e6ef] dark:border-[#1e2535]">
               <div className="flex items-center justify-between mb-3">
                 <span className="font-['Syne',sans-serif] text-[14px] font-bold text-[#111827] dark:text-[#e8eaf0]">🔔 Notifications</span>
-                <a href="#" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[#3b82f6] dark:text-[#60a5fa]">View All</a>
+                <Link href="/my-dashboard" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[#3b82f6] dark:text-[#60a5fa]">View All</Link>
               </div>
               <div className="flex flex-col gap-2">
                 {notifs.map((n, i) => (
@@ -274,7 +352,7 @@ export default function MyDashboardPage() {
             <div className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="font-['Syne',sans-serif] text-[14px] font-bold text-[#111827] dark:text-[#e8eaf0]">🕐 Recent Activity</span>
-                <a href="#" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[#3b82f6] dark:text-[#60a5fa]">View All</a>
+                <Link href="/my-dashboard" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[#3b82f6] dark:text-[#60a5fa]">View All</Link>
               </div>
               <div className="flex flex-col gap-2">
                 {activity.map((a, i) => (

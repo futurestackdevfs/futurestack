@@ -208,7 +208,6 @@ export default function DashboardHome({
           <StatPair label={`My share (${TRAINER_SHARE_PCT}%)`} value={INR(stats.myShare)} color="var(--green)" />
           <StatPair label="Already paid out" value={INR(stats.paidOut)} color="var(--green)" />
           <StatPair label="Pending payout" value={INR(stats.pendingPayout)} color="var(--amber)" />
-          <StatPair label="Next expected payout" value={payouts.find((p) => p.status === "Pending")?.expectedOn || "—"} color="var(--orange)" />
         </Card>
       </div>
     </div>

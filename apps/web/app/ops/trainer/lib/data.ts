@@ -90,14 +90,12 @@ export interface CurriculumFeedback {
 }
 
 export interface RevenueEnrollment {
-  id: number;
+  id: string;
   student: string;
   batchCode: string;
   course: string;
   courseFee: number;
   paidSoFar: number;
-  paymentMode: "Full" | "EMI";
-  emiMonths?: number;
   enrolledOn: string;
 }
 
@@ -107,12 +105,10 @@ export interface PayoutRecord {
   batchCode: string;
   amount: number;
   status: "Paid" | "Pending";
-  paidOn?: string;
-  expectedOn?: string;
 }
 
 /** Trainer's agreed revenue share of collected batch revenue. */
-export const TRAINER_SHARE_PCT = 20;
+export const TRAINER_SHARE_PCT = 50;
 
 export const BATCHES: TrainerBatch[] = [
   { id: 1, code: "BAT-MERN-WD-04", course: "MERN Stack Development", schedule: "Weekend · Sat/Sun 10:00–13:00", enrolled: 24, seats: 30, startDate: "2026-05-16", progressPct: 46, currentModule: "M5 · Express.js & REST APIs", nextSession: "2026-07-11 · 10:00", status: "Running" },
@@ -158,23 +154,6 @@ export const FEEDBACK: CurriculumFeedback[] = [
   { id: 1, kind: "Outdated Material", course: "MERN Stack Development", module: "M3 · React Basics", note: "Slides still show class components — should be rewritten around hooks and function components.", raisedAt: "2026-07-01", status: "Submitted" },
   { id: 2, kind: "Confusing Topic", course: "MERN Stack Development", module: "M5 · Express.js", note: "Students consistently struggle with async error handling in Express. Needs a dedicated worked example.", raisedAt: "2026-07-06", status: "Draft" },
   { id: 3, kind: "Content Suggestion", course: "Data Science Foundations", module: "M2 · Pandas", note: "Add a lesson on reading data from APIs/JSON — most real datasets students meet are not CSVs.", raisedAt: "2026-06-25", status: "Acknowledged" },
-];
-
-export const ENROLLMENTS: RevenueEnrollment[] = [
-  { id: 1, student: "Ananya Iyer", batchCode: "BAT-MERN-WD-04", course: "MERN Stack Development", courseFee: 45000, paidSoFar: 45000, paymentMode: "Full", enrolledOn: "2026-05-10" },
-  { id: 2, student: "Rohan Kulkarni", batchCode: "BAT-MERN-WD-04", course: "MERN Stack Development", courseFee: 45000, paidSoFar: 22500, paymentMode: "EMI", emiMonths: 6, enrolledOn: "2026-05-11" },
-  { id: 3, student: "Priya Sharma", batchCode: "BAT-MERN-WD-04", course: "MERN Stack Development", courseFee: 45000, paidSoFar: 15000, paymentMode: "EMI", emiMonths: 6, enrolledOn: "2026-05-12" },
-  { id: 4, student: "Aditya Menon", batchCode: "BAT-MERN-WD-04", course: "MERN Stack Development", courseFee: 40500, paidSoFar: 40500, paymentMode: "Full", enrolledOn: "2026-05-14" },
-  { id: 5, student: "Arjun Deshpande", batchCode: "BAT-MERN-WD-04", course: "MERN Stack Development", courseFee: 45000, paidSoFar: 45000, paymentMode: "Full", enrolledOn: "2026-05-15" },
-  { id: 6, student: "Sneha Patil", batchCode: "BAT-DS-WK-02", course: "Data Science Foundations", courseFee: 35000, paidSoFar: 35000, paymentMode: "Full", enrolledOn: "2026-06-01" },
-  { id: 7, student: "Vikram Rao", batchCode: "BAT-DS-WK-02", course: "Data Science Foundations", courseFee: 35000, paidSoFar: 11700, paymentMode: "EMI", emiMonths: 9, enrolledOn: "2026-06-02" },
-  { id: 8, student: "Kavya Nair", batchCode: "BAT-DS-WK-02", course: "Data Science Foundations", courseFee: 31500, paidSoFar: 31500, paymentMode: "Full", enrolledOn: "2026-06-03" },
-];
-
-export const PAYOUTS: PayoutRecord[] = [
-  { id: 1, period: "May 2026", batchCode: "BAT-MERN-WD-04", amount: 26100, status: "Paid", paidOn: "2026-06-05" },
-  { id: 2, period: "June 2026", batchCode: "BAT-MERN-WD-04", amount: 7500, status: "Paid", paidOn: "2026-07-05" },
-  { id: 3, period: "June 2026", batchCode: "BAT-DS-WK-02", amount: 15640, status: "Pending", expectedOn: "2026-07-15" },
 ];
 
 export const INR = (n: number) => `₹${n.toLocaleString("en-IN")}`;

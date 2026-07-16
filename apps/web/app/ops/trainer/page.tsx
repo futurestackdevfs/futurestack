@@ -175,8 +175,14 @@ export default function TrainerDashboardPage() {
       const localStudents = loadLocal<TrainerStudent[]>(user.id, "students", []);
       const localSubmissions = loadLocal<ProjectSubmission[]>(user.id, "submissions", []);
       const localFeedback = loadLocal<CurriculumFeedback[]>(user.id, "feedback", []);
-      const localEnrollments = loadLocal<RevenueEnrollment[]>(user.id, "enrollments", []);
-      const localPayouts = loadLocal<PayoutRecord[]>(user.id, "payouts", []);
+
+      /* Revenue & payouts now come from the real backend */
+      const revenue = await opsFetch("/api/courses/trainer/revenue")
+        .then((r) => (r.ok ? r.json() : { enrollments: [] }))
+        .catch(() => ({ enrollments: [] }));
+      const payoutsFromApi = await opsFetch("/api/courses/trainer/payouts")
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => []);
 
       if (cancelled) return;
       setBatches(fromApi);
@@ -185,8 +191,8 @@ export default function TrainerDashboardPage() {
       setSubmissions(localSubmissions);
       setDoubts(allDiscussions);
       setFeedback(localFeedback);
-      setEnrollments(localEnrollments);
-      setPayouts(localPayouts);
+      setEnrollments((revenue.enrollments ?? []) as RevenueEnrollment[]);
+      setPayouts((Array.isArray(payoutsFromApi) ? payoutsFromApi : []) as PayoutRecord[]);
       setDataLoading(false);
     })();
 

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export function Achievements() {
   const items = [
     {
@@ -27,7 +29,7 @@ export function Achievements() {
     <div>
       <div className="font-['Syne'] text-[14px] font-bold text-[var(--text)] flex justify-between items-center mb-3">
         <span>Student Achievements</span>
-        <a href="#" className="text-[11px] font-semibold text-[var(--blue)] font-['DM_Sans']">View All</a>
+        <Link href="/my-dashboard" className="text-[11px] font-semibold text-[var(--blue)] font-['DM_Sans'] no-underline">View All</Link>
       </div>
       {items.map((item) => (
         <div key={item.name} className="flex items-start gap-2.5 border-b border-[var(--border)] py-2 last:border-b-0">
