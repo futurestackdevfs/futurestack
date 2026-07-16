@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CertificatesService } from '../certificates/certificates.service';
 
 export interface NextVideo {
   id: string;
@@ -45,7 +46,10 @@ export interface VideoProgressResult {
 
 @Injectable()
 export class StudentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly certificatesService: CertificatesService,
+  ) {}
 
   async getDashboard(
     studentId: string,
@@ -372,6 +376,10 @@ export class StudentService {
         ...(justCompleted ? { completedAt: new Date() } : {}),
       },
     });
+
+    if (isNowCompleted || wasCompleted) {
+      await this.certificatesService.checkAndIssueCertificate(studentId, courseId);
+    }
 
     return {
       videoId: updated.videoId,
