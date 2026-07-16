@@ -5,6 +5,7 @@ import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { StudentService } from './student.service';
 import { UpdateVideoProgressDto } from './dto/update-video-progress.dto';
+import { SubmitQuizDto } from './dto/submit-quiz.dto';
 
 @Controller('student')
 export class StudentController {
@@ -36,5 +37,17 @@ export class StudentController {
   ) {
     const user = req.user as { id: string };
     return this.studentService.updateVideoProgress(user.id, videoId, dto.positionSec);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Auth(Role.STUDENT)
+  @Post('quizzes/:quizId/submit')
+  async submitQuiz(
+    @Param('quizId') quizId: string,
+    @Body() dto: SubmitQuizDto,
+    @Req() req: Request,
+  ) {
+    const user = req.user as { id: string };
+    return this.studentService.submitQuiz(user.id, quizId, dto.score);
   }
 }
