@@ -846,4 +846,49 @@ export class CoursesService {
     await this.prisma.courseResource.delete({ where: { id } });
     return { message: 'Resource deleted' };
   }
+
+  // ==================== TRAINER REVENUE ====================
+
+  async trainerRevenue(trainerId: string) {
+    const courses = await this.prisma.course.findMany({
+      where: { trainerId, status: 'ACTIVE' },
+      select: { id: true, title: true, price: true, code: true },
+    });
+
+    const courseIds = courses.map(c => c.id);
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { courseId: { in: courseIds }, status: 'active' },
+      include: {
+        student: { select: { id: true, name: true } },
+        course: { select: { title: true, price: true, code: true } },
+      },
+      orderBy: { enrolledAt: 'desc' },
+    });
+
+    const list = enrollments.map(e => {
+      const paymentMode = e.amountPaid >= e.course.price
+        ? 'Full'
+        : e.amountPaid > 0
+          ? 'EMI'
+          : 'Pending';
+
+      return {
+        id: e.id,
+        student: e.student.name,
+        batchCode: e.course.code ?? e.course.title.slice(0, 8).toUpperCase(),
+        course: e.course.title,
+        courseFee: e.course.price,
+        paymentMode,
+        enrolledOn: e.enrolledAt.toISOString().slice(0, 10),
+      };
+    });
+
+    return { enrollments: list };
+  }
+
+  async trainerPayouts(trainerId: string) {
+    // Payout records not yet modeled in the database.
+    // Return empty list until the feature is implemented.
+    return [];
+  }
 }

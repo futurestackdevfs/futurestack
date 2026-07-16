@@ -62,7 +62,11 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
 
   const totals = useMemo(() => {
     const fee = enrollments.reduce((s, e) => s + e.courseFee, 0);
-    const collected = enrollments.reduce((s, e) => s + e.paidSoFar, 0);
+    const collected = enrollments.reduce((s, e) => {
+      if (e.paymentMode === "Full") return s + e.courseFee;
+      if (e.paymentMode === "EMI") return s + Math.round(e.courseFee * 0.5);
+      return s;
+    }, 0);
     const myShare = Math.round(collected * (TRAINER_SHARE_PCT / 100));
     const paidOut = payouts.filter((p) => p.status === "Paid").reduce((s, p) => s + p.amount, 0);
     return { fee, collected, myShare, paidOut, pending: myShare - paidOut };
@@ -74,7 +78,8 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
       const cur = map.get(e.batchCode) || { students: 0, fee: 0, collected: 0 };
       cur.students += 1;
       cur.fee += e.courseFee;
-      cur.collected += e.paidSoFar;
+      const collectedAmt = e.paymentMode === "Full" ? e.courseFee : e.paymentMode === "EMI" ? Math.round(e.courseFee * 0.5) : 0;
+      cur.collected += collectedAmt;
       map.set(e.batchCode, cur);
     }
     return Array.from(map.entries());
@@ -86,13 +91,13 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
 
   function downloadStatement() {
     const rows = [
-      ["Student", "Batch", "Course", "Course Fee", "Paid So Far", "Enrolled On", `Trainer Share (${TRAINER_SHARE_PCT}%)`],
+      ["Student", "Batch", "Course", "Course Fee", "Payment Mode", "Enrolled On", `Trainer Share (${TRAINER_SHARE_PCT}%)`],
       ...enrollments.map((e) => [
-        e.student, e.batchCode, e.course, e.courseFee, e.paidSoFar,
-        e.enrolledOn, Math.round(e.paidSoFar * (TRAINER_SHARE_PCT / 100)),
+        e.student, e.batchCode, e.course, e.courseFee, e.paymentMode,
+        e.enrolledOn, Math.round(e.courseFee * (TRAINER_SHARE_PCT / 100)),
       ]),
       [],
-      ["TOTAL COLLECTED", "", "", totals.fee, totals.collected, "", totals.myShare],
+      ["TOTAL", "", "", totals.fee, "", "", totals.myShare],
       ["PAID OUT", "", "", "", "", "", totals.paidOut],
       ["PENDING", "", "", "", "", "", totals.pending],
     ];
@@ -132,7 +137,7 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
       <Panel title="📊 Batch-wise Revenue Breakdown" count={`${byBatch.length} batches`}>
         <table className="w-full border-collapse" style={{ fontSize: 11 }}>
           <thead>
-            <tr><Th>Batch</Th><Th>Students</Th><Th>Total Fees</Th><Th>Collected So Far</Th><Th>Collection %</Th><Th>My Share ({TRAINER_SHARE_PCT}%)</Th></tr>
+            <tr><Th>Batch</Th><Th>Students</Th><Th>Total Fees</Th><Th>Est. Collected</Th><Th>Collected %</Th><Th>My Share ({TRAINER_SHARE_PCT}%)</Th></tr>
           </thead>
           <tbody>
             {batchPage.pageRows.map(([code, b]) => (
@@ -168,7 +173,7 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
       >
         <table className="w-full border-collapse" style={{ fontSize: 11 }}>
           <thead>
-            <tr><Th>Student</Th><Th>Batch</Th><Th>Course Fee</Th><Th>Paid So Far</Th><Th>Enrolled On</Th><Th>My Share ({TRAINER_SHARE_PCT}%)</Th></tr>
+            <tr><Th>Student</Th><Th>Batch</Th><Th>Course Fee</Th><Th>Payment Mode</Th><Th>Enrolled On</Th><Th>My Share ({TRAINER_SHARE_PCT}%)</Th></tr>
           </thead>
           <tbody>
             {enrollmentPage.pageRows.map((e) => (
@@ -176,9 +181,9 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
                 <Td color="var(--text)"><b>{e.student}</b></Td>
                 <Td mono>{e.batchCode}</Td>
                 <Td mono>{INR(e.courseFee)}</Td>
-                <Td mono color={e.paidSoFar >= e.courseFee ? "var(--green)" : "var(--amber)"}>{INR(e.paidSoFar)}</Td>
+                <Td><Pill value={e.paymentMode} /></Td>
                 <Td mono>{e.enrolledOn}</Td>
-                <Td mono color="var(--green)">{INR(Math.round(e.paidSoFar * (TRAINER_SHARE_PCT / 100)))}</Td>
+                <Td mono color="var(--green)">{INR(Math.round(e.courseFee * (TRAINER_SHARE_PCT / 100)))}</Td>
               </tr>
             ))}
             {filtered.length === 0 && (

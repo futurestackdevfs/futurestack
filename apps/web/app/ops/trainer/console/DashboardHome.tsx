@@ -78,7 +78,11 @@ export default function DashboardHome({
     const revisionSubs = submissions.filter((s) => s.status === "Revision Requested");
     const approvedSubs = submissions.filter((s) => s.status === "Approved");
     const openDoubts = doubts.filter((d) => !d.isAnswered);
-    const collected = enrollments.reduce((s, e) => s + e.paidSoFar, 0);
+    const collected = enrollments.reduce((s, e) => {
+      if (e.paymentMode === "Full") return s + e.courseFee;
+      if (e.paymentMode === "EMI") return s + Math.round(e.courseFee * 0.5);
+      return s;
+    }, 0);
     const myShare = Math.round(collected * (TRAINER_SHARE_PCT / 100));
     const paidOut = payouts.filter((p) => p.status === "Paid").reduce((s, p) => s + p.amount, 0);
     return {

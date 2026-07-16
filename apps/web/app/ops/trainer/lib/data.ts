@@ -95,7 +95,7 @@ export interface RevenueEnrollment {
   batchCode: string;
   course: string;
   courseFee: number;
-  paidSoFar: number;
+  paymentMode: "Full" | "EMI" | "Pending";
   enrolledOn: string;
 }
 

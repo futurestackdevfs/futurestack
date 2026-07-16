@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { CoursesService } from './courses.service';
@@ -209,6 +210,24 @@ export class CoursesController {
   @Post('reorder-featured')
   reorderFeaturedCourses(@Body() dto: ReorderItemsDto) {
     return this.coursesService.reorderFeaturedCourses(dto);
+  }
+
+  // ================================================================
+  // TRAINER — revenue & payouts (static "trainer" prefix)
+  // ================================================================
+
+  @Auth(Role.TRAINER)
+  @Get('trainer/revenue')
+  trainerRevenue(@Req() req: Request) {
+    const user = req.user as { id: string };
+    return this.coursesService.trainerRevenue(user.id);
+  }
+
+  @Auth(Role.TRAINER)
+  @Get('trainer/payouts')
+  trainerPayouts(@Req() req: Request) {
+    const user = req.user as { id: string };
+    return this.coursesService.trainerPayouts(user.id);
   }
 
   // ================================================================

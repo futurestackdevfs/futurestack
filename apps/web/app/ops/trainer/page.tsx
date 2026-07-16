@@ -176,7 +176,7 @@ export default function TrainerDashboardPage() {
       const localSubmissions = loadLocal<ProjectSubmission[]>(user.id, "submissions", []);
       const localFeedback = loadLocal<CurriculumFeedback[]>(user.id, "feedback", []);
 
-      /* Revenue & payouts now come from the real backend */
+      /* Revenue & payouts from backend API */
       const revenue = await opsFetch("/api/courses/trainer/revenue")
         .then((r) => (r.ok ? r.json() : { enrollments: [] }))
         .catch(() => ({ enrollments: [] }));
