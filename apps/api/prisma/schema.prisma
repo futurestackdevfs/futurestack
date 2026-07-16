@@ -152,6 +152,7 @@ model Video {
   vdoCipherId     String
   durationSeconds Int
   order           Int
+  isPreview       Boolean         @default(false)
   section         Section         @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   sectionId       String
   progress        VideoProgress[]
