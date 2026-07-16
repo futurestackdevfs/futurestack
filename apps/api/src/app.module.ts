@@ -12,6 +12,7 @@ import { CoursesModule } from './courses/courses.module';
 import { UploadModule } from './upload/upload.module';
 import { DiscussionModule } from './discussion/discussion.module';
 import { CertificatesModule } from './certificates/certificates.module';
+import { TrainerModule } from './trainer/trainer.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { CertificatesModule } from './certificates/certificates.module';
     UploadModule,
     DiscussionModule,
     CertificatesModule,
+    TrainerModule,
   ],
   controllers: [AppController],
   providers: [

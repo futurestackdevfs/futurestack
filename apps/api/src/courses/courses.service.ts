@@ -209,6 +209,186 @@ export class CoursesService {
     };
   }
 
+  async getCourseOverview(courseId: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId, status: 'ACTIVE' },
+      include: {
+        trainer: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+            bio: true,
+            yearsExperience: true,
+            rating: true,
+            _count: { select: { coursesTaught: true } }
+          }
+        },
+        sections: {
+          orderBy: { order: 'asc' },
+          include: {
+            videos: {
+              orderBy: { order: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                durationSeconds: true,
+                order: true,
+                isPreview: true,   // only preview videos are playable without enrollment
+              }
+            },
+            quizzes: {
+              orderBy: { order: 'asc' },
+              select: { id: true, title: true, order: true, totalQuestions: true }
+            }
+          }
+        },
+        _count: { select: { enrollments: true } }
+      }
+    });
+
+    if (!course) throw new NotFoundException('Course not found');
+
+    // Compute totals
+    const totalVideos = course.sections.reduce((sum, s) => sum + s.videos.length, 0);
+    const totalQuizzes = course.sections.reduce((sum, s) => sum + s.quizzes.length, 0);
+    const totalDurationSecs = course.sections.reduce(
+      (sum, s) => sum + s.videos.reduce((vs, v) => vs + v.durationSeconds, 0), 0
+    );
+    const totalHours = Math.round((totalDurationSecs / 3600) * 10) / 10;
+
+    // Build curriculum — merge videos and quizzes per section by order
+    // Videos that are NOT isPreview should have their id omitted — 
+    // visitors shouldn't be able to guess video IDs for OTP requests
+    const curriculum = course.sections.map(section => ({
+      id: section.id,
+      title: section.title,
+      order: section.order,
+      totalItems: section.videos.length + section.quizzes.length,
+      items: [
+        ...section.videos.map(v => ({
+          type: 'video' as const,
+          id: v.isPreview ? v.id : null,   // only expose ID for preview videos
+          title: v.title,
+          durationSeconds: v.durationSeconds,
+          order: v.order,
+          isPreview: v.isPreview,
+          isLocked: !v.isPreview,
+        })),
+        ...section.quizzes.map(q => ({
+          type: 'quiz' as const,
+          id: null,                          // quiz IDs never exposed to unenrolled users
+          title: q.title,
+          totalQuestions: q.totalQuestions,
+          order: q.order,
+          isPreview: false,
+          isLocked: true,
+        }))
+      ].sort((a, b) => a.order - b.order)
+    }));
+
+    return {
+      id: course.id,
+      title: course.title,
+      code: course.code,
+      category: course.category,
+      skillLevel: course.skillLevel,
+      description: course.description,
+      thumbnailUrl: course.thumbnailUrl,
+      price: course.price,
+      whatYoullLearn: course.whatYoullLearn,
+      techStack: course.techStack,
+      careerTitle: course.careerTitle,
+      careerBody: course.careerBody,
+      totalVideos,
+      totalQuizzes,
+      totalHours,
+      totalSections: course.sections.length,
+      enrollmentCount: course._count.enrollments,
+      instructor: course.trainer ? {
+        id: course.trainer.id,
+        name: course.trainer.name,
+        avatarUrl: course.trainer.avatarUrl,
+        bio: course.trainer.bio,
+        yearsExperience: course.trainer.yearsExperience,
+        rating: course.trainer.rating,
+        coursesTaughtCount: course.trainer._count.coursesTaught,
+      } : null,
+      curriculum,
+    };
+  }
+
+  async searchCourses(query: {
+    q?: string;
+    category?: string;
+    skillLevel?: string;
+    limit?: number;
+  }) {
+    const limit = Math.min(query.limit ?? 10, 50); // cap at 50
+  
+    const where: any = {
+      status: 'ACTIVE',
+      ...(query.category && { category: query.category }),
+      ...(query.skillLevel && { skillLevel: query.skillLevel }),
+      ...(query.q && {
+        OR: [
+          { title: { contains: query.q, mode: 'insensitive' } },
+          { description: { contains: query.q, mode: 'insensitive' } },
+          { category: { contains: query.q, mode: 'insensitive' } },
+          { techStack: { has: query.q } },
+        ]
+      })
+    };
+  
+    const courses = await this.prisma.course.findMany({
+      where,
+      take: limit,
+      orderBy: [
+        { isFeatured: 'desc' },
+        { displayOrder: 'asc' },
+      ],
+      select: {
+        id: true,
+        title: true,
+        code: true,
+        category: true,
+        skillLevel: true,
+        description: true,
+        thumbnailUrl: true,
+        price: true,
+        isFeatured: true,
+        techStack: true,
+        _count: { select: { enrollments: true } },
+        trainer: { select: { id: true, name: true, avatarUrl: true } },
+        sections: {
+          select: {
+            _count: { select: { videos: true } }
+          }
+        }
+      }
+    });
+  
+    return {
+      query: query.q ?? null,
+      total: courses.length,
+      results: courses.map(c => ({
+        id: c.id,
+        title: c.title,
+        code: c.code,
+        category: c.category,
+        skillLevel: c.skillLevel,
+        description: c.description,
+        thumbnailUrl: c.thumbnailUrl,
+        price: c.price,
+        isFeatured: c.isFeatured,
+        techStack: c.techStack,
+        enrollmentCount: c._count.enrollments,
+        totalVideos: c.sections.reduce((sum, s) => sum + s._count.videos, 0),
+        trainer: c.trainer ?? null,
+      }))
+    };
+  }
+
   // ==================== FEATURE + REORDER ====================
 
   async featureCourse(id: string, dto: FeatureDto) {

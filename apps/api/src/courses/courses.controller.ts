@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { CoursesService } from './courses.service';
@@ -172,6 +173,22 @@ export class CoursesController {
     return this.coursesService.publicCourseDetail(id);
   }
 
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Get('search')
+  searchCourses(
+    @Query('q') q?: string,
+    @Query('category') category?: string,
+    @Query('skillLevel') skillLevel?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.coursesService.searchCourses({
+      q,
+      category,
+      skillLevel,
+      limit: limit ? parseInt(limit, 10) : 10,
+    });
+  }
+
   // ================================================================
   // COURSES — list + create (no dynamic segment at root level)
   // ================================================================
@@ -204,6 +221,13 @@ export class CoursesController {
     return this.coursesService.getCourse(id);
   }
 
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Get(':courseId/overview')
+  getCourseOverview(@Param('courseId') courseId: string) {
+    return this.coursesService.getCourseOverview(courseId);
+  }
+
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Patch(':id')
   updateCourse(@Param('id') id: string, @Body() dto: UpdateCourseDto) {
