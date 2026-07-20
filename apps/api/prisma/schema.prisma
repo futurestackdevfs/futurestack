@@ -24,6 +24,13 @@ enum SkillLevel {
   ADVANCED
 }
 
+enum VideoStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
 enum Role {
   STUDENT
   TRAINER
@@ -153,6 +160,7 @@ model Video {
   durationSeconds Int
   order           Int
   isPreview       Boolean         @default(false)
+  videoStatus     VideoStatus     @default(UPLOADING)
   section         Section         @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   sectionId       String
   progress        VideoProgress[]
