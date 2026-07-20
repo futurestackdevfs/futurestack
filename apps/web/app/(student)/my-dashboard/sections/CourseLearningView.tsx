@@ -545,7 +545,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
         <span className="ml-auto flex items-center gap-3">
           <span>{progress.progressPercent}% complete</span>
           <span className="text-[var(--border2)]">│</span>
-          <span className="text-[var(--orange)]">FutureStack v2.4.1</span>
+          <span className="text-[var(--orange)]">FutureStack v1.0.0</span>
           <span className="text-[var(--border2)]">│</span>
           <span>India/Pune</span>
         </span>

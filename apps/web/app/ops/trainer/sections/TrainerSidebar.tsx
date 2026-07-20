@@ -24,7 +24,7 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Teaching",
     items: [
       { icon: "▣", label: "Dashboard", view: "dashboard" },
-      { icon: "📅", label: "My Batches", view: "batches" },
+      { icon: "📅", label: "My Courses", view: "batches" },
       { icon: "🎥", label: "Sessions", view: "sessions" },
       { icon: "📈", label: "Student Progress", view: "progress", badgeKey: "behind", badgeColor: { color: "var(--amber)", bg: "var(--amber-d)" } },
 
@@ -115,7 +115,7 @@ export function TrainerSidebar({ activeView, onSwitchView, badges = {} }: Traine
 
       {/* Footer */}
       <div className="mt-auto px-3.5 py-2.5 font-mono text-[9px]" style={{ color: "var(--text3)", borderTop: "1px solid var(--border)" }}>
-        v1.4.2 · BUILD 2026.06.29
+        v1.0.0 · BUILD 2026.06.17
       </div>
     </aside>
   );

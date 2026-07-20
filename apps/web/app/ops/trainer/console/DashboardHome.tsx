@@ -99,20 +99,19 @@ export default function DashboardHome({
 
   return (
     <div className="p-4 pb-7">
-      <ViewHeader icon="🎓" title={`Welcome back, ${userName.split(" ")[0]}`} meta={`role::trainer · ${batches.length} batches · ${stats.enrolledTotal} students`} />
+      <ViewHeader icon="🎓" title={`Welcome back, ${userName.split(" ")[0]}`} meta={`role::trainer · ${batches.length} courses · ${stats.enrolledTotal} students`} />
 
       <KpiRow items={[
-        { label: "Active Batches", value: stats.running.length, delta: `${batches.length - stats.running.length} upcoming`, color: "var(--purple)" },
+        { label: "Active Courses", value: stats.running.length, delta: `${batches.length - stats.running.length} upcoming`, color: "var(--purple)" },
         { label: "Enrolled Students", value: stats.enrolledTotal, delta: `${stats.behind.length} falling behind`, color: "var(--blue)" },
         { label: "Sessions Today", value: stats.todaySessions.length, delta: nextSession ? `next: ${nextSession.date}` : "none scheduled", color: "var(--orange)" },
         { label: "Reviews Pending", value: stats.newSubs.length + stats.pendingSubs.length, delta: `${stats.newSubs.length} new submissions`, color: "var(--red)" },
         { label: "Open Doubts", value: stats.openDoubts.length, delta: "unanswered", color: "var(--amber)" },
-        { label: "My Earnings", value: INR(stats.myShare), delta: `${INR(stats.pendingPayout)} pending`, color: "var(--green)" },
       ]} />
 
       <div className="grid grid-cols-2 gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>
-        {/* Assigned batches */}
-        <Card icon="📅" title="Assigned Batches" onOpen={() => onNavigate("batches")}>
+        {/* Assigned courses */}
+        <Card icon="📅" title="Assigned Courses" onOpen={() => onNavigate("batches")}>
           {batches.map((b) => (
             <div key={b.id} className="flex items-center gap-2 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
               <div className="flex-1 min-w-0">

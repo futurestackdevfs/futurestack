@@ -127,14 +127,14 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
       />
 
       <KpiRow items={[
-        { label: "Registrations", value: enrollments.length, delta: "in my batches", color: "var(--blue)" },
+        { label: "Registrations", value: enrollments.length, delta: "in my courses", color: "var(--blue)" },
         { label: `My Share (${TRAINER_SHARE_PCT}%)`, value: INR(totals.myShare), delta: "of collected revenue", color: "var(--green)" },
         { label: "Paid Out", value: INR(totals.paidOut), delta: "settled", color: "var(--green)" },
         { label: "Pending Payout", value: INR(totals.pending), delta: "not yet settled", color: "var(--amber)" },
       ]} />
 
       {/* Batch-wise breakdown */}
-      <Panel title="📊 Batch-wise Revenue Breakdown" count={`${byBatch.length} batches`}>
+      <Panel title="📊 Course-wise Revenue Breakdown" count={`${byBatch.length} courses`}>
         <table className="w-full border-collapse" style={{ fontSize: 11 }}>
           <thead>
             <tr><Th>Batch</Th><Th>Students</Th><Th>Total Fees</Th><Th>Est. Collected</Th><Th>Collected %</Th><Th>My Share ({TRAINER_SHARE_PCT}%)</Th></tr>
@@ -166,7 +166,7 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
             className="font-mono text-[9px] px-1.5 py-0.5 rounded outline-none cursor-pointer"
             style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }}
           >
-            <option value="All">All batches</option>
+            <option value="All">All courses</option>
             {batches.map((b) => <option key={b.code} value={b.code}>{b.code}</option>)}
           </select>
         }

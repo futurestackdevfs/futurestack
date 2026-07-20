@@ -1,16 +1,23 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { TrainerBatch, TrainerSession } from "../lib/data";
-import { KpiRow, Panel, Th, Td, Pill, ViewHeader, ProgressBar } from "../sections/ui";
+import { KpiRow, Panel, Th, Td, Pill, ViewHeader, ProgressBar, ActionBtn } from "../sections/ui";
+import { CourseModal, type CourseFormValues } from "../sections/CourseModal";
 
 interface BatchesViewProps {
   batches: TrainerBatch[];
   sessions: TrainerSession[];
   searchQuery: string;
+  onAddCourse?: (input: CourseFormValues) => void;
+  onEditCourse?: (id: number, input: CourseFormValues) => void;
 }
 
-export default function BatchesView({ batches, sessions, searchQuery }: BatchesViewProps) {
+export default function BatchesView({ batches, sessions, searchQuery, onAddCourse, onEditCourse }: BatchesViewProps) {
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingData, setEditingData] = useState<CourseFormValues | null>(null);
+
   const filtered = useMemo(() => {
     if (!searchQuery) return batches;
     const q = searchQuery.toLowerCase();
@@ -24,18 +31,71 @@ export default function BatchesView({ batches, sessions, searchQuery }: BatchesV
 
   const totalEnrolled = batches.reduce((s, b) => s + b.enrolled, 0);
 
+  function openAdd() {
+    setEditingId(null);
+    setEditingData(null);
+    setShowModal(true);
+  }
+
+  function openEdit(b: TrainerBatch) {
+    setEditingId(b.id);
+    setEditingData({
+      title: b.course,
+      category: b.startDate !== "—" ? b.startDate : "",
+      level: b.schedule !== "—" ? b.schedule : "",
+      price: b.currentModule.startsWith("₹") ? b.currentModule.slice(1) : "",
+      description: "",
+      whatYoullLearn: "",
+      techStack: "",
+      careerTitle: "",
+      careerBody: "",
+      thumbnailUrl: "",
+      status: "DRAFT",
+      duration: "",
+      modules: "",
+      totalLessons: "",
+      totalHours: "",
+      isFeatured: false,
+    });
+    setShowModal(true);
+  }
+
+  function handleSave(values: CourseFormValues) {
+    if (editingId !== null) {
+      onEditCourse?.(editingId, values);
+    } else {
+      onAddCourse?.(values);
+    }
+    setShowModal(false);
+    setEditingId(null);
+    setEditingData(null);
+  }
+
   return (
     <div className="p-4 pb-7">
-      <ViewHeader icon="📅" title="My Batches" meta={`role::trainer · ${batches.length} batches assigned`} />
+      <ViewHeader
+        icon="📅"
+        title="My Courses"
+        meta={`role::trainer · ${batches.length} courses assigned`}
+        action={<ActionBtn color="var(--green)" solid onClick={openAdd}>＋ ADD COURSE</ActionBtn>}
+      />
+
+      <CourseModal
+        open={showModal}
+        editing={editingId !== null}
+        data={editingData ?? undefined}
+        onSave={handleSave}
+        onClose={() => { setShowModal(false); setEditingId(null); setEditingData(null); }}
+      />
 
       <KpiRow items={[
-        { label: "Total Batches", value: batches.length, delta: `${batches.filter((b) => b.status === "Running").length} running`, color: "var(--purple)" },
-        { label: "Enrolled Students", value: totalEnrolled, delta: `across all batches`, color: "var(--blue)" },
+        { label: "Total Courses", value: batches.length, delta: `${batches.filter((b) => b.status === "Running").length} running`, color: "var(--purple)" },
+        { label: "Enrolled Students", value: totalEnrolled, delta: `across all courses`, color: "var(--blue)" },
         { label: "Upcoming Sessions", value: upcoming.length, delta: upcoming[0] ? `next: ${upcoming[0].date}` : "—", color: "var(--orange)" },
-        { label: "Avg Batch Progress", value: `${Math.round(batches.reduce((s, b) => s + b.progressPct, 0) / (batches.length || 1))}%`, delta: "of curriculum", color: "var(--green)" },
+        { label: "Avg Course Progress", value: `${Math.round(batches.reduce((s, b) => s + b.progressPct, 0) / (batches.length || 1))}%`, delta: "of curriculum", color: "var(--green)" },
       ]} />
 
-      <Panel title="📅 Assigned Batches" count={`${filtered.length} batches`}>
+      <Panel title="📅 Assigned Courses" count={`${filtered.length} courses`}>
         <table className="w-full border-collapse" style={{ fontSize: 11 }}>
           <thead>
             <tr>
@@ -45,7 +105,7 @@ export default function BatchesView({ batches, sessions, searchQuery }: BatchesV
           </thead>
           <tbody>
             {filtered.map((b) => (
-              <tr key={b.id}>
+              <tr key={b.id} className="cursor-pointer" onClick={() => openEdit(b)}>
                 <Td mono color="var(--text)"><b>{b.code}</b></Td>
                 <Td>{b.course}</Td>
                 <Td mono>{b.schedule}</Td>
@@ -58,13 +118,13 @@ export default function BatchesView({ batches, sessions, searchQuery }: BatchesV
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={9} className="text-center font-mono text-[11px] py-6" style={{ color: "var(--text3)" }}>No batches found</td></tr>
+              <tr><td colSpan={9} className="text-center font-mono text-[11px] py-6" style={{ color: "var(--text3)" }}>No courses found</td></tr>
             )}
           </tbody>
         </table>
       </Panel>
 
-      <Panel title="🗓 Batch Calendar — Upcoming Sessions" count={`${upcoming.length} scheduled`}>
+      <Panel title="🗓 Course Calendar — Upcoming Sessions" count={`${upcoming.length} scheduled`}>
         <table className="w-full border-collapse" style={{ fontSize: 11 }}>
           <thead>
             <tr><Th>Date</Th><Th>Time</Th><Th>Batch</Th><Th>Topic</Th><Th>Materials</Th><Th>Status</Th></tr>

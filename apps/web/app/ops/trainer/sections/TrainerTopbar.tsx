@@ -12,7 +12,7 @@ interface TrainerTopbarProps {
 
 const VIEW_LABELS: Record<string, string> = {
   "dashboard": "trainer / dashboard",
-  "batches": "trainer / my-batches",
+  "batches": "trainer / my-courses",
   "sessions": "trainer / sessions",
   "progress": "trainer / student-progress",
   "reviews": "trainer / project-reviews",
@@ -89,7 +89,7 @@ export function TrainerTopbar({ user, currentView, onSearch, onSignOut }: Traine
           type="text"
           value={search}
           onChange={handleSearch}
-          placeholder="Search students, batches, projects…"
+          placeholder="Search students, courses, projects…"
           style={{ background: "none", border: "none", outline: "none", fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--text)", width: "100%" }}
         />
         <kbd style={{ fontFamily: "var(--mono)", fontSize: 8.5, color: "var(--text3)", border: "1px solid var(--border2)", borderRadius: 3, padding: "1px 4px" }}>

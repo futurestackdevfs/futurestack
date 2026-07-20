@@ -4,9 +4,11 @@ import { useState, useEffect } from "react";
 
 interface StatusbarProps {
   recordCount: number;
+  sessionEmail?: string;
+  syncing?: boolean;
 }
 
-export function Statusbar({ recordCount }: StatusbarProps) {
+export function Statusbar({ recordCount, sessionEmail = "—", syncing = false }: StatusbarProps) {
   const [time, setTime] = useState("");
 
   useEffect(() => {
@@ -36,16 +38,16 @@ export function Statusbar({ recordCount }: StatusbarProps) {
     >
       <div className="sb-i flex items-center gap-1">
         <span
-          style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--green)" }}
+          style={{ width: 5, height: 5, borderRadius: "50%", background: syncing ? "var(--amber)" : "var(--green)" }}
         />
-        SYS_SYNC: OK
+        SYS_SYNC: {syncing ? "SYNCING…" : "OK"}
       </div>
       <span style={{ color: "var(--border2)" }}>│</span>
       <div className="sb-i">RECORDS: {recordCount}</div>
       <span style={{ color: "var(--border2)" }}>│</span>
       <div className="sb-i">MASTER_DATA: EDITABLE</div>
       <div className="ml-auto flex gap-3">
-        <div className="sb-i">SESSION: sneha.nair@futurestack.in</div>
+        <div className="sb-i">SESSION: {sessionEmail}</div>
         <span style={{ color: "var(--border2)" }}>│</span>
         <div className="sb-i">{time}</div>
       </div>

@@ -156,7 +156,7 @@ export function AdminSidebar({ activeView, onSwitchView }: AdminSidebarProps) {
 
       {/* Footer */}
       <div className="mt-auto px-3.5 py-2.5 font-mono text-[9px]" style={{ color: "var(--text3)", borderTop: "1px solid var(--border)" }}>
-        v1.4.2 · BUILD 2026.06.29
+        v1.0.0 · BUILD 2026.06.17
       </div>
     </aside>
   );

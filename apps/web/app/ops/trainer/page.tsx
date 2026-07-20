@@ -9,6 +9,7 @@ import { TrainerTopbar } from "./sections/TrainerTopbar";
 import { TrainerSidebar } from "./sections/TrainerSidebar";
 import DashboardHome from "./console/DashboardHome";
 import BatchesView from "./console/BatchesView";
+import { type CourseFormValues } from "./sections/CourseModal";
 import SessionsView from "./console/SessionsView";
 import ProgressView from "./console/ProgressView";
 import ReviewsView from "./console/ReviewsView";
@@ -263,6 +264,44 @@ export default function TrainerDashboardPage() {
     addToast(status === "Approved" ? "Project approved" : "Revision requested");
   }
 
+  function addCourse(input: CourseFormValues) {
+    const autoCode = "NEW-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const newCourse: TrainerBatch = {
+      id: Date.now(),
+      code: autoCode,
+      course: input.title || "Untitled Course",
+      schedule: input.level || "—",
+      enrolled: 0,
+      startDate: input.category || "—",
+      progressPct: 0,
+      currentModule: input.price ? `₹${input.price}` : "—",
+      nextSession: "—",
+      status: "Running" as const,
+    };
+    setBatches((prev) => [newCourse, ...prev]);
+    if (user) {
+      const stored = loadLocal<any[]>(user.id, "courses", []);
+      saveLocal(user.id, "courses", [{ ...input, code: autoCode, id: newCourse.id }, ...stored]);
+    }
+    addToast("Course added");
+  }
+
+  function updateCourse(id: number, input: CourseFormValues) {
+    const autoCode = "NEW-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+    setBatches((prev) => prev.map((b) => b.id === id ? {
+      ...b,
+      course: input.title || b.course,
+      schedule: input.level || b.schedule,
+      startDate: input.category || b.startDate,
+      currentModule: input.price ? `₹${input.price}` : b.currentModule,
+    } : b));
+    if (user) {
+      const stored = loadLocal<any[]>(user.id, "courses", []);
+      saveLocal(user.id, "courses", stored.map((c) => c.id === id ? { ...c, ...input, code: c.code || autoCode } : c));
+    }
+    addToast("Course updated");
+  }
+
   /* ── Discussion API actions ── */
 
   async function apiAction<T = any>(url: string, init?: RequestInit): Promise<T | null> {
@@ -402,7 +441,7 @@ export default function TrainerDashboardPage() {
                   onNavigate={setView}
                 />
               )}
-              {view === "batches" && <BatchesView batches={batches} sessions={sessions} searchQuery={searchQuery} />}
+              {view === "batches" && <BatchesView batches={batches} sessions={sessions} searchQuery={searchQuery} onAddCourse={addCourse} onEditCourse={updateCourse} />}
               {view === "sessions" && <SessionsView sessions={sessions} searchQuery={searchQuery} onUpdateStatus={updateSessionStatus} />}
               {view === "progress" && <ProgressView students={students} searchQuery={searchQuery} onSetFlag={setStudentFlag} onFlagToCoordinator={flagToCoordinator} />}
               {view === "reviews" && <ReviewsView submissions={submissions} searchQuery={searchQuery} onReview={reviewSubmission} />}
@@ -442,7 +481,7 @@ export default function TrainerDashboardPage() {
 
       <OpsStatusbar leftItems={[
         "SYS_SYNC: OK",
-        `BATCHES: ${batches.length}`,
+        `COURSES: ${batches.length}`,
         `STUDENTS: ${students.length}`,
         dataLoading ? "LOADING…" : "LIVE",
       ]} sessionEmail={user.email} />

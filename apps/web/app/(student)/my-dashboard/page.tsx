@@ -294,7 +294,7 @@ export default function MyDashboardPage() {
 
           {/* Sidebar Footer */}
           <div className="mt-auto px-2.5 py-1.5 border-t border-[#e2e6ef] dark:border-[#1e2535] mx-2.5">
-            <div className="font-['JetBrains_Mono',monospace] text-[8px] text-[#6b7280] dark:text-[#7a859a]">v2.4.1 · <span className="font-semibold text-[#111827] dark:text-[#e8eaf0]">FutureStack</span></div>
+            <div className="font-['JetBrains_Mono',monospace] text-[8px] text-[#6b7280] dark:text-[#7a859a]">v1.0.0 · <span className="font-semibold text-[#111827] dark:text-[#e8eaf0]">FutureStack</span></div>
           </div>
         </aside>
 
@@ -385,7 +385,7 @@ export default function MyDashboardPage() {
         <span className="ml-auto flex items-center gap-2">
           <span>{isLoading ? "— enrolled courses" : `${courseCount} enrolled course${courseCount !== 1 ? "s" : ""}`}</span>
           <span className="text-[var(--border2)]">│</span>
-          <span className="text-[var(--orange)]">FutureStack v2.4.1</span>
+          <span className="text-[var(--orange)]">FutureStack v1.0.0</span>
           <span className="text-[var(--border2)]">│</span>
           <span>India/Pune</span>
         </span>

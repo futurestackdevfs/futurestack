@@ -29,7 +29,7 @@ interface OpsSidebarProps {
   version?: string;
 }
 
-export function OpsSidebar({ activeRole, navItems, version = "v1.4.2 · BUILD 2026.06.29" }: OpsSidebarProps) {
+export function OpsSidebar({ activeRole, navItems,   version = "v1.0.0 · BUILD 2026.06.17" }: OpsSidebarProps) {
   const router = useRouter();
 
   return (

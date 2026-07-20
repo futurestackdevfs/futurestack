@@ -1067,7 +1067,7 @@ export default function AdminMasterDataPage() {
         )}
       </div>
 
-      <Statusbar recordCount={totalRecords} />
+      <Statusbar recordCount={totalRecords} sessionEmail={user?.email} syncing={sessionLoading} />
 
       {/* Master Data Modal */}
       <MasterDataModal
