@@ -50,4 +50,14 @@ export class StudentController {
     const user = req.user as { id: string };
     return this.studentService.submitQuiz(user.id, quizId, dto.score);
   }
+
+  @Auth(Role.STUDENT)
+  @Get('videos/:videoId/otp')
+  async getVideoOtp(
+    @Param('videoId') videoId: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as { id: string };
+    return this.studentService.getVideoOtp(user.id, videoId);
+  }
 }

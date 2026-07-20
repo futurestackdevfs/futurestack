@@ -3,10 +3,15 @@ import * as bcrypt from 'bcrypt';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
+import { UploadVideoDto } from './dto/upload-video.dto';
+import { VdoCipherService } from '../vdocipher/vdocipher.service';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly vdoCipherService: VdoCipherService,
+  ) {}
 
   async listPendingTrainers() {
     return this.prisma.user.findMany({
@@ -159,5 +164,66 @@ export class AdminService {
       message: `${user.name} has been created as ${dto.role}.`,
       userId: user.id,
     };
+  }
+
+  async getVideoUploadCredentials(dto: UploadVideoDto) {
+    const section = await this.prisma.section.findUnique({
+      where: { id: dto.sectionId },
+    });
+
+    if (!section) {
+      throw new NotFoundException('Section not found');
+    }
+
+    const { vdoCipherId, uploadUrl, uploadCredentials } =
+      await this.vdoCipherService.getUploadCredentials(dto.title);
+
+    const video = await this.prisma.video.create({
+      data: {
+        title: dto.title,
+        sectionId: dto.sectionId,
+        order: dto.order,
+        vdoCipherId: vdoCipherId,
+        durationSeconds: 0,      // updated later by webhook
+        videoStatus: 'UPLOADING',
+      },
+    });
+
+    return {
+      videoId: video.id,
+      vdoCipherId,
+      uploadUrl,
+      uploadCredentials,
+    };
+  }
+
+  async getVideoStatus(videoId: string) {
+    const video = await this.prisma.video.findUnique({
+      where: { id: videoId },
+      select: { id: true, title: true, videoStatus: true, durationSeconds: true, vdoCipherId: true },
+    });
+
+    if (!video) throw new NotFoundException('Video not found');
+    return video;
+  }
+
+  async handleVdoCipherWebhook(payload: { id: string; event: string; duration?: number }) {
+    if (payload.event !== 'video:ready') return { received: true };
+
+    const video = await this.prisma.video.findFirst({
+      where: { vdoCipherId: payload.id },
+    });
+
+    if (!video) return { received: true };
+
+    await this.prisma.video.update({
+      where: { id: video.id },
+      data: {
+        videoStatus: 'READY',
+        ...(payload.duration ? { durationSeconds: payload.duration } : {}),
+      },
+    });
+
+    return { received: true };
   }
 }
