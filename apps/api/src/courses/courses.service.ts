@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { VdoCipherService } from '../vdocipher/vdocipher.service';
 import { CreateTrackDto } from './dto/create-track.dto';
 import { UpdateTrackDto } from './dto/update-track.dto';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -41,7 +42,10 @@ function normalizeThumbnail(url: string | null | undefined, fallback: string | n
 
 @Injectable()
 export class CoursesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly vdoCipherService: VdoCipherService,
+  ) { }
 
   // ==================== PUBLIC ====================
 
@@ -318,6 +322,33 @@ export class CoursesService {
     };
   }
 
+  async getPublicVideoOtp(videoId: string) {
+    const video = await this.prisma.video.findUnique({
+      where: { id: videoId },
+      select: {
+        vdoCipherId: true,
+        videoStatus: true,
+        isPreview: true,
+        section: {
+          select: {
+            course: {
+              select: { status: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!video) {
+      throw new NotFoundException('Video not available for preview');
+    }
+
+    return this.vdoCipherService.getPlaybackOtp(video.vdoCipherId, {
+      name: 'Preview User',
+      email: 'preview@futurestack.in',
+    });
+  }
+
   async searchCourses(query: {
     q?: string;
     category?: string;
@@ -325,7 +356,7 @@ export class CoursesService {
     limit?: number;
   }) {
     const limit = Math.min(query.limit ?? 10, 50); // cap at 50
-  
+
     const where: any = {
       status: 'ACTIVE',
       ...(query.category && { category: query.category }),
@@ -339,7 +370,7 @@ export class CoursesService {
         ]
       })
     };
-  
+
     const courses = await this.prisma.course.findMany({
       where,
       take: limit,
@@ -367,7 +398,7 @@ export class CoursesService {
         }
       }
     });
-  
+
     return {
       query: query.q ?? null,
       total: courses.length,

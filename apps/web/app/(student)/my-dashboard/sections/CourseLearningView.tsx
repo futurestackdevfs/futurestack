@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { VdoCipherVideoPlayer } from "./VdoCipherVideoPlayer";
+import { VideoProgressRing } from "@/components/ui/VideoProgressRing"; // Add this
 import useSWR, { mutate } from "swr";
 import type { EnrolledCourse } from "../../hooks/student-dashboard";
 import DiscussionTab from "./DiscussionTab";

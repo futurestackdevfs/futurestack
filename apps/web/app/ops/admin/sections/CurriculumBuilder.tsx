@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react"
+import { VideoUploadDialog } from "./VideoUploadDialog"
+import { ConfirmDialog, type ConfirmOptions } from "./ConfirmDialog"
 
 interface ApiVideo {
   id: string; title: string; vdoCipherId: string; durationSeconds: number; order: number;
@@ -92,17 +94,6 @@ async function apiCall(token: string, endpoint: string, options?: RequestInit) {
   return res.json();
 }
 
-function parseDurationToSeconds(d: string): number {
-  const m = parseInt(d);
-  if (isNaN(m)) return 0;
-  if (d.includes("h")) {
-    const p = d.match(/(\d+)h\s*(\d+)?m?/);
-    if (p) return (parseInt(p[1]) * 60 + (parseInt(p[2]) || 0)) * 60;
-    return parseInt(p![1]) * 3600;
-  }
-  return m * 60;
-}
-
 function getTotalMinutes(lessons: MergedLesson[]): number {
   return lessons.reduce((sum, l) => l.kind === "video" ? sum + l.durationSeconds : sum, 0) / 60;
 }
@@ -115,6 +106,39 @@ export function CurriculumBuilder({
   const [loading, setLoading] = useState(false);
   const [acting, setActing] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [selectedLessonTitle, setSelectedLessonTitle] = useState('');
+  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  const isDirty = useRef(false);
+  const originalSections = useRef<ApiSection[]>([]);
+  const tempIdCounter = useRef(0);
+  const [confirmState, setConfirmState] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
+
+  function nextTempId() { return `new_${--tempIdCounter.current}`; }
+
+  function askConfirm(opts: ConfirmOptions): Promise<boolean> {
+    return new Promise((resolve) => setConfirmState({ ...opts, resolve }));
+  }
+
+  function resolveConfirm(ok: boolean) {
+    confirmState?.resolve(ok);
+    setConfirmState(null);
+  }
+
+  async function handleClose() {
+    if (isDirty.current) {
+      const ok = await askConfirm({
+        title: 'Unsaved Changes',
+        message: 'You have unsaved changes. Discard them and close?',
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep Editing',
+        danger: false,
+      });
+      if (!ok) return;
+    }
+    onClose();
+  }
 
   useEffect(() => {
     if (!open || !courseId || !token) return;
@@ -136,15 +160,18 @@ export function CurriculumBuilder({
         }));
         setSections(secs);
         setDisplaySections(mergeLessons(secs));
+        originalSections.current = JSON.parse(JSON.stringify(secs));
+        tempIdCounter.current = 0;
+        isDirty.current = false;
       })
       .catch((e) => { console.warn("[curriculum] fetch failed:", e); setFetchError(e.message || "Failed to load curriculum"); })
       .finally(() => setLoading(false));
   }, [open, courseId, token]);
 
   function refreshSections() {
-    if (!token) return;
+    if (!token) return Promise.resolve();
     setFetchError(null);
-    apiCall(token, `/courses/${courseId}`)
+    return apiCall(token, `/courses/${courseId}`)
       .then((data) => {
         if (!data || typeof data !== "object") return;
         const secs: ApiSection[] = (data.sections || []).map((s: any) => ({
@@ -160,85 +187,116 @@ export function CurriculumBuilder({
         }));
         setSections(secs);
         setDisplaySections(mergeLessons(secs));
+        originalSections.current = JSON.parse(JSON.stringify(secs));
       })
       .catch(() => {});
   }
 
-  async function addSection() {
+  function addSection() {
     if (!token || !courseId) return;
-    setActing(true);
-    try {
-      const maxOrder = sections.reduce((m, s) => Math.max(m, s.order), -1);
-      await apiCall(token, `/courses/${courseId}/sections`, {
-        method: "POST", body: JSON.stringify({ title: "New Section", order: maxOrder + 1 }),
-      });
-      refreshSections();
-    } catch {}
-    setActing(false);
+    const tempId = nextTempId();
+    setSections(prev => {
+      const maxOrder = prev.reduce((m, s) => Math.max(m, s.order), -1);
+      const newSection: ApiSection = { id: tempId, title: 'New Section', order: maxOrder + 1, videos: [], quizzes: [] };
+      const updated = [...prev, newSection];
+      setDisplaySections(mergeLessons(updated));
+      return updated;
+    });
+    isDirty.current = true;
   }
 
-  async function removeSection(sectionId: string) {
+  function removeSection(sectionId: string) {
     if (!token) return;
-    setActing(true);
-    try {
-      await apiCall(token, `/courses/sections/${sectionId}`, { method: "DELETE" });
-      refreshSections();
-    } catch {}
-    setActing(false);
+    askConfirm({
+      title: 'Delete Section?',
+      message: 'Delete this section and ALL its lessons?\nThis cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    }).then(ok => {
+      if (!ok) return;
+      isDirty.current = true;
+      setSections(prev => {
+        const updated = prev.filter(s => s.id !== sectionId);
+        setDisplaySections(mergeLessons(updated));
+        return updated;
+      });
+    });
   }
 
   function saveSectionTitle(sectionId: string, title: string) {
     if (!token) return;
-    setDisplaySections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, title } : s)));
+    isDirty.current = true;
+    setDisplaySections((prev) => prev.map((s) => s.id === sectionId ? { ...s, title } : s));
     setSections((prev) => prev.map((s) => (s.id === sectionId ? { ...s, title } : s)));
-    apiCall(token, `/courses/sections/${sectionId}`, { method: "PATCH", body: JSON.stringify({ title }) })
-      .catch((e) => console.warn("[curriculum] save section title failed:", e));
   }
 
-  async function addLesson(sectionId: string, kind: "video" | "quiz") {
+  function addLesson(sectionId: string, kind: "video" | "quiz") {
     if (!token) return;
-    setActing(true);
-    try {
-      const section = sections.find((s) => s.id === sectionId);
-      const maxOrder = Math.max(-1, ...(section?.videos || []).map((v) => v.order), ...(section?.quizzes || []).map((q) => q.order));
-      if (kind === "video") {
-        await apiCall(token, `/courses/sections/${sectionId}/videos`, {
-          method: "POST", body: JSON.stringify({ title: "New Video", vdoCipherId: "type:Video", durationSeconds: 600, order: maxOrder + 1 }),
-        });
-      } else {
-        await apiCall(token, `/courses/sections/${sectionId}/quizzes`, {
-          method: "POST", body: JSON.stringify({ title: "New Quiz", order: maxOrder + 1, totalQuestions: 5 }),
-        });
-      }
-      refreshSections();
-    } catch {}
-    setActing(false);
+    if (kind === "video") {
+      const newVideo: ApiVideo = { id: nextTempId(), title: 'New Video', vdoCipherId: 'type:Video', durationSeconds: 600, order: 0 };
+      setSections(prev => {
+        const sec = prev.find(s => s.id === sectionId);
+        if (!sec) return prev;
+        const maxOrder = Math.max(-1, ...sec.videos.map(v => v.order), ...sec.quizzes.map(q => q.order));
+        newVideo.order = maxOrder + 1;
+        const updated = prev.map(s => s.id === sectionId ? { ...s, videos: [...s.videos, newVideo] } : s);
+        setDisplaySections(mergeLessons(updated));
+        return updated;
+      });
+    } else {
+      const newQuiz: ApiQuiz = { id: nextTempId(), title: 'New Quiz', order: 0, totalQuestions: 5 };
+      setSections(prev => {
+        const sec = prev.find(s => s.id === sectionId);
+        if (!sec) return prev;
+        const maxOrder = Math.max(-1, ...sec.videos.map(v => v.order), ...sec.quizzes.map(q => q.order));
+        newQuiz.order = maxOrder + 1;
+        const updated = prev.map(s => s.id === sectionId ? { ...s, quizzes: [...s.quizzes, newQuiz] } : s);
+        setDisplaySections(mergeLessons(updated));
+        return updated;
+      });
+    }
+    isDirty.current = true;
   }
 
-  async function removeLesson(sectionId: string, lesson: MergedLesson) {
+  function removeLesson(sectionId: string, lesson: MergedLesson) {
     if (!token) return;
-    setActing(true);
-    try {
-      await apiCall(token, lesson.kind === "video" ? `/courses/videos/${lesson.id}` : `/courses/quizzes/${lesson.id}`, { method: "DELETE" });
-      refreshSections();
-    } catch (e) { console.warn("[curriculum] action failed:", e); }
-    setActing(false);
+    const kindLabel = lesson.kind === "video" ? "Video" : "Quiz";
+    const lessonId = lesson.id;
+    const lessonKind = lesson.kind;
+    askConfirm({
+      title: `Delete ${kindLabel}?`,
+      message: `Are you sure you want to remove this ${kindLabel.toLowerCase()}?\nThis cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+    }).then(ok => {
+      if (!ok) return;
+      isDirty.current = true;
+      setSections(prev => {
+        const updated = prev.map(s => {
+          if (s.id !== sectionId) return s;
+          if (lessonKind === "video") return { ...s, videos: s.videos.filter(v => v.id !== lessonId) };
+          return { ...s, quizzes: s.quizzes.filter(q => q.id !== lessonId) };
+        });
+        setDisplaySections(mergeLessons(updated));
+        return updated;
+      });
+    });
   }
 
   function saveLessonTitle(sectionId: string, lessonId: string, title: string) {
     if (!token) return;
+    isDirty.current = true;
     setDisplaySections((prev) => prev.map((s) => s.id === sectionId ? { ...s, lessons: s.lessons.map((l) => l.id === lessonId ? { ...l, title } : l) } : s));
-  }
-
-  function saveLessonTitleToBackend(lessonId: string, title: string, kind: "video" | "quiz") {
-    if (!token) return;
-    const ep = kind === "video" ? `/courses/videos/${lessonId}` : `/courses/quizzes/${lessonId}`;
-    apiCall(token, ep, { method: "PATCH", body: JSON.stringify({ title }) })
-      .catch((e) => console.warn("[curriculum] save title failed:", e));
+    setSections(prev => prev.map(s => s.id !== sectionId ? s : {
+      ...s,
+      videos: s.videos.map(v => v.id === lessonId ? { ...v, title } : v),
+      quizzes: s.quizzes.map(q => q.id === lessonId ? { ...q, title } : q),
+    }));
   }
 
   function saveLessonType(sectionId: string, lesson: MergedLesson, typeLabel: string) {
     if (!token) return;
+    isDirty.current = true;
     const isQuizType = typeLabel === "Quiz" || typeLabel === "Quiz + Project";
     if (lesson.kind === "video" && isQuizType) return;
     if (lesson.kind === "quiz" && !isQuizType) return;
@@ -246,38 +304,169 @@ export function CurriculumBuilder({
     setDisplaySections((prev) => prev.map((s) => s.id === sectionId ? { ...s, lessons: s.lessons.map((l) => l.id === lesson.id ? { ...l, typeLabel } : l) } : s));
 
     if (lesson.kind === "video") {
-      apiCall(token, `/courses/videos/${lesson.id}`, { method: "PATCH", body: JSON.stringify({ vdoCipherId: `type:${typeLabel}` }) })
-        .catch((e) => console.warn("[curriculum] save type failed:", e));
+      setSections(prev => prev.map(s => s.id !== sectionId ? s : {
+        ...s,
+        videos: s.videos.map(v => v.id === lesson.id ? { ...v, vdoCipherId: `type:${typeLabel}` } : v),
+      }));
     } else {
-      apiCall(token, `/courses/quizzes/${lesson.id}`, { method: "PATCH", body: JSON.stringify({ passingScore: typeLabel === "Quiz + Project" ? 70 : null }) })
-        .catch((e) => console.warn("[curriculum] save type failed:", e));
+      setSections(prev => prev.map(s => s.id !== sectionId ? s : {
+        ...s,
+        quizzes: s.quizzes.map(q => q.id === lesson.id ? { ...q, passingScore: typeLabel === 'Quiz + Project' ? 70 : undefined } : q),
+      }));
     }
-  }
-
-  function saveLessonDuration(sectionId: string, lesson: MergedLesson, durationLabel: string) {
-    if (!token || lesson.kind !== "video") return;
-    const seconds = parseDurationToSeconds(durationLabel);
-    setDisplaySections((prev) => prev.map((s) => s.id === sectionId ? { ...s, lessons: s.lessons.map((l) => l.id === lesson.id ? { ...l, durationLabel, durationSeconds: seconds } : l) } : s));
-    apiCall(token, `/courses/videos/${lesson.id}`, { method: "PATCH", body: JSON.stringify({ durationSeconds: seconds }) })
-      .catch((e) => console.warn("[curriculum] save duration failed:", e));
   }
 
   function saveLessonQuestions(sectionId: string, lesson: MergedLesson, qty: number) {
     if (!token || lesson.kind !== "quiz") return;
+    isDirty.current = true;
     setDisplaySections((prev) => prev.map((s) => s.id === sectionId ? { ...s, lessons: s.lessons.map((l) => l.id === lesson.id ? { ...l, totalQuestions: qty, durationLabel: `${qty} questions` } : l) } : s));
-    apiCall(token, `/courses/quizzes/${lesson.id}`, { method: "PATCH", body: JSON.stringify({ totalQuestions: qty }) })
-      .catch((e) => console.warn("[curriculum] save questions failed:", e));
+    setSections(prev => prev.map(s => s.id !== sectionId ? s : {
+      ...s,
+      quizzes: s.quizzes.map(q => q.id === lesson.id ? { ...q, totalQuestions: qty } : q),
+    }));
+  }
+
+  async function handleSave() {
+    if (!token) return;
+
+    // Check if any video is still a placeholder (not uploaded)
+    const hasPlaceholder = sections.some(s =>
+      s.videos.some(v => v.vdoCipherId?.startsWith('type:'))
+    );
+    if (hasPlaceholder) {
+      await askConfirm({
+        title: 'Videos Not Uploaded',
+        message: 'Some videos are still placeholders — they have not been uploaded yet.\nPlease upload the video first.',
+        confirmLabel: 'OK, Got It',
+        cancelLabel: 'Go Back',
+        danger: true,
+      });
+      return;
+    }
+
+    setActing(true);
+    const orig = originalSections.current;
+    const curr = sections;
+
+    try {
+      // 1. DELETE items removed from local state
+      const deletedSections = orig.filter(o => !curr.some(c => c.id === o.id));
+      for (const sec of deletedSections) {
+        if (sec.id.startsWith('new_')) continue; // never saved to backend
+        await apiCall(token, `/courses/sections/${sec.id}`, { method: 'DELETE' });
+      }
+
+      // 2. CREATE new sections + their lessons, UPDATE existing
+      for (const section of curr) {
+        const isNew = section.id.startsWith('new_');
+        const origSec = orig.find(o => o.id === section.id);
+
+        if (isNew) {
+          // Create section
+          const created = await apiCall(token, `/courses/${courseId}/sections`, {
+            method: 'POST',
+            body: JSON.stringify({ title: section.title, order: section.order }),
+          });
+          const realSectionId = created.id;
+
+          // Create its videos
+          for (const v of section.videos) {
+            await apiCall(token, `/courses/sections/${realSectionId}/videos`, {
+              method: 'POST',
+              body: JSON.stringify({ title: v.title, vdoCipherId: v.vdoCipherId || '', durationSeconds: v.durationSeconds, order: v.order }),
+            });
+          }
+          // Create its quizzes
+          for (const q of section.quizzes) {
+            await apiCall(token, `/courses/sections/${realSectionId}/quizzes`, {
+              method: 'POST',
+              body: JSON.stringify({ title: q.title, order: q.order, totalQuestions: q.totalQuestions }),
+            });
+          }
+        } else if (origSec) {
+          // Update section title if changed
+          if (section.title !== origSec.title) {
+            await apiCall(token, `/courses/sections/${section.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ title: section.title }),
+            });
+          }
+
+          // Handle video changes
+          const deletedVids = origSec.videos.filter(ov => !section.videos.some(cv => cv.id === ov.id));
+          const newVids = section.videos.filter(cv => cv.id.startsWith('new_'));
+          const updatedVids = section.videos.filter(cv => !cv.id.startsWith('new_') && origSec.videos.some(ov => ov.id === cv.id && (ov.title !== cv.title || ov.vdoCipherId !== cv.vdoCipherId)));
+
+          for (const v of deletedVids) {
+            await apiCall(token, `/courses/videos/${v.id}`, { method: 'DELETE' });
+          }
+          for (const v of newVids) {
+            await apiCall(token, `/courses/sections/${section.id}/videos`, {
+              method: 'POST',
+              body: JSON.stringify({ title: v.title, vdoCipherId: v.vdoCipherId || '', durationSeconds: v.durationSeconds, order: v.order }),
+            });
+          }
+          for (const v of updatedVids) {
+            const body: any = {};
+            if (v.title !== origSec.videos.find(ov => ov.id === v.id)?.title) body.title = v.title;
+            if (v.vdoCipherId !== origSec.videos.find(ov => ov.id === v.id)?.vdoCipherId) body.vdoCipherId = v.vdoCipherId;
+            if (Object.keys(body).length) {
+              await apiCall(token, `/courses/videos/${v.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+            }
+          }
+
+          // Handle quiz changes
+          const deletedQuizzes = origSec.quizzes.filter(oq => !section.quizzes.some(cq => cq.id === oq.id));
+          const newQuizzes = section.quizzes.filter(cq => cq.id.startsWith('new_'));
+          const updatedQuizzes = section.quizzes.filter(cq => !cq.id.startsWith('new_') && origSec.quizzes.some(oq => oq.id === cq.id && (oq.title !== cq.title || oq.totalQuestions !== cq.totalQuestions || oq.passingScore !== cq.passingScore)));
+          for (const q of deletedQuizzes) {
+            await apiCall(token, `/courses/quizzes/${q.id}`, { method: 'DELETE' });
+          }
+          for (const q of newQuizzes) {
+            const body: any = { title: q.title, order: q.order, totalQuestions: q.totalQuestions };
+            if (q.passingScore !== undefined) body.passingScore = q.passingScore;
+            await apiCall(token, `/courses/sections/${section.id}/quizzes`, {
+              method: 'POST',
+              body: JSON.stringify(body),
+            });
+          }
+          for (const q of updatedQuizzes) {
+            const body: any = {};
+            if (q.title !== origSec.quizzes.find(oq => oq.id === q.id)?.title) body.title = q.title;
+            if (q.totalQuestions !== origSec.quizzes.find(oq => oq.id === q.id)?.totalQuestions) body.totalQuestions = q.totalQuestions;
+            if (q.passingScore !== origSec.quizzes.find(oq => oq.id === q.id)?.passingScore) body.passingScore = q.passingScore ?? null;
+            if (Object.keys(body).length) {
+              await apiCall(token, `/courses/quizzes/${q.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+            }
+          }
+        }
+      }
+
+      // Refresh from backend to get real IDs
+      await refreshSections();
+      isDirty.current = false;
+      onSave();
+    } catch (e) {
+      console.warn('[curriculum] save failed:', e);
+      await askConfirm({
+        title: 'Save Failed',
+        message: 'Failed to save curriculum. Please try again.',
+        confirmLabel: 'OK',
+        cancelLabel: 'Go Back',
+        danger: true,
+      });
+    }
+    setActing(false);
   }
 
   const totalLessons = displaySections.reduce((sum, s) => sum + s.lessons.length, 0);
 
   if (!open) return null;
   if (!token) {
-    return (
-      <div
-        className="fixed inset-0 z-[200] flex items-center justify-center p-6"
-        style={{ background: "var(--overlay)" }}
-        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    return (        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-6"
+          style={{ background: "var(--overlay)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
       >
         <div
           className="flex flex-col rounded-lg max-w-full max-h-[88vh] p-8 items-center gap-3"
@@ -294,7 +483,7 @@ export function CurriculumBuilder({
           <div className="font-mono text-[11px] text-center" style={{ color: "var(--text3)" }}>
             Please log in to manage curriculum.
           </div>
-          <button onClick={onClose}
+          <button onClick={handleClose}
             className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
             style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
           >Close</button>
@@ -307,7 +496,7 @@ export function CurriculumBuilder({
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center p-6"
       style={{ background: "var(--overlay)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <div
         className="flex flex-col rounded-lg max-w-full max-h-[88vh]"
@@ -332,7 +521,7 @@ export function CurriculumBuilder({
             Manage Curriculum{courseName ? <span style={{ fontWeight: 400, color: "var(--text3)" }}> — {courseName}</span> : ""}
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="flex items-center justify-center w-6 h-6 rounded text-[14px] cursor-pointer"
             style={{ color: "var(--text3)" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--panel)"; (e.currentTarget as HTMLElement).style.color = "var(--text)"; }}
@@ -402,7 +591,7 @@ export function CurriculumBuilder({
                         <div className="text-center py-3 font-mono text-[10px]" style={{ color: "var(--text3)" }}>No lessons yet</div>
                       ) : (
                         section.lessons.map((lesson, li) => (
-                          <div key={lesson.id} className="grid gap-2 items-center py-1" style={{ gridTemplateColumns: "24px 1.6fr 1fr 70px 28px" }}>
+                          <div key={lesson.id} className="grid gap-2 items-center py-1" style={{ gridTemplateColumns: "24px 1.6fr 1fr auto 28px" }}>
                             <span className="font-mono text-[9px] text-center" style={{ color: "var(--text3)" }}>{li + 1}</span>
                             <input
                               value={lesson.title}
@@ -410,7 +599,7 @@ export function CurriculumBuilder({
                               className="text-[11px] px-1.5 py-1 rounded outline-none"
                               style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }}
                               onFocus={(e) => { e.currentTarget.style.borderColor = "var(--orange)"; e.currentTarget.style.background = "var(--surface)"; }}
-                              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg)"; saveLessonTitleToBackend(lesson.id, e.currentTarget.value, lesson.kind); }}
+                              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg)"; }}
                               onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                               placeholder="Lesson name"
                             />
@@ -425,17 +614,45 @@ export function CurriculumBuilder({
                               {LESSON_TYPE_OPTIONS.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
                             </select>
                             {lesson.kind === "video" ? (
-                              <input defaultValue={lesson.durationLabel}
-                                className="text-[11px] px-1.5 py-1 rounded outline-none text-center"
-                                style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }}
-                                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--orange)"; e.currentTarget.style.background = "var(--surface)"; }}
-                                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg)"; if (e.currentTarget.value !== lesson.durationLabel) saveLessonDuration(section.id, lesson, e.currentTarget.value); }}
-                                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} placeholder="25m"
-                              />
+                              <button
+                                onClick={async () => {
+                                  // If section is unsaved (temp ID), create it first so upload gets a real UUID
+                                  let targetSectionId = section.id;
+                                  if (section.id.startsWith('new_') && token) {
+                                    try {
+                                      const created = await apiCall(token, `/courses/${courseId}/sections`, {
+                                        method: 'POST',
+                                        body: JSON.stringify({ title: section.title, order: section.order }),
+                                      });
+                                      const realId = created.id;
+                                      // Replace temp ID with real ID in state
+                                      setSections(prev => {
+                                        const updated = prev.map(s => s.id === section.id ? { ...s, id: realId } : s);
+                                        setDisplaySections(mergeLessons(updated));
+                                        return updated;
+                                      });
+                                      // Mark as saved so handleSave won't POST it again
+                                      originalSections.current = [...originalSections.current, { ...section, id: realId }];
+                                      targetSectionId = realId;
+                                    } catch (e) {
+                                      console.warn('[upload] failed to create section first:', e);
+                                      return;
+                                    }
+                                  }
+                                  setSelectedSectionId(targetSectionId);
+                                  setSelectedLessonTitle(lesson.title);
+                                  setSelectedLessonId(lesson.id);
+                                  setUploadDialogOpen(true);
+                                }}
+                                className="font-mono text-[9px] font-semibold px-2.5 py-1 rounded cursor-pointer whitespace-nowrap"
+                                style={{ background: "var(--orange-d)", color: "var(--orange)", border: "1px solid rgba(240,90,26,.2)" }}
+                                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--orange)"; (e.currentTarget as HTMLElement).style.color = "#fff"; }}
+                                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--orange-d)"; (e.currentTarget as HTMLElement).style.color = "var(--orange)"; }}
+                              >📤 Upload</button>
                             ) : (
                               <input defaultValue={lesson.totalQuestions || 5} type="number" min="1"
                                 className="text-[11px] px-1.5 py-1 rounded outline-none text-center"
-                                style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }}
+                                style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", width: 70 }}
                                 onFocus={(e) => { e.currentTarget.style.borderColor = "var(--orange)"; e.currentTarget.style.background = "var(--surface)"; }}
                                 onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg)"; const val = parseInt(e.currentTarget.value); if (!isNaN(val) && val !== lesson.totalQuestions) saveLessonQuestions(section.id, lesson, val); }}
                                 onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
@@ -480,13 +697,13 @@ export function CurriculumBuilder({
 
         {/* Footer */}
         <div className="flex justify-end gap-2 px-4 py-3 shrink-0" style={{ borderTop: "1px solid var(--border)", background: "var(--panel)" }}>
-          <button onClick={onClose}
+          <button onClick={handleClose}
             className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
             style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
           >Close</button>
-          <button disabled={loading} onClick={onSave}
+          <button disabled={loading || acting} onClick={handleSave}
             className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer disabled:opacity-40"
             style={{ background: "var(--orange)", color: "#fff", border: "1px solid var(--orange)" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
@@ -494,6 +711,50 @@ export function CurriculumBuilder({
           >💾 Save Curriculum</button>
         </div>
       </div>
+
+      {/* Upload Video Dialog */}
+      <VideoUploadDialog
+        isOpen={uploadDialogOpen}
+        onClose={() => {
+          setUploadDialogOpen(false);
+          setSelectedLessonId(null);
+        }}
+        onUpload={async () => {
+          // Upload success -> backend created a real Video record via upload-credentials API.
+          // Remove the local-only placeholder from state (it was never saved to backend).
+          const lessonIdToRemove = selectedLessonId;
+          if (lessonIdToRemove) {
+            setSections(prev => {
+              const updated = prev.map(s => ({
+                ...s,
+                videos: s.videos.filter(v => v.id !== lessonIdToRemove),
+              }));
+              setDisplaySections(mergeLessons(updated));
+              return updated;
+            });
+          }
+          setSelectedLessonId(null);
+          isDirty.current = true;
+          // Await refresh so state is fully updated before dialog closes
+          // (swallow error — the upload itself succeeded on the server side)
+          try { await refreshSections(); } catch {}
+        }}
+        sectionId={selectedSectionId || ''}
+        token={token}
+        initialTitle={selectedLessonTitle}
+      />
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        open={!!confirmState}
+        title={confirmState?.title || ''}
+        message={confirmState?.message || ''}
+        confirmLabel={confirmState?.confirmLabel}
+        cancelLabel={confirmState?.cancelLabel}
+        danger={confirmState?.danger}
+        onConfirm={() => resolveConfirm(true)}
+        onCancel={() => resolveConfirm(false)}
+      />
     </div>
   );
 }

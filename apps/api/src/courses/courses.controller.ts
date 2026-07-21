@@ -174,6 +174,11 @@ export class CoursesController {
     return this.coursesService.publicCourseDetail(id);
   }
 
+  @Get('public/videos/:videoId/otp')
+  getPublicVideoOtp(@Param('videoId') videoId: string) {
+    return this.coursesService.getPublicVideoOtp(videoId);
+  }
+
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('search')
   searchCourses(

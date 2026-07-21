@@ -56,8 +56,10 @@ export class VdoCipherService {
         'x-amz-algorithm': data.clientPayload['x-amz-algorithm'],
         'x-amz-date': data.clientPayload['x-amz-date'],
         'x-amz-credential': data.clientPayload['x-amz-credential'],
-        success_action_status: data.clientPayload.success_action_status,
-        success_action_redirect: '',
+        // VdoCipher's policy still requires these fields even when their API
+        // no longer returns them in clientPayload. Defaults keep S3 happy.
+        success_action_status: data.clientPayload.success_action_status ?? '201',
+        success_action_redirect: data.clientPayload.success_action_redirect ?? '',
       },
     };
   }

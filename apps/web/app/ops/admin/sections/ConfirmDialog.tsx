@@ -32,9 +32,6 @@ export function ConfirmDialog({
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center p-6"
       style={{ background: "var(--overlay)" }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
     >
       <div
         className="flex flex-col rounded-lg max-w-full"
