@@ -1,13 +1,15 @@
 import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { AdminService } from './admin.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { RejectTrainerDto } from './dto/reject-trainer.dto';
+import { UploadVideoDto } from './dto/upload-video.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(private readonly adminService: AdminService) { }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Get('stats')
@@ -47,7 +49,8 @@ export class AdminController {
   }
 
   // Account provisioning stays ADMIN-only — a Content Manager shouldn't be
-  // able to create more staff accounts (including more Content Managers).
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Auth(Role.ADMIN)
   @Post('staff')
   async createStaffAccount(@Body() dto: CreateStaffDto) {
@@ -58,5 +61,24 @@ export class AdminController {
   @Get('users')
   async listAllUsers() {
     return this.adminService.listAllUsers();
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post('videos/upload-credentials')
+  async getVideoUploadCredentials(@Body() dto: UploadVideoDto) {
+    return this.adminService.getVideoUploadCredentials(dto);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get('videos/:videoId/status')
+  async getVideoStatus(@Param('videoId') videoId: string) {
+    return this.adminService.getVideoStatus(videoId);
+  }
+
+  // NO @Auth here — VdoCipher calls this without any token
+  // Verified by checking the event payload and vdoCipherId existence instead
+  @Post('videos/vdocipher-webhook')
+  async handleVdoCipherWebhook(@Body() payload: any) {
+    return this.adminService.handleVdoCipherWebhook(payload);
   }
 }

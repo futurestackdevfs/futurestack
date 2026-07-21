@@ -1,4 +1,5 @@
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min, IsEnum } from 'class-validator';
+import { VideoStatus } from '@prisma/client';
 
 export class UpdateVideoDto {
   @IsOptional()
@@ -18,4 +19,8 @@ export class UpdateVideoDto {
   @IsInt()
   @Min(0)
   order?: number;
+
+  @IsOptional()
+  @IsEnum(VideoStatus)
+  videoStatus?: VideoStatus;
 }

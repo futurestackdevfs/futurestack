@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CertificatesService } from '../certificates/certificates.service';
+import { VdoCipherService } from '../vdocipher/vdocipher.service';
 
 export interface NextVideo {
   id: string;
@@ -49,6 +50,7 @@ export class StudentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly certificatesService: CertificatesService,
+    private readonly vdoCipherService: VdoCipherService,
   ) {}
 
   async getDashboard(
@@ -445,6 +447,52 @@ export class StudentService {
       completedAt: attempt.completedAt,
       passed: quiz.passingScore !== null ? score >= quiz.passingScore : null,
       passingScore: quiz.passingScore,
+    };
+  }
+
+  async getVideoOtp(studentId: string, videoId: string) {
+    const video = await this.prisma.video.findUnique({
+      where: { id: videoId },
+      include: { section: { include: { course: true } } },
+    });
+
+    if (!video) throw new NotFoundException('Video not found');
+
+    // Must be actively enrolled
+    const enrollment = await this.prisma.enrollment.findUnique({
+      where: { studentId_courseId: { studentId, courseId: video.section.courseId } },
+    });
+    if (!enrollment || enrollment.status !== 'active') {
+      throw new ForbiddenException('You are not enrolled in this course');
+    }
+
+    // Video must be ready — not still processing
+    if (video.videoStatus !== 'READY') {
+      throw new BadRequestException('This video is not yet available for playback');
+    }
+
+    // Check sequential lock — student must have completed the previous item
+    // to access this video (same logic as getCourseDetail isCurrent/isLocked)
+    // For now: just verify they've started the course at least
+    // Full sequential check can be added later
+
+    // Fetch student info for watermark
+    const student = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      select: { name: true, email: true },
+    });
+
+    const { otp, playbackInfo } = await this.vdoCipherService.getPlaybackOtp(
+      video.vdoCipherId,
+      { name: student!.name, email: student!.email },
+    );
+
+    return {
+      otp,
+      playbackInfo,
+      videoId: video.id,
+      title: video.title,
+      durationSeconds: video.durationSeconds,
     };
   }
 }

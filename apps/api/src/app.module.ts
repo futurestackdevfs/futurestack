@@ -13,6 +13,7 @@ import { UploadModule } from './upload/upload.module';
 import { DiscussionModule } from './discussion/discussion.module';
 import { CertificatesModule } from './certificates/certificates.module';
 import { TrainerModule } from './trainer/trainer.module';
+import { VdoCipherModule } from './vdocipher/vdocipher.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { TrainerModule } from './trainer/trainer.module';
     DiscussionModule,
     CertificatesModule,
     TrainerModule,
+    VdoCipherModule,
   ],
   controllers: [AppController],
   providers: [
