@@ -3,8 +3,11 @@
 import useSWR from "swr";
 import { useState } from "react";
 import { useAuth } from "@/app/auth/hooks/use-auth";
+<<<<<<< Updated upstream
 import { toPng } from "html-to-image";
 import { jsPDF } from "jspdf";
+=======
+>>>>>>> Stashed changes
 
 interface EarnedCert {
   courseId: string;
@@ -109,6 +112,7 @@ function getProgressBg(pct: number): string {
   return "linear-gradient(90deg,var(--blue),var(--blue2))";
 }
 
+<<<<<<< Updated upstream
 async function downloadCertificatePdf(cert: EarnedCert, studentName: string) {
   await document.fonts.ready;
 
@@ -161,6 +165,8 @@ async function downloadCertificatePdf(cert: EarnedCert, studentName: string) {
   }
 }
 
+=======
+>>>>>>> Stashed changes
 export default function CertificatesSection({ embedded }: { embedded?: boolean }) {
   const { user } = useAuth();
   const { data, isLoading, error } = useSWR<CertificatesResponse>("/api/certificates/my");
@@ -267,6 +273,7 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                         {c.score !== null && <span className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)]">Score: {c.score}%</span>}
                       </div>
                     </div>
+<<<<<<< Updated upstream
                     <div className="flex-shrink-0 flex items-center gap-1.5">
                       <button
                         onClick={(e) => { e.stopPropagation(); downloadCertificatePdf(c, studentName); }}
@@ -275,6 +282,9 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                       </button>
+=======
+                    <div className="flex-shrink-0">
+>>>>>>> Stashed changes
                       <span className="font-['JetBrains_Mono',monospace] text-[8px] font-bold px-2 py-[2px] rounded-[20px] tracking-[.04em] uppercase bg-[var(--green-d)] text-[var(--green)] border border-[rgba(22,163,74,.2)]">✓ Earned</span>
                     </div>
                   </div>
@@ -306,12 +316,15 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                       <div className="h-full rounded-[99px] transition-[width] duration-[0.8s]" style={{ width: `${c.progressPercent}%`, background: getProgressBg(c.progressPercent) }} />
                     </div>
                     <div className="text-[10px] text-[var(--text3)] mt-[6px]">{c.completedItems} of {c.totalItems} items completed</div>
+<<<<<<< Updated upstream
                     {c.progressPercent < 100 && (
                       <div className="flex items-center gap-1 mt-[6px] text-[9px] text-[var(--orange)] font-semibold">
                         <span>🔒</span>
                         <span>Complete 100% to earn certificate</span>
                       </div>
                     )}
+=======
+>>>>>>> Stashed changes
                   </div>
                 ))}
               </>
@@ -323,7 +336,11 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                   🔒 Locked
                   <span className="flex-1 h-[1px] bg-[var(--border)]" />
                 </div>
+<<<<<<< Updated upstream
                 {locked.slice(0, 3).map(c => (
+=======
+                {locked.map(c => (
+>>>>>>> Stashed changes
                   <div key={c.courseId} className="flex items-center gap-3 px-5 py-2.5 border-b border-[var(--border)] opacity-[.55]">
                     <div className="w-[34px] h-[34px] rounded-[9px] bg-[var(--bg2)] border border-[var(--border)] flex items-center justify-center text-[14px] flex-shrink-0 text-[var(--text3)]">🔒</div>
                     <div className="flex-1">
@@ -348,7 +365,11 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
           <div className="bg-[var(--bg)] flex flex-col items-center gap-5 py-8 px-7 overflow-y-auto">
             {activeEarned ? (
               <>
+<<<<<<< Updated upstream
                 <div id="certDoc" className="w-full max-w-[600px] bg-[#fdfbf6] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,.14),0_2px_8px_rgba(0,0,0,.08)] overflow-hidden relative [animation:fadeUp_.35s_ease_both]">
+=======
+                <div className="w-full max-w-[600px] bg-[#fdfbf6] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,.14),0_2px_8px_rgba(0,0,0,.08)] overflow-hidden relative [animation:fadeUp_.35s_ease_both]">
+>>>>>>> Stashed changes
                   <div className="absolute inset-0 pointer-events-none z-0 opacity-[.5]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px,rgba(201,168,76,.15) 1px,transparent 0)", backgroundSize: "14px 14px" }} />
                   <div className="absolute right-[-30px] bottom-[-40px] w-[240px] h-[240px] opacity-[.05] pointer-events-none z-0 flex items-center justify-center font-['Inter_Tight',sans-serif] font-[800] text-[160px] text-[#0d1f3c] rotate-[-8deg]">FS</div>
                   <div className="m-[9px] border border-[#c9a84c] rounded-[6px] relative z-[1]">
@@ -358,6 +379,7 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                       <div className="absolute bottom-[-2.5px] left-[-2.5px] w-[22px] h-[22px] border-b-[2.5px] border-l-[2.5px] border-[#8b6914] rounded-bl-[4px] z-[2]" />
                       <div className="absolute bottom-[-2.5px] right-[-2.5px] w-[22px] h-[22px] border-b-[2.5px] border-r-[2.5px] border-[#8b6914] rounded-br-[4px] z-[2]" />
 
+<<<<<<< Updated upstream
                       <div className="flex items-center justify-center mb-[14px] relative z-[1]">
                         <img src="/images/logo.png" alt="FutureStack" className="h-[34px] w-auto object-contain flex-shrink-0" style={{ mixBlendMode: 'multiply' }} />
                       </div>
@@ -365,6 +387,19 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                       <div className="text-center border-b border-[#e8d99a] pb-4 mb-[18px] relative z-[1]">
                         <div className="font-['Inter_Tight',sans-serif] text-[10px] font-[800] uppercase tracking-[.24em] text-[#8b6914] mb-[6px] whitespace-nowrap">FutureStack Academy</div>
                         <div className="font-['Instrument_Serif',Georgia,serif] text-[19px] italic text-[#5a4008] leading-[1.3] whitespace-nowrap">Certificate of Completion</div>
+=======
+                      <div className="flex items-center justify-center gap-[9px] mb-[14px] relative z-[1]">
+                        <div className="w-[34px] h-[34px] rounded-lg flex-shrink-0 bg-[linear-gradient(135deg,#f05a1a,#ff7a3c)] flex items-center justify-center font-['Inter_Tight',sans-serif] font-[800] text-[15px] text-white shadow-[0_3px_10px_rgba(240,90,26,.35)]">FS</div>
+                        <div className="text-left leading-[1.1]">
+                          <div className="font-['Inter_Tight',sans-serif] font-[800] text-[15px] text-[#1a1208]"><span className="text-[#f05a1a]">Future</span>Stack</div>
+                          <div className="text-[7.5px] text-[#8b7340] tracking-[.08em] uppercase mt-[1px]">Think Ahead. Code Beyond.</div>
+                        </div>
+                      </div>
+
+                      <div className="text-center border-b border-[#e8d99a] pb-4 mb-[18px] relative z-[1]">
+                        <div className="font-['Inter_Tight',sans-serif] text-[10px] font-[800] uppercase tracking-[.24em] text-[#8b6914] mb-[6px]">FutureStack Academy</div>
+                        <div className="font-['Instrument_Serif',Georgia,serif] text-[19px] italic text-[#5a4008] leading-[1.3]">Certificate of Completion</div>
+>>>>>>> Stashed changes
                       </div>
 
                       <div className="relative w-[64px] h-[80px] mx-auto mb-4 z-[1]">
@@ -373,11 +408,19 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                         </div>
                       </div>
 
+<<<<<<< Updated upstream
                       <div className="text-[10.5px] text-[#8b7340] text-center tracking-[.08em] uppercase mb-2 relative z-[1] whitespace-nowrap">This certifies that</div>
                       <div className="font-['Instrument_Serif',Georgia,serif] text-[32px] italic text-[#1a1208] text-center leading-[1.15] mb-[14px] pb-2.5 border-b border-dashed border-[#d4b96a] relative z-[1] whitespace-nowrap overflow-hidden text-ellipsis px-4">{studentName}</div>
 
                       <div className="text-[10px] text-[#8b7340] text-center tracking-[.1em] uppercase mb-[5px] relative z-[1] whitespace-nowrap">has successfully completed</div>
                       <div className="font-['Inter_Tight',sans-serif] text-[16px] font-[800] text-[#0d1f3c] text-center mb-3 leading-[1.3] relative z-[1] px-4">{activeEarned.courseTitle}</div>
+=======
+                      <div className="text-[10.5px] text-[#8b7340] text-center tracking-[.08em] uppercase mb-2 relative z-[1]">This certifies that</div>
+                      <div className="font-['Instrument_Serif',Georgia,serif] text-[32px] italic text-[#1a1208] text-center leading-[1.15] mb-[14px] pb-2.5 border-b border-dashed border-[#d4b96a] relative z-[1]">{studentName}</div>
+
+                      <div className="text-[10px] text-[#8b7340] text-center tracking-[.1em] uppercase mb-[5px] relative z-[1]">has successfully completed</div>
+                      <div className="font-['Inter_Tight',sans-serif] text-[16px] font-[800] text-[#0d1f3c] text-center mb-3 leading-[1.3] relative z-[1]">{activeEarned.courseTitle}</div>
+>>>>>>> Stashed changes
 
                       <div className="text-[11px] text-[#5a4a30] text-center leading-[1.65] max-w-[400px] mx-auto mb-[18px] relative z-[1]">{activeEarned.description}</div>
 
@@ -389,6 +432,7 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                         </div>
                       )}
 
+<<<<<<< Updated upstream
                       <div className="flex justify-between items-end border-t border-[#e8d99a] pt-4 relative z-[1] w-full">
                         <div className="text-center w-[32%]">
                           <div className="font-['Instrument_Serif',Georgia,serif] italic text-[15px] text-[#1a1208] border-b border-[#c9a84c] pb-[5px] mb-[4px] whitespace-nowrap overflow-hidden text-ellipsis">{activeEarned.trainerName ?? "FutureStack Faculty"}</div>
@@ -402,6 +446,23 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                           <div className="font-['Inter',sans-serif] text-[8px] text-[#8b6914] font-semibold whitespace-nowrap">{formatDate(activeEarned.issuedAt)}</div>
                           {activeEarned.score !== null && (
                             <div className="inline-block bg-[linear-gradient(135deg,#c9a84c,#e8c96a)] text-[#5a3a00] font-['Inter',sans-serif] text-[8px] font-bold px-[11px] py-[3px] rounded-[20px] mt-[6px] shadow-[0_2px_6px_rgba(201,168,76,.3)] whitespace-nowrap">Score: {activeEarned.score}%</div>
+=======
+                      <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3 border-t border-[#e8d99a] pt-4 relative z-[1]">
+                        <div className="text-center">
+                          <div className="font-['Instrument_Serif',Georgia,serif] italic text-[15px] text-[#1a1208] border-b border-[#c9a84c] pb-[5px] mb-[4px]">{activeEarned.trainerName ?? "FutureStack Faculty"}</div>
+                          <div className="text-[8.5px] uppercase tracking-[.08em] text-[#8b7340]">Course Instructor</div>
+                        </div>
+                        <div className="text-center flex flex-col items-center gap-[3px]">
+                          <div className="w-[26px] h-[26px] rounded-[6px] bg-[linear-gradient(135deg,#f05a1a,#ff7a3c)] flex items-center justify-center font-['Inter_Tight',sans-serif] font-[800] text-[11px] text-white shadow-[0_2px_7px_rgba(240,90,26,.35)]">FS</div>
+                          <div className="font-['Inter_Tight',sans-serif] font-[800] text-[10px] text-[#8b6914] leading-none">FutureStack</div>
+                          <div className="text-[7px] text-[#b09040] tracking-[.06em] uppercase">Academy</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="font-['Inter',sans-serif] text-[7.5px] text-[#b09040] mb-[2px]">ID: {activeEarned.credentialId}</div>
+                          <div className="font-['Inter',sans-serif] text-[8px] text-[#8b6914] font-semibold">{formatDate(activeEarned.issuedAt)}</div>
+                          {activeEarned.score !== null && (
+                            <div className="inline-block bg-[linear-gradient(135deg,#c9a84c,#e8c96a)] text-[#5a3a00] font-['Inter',sans-serif] text-[8px] font-bold px-[11px] py-[3px] rounded-[20px] mt-[6px] shadow-[0_2px_6px_rgba(201,168,76,.3)]">Score: {activeEarned.score}%</div>
+>>>>>>> Stashed changes
                           )}
                         </div>
                       </div>
@@ -413,10 +474,14 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                 </div>
 
                 <div className="flex gap-2.5 w-full max-w-[580px]">
+<<<<<<< Updated upstream
                   <button
                     onClick={() => downloadCertificatePdf(activeEarned, studentName)}
                     className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-[var(--orange)] text-white shadow-[0_3px_12px_rgba(240,90,26,.3)] border-none hover:bg-[var(--orange2)] hover:-translate-y-[1px] cursor-pointer"
                   >
+=======
+                  <button className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-[var(--orange)] text-white shadow-[0_3px_12px_rgba(240,90,26,.3)] border-none hover:bg-[var(--orange2)] hover:-translate-y-[1px]">
+>>>>>>> Stashed changes
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                     Download PDF
                   </button>
