@@ -210,19 +210,39 @@ export class AdminService {
       throw new NotFoundException('Section not found');
     }
 
+    // Re-upload: delete old VdoCipher video, update existing DB record
+    if (dto.videoId) {
+      const existing = await this.prisma.video.findUnique({
+        where: { id: dto.videoId },
+      });
+      if (existing) {
+        await this.vdoCipherService.deleteVideo(existing.vdoCipherId);
+      }
+    }
+
     const { vdoCipherId, uploadUrl, uploadCredentials } =
       await this.vdoCipherService.getUploadCredentials(dto.title);
 
-    const video = await this.prisma.video.create({
-      data: {
-        title: dto.title,
-        sectionId: dto.sectionId,
-        order: dto.order,
-        vdoCipherId: vdoCipherId,
-        durationSeconds: 0,      // updated later by webhook
-        videoStatus: 'UPLOADING',
-      },
-    });
+    const video = dto.videoId
+      ? await this.prisma.video.update({
+          where: { id: dto.videoId },
+          data: {
+            title: dto.title,
+            vdoCipherId,
+            durationSeconds: 0,
+            videoStatus: 'UPLOADING',
+          },
+        })
+      : await this.prisma.video.create({
+          data: {
+            title: dto.title,
+            sectionId: dto.sectionId,
+            order: dto.order,
+            vdoCipherId,
+            durationSeconds: 0,
+            videoStatus: 'UPLOADING',
+          },
+        });
 
     return {
       videoId: video.id,

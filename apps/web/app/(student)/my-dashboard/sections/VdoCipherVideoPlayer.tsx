@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import { RingIndicator } from "@/components/ui/RingIndicator"
-import { useAuth } from "../../hooks/use-auth"
+import { loadToken } from "@/app/auth/lib/token-store"
 
 interface VdoCipherVideoPlayerProps {
   videoId: string
@@ -29,13 +29,16 @@ export default function VdoCipherVideoPlayer({
   onProgress,
   onComplete,
 }: VdoCipherVideoPlayerProps) {
-  const { token } = useAuth()
+  const [token, setToken] = useState<string | null>(null)
   const [playerData, setPlayerData] = useState<any>(null)
+
+  useEffect(() => { loadToken().then(setToken) }, [])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [position, setPosition] = useState(initialPosition)
   const [saved, setSaved] = useState(initialPosition)
   const [playing, setPlaying] = useState(false)
+  const [started, setStarted] = useState(false)
   const lastSentRef = useRef(0)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -65,6 +68,10 @@ export default function VdoCipherVideoPlayer({
 
       const data = await res.json()
       setPlayerData(data)
+      if (data.initialPosition > 0) {
+        setPosition(data.initialPosition)
+        setSaved(data.initialPosition)
+      }
       videoReadyRef.current = true
     } catch (err) {
       setError("Failed to load video player. Please try again.")
@@ -89,6 +96,7 @@ export default function VdoCipherVideoPlayer({
 
       if (event === 'timeupdate') {
         const positionSec = Math.floor(data.currentTime)
+        setPosition(positionSec)
         positionRef.current = positionSec
         sendProgressHeartbeat(videoId, positionSec)
       }
@@ -98,21 +106,16 @@ export default function VdoCipherVideoPlayer({
         sendProgressHeartbeat(videoId, positionSec)
       }
 
-      if (event === 'playing') {
-        intervalRef.current = setInterval(() => {
-          setPosition((prev) => {
-            const next = Math.min(prev + 1, durationSeconds)
-            return next
-          })
-        }, 1000)
-      }
-
       if (event === 'pause') {
         if (intervalRef.current) clearInterval(intervalRef.current)
       }
 
       if (event === 'loadeddata') {
         setPlaying(true)
+        if (initialPosition > 0) {
+          const iframe = document.querySelector<HTMLIFrameElement>(`iframe[title="${title}"]`)
+          iframe?.contentWindow?.postMessage({ event: 'seek', data: { currentTime: initialPosition } }, '*')
+        }
       }
     }
 
@@ -120,9 +123,9 @@ export default function VdoCipherVideoPlayer({
     return () => window.removeEventListener('message', handleMessage)
   }, [playerData])
 
-  const sendProgressHeartbeat = useCallback(async (videoId: string, positionSec: number, token?: string) => {
-    const authToken = token || useAuth().token
-    if (!authToken) return
+  const sendProgressHeartbeat = useCallback(async (videoId: string, positionSec: number, bearerToken?: string) => {
+    const effectiveToken = bearerToken || token
+    if (!effectiveToken) return
 
     let lastHeartbeat = 0
     const now = Date.now()
@@ -134,7 +137,7 @@ export default function VdoCipherVideoPlayer({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `Bearer ${effectiveToken}`,
         },
         body: JSON.stringify({ positionSec }),
       })
@@ -211,88 +214,48 @@ export default function VdoCipherVideoPlayer({
   const progressPct = durationSeconds > 0 ? (position / durationSeconds) * 100 : 0
   const completed = isCompleted || position >= durationSeconds
 
-  if (loading) {
-    return (
-      <div className="relative w-full aspect-[16/9] bg-black overflow-hidden flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-[var(--orange)] border-t-transparent rounded-full animate-spin" />
-          <span className="text-[var(--text3)] text-[10px]">Loading video player...</span>
-        </div>
-      </div>
-    )
-  }
+  const playerSrc = playerData?.otp && playerData?.playbackInfo
+    ? `https://player.vdocipher.com/v2/?otp=${playerData.otp}&playbackInfo=${playerData.playbackInfo}&autoplay=true`
+    : null
 
-  if (error) {
-    return (
-      <div className="relative w-full aspect-[16/9] bg-black overflow-hidden flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-center px-4">
-          <div className="text-3xl">⚠️</div>
-          <div className="text-[var(--text)] font-bold text-[12px]">Video Unavailable</div>
-          <div className="text-[var(--text3)] text-[10px] max-w-[240px]">{error}</div>
-          <button
-            onClick={() => {
-              setError(null)
-              videoReadyRef.current = false
-              getVideoOtp()
-            }}
-            className="px-4 py-2 rounded text-[10px] font-bold bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white border-none cursor-pointer"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
+  const handlePlay = () => {
+    setStarted(true)
   }
-
-  if (!playerData?.otp || !playerData?.playbackInfo) {
-    return (
-      <div className="relative w-full aspect-[16/9] bg-black overflow-hidden flex items-center justify-center">
-        <div className="text-[var(--text3)] text-[10px]">Initializing video player...</div>
-      </div>
-    )
-  }
-
-  const playerSrc = `https://player.vdocipher.com/v2/?otp=${playerData.otp}&playbackInfo=${playerData.playbackInfo}`
 
   return (
-    <div className="relative w-full aspect-[16/9] bg-black overflow-hidden group">
-      <iframe
-        src={playerSrc}
-        style={{ width: '100%', height: '100%', border: 'none' }}
-        allow="encrypted-media"
-        allowFullScreen
-        title={title}
-      />
-
-      <div className="absolute top-[10px] left-[10px] z-[2] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[8px] font-bold px-[9px] py-[3px] rounded-[4px] uppercase tracking-[.06em]">
-        {completed ? "✓ Completed" : playing ? "▶ Now Playing" : "⏸ Paused"}
-      </div>
-
-      <div className="absolute bottom-[42px] right-[10px] z-[2] bg-black/65 text-white text-[10px] px-[7px] py-[2px] rounded-[4px]">
-        {fmtTime(position)} / {fmtTime(durationSeconds)}
-      </div>
-
-      <div className="absolute bottom-[10px] left-[10px] z-[2]">
-        <div className="text-white text-[12.5px] font-bold px-[8px] py-[3px] rounded-[4px] bg-black/50">
-          {title}
-        </div>
-      </div>
-
-      <div className="absolute bottom-0 left-0 right-0 h-[4px] bg-white/20 z-[3]">
-        <div
-          className="h-full bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] transition-[width] duration-1000"
-          style={{ width: `${progressPct}%` }}
+    <div className="relative w-full aspect-[16/9] bg-black overflow-hidden">
+      {started && playerSrc ? (
+        <iframe
+          src={playerSrc}
+          style={{ width: '100%', height: '100%', border: 'none' }}
+          allow="encrypted-media; autoplay"
+          allowFullScreen
+          title={title}
         />
-      </div>
+      ) : null}
 
-      <RingIndicator
-        percentage={progressPct}
-        size={24}
-        strokeWidth={3}
-        color="var(--orange)"
-        backgroundColor="rgba(255,255,255,0.1)"
-        className="absolute top-[10px] right-[10px] z-[3]"
-      />
+      {started && !playerSrc && !loading ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-black">
+          <div className="text-[var(--text3)] text-[10px]">Loading player...</div>
+        </div>
+      ) : null}
+
+      {/* Black bg with play button when not started */}
+      {!started && (
+        <div className="absolute inset-0 bg-black flex items-center justify-center">
+          <button
+            onClick={handlePlay}
+            className="w-16 h-16 rounded-full bg-gradient-to-br from-[var(--orange)] to-[var(--orange2)] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer border-none"
+            style={{ boxShadow: "0 6px 28px rgba(240,90,26,.55)" }}
+          >
+            <div className="w-0 h-0 border-solid border-t-[11px] border-b-[11px] border-l-[20px] border-transparent border-l-white ml-[4px]" />
+          </button>
+          <div className="absolute top-[10px] left-[10px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[9px] font-bold px-[8px] py-[3px] rounded-[4px]">
+            Start Playing
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

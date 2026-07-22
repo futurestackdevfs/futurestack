@@ -110,6 +110,7 @@ export function CurriculumBuilder({
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [selectedLessonTitle, setSelectedLessonTitle] = useState('');
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
+  const [selectedInitialOrder, setSelectedInitialOrder] = useState(1);
   const isDirty = useRef(false);
   const originalSections = useRef<ApiSection[]>([]);
   const tempIdCounter = useRef(0);
@@ -632,7 +633,7 @@ export function CurriculumBuilder({
                                         return updated;
                                       });
                                       // Mark as saved so handleSave won't POST it again
-                                      originalSections.current = [...originalSections.current, { ...section, id: realId }];
+                                      originalSections.current = [...originalSections.current, { ...section, id: realId, videos: [], quizzes: [] }];
                                       targetSectionId = realId;
                                     } catch (e) {
                                       console.warn('[upload] failed to create section first:', e);
@@ -642,6 +643,12 @@ export function CurriculumBuilder({
                                   setSelectedSectionId(targetSectionId);
                                   setSelectedLessonTitle(lesson.title);
                                   setSelectedLessonId(lesson.id);
+                                  setSelectedInitialOrder(
+                                    Math.max(
+                                      ...(sections.find(s => s.id === targetSectionId)?.videos ?? []).map(v => v.order),
+                                      0
+                                    ) + 1
+                                  );
                                   setUploadDialogOpen(true);
                                 }}
                                 className="font-mono text-[9px] font-semibold px-2.5 py-1 rounded cursor-pointer whitespace-nowrap"
@@ -719,11 +726,10 @@ export function CurriculumBuilder({
           setUploadDialogOpen(false);
           setSelectedLessonId(null);
         }}
-        onUpload={async () => {
-          // Upload success -> backend created a real Video record via upload-credentials API.
-          // Remove the local-only placeholder from state (it was never saved to backend).
+        onUpload={async (_file: any, _metadata: any) => {
+          // Remove local-only placeholder (new_ prefix) — real records are refreshed
           const lessonIdToRemove = selectedLessonId;
-          if (lessonIdToRemove) {
+          if (lessonIdToRemove && lessonIdToRemove.startsWith('new_')) {
             setSections(prev => {
               const updated = prev.map(s => ({
                 ...s,
@@ -735,13 +741,14 @@ export function CurriculumBuilder({
           }
           setSelectedLessonId(null);
           isDirty.current = true;
-          // Await refresh so state is fully updated before dialog closes
-          // (swallow error — the upload itself succeeded on the server side)
           try { await refreshSections(); } catch {}
+          return { videoId: '', vdoCipherId: '' };
         }}
         sectionId={selectedSectionId || ''}
         token={token}
         initialTitle={selectedLessonTitle}
+        initialOrder={selectedInitialOrder}
+        videoId={selectedLessonId && !selectedLessonId.startsWith('new_') ? selectedLessonId : undefined}
       />
 
       {/* Confirmation Dialog */}

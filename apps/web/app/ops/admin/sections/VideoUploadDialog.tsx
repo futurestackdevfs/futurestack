@@ -11,6 +11,8 @@ interface VideoUploadDialogProps {
   sectionId: string
   token: string
   initialTitle?: string
+  initialOrder?: number
+  videoId?: string
 }
 
 interface UploadMetadata {
@@ -20,7 +22,7 @@ interface UploadMetadata {
   contentType: string
 }
 
-export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token, initialTitle = '' }: VideoUploadDialogProps) {
+export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token, initialTitle = '', initialOrder = 1, videoId }: VideoUploadDialogProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [step, setStep] = useState<'idle' | 'select' | 'uploading'>('idle')
   const [formData, setFormData] = useState<UploadMetadata>({ title: '', order: 1, filename: '', contentType: '' })
@@ -41,7 +43,7 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
 
   const resetForm = () => {
     setStep('idle')
-    setFormData({ title: initialTitle, order: 1, filename: '', contentType: '' })
+    setFormData({ title: initialTitle, order: initialOrder, filename: '', contentType: '' })
     setFile(null)
     setProgress(0)
     setError(null)
@@ -97,6 +99,7 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
           contentType: formData.contentType,
           sectionId,
           order: formData.order,
+          ...(videoId ? { videoId } : {}),
         }),
       })
 

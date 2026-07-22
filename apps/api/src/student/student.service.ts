@@ -471,10 +471,11 @@ export class StudentService {
       throw new BadRequestException('This video is not yet available for playback');
     }
 
-    // Check sequential lock — student must have completed the previous item
-    // to access this video (same logic as getCourseDetail isCurrent/isLocked)
-    // For now: just verify they've started the course at least
-    // Full sequential check can be added later
+    // Fetch saved progress position for resume
+    const progress = await this.prisma.videoProgress.findUnique({
+      where: { studentId_videoId: { studentId, videoId } },
+      select: { lastPositionSec: true },
+    });
 
     // Fetch student info for watermark
     const student = await this.prisma.user.findUnique({
@@ -493,6 +494,7 @@ export class StudentService {
       videoId: video.id,
       title: video.title,
       durationSeconds: video.durationSeconds,
+      initialPosition: progress?.lastPositionSec ?? 0,
     };
   }
 }

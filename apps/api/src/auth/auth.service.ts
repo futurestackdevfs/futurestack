@@ -67,10 +67,16 @@ export class AuthService {
       },
     });
 
-    const safeUser = this.stripPassword(user);
     return {
-      accessToken: this.signToken(safeUser),
-      user: safeUser,
+      accessToken: this.signToken(user),
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+      },
     };
   }
 

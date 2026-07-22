@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { VdoCipherVideoPlayer } from "./VdoCipherVideoPlayer";
+import VdoCipherVideoPlayer from "./VdoCipherVideoPlayer";
 import { VideoProgressRing } from "@/components/ui/VideoProgressRing"; // Add this
 import useSWR, { mutate } from "swr";
 import type { EnrolledCourse } from "../../hooks/student-dashboard";
@@ -67,6 +67,7 @@ interface Props {
   courseId: string;
   enrolledCourse: EnrolledCourse;
   onBack: () => void;
+  onViewCertificate?: () => void;
 }
 
 const TABS = ["curriculum", "overview", "resources", "discussion"] as const;
@@ -87,15 +88,14 @@ function fmtMins(secs: number): string {
   return `${Math.floor(secs / 60)}m`;
 }
 
-export default function CourseLearningView({ courseId, enrolledCourse, onBack }: Props) {
+export default function CourseLearningView({ courseId, enrolledCourse, onBack, onViewCertificate }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("curriculum");
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
-  const [currentItemId, setCurrentItemId] = useState<string | null>(
-    enrolledCourse.nextVideo?.id ?? null,
-  );
+  const [currentItemId, setCurrentItemId] = useState<string | null>(null);
   const [sectionsInitialized, setSectionsInitialized] = useState(false);
   const [discussionCount, setDiscussionCount] = useState<number | null>(null);
   const [certEarned, setCertEarned] = useState(false);
+  const [showAchievement, setShowAchievement] = useState(false);
 
   const { data: detail, isLoading } = useSWR<StudentCourseDetail>(
     `/api/student/courses/${courseId}`,
@@ -105,12 +105,17 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
   useEffect(() => {
     if (!detail || sectionsInitialized) return;
     const sectionsToOpen = new Set<string>();
-    if (detail.sections[0]) sectionsToOpen.add(detail.sections[0].id);
+    detail.sections.slice(0, 3).forEach(s => sectionsToOpen.add(s.id));
     const current = detail.sections.find(s => s.items.some(i => i.isCurrent));
     if (current) sectionsToOpen.add(current.id);
     setOpenSections(sectionsToOpen);
     const currentItem = detail.sections.flatMap(s => s.items).find(i => i.isCurrent);
-    if (currentItem) setCurrentItemId(currentItem.id);
+    if (currentItem) {
+      setCurrentItemId(currentItem.id);
+    } else {
+      const firstItem = detail.sections[0]?.items[0];
+      if (firstItem) setCurrentItemId(firstItem.id);
+    }
     setSectionsInitialized(true);
   }, [detail, sectionsInitialized]);
 
@@ -133,6 +138,20 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
   };
 
   const category = detail?.course.techStack[0] ?? enrolledCourse.title;
+
+  const handleComplete = useCallback(async () => {
+    await mutate(`/api/student/courses/${courseId}`);
+    const refreshed = await fetch(`/api/student/courses/${courseId}`, { credentials: "same-origin" }).then(r => r.json());
+    const allDone = refreshed.sections.every((s: { items: { isCompleted: boolean }[] }) =>
+      s.items.every((item: { isCompleted: boolean }) => item.isCompleted),
+    );
+    if (allDone) {
+      await mutate("/api/certificates/my");
+      setCertEarned(true);
+      setShowAchievement(true);
+      setTimeout(() => setShowAchievement(false), 6000);
+    }
+  }, [courseId]);
 
   if (isLoading) {
     return (
@@ -185,22 +204,12 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
           {/* Real Video or Quiz Player */}
           <div className="shrink-0">
             {currentItem?.type === 'video' ? (
-              <VideoPlayer
+              <VdoCipherVideoPlayer
                 videoId={currentItem.id}
                 title={currentItem.title}
                 durationSeconds={currentItem.durationSeconds ?? 0}
                 isCompleted={currentItem.isCompleted}
-                onComplete={async () => {
-                  await mutate(`/api/student/courses/${courseId}`);
-                  const refreshed = await fetch(`/api/student/courses/${courseId}`, { credentials: "same-origin" }).then(r => r.json());
-                  const allDone = refreshed.sections.every((s: { items: { isCompleted: boolean }[] }) =>
-                    s.items.every((item: { isCompleted: boolean }) => item.isCompleted),
-                  );
-                  if (allDone) {
-                    await mutate("/api/certificates/my");
-                    setCertEarned(true);
-                  }
-                }}
+                onComplete={handleComplete}
               />
             ) : currentItem?.type === 'quiz' ? (
               <div className="aspect-[16/9]">
@@ -211,17 +220,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
                   passingScore={currentItem.passingScore ?? null}
                   previousScore={currentItem.score}
                   isCompleted={currentItem.isCompleted}
-                  onComplete={async () => {
-                    await mutate(`/api/student/courses/${courseId}`);
-                    const refreshed = await fetch(`/api/student/courses/${courseId}`, { credentials: "same-origin" }).then(r => r.json());
-                    const allDone = refreshed.sections.every((s: { items: { isCompleted: boolean }[] }) =>
-                      s.items.every((item: { isCompleted: boolean }) => item.isCompleted),
-                    );
-                    if (allDone) {
-                      await mutate("/api/certificates/my");
-                      setCertEarned(true);
-                    }
-                  }}
+                  onComplete={handleComplete}
                 />
               </div>
             ) : (
@@ -262,7 +261,14 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
                   });
                   if (res.ok) {
                     await mutate("/api/certificates/my");
-                    setCertEarned(true);
+                    onViewCertificate?.();
+                  }
+                } else {
+                  const firstIncomplete = allItems.find(i => !i.isCompleted);
+                  if (firstIncomplete) {
+                    setCurrentItemId(firstIncomplete.id);
+                    const section = detail?.sections.find(s => s.items.some(i => i.id === firstIncomplete.id));
+                    if (section) setOpenSections(prev => new Set(prev).add(section.id));
                   }
                 }
               }}
@@ -383,19 +389,17 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
                     <div className={isOpen ? "block" : "hidden"}>
                       {section.items.map(item => {
                         const isSelected = currentItemId === item.id;
-                        const canClick = item.isCompleted || item.isCurrent;
+                        const canClick = true;
 
                         return (
                           <div key={item.id}
-                            onClick={() => canClick && setCurrentItemId(item.id)}
+                            onClick={() => setCurrentItemId(item.id)}
                             className={`grid items-center gap-[10px] px-4 py-[9px] border-t border-[var(--border)] transition-all ${
                               isSelected
-                                ? "bg-[rgba(240,90,26,.04)] border-l-2 border-l-[var(--orange)]"
+                                ? "bg-[rgba(240,90,26,.04)] border-l-2 border-l-[var(--orange)] cursor-pointer"
                                 : item.isCompleted
                                   ? "hover:bg-[var(--card-h)] cursor-pointer opacity-80"
-                                  : item.isLocked
-                                    ? "opacity-40 cursor-not-allowed"
-                                    : "hover:bg-[var(--card-h)] cursor-pointer"
+                                  : "hover:bg-[var(--card-h)] cursor-pointer"
                             }`}
                             style={{ gridTemplateColumns: "24px 1fr auto auto auto" }}>
 
@@ -405,10 +409,10 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
                                 ? "bg-green-600 dark:bg-green-500 text-white"
                                 : isSelected
                                   ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
-                                  : "bg-[var(--bg2)] text-[var(--text3)] border border-[var(--border2)]"
+                                  : "bg-[var(--orange-d)] text-[var(--orange)]"
                             }`}
                               style={isSelected ? { boxShadow: "0 2px 8px rgba(240,90,26,.5)", animation: "pulse 1.6s ease infinite" } : {}}>
-                              {item.isCompleted ? "✓" : isSelected ? "▶" : "🔒"}
+                              {item.isCompleted ? "✓" : isSelected ? "▶" : "○"}
                             </div>
 
                             {/* Title + type */}
@@ -440,10 +444,10 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
                                 ? "bg-green-500/15 text-green-600 dark:text-green-400"
                                 : isSelected
                                   ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
-                                  : "bg-[var(--bg2)] text-[var(--text3)] border border-[var(--border)]"
+                                  : "bg-[var(--orange-d)] text-[var(--orange)]"
                             }`}
                               style={{ boxShadow: isSelected ? "0 1px 4px rgba(240,90,26,.3)" : undefined }}>
-                              {item.isCompleted ? "Done" : isSelected ? "Active" : "Locked"}
+                              {item.isCompleted ? "Done" : isSelected ? "Active" : "Ready"}
                             </div>
                           </div>
                         );
@@ -535,25 +539,33 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack }:
         </div>
       </div>
 
-      {/* STATUS BAR */}
-      <div className="flex items-center gap-[14px] px-3 py-0 h-[22px] bg-[var(--bg2)] border-t border-[var(--border)] text-[9.5px] text-[var(--text3)] shrink-0">
-        <span className="flex items-center gap-1 text-[var(--green)]"><span className="text-[8px]">●</span>Connected</span>
-        <span className="text-[var(--border2)]">│</span>
-        <span className="flex items-center gap-1 text-[var(--orange)]">🔥 14-day streak</span>
-        <span className="text-[var(--border2)]">│</span>
-        <span className="flex items-center gap-1 text-[var(--blue2)]">⚡ 1,240 XP · Level 6</span>
-        <span className="text-[var(--border2)]">│</span>
-        <span className="flex items-center gap-1">📺 {currentItem?.title ?? course.title}</span>
-        <span className="ml-auto flex items-center gap-3">
-          <span>{progress.progressPercent}% complete</span>
-          <span className="text-[var(--border2)]">│</span>
-          <span className="text-[var(--orange)]">FutureStack v1.0.0</span>
-          <span className="text-[var(--border2)]">│</span>
-          <span>India/Pune</span>
-        </span>
-      </div>
-
       <style>{`@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.4 } }`}</style>
+
+      {showAchievement && (
+        <div className="fixed bottom-5 right-5 z-[50] animate-slideUp" style={{animation:"slideUp .5s ease both"}}>
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-[14px] p-4 flex items-start gap-3 shadow-2xl"
+            style={{ boxShadow: "0 8px 32px rgba(0,0,0,.35), 0 0 0 1px rgba(240,90,26,.15)" }}>
+            <div className="text-3xl">🏆</div>
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-[.1em] text-[var(--orange)] mb-1">New Achievement</div>
+              <div className="text-[15px] font-extrabold text-[var(--text)] mb-[2px]">Course Completed!</div>
+              <div className="text-[11px] text-[var(--text3)]">Congratulations on completing <strong className="text-[var(--text2)]">{course.title}</strong></div>
+              <button
+                onClick={() => { setShowAchievement(false); onViewCertificate?.() }}
+                className="mt-3 px-4 py-1.5 rounded-[8px] text-[10px] font-bold bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white border-none cursor-pointer hover:opacity-90 transition-all"
+              >
+                View Certificate →
+              </button>
+            </div>
+            <button onClick={() => setShowAchievement(false)}
+              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center text-[10px] text-[var(--text3)] cursor-pointer hover:text-[var(--text)] transition-all">
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }`}</style>
     </div>
   );
 }

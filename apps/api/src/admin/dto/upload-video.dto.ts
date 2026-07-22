@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsUUID, IsInt } from 'class-validator';
+import { IsString, IsNotEmpty, IsUUID, IsInt, IsOptional } from 'class-validator';
 
 export class UploadVideoDto {
   @IsString()
@@ -18,4 +18,8 @@ export class UploadVideoDto {
 
   @IsInt()
   order: number;
+
+  @IsOptional()
+  @IsUUID()
+  videoId?: string; // set when re-uploading an existing video
 }

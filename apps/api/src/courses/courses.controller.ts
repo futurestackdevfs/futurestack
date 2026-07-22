@@ -1,8 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
-<<<<<<< Updated upstream
 import { Throttle } from '@nestjs/throttler';
-=======
->>>>>>> Stashed changes
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
@@ -177,6 +174,7 @@ export class CoursesController {
     return this.coursesService.publicCourseDetail(id);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Get('public/videos/:videoId/otp')
   getPublicVideoOtp(@Param('videoId') videoId: string) {
     return this.coursesService.getPublicVideoOtp(videoId);

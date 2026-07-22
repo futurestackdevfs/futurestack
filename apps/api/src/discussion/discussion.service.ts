@@ -69,21 +69,23 @@ export class DiscussionService {
       },
     });
 
-    return messages.map(msg => ({
-      ...msg,
-      userHasUpvoted: msg.upvotes.length > 0,
-      upvoteCount: msg._count.upvotes,
-      replyCount: msg._count.replies,
-      replies: msg.replies.map(reply => ({
-        ...reply,
-        userHasUpvoted: reply.upvotes.length > 0,
-        upvoteCount: reply._count.upvotes,
-        upvotes: undefined, // remove from output
-        _count: undefined, // remove from output
-      })),
-      upvotes: undefined, // remove from output
-      _count: undefined, // remove from output
-    }));
+    return messages.map(msg => {
+      const { authorId: _a, upvotes: _u, _count: _c, replies, ...rest } = msg;
+      return {
+        ...rest,
+        userHasUpvoted: msg.upvotes.length > 0,
+        upvoteCount: msg._count.upvotes,
+        replyCount: msg._count.replies,
+        replies: msg.replies.map(reply => {
+          const { authorId: _ra, upvotes: _ru, _count: _rc, ...replyRest } = reply;
+          return {
+            ...replyRest,
+            userHasUpvoted: reply.upvotes.length > 0,
+            upvoteCount: reply._count.upvotes,
+          };
+        }),
+      };
+    });
   }
 
   async createMessage(courseId: string, authorId: string, role: Role, dto: CreateMessageDto) {

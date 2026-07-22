@@ -361,7 +361,11 @@ export default function DiscussionTab({ courseId, onCountChange }: Props) {
         {filteredMessages.map((msg) => {
           const tagStyle = TAG_STYLES[msg.tag] || { label: msg.tag, bg: "var(--panel)", text: "var(--text3)" };
           const isInstructor = msg.author.role === "TRAINER";
-          const canModify = me && (msg.author.id === me.id || ["ADMIN", "CONTENT_MANAGER"].includes(me.role));
+          const canModify = me && (
+            msg.author.id === me.id
+              ? Date.now() - new Date(msg.createdAt).getTime() < 600_000
+              : ["ADMIN", "CONTENT_MANAGER"].includes(me.role)
+          );
           const repliesOpen = openReplies.has(msg.id);
           const unread = isUnread(msg);
 
@@ -440,53 +444,55 @@ export default function DiscussionTab({ courseId, onCountChange }: Props) {
 
               {/* Replies */}
               {repliesOpen && (
-                <div className="px-3 pb-3 flex flex-col gap-[8px]" style={{ background: "var(--surface)" }}>
-                  {msg.replies.length === 0 && (
-                    <div className="font-mono text-[9.5px] pt-1" style={{ color: "var(--text3)" }}>No replies yet.</div>
-                  )}
-                  {msg.replies.map((reply) => (
-                    <div key={reply.id} className="flex gap-[8px] pt-1">
-                      <div
-                        className="w-5 h-5 rounded-full flex items-center justify-center text-[7px] font-bold text-white shrink-0 mt-[2px]"
-                        style={{ background: avatarColor(reply.author.id) }}
-                      >{initials(reply.author.name)}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-[6px] flex-wrap">
-                          <span className="text-[10.5px] font-bold" style={{ color: "var(--text)" }}>{reply.author.name}</span>
-                          {reply.author.role === "TRAINER" && (
-                            <span className="text-[7px] font-bold px-[5px] py-[1px] rounded-[3px]" style={{ background: "var(--orange-d)", color: "var(--orange)" }}>instructor</span>
-                          )}
-                          <span className="font-mono text-[8px]" style={{ color: "var(--text3)" }}>{timeAgo(reply.createdAt)}</span>
-                        </div>
-                        <div className="text-[10.5px] leading-[1.5] mt-[1px] whitespace-pre-wrap break-words" style={{ color: "var(--text2)" }}>{reply.body}</div>
-                        <div className="flex items-center gap-2 mt-[2px]">
-                          <button onClick={() => toggleLike(msg.id, reply.id)} className={`${actionBtn} ${reply.userHasUpvoted ? "!text-[var(--orange)] font-bold" : ""}`}>
-                            👍 {reply.userHasUpvoted ? reply.upvoteCount : `Like${reply.upvoteCount > 0 ? ` · ${reply.upvoteCount}` : ""}`}
-                          </button>
-                          {me && (reply.author.id === me.id || ["ADMIN", "CONTENT_MANAGER"].includes(me.role)) && (
-                            <button onClick={() => setConfirmDeleteReply({ replyId: reply.id, msgId: msg.id })} className={actionBtn}>🗑️</button>
-                          )}
+                <div className="ml-[44px]" style={{ borderLeft: "1.5px solid var(--border)" }}>
+                  <div className="flex flex-col gap-1 pl-4 pb-2 pt-1">
+                    {msg.replies.length === 0 && (
+                      <div className="font-mono text-[9.5px] py-1.5" style={{ color: "var(--text3)" }}>No replies yet.</div>
+                    )}
+                    {msg.replies.map((reply) => (
+                      <div key={reply.id} className="flex gap-[9px] py-1.5 px-2 rounded-[6px] transition-all hover:opacity-85" style={{ background: "transparent" }}>
+                        <div
+                          className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-[8px] font-bold text-white shrink-0 mt-[2px]"
+                          style={{ background: avatarColor(reply.author.id) }}
+                        >{initials(reply.author.name)}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-[6px] flex-wrap">
+                            <span className="text-[11px] font-bold" style={{ color: "var(--text)" }}>{reply.author.name}</span>
+                            {reply.author.role === "TRAINER" && (
+                              <span className="text-[7px] font-bold px-[5px] py-[1px] rounded-[3px]" style={{ background: "var(--orange-d)", color: "var(--orange)" }}>instructor</span>
+                            )}
+                            <span className="font-mono text-[8px]" style={{ color: "var(--text3)" }}>{timeAgo(reply.createdAt)}</span>
+                          </div>
+                          <div className="text-[10.5px] leading-[1.55] mt-[2px] whitespace-pre-wrap break-words" style={{ color: "var(--text2)" }}>{reply.body}</div>
+                          <div className="flex items-center gap-3 mt-[4px]">
+                            <button onClick={() => toggleLike(msg.id, reply.id)} className={`${actionBtn} !text-[9px] ${reply.userHasUpvoted ? "!text-[var(--orange)] font-bold" : ""}`}>
+                              👍 {reply.userHasUpvoted ? reply.upvoteCount : `Like${reply.upvoteCount > 0 ? ` · ${reply.upvoteCount}` : ""}`}
+                            </button>
+                            {me && (reply.author.id === me.id || ["ADMIN", "CONTENT_MANAGER"].includes(me.role)) && (
+                              <button onClick={() => setConfirmDeleteReply({ replyId: reply.id, msgId: msg.id })} className={actionBtn}>🗑️</button>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
 
-                  <div className="flex gap-[6px] items-center pt-1">
-                    <input
-                      value={replyDrafts[msg.id] ?? ""}
-                      onChange={(e) => setReplyDrafts((d) => ({ ...d, [msg.id]: e.target.value }))}
-                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); postReply(msg.id); } }}
-                      placeholder="Write a reply…"
-                      maxLength={2000}
-                      className="flex-1 font-mono text-[9.5px] px-2 py-1.5 rounded outline-none"
-                      style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }}
-                    />
-                    <button
-                      onClick={() => postReply(msg.id)}
-                      disabled={!(replyDrafts[msg.id] ?? "").trim() || replying[msg.id]}
-                      className="px-[8px] py-[5px] rounded-[4px] text-white text-[9px] font-bold border-none cursor-pointer disabled:opacity-50"
-                      style={{ background: "var(--orange)" }}
-                    >{replying[msg.id] ? "…" : "Reply"}</button>
+                    <div className="flex gap-[8px] items-center pt-0.5 pb-1">
+                      <input
+                        value={replyDrafts[msg.id] ?? ""}
+                        onChange={(e) => setReplyDrafts((d) => ({ ...d, [msg.id]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); postReply(msg.id); } }}
+                        placeholder="Write a reply…"
+                        maxLength={2000}
+                        className="flex-1 font-mono text-[9.5px] px-2.5 py-[7px] rounded-[6px] outline-none transition-all focus:ring-[1.5px] focus:ring-[var(--orange)]"
+                        style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }}
+                      />
+                      <button
+                        onClick={() => postReply(msg.id)}
+                        disabled={!(replyDrafts[msg.id] ?? "").trim() || replying[msg.id]}
+                        className="px-3 py-[7px] rounded-[6px] text-white text-[9.5px] font-bold border-none cursor-pointer disabled:opacity-40 transition-all hover:brightness-110"
+                        style={{ background: "var(--orange)" }}
+                      >{replying[msg.id] ? "…" : "Reply"}</button>
+                    </div>
                   </div>
                 </div>
               )}

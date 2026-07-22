@@ -2,17 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import OverviewSection from "./sections/OverviewSection";
-import MyCoursesSection from "./sections/MyCoursesSection";
-import CourseLearningView from "./sections/CourseLearningView";
-import ScheduleSection from "./sections/ScheduleSection";
-import AssignmentsSection from "./sections/AssignmentsSection";
-import CertificatesSection from "./sections/CertificatesSection";
-import ProjectsSection from "./sections/ProjectsSection";
-import DiscussionTab from "./sections/DiscussionTab";
+import SectionRenderer from "./sections/SectionRenderer";
 import { useStudentDashboard } from "../hooks/student-dashboard";
-
-type TabId = "overview" | "courses" | "schedule" | "assignments" | "certificates" | "projects" | "discussion";
+import { SECTION_CONFIG, SECTION_ORDER, resolveBadge } from "./section-config";
+import type { TabId, SectionContext } from "./section-config";
 
 const notifs = [
   { icon: "📡", text: <><span className="font-semibold">Live session starting</span> in 2 hours — React Hooks Deep Dive</>, time: "10 min ago", ic: "bg-orange-500/10" },
@@ -38,7 +31,7 @@ const activity = [
 ];
 
 export default function MyDashboardPage() {
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [activeTab, setActiveTab] = useState<string>("overview");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [discussionCourseId, setDiscussionCourseId] = useState<string | null>(null);
   const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});
@@ -53,14 +46,8 @@ export default function MyDashboardPage() {
   const courseCount = enrolledCourses.length;
   const selectedCourse = enrolledCourses.find(c => c.courseId === selectedCourseId) ?? null;
 
-  const tabs: { id: TabId; icon: string; label: string; badge?: string; badgeCls?: string }[] = [
-    { id: "overview", icon: "⊞", label: "Overview" },
-    { id: "courses", icon: "📚", label: "My Courses", badge: isLoading ? "…" : courseCount.toString(), badgeCls: "bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]" },
-    { id: "schedule", icon: "📅", label: "Schedule", badge: "2 Live", badgeCls: "bg-green-500/10 text-green-600 dark:text-green-500" },
-    { id: "assignments", icon: "📝", label: "Assignments", badge: "3 Due", badgeCls: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a]" },
-    { id: "certificates", icon: "🏅", label: "Certificates" },
-    { id: "projects", icon: "📁", label: "Projects" },
-  ];
+  const sectionCtx: SectionContext = { isLoading, courseCount };
+  const tabs = SECTION_CONFIG;
 
   const toggleTodo = (i: number) => {
     setDoneSet(p => { const n = new Set(p); if (n.has(i)) n.delete(i); else n.add(i); return n; });
@@ -98,91 +85,22 @@ export default function MyDashboardPage() {
     }
   }, [activeTab, discussionCourseId, enrolledCourses]);
 
-  const renderSection = () => {
-    if (activeTab === "courses" && selectedCourseId && selectedCourse) {
-      return (
-        <CourseLearningView
-          courseId={selectedCourseId}
-          enrolledCourse={selectedCourse}
-          onBack={() => setSelectedCourseId(null)}
-        />
-      );
-    }
-    return (
-      <>
-        {activeTab === "overview" && (
-          <OverviewSection
-            user={data?.user ?? null}
-            enrolledCourses={enrolledCourses}
-            isLoading={isLoading}
-          />
-        )}
-        {activeTab === "courses" && (
-          <MyCoursesSection
-            enrolledCourses={enrolledCourses}
-            isLoading={isLoading}
-            onCourseClick={(courseId) => setSelectedCourseId(courseId)}
-          />
-        )}
-        {activeTab === "schedule" && <ScheduleSection />}
-        {activeTab === "assignments" && <AssignmentsSection />}
-        {activeTab === "certificates" && <CertificatesSection />}
-        {activeTab === "projects" && <ProjectsSection />}
-        {activeTab === "discussion" && (
-          <>
-            {discussionCourseId ? (
-              <div className="flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-[10px] overflow-hidden flex-1 min-h-0">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]" style={{ background: "var(--surface)" }}>
-                  <button onClick={() => setDiscussionCourseId(null)} className="font-mono text-[9.5px] font-semibold cursor-pointer bg-transparent border-none flex items-center gap-1" style={{ color: "var(--text3)" }}>
-                    ← Back to courses
-                  </button>
-                  <span className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>
-                    {enrolledCourses.find(c => c.courseId === discussionCourseId)?.title || ""}
-                  </span>
-                </div>
-                <DiscussionTab courseId={discussionCourseId} />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em]" style={{ color: "var(--text3)" }}>// discussions</span>
-                  <span className="font-['Syne',sans-serif] text-[13.5px] font-bold" style={{ color: "var(--text)" }}>Select a Course</span>
-                  <div className="flex-1 h-px bg-[var(--border)]" />
-                </div>
-                {isLoading ? (
-                  <div className="text-[11px] font-mono" style={{ color: "var(--text3)" }}>Loading courses…</div>
-                ) : enrolledCourses.length === 0 ? (
-                  <div className="text-[11px] font-mono" style={{ color: "var(--text3)" }}>No enrolled courses yet. Browse the catalog to get started!</div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-2">
-                    {enrolledCourses.map((course) => {
-                      const msgCount = messageCounts[course.courseId] ?? -1;
-                      return (
-                        <button
-                          key={course.courseId}
-                          onClick={() => setDiscussionCourseId(course.courseId)}
-                          className="flex items-center gap-3 px-4 py-3 rounded-[8px] text-left cursor-pointer transition-all w-full border"
-                          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-                        >
-                          <span className="text-lg shrink-0">💬</span>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[12px] font-semibold truncate" style={{ color: "var(--text)" }}>{course.title}</div>
-                          </div>
-                          <span className="font-mono text-[8px] font-bold px-2 py-1 rounded shrink-0" style={{ background: "var(--orange-d)", color: "var(--orange)" }}>
-                            {loadingCounts || msgCount < 0 ? "💬 …" : `💬 ${msgCount}`}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </>
-    );
-  };
+  const renderSection = () => (
+    <SectionRenderer
+      activeTab={activeTab}
+      selectedCourseId={selectedCourseId}
+      selectedCourse={selectedCourse}
+      enrolledCourses={enrolledCourses}
+      discussionCourseId={discussionCourseId}
+      messageCounts={messageCounts}
+      loadingCounts={loadingCounts}
+      setSelectedCourseId={setSelectedCourseId}
+      setDiscussionCourseId={setDiscussionCourseId}
+      setActiveTab={setActiveTab}
+      data={data}
+      isLoading={isLoading}
+    />
+  );
 
   const isForbidden = !isLoading && !!error && /forbidden|unauthorized/i.test(error);
 
@@ -245,8 +163,8 @@ export default function MyDashboardPage() {
               >
                 <span className="text-sm shrink-0 w-4 text-center">{tab.icon}</span>
                 <span className="flex-1">{tab.label}</span>
-                {tab.badge && (
-                  <span className={`font-['JetBrains_Mono',monospace] text-[8px] font-semibold px-[5px] py-px rounded-[3px] ${tab.badgeCls}`}>{tab.badge}</span>
+                {resolveBadge(tab, sectionCtx) && (
+                  <span className={`font-['JetBrains_Mono',monospace] text-[8px] font-semibold px-[5px] py-px rounded-[3px] ${tab.badgeCls || ""}`}>{resolveBadge(tab, sectionCtx)}</span>
                 )}
               </button>
             ))}

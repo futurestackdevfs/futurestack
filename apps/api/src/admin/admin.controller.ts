@@ -63,6 +63,7 @@ export class AdminController {
     return this.adminService.listAllUsers();
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Post('videos/upload-credentials')
   async getVideoUploadCredentials(@Body() dto: UploadVideoDto) {
@@ -77,6 +78,7 @@ export class AdminController {
 
   // NO @Auth here — VdoCipher calls this without any token
   // Verified by checking the event payload and vdoCipherId existence instead
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('videos/vdocipher-webhook')
   async handleVdoCipherWebhook(@Body() payload: any) {
     return this.adminService.handleVdoCipherWebhook(payload);

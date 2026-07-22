@@ -72,7 +72,7 @@ export function VideoProgressTracker({
       setProgress((prev) => {
         if (prev >= 100) {
           setIsCompleted(true)
-          clearInterval(sendIntervalRef.current)
+          clearInterval(sendIntervalRef.current as any)
           return 100
         }
         return prev + 0.5
@@ -145,7 +145,7 @@ export function VideoProgressTracker({
       </div>
 
       {completedVideos.length > 0 && (
-        <div className="text-xs style={{ color: var(--green)" }}>
+        <div className="text-xs" style={{ color: "var(--green)" }}>
           Completed videos:
           {completedVideos.map((v) => (
             <span key={v.id} className="ml-2">✓</span>

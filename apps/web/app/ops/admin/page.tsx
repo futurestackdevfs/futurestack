@@ -975,7 +975,7 @@ export default function AdminMasterDataPage() {
   return (
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <AdminTopbar
-        user={user}
+        user={user as any}
         currentView={view}
         onSearch={setSearchQuery}
         onMyProfile={() => setProfileModal({ open: true, mode: "profile" })}
@@ -1111,13 +1111,13 @@ export default function AdminMasterDataPage() {
       <ProfileModal
         open={profileModal.open}
         mode={profileModal.mode}
-        user={user}
+        user={user as any}
         onSave={(data) => {
-          const updated = { ...user, ...data };
+          const updated: any = { ...user, ...data };
           setUser(updated);
           setDb((prev) => ({
             ...prev,
-            admins: prev.admins.map((a: any) => a.id === user.id ? { ...a, ...data } : a),
+            admins: prev.admins.map((a: any) => a.id === (user as any).id ? { ...a, ...data } : a),
           }));
           try { localStorage.setItem("fs-admin-id", JSON.stringify(updated.id)); } catch {}
           addToast("Profile updated successfully");

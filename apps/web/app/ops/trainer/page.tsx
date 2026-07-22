@@ -176,7 +176,6 @@ export default function TrainerDashboardPage() {
       const localSubmissions = loadLocal<ProjectSubmission[]>(user.id, "submissions", []);
       const localFeedback = loadLocal<CurriculumFeedback[]>(user.id, "feedback", []);
 
-<<<<<<< Updated upstream
       /* Revenue & payouts from trainer API */
       const trainerData = await opsFetch("/api/trainer/revenue")
         .then((r) => (r.ok ? r.json() : null))
@@ -207,15 +206,6 @@ export default function TrainerDashboardPage() {
         setEnrollments([]);
         setPayouts([]);
       }
-=======
-      /* Revenue & payouts from backend API */
-      const revenue = await opsFetch("/api/courses/trainer/revenue")
-        .then((r) => (r.ok ? r.json() : { enrollments: [] }))
-        .catch(() => ({ enrollments: [] }));
-      const payoutsFromApi = await opsFetch("/api/courses/trainer/payouts")
-        .then((r) => (r.ok ? r.json() : []))
-        .catch(() => []);
->>>>>>> Stashed changes
 
       if (cancelled) return;
       setBatches(fromApi);

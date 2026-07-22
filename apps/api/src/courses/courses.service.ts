@@ -168,8 +168,14 @@ export class CoursesService {
         sections: {
           orderBy: { order: 'asc' },
           include: {
-            videos: { orderBy: { order: 'asc' } },
-            quizzes: { orderBy: { order: 'asc' } },
+            videos: {
+              orderBy: { order: 'asc' },
+              select: { id: true, title: true, durationSeconds: true, order: true, isPreview: true },
+            },
+            quizzes: {
+              orderBy: { order: 'asc' },
+              select: { id: true, title: true, order: true, totalQuestions: true },
+            },
           },
         },
         _count: { select: { enrollments: true } },
@@ -208,7 +214,24 @@ export class CoursesService {
       totalLessons: totalVideos + totalQuizzes,
       totalVideos,
       totalQuizzes,
-      sections: course.sections,
+      sections: course.sections.map(s => ({
+        id: s.id,
+        title: s.title,
+        order: s.order,
+        videos: s.videos.map(v => ({
+          id: v.isPreview ? v.id : null,
+          title: v.title,
+          durationSeconds: v.durationSeconds,
+          order: v.order,
+          isPreview: v.isPreview,
+        })),
+        quizzes: s.quizzes.map(q => ({
+          id: null,
+          title: q.title,
+          order: q.order,
+          totalQuestions: q.totalQuestions,
+        })),
+      })),
       resources: course.resources,
     };
   }
@@ -294,7 +317,6 @@ export class CoursesService {
     return {
       id: course.id,
       title: course.title,
-      code: course.code,
       category: course.category,
       skillLevel: course.skillLevel,
       description: course.description,
@@ -829,7 +851,8 @@ export class CoursesService {
   }
 
   async deleteVideo(id: string) {
-    await this.findVideoOrFail(id);
+    const video = await this.findVideoOrFail(id);
+    await this.vdoCipherService.deleteVideo(video.vdoCipherId);
     await this.prisma.video.delete({ where: { id } });
     return { message: 'Video deleted' };
   }
