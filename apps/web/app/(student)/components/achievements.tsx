@@ -1,29 +1,21 @@
+'use client';
+
 import Link from "next/link";
+import useSWR from "swr";
+
+interface AchievementItem {
+  initial: string;
+  name: string;
+  action: string;
+  time: string;
+  gradient: string;
+}
 
 export function Achievements() {
-  const items = [
-    {
-      initial: "R",
-      name: "Rahul Sharma",
-      action: "Completed MERN Stack",
-      time: "2 days ago",
-      gradient: "linear-gradient(135deg,#4db33d,#2d7ef7)",
-    },
-    {
-      initial: "P",
-      name: "Priya Mehta",
-      action: "Earned Python Certificate",
-      time: "3 days ago",
-      gradient: "linear-gradient(135deg,#a855f7,#ec4899)",
-    },
-    {
-      initial: "A",
-      name: "Arjun Singh",
-      action: "Got Placed at TCS",
-      time: "1 week ago",
-      gradient: "linear-gradient(135deg,#f59e0b,#ef4444)",
-    },
-  ];
+  const { data } = useSWR<AchievementItem[]>('/api/certificates/recent');
+  const items = data ?? [];
+
+  if (items.length === 0) return null;
 
   return (
     <div>

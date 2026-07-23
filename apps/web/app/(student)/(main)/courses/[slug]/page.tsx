@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import useSWR from "swr";
@@ -64,18 +64,27 @@ interface CourseCard {
   mentorName: string;
 }
 
-/** Inline VdoCipher player that fetches OTP and renders inside the thumbnail div */
-function InlinePlayer({ videoId, title }: { videoId: string; title: string }) {
+/** Public preview player — same UI as VdoCipherVideoPlayer but without auth/watermark */
+function PreviewPlayer({ videoId, title, durationSeconds }: { videoId: string; title: string; durationSeconds: number }) {
+  const [started, setStarted] = useState(false);
   const [otp, setOtp] = useState<string | null>(null);
   const [playbackInfo, setPlaybackInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const handlePlay = () => {
+    setStarted(true);
+    setLoading(true);
     fetch(`${API}/courses/public/videos/${videoId}/otp`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => { setOtp(data.otp); setPlaybackInfo(data.playbackInfo); })
       .catch(() => setError('Failed to load video preview'))
-  }, [videoId]);
+      .finally(() => setLoading(false));
+  };
+
+  const playerSrc = otp && playbackInfo
+    ? `https://player.vdocipher.com/v2/?otp=${otp}&playbackInfo=${playbackInfo}&autoplay=true`
+    : null;
 
   if (error) {
     return (
@@ -89,26 +98,44 @@ function InlinePlayer({ videoId, title }: { videoId: string; title: string }) {
     );
   }
 
-  if (otp && playbackInfo) {
-    return (
-      <div className="relative bg-black aspect-video">
+  return (
+    <div className="relative w-full aspect-[16/9] bg-black overflow-hidden">
+      {started && playerSrc ? (
         <iframe
-          src={`https://player.vdocipher.com/v2/?otp=${otp}&playbackInfo=${playbackInfo}`}
+          src={playerSrc}
           style={{ width: '100%', height: '100%', border: 'none' }}
-          allow="encrypted-media"
+          allow="encrypted-media; autoplay"
           allowFullScreen
           title={title}
         />
-      </div>
-    );
-  }
+      ) : null}
 
-  return (
-    <div className="relative bg-black aspect-video flex items-center justify-center">
-      <div className="flex flex-col items-center gap-2">
-        <div className="w-6 h-6 border-2 border-[var(--orange)] border-t-transparent rounded-full animate-spin" />
-        <span className="text-[var(--text3)] text-[10px]">Loading preview...</span>
-      </div>
+      {started && !playerSrc && loading ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-black">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-6 h-6 border-2 border-[var(--orange)] border-t-transparent rounded-full animate-spin" />
+            <span className="text-[var(--text3)] text-[10px]">Loading preview...</span>
+          </div>
+        </div>
+      ) : null}
+
+      {!started && (
+        <div className="absolute inset-0 bg-black flex items-center justify-center">
+          <button
+            onClick={handlePlay}
+            className="w-16 h-16 rounded-full bg-gradient-to-br from-[var(--orange)] to-[var(--orange2)] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer border-none"
+            style={{ boxShadow: "0 6px 28px rgba(240,90,26,.55)" }}
+          >
+            <div className="w-0 h-0 border-solid border-t-[11px] border-b-[11px] border-l-[20px] border-transparent border-l-white ml-[4px]" />
+          </button>
+          <div className="absolute top-2 left-2 bg-[var(--green)] text-white px-2 py-[2px] rounded-[4px] text-[9px] font-bold uppercase tracking-[.4px]">
+            Free Preview
+          </div>
+          <div className="absolute bottom-[10px] right-[10px] bg-black/65 text-white text-[10px] px-[7px] py-[2px] rounded-[4px]">
+            {Math.floor(durationSeconds / 60)}:{(durationSeconds % 60).toString().padStart(2, "0")}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -119,8 +146,11 @@ export default function CourseDetailPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [plan, setPlan] = useState("annual");
   const [openFaq, setOpenFaq] = useState<string | null>(null);
-  const [playingVideoId, setPlayingVideoId] = useState<string | null>(null);
-  const [playingTitle, setPlayingTitle] = useState("");
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  const scrollToPreview = () => {
+    previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
 
   const { data: course, isLoading: isLoadingCourse } = useSWR<CourseDetail>(
     slug ? `${API}/courses/public/slug/${slug}` : null,
@@ -130,17 +160,12 @@ export default function CourseDetailPage() {
   const related = (allCards?.data ?? []).filter((c) => c.id !== course?.id).slice(0, 3);
   const isLoading = isLoadingCourse;
 
-  // First video of first module = free preview
+  // First video of first section = free preview (backend always exposes its id)
   const freePreviewVideo = course?.sections?.[0]?.videos?.[0] ?? null;
 
   const totalDuration = course?.sections?.reduce(
     (sum, s) => sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0), 0
   ) ?? 0;
-
-  function openPreview(videoId: string, title: string) {
-    setPlayingVideoId(videoId);
-    setPlayingTitle(title);
-  }
 
   if (isLoading) {
     return (
@@ -187,9 +212,9 @@ export default function CourseDetailPage() {
 
       {/* Hero */}
       <div className="bg-[var(--hero-bg)] py-2 relative overflow-hidden">
-        <div className="max-w-[1700px] mx-auto px-2 flex items-center gap-5 relative z-[1]">
+        <div className="max-w-[1700px] mx-auto px-6 flex items-center gap-5 relative z-[1]">
           <div className="flex-1">
-            <div className="inline-flex items-center gap-[6px] bg-[rgba(255,255,255,.1)] border border-[rgba(255,255,255,.15)] px-3 py-[2x] rounded-[20px] text-[11.5px] font-semibold text-[rgba(255,255,255,.85)] uppercase tracking-[.4px] mb-2.5">
+            <div className="inline-flex items-center gap-[6px] bg-[rgba(255,255,255,.1)] border border-[rgba(255,255,255,.15)] px-3 py-[2px] rounded-[20px] text-[11.5px] font-semibold text-[rgba(255,255,255,.85)] uppercase tracking-[.4px] mb-2.5">
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
               {course.category}
             </div>
@@ -226,53 +251,26 @@ export default function CourseDetailPage() {
         <div className="grid grid-cols-[300px_1fr_308px] gap-5 py-6 items-start" style={{ alignItems: "start" }}>
           {/* LEFT */}
           <aside className="flex flex-col gap-4 sticky top-[72px]">
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-[var(--shadow)]">
-              {playingVideoId && freePreviewVideo ? (
+            <div ref={previewRef} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-[var(--shadow)]">
+              {freePreviewVideo ? (
                 <>
-                  <InlinePlayer videoId={playingVideoId} title={playingTitle} />
-                  <div className="p-3 border-t border-[var(--border)] flex items-center justify-between">
-                    <div>
-                      <div className="text-[12px] font-bold text-[var(--text)]">▶ Free Preview</div>
-                      <div className="text-[10px] text-[var(--text3)]">{playingTitle}</div>
-                    </div>
-                    <button
-                      onClick={() => setPlayingVideoId(null)}
-                      className="text-[11px] font-semibold px-2.5 py-1 rounded-[6px] border border-[var(--border)] text-[var(--text2)] hover:bg-[var(--bg)] transition-colors"
-                    >✕ Close</button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div
-                    className="relative aspect-video overflow-hidden cursor-pointer group bg-[var(--hero-bg)]"
-                    onClick={() => freePreviewVideo && openPreview(freePreviewVideo.id, freePreviewVideo.title)}
-                  >
-                    {course.thumbnailUrl && (
-                      <img
-                        src={course.thumbnailUrl}
-                        alt={course.title}
-                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent z-[1]" />
-                    <div className="absolute inset-0 flex items-center justify-center z-[2] group-hover:scale-110 transition-transform duration-300">
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[var(--orange)] to-[var(--orange2)] flex items-center justify-center shadow-[0_4px_20px_rgba(240,78,0,.5)] transition-all group-hover:scale-110 group-hover:shadow-[0_6px_30px_rgba(240,78,0,.6)]">
-                        <div className="w-0 h-0 border-solid border-t-[9px] border-b-[9px] border-l-[17px] border-transparent border-l-white ml-[4px]" />
-                      </div>
-                    </div>
-                    <span className="absolute top-2.5 left-2.5 bg-[var(--green)] text-white px-2.5 py-[3px] rounded-[5px] text-[10.5px] font-extrabold uppercase tracking-[.5px] shadow-[0_2px_8px_rgba(22,163,74,.4)] z-[3]">Free Preview</span>
-                    <span className="absolute bottom-2 right-2.5 bg-[rgba(0,0,0,.65)] backdrop-blur-[4px] text-white px-2 py-[2px] rounded-[4px] text-[11px] font-mono z-[3]">
-                      {freePreviewVideo ? `${Math.floor(freePreviewVideo.durationSeconds / 60)}:${(freePreviewVideo.durationSeconds % 60).toString().padStart(2, "0")}` : `${Math.floor(totalDuration / 60)}:${(totalDuration % 60).toString().padStart(2, "0")}`}
-                    </span>
-                  </div>
+                  <PreviewPlayer
+                    videoId={freePreviewVideo.id}
+                    title={freePreviewVideo.title}
+                    durationSeconds={freePreviewVideo.durationSeconds}
+                  />
                   <div className="p-3.5 border-t border-[var(--border)]">
-                    <div className="text-[13px] font-bold text-[var(--text)]">{freePreviewVideo?.title ?? `Introduction to ${course.title}`}</div>
+                    <div className="text-[13px] font-bold text-[var(--text)]">{freePreviewVideo.title}</div>
                     <div className="text-[12px] text-[var(--text3)] flex items-center gap-1 mt-1">
                       <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                       Watch free · No login required
                     </div>
                   </div>
                 </>
+              ) : (
+                <div className="aspect-video bg-black flex items-center justify-center">
+                  <span className="text-[var(--text3)] text-[10px]">No preview available</span>
+                </div>
               )}
             </div>
 
@@ -383,7 +381,7 @@ export default function CourseDetailPage() {
                 <div className="font-['Syne',sans-serif] text-[20px] font-bold text-[var(--text)] pb-3 border-b border-[var(--border)] mb-3.5">Course Curriculum</div>
                 <div className="text-[12px] text-[var(--muted)] mb-4 p-[10px_14px] bg-[var(--bg)] rounded-[8px] border border-[var(--border)]">
                   <strong className="text-[var(--text)]">{course.sections.length} modules</strong> · {course.totalLessons} lessons · {course.hours}h total
-                  <span className="ml-2 text-[var(--green)] font-semibold">· 1 free preview</span>
+                  {freePreviewVideo && <span className="ml-2 text-[var(--green)] font-semibold">· 1 free preview</span>}
                 </div>
 
                 <div className="flex flex-col gap-3">
@@ -404,9 +402,9 @@ export default function CourseDetailPage() {
 
                         {items.map((item, vi) => {
                           const isVideo = "vdoCipherId" in item;
-                          const isFree = isFirstModule && vi === 0;
+                          const isFree = isFirstModule && vi === 0 && !!freePreviewVideo;
                           return (
-                            <div key={item.id} className={`flex items-center gap-3 p-3 rounded-[10px] border border-[var(--border)] bg-[var(--card)] transition-all ${isFree ? "hover:border-[var(--green)]/50 hover:shadow-[var(--shadow)] hover:translate-x-[2px]" : "opacity-65 bg-[var(--bg)]"}`}>
+                            <div key={item.id ?? `s${section.id}-${item.order}`} className={`flex items-center gap-3 p-3 rounded-[10px] border border-[var(--border)] bg-[var(--card)] transition-all ${isFree ? "hover:border-[var(--green)]/50 hover:shadow-[var(--shadow)] hover:translate-x-[2px]" : "opacity-65 bg-[var(--bg)]"}`}>
                               <div className={`w-7 h-7 rounded-[6px] flex items-center justify-center text-[11px] font-extrabold flex-shrink-0 ${isFree ? "bg-[var(--green)] text-white" : "bg-[var(--border)] text-[var(--muted)]"}`}>
                                 {isFree ? "✔" : <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>}
                               </div>
@@ -427,7 +425,7 @@ export default function CourseDetailPage() {
                               <div className="flex-shrink-0">
                                 {isFree ? (
                                   <button
-                                    onClick={() => openPreview(item.id, item.title)}
+                                    onClick={scrollToPreview}
                                     className="px-4 py-[6px] rounded-[6px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[12px] font-bold flex items-center gap-[5px] hover:opacity-90 hover:-translate-y-px transition-all"
                                   >
                                     <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
@@ -569,7 +567,7 @@ export default function CourseDetailPage() {
               <div className="p-4">
                 <button className="w-full py-3.5 rounded-[10px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[15px] font-extrabold shadow-[0_4px_20px_rgba(240,90,26,.35)] hover:opacity-90 hover:-translate-y-0.5 hover:shadow-[0_6px_28px_rgba(240,90,26,.45)] transition-all mb-2.5">🔓 Unlock Full Course</button>
                 <button
-                  onClick={() => freePreviewVideo && openPreview(freePreviewVideo.id, freePreviewVideo.title)}
+                  onClick={scrollToPreview}
                   className="w-full py-2.5 rounded-[10px] border-[1.5px] border-[var(--blue-dim)] text-[var(--blue)] text-[13.5px] font-bold hover:bg-[var(--blue-dim)]/20 transition-all"
                 >▶ Start Free Preview</button>
                 <div className="text-[11.5px] text-[var(--muted)] text-center mt-2.5 leading-[1.5]">No commitment. Cancel anytime.<br />Prices in INR · GST applicable</div>

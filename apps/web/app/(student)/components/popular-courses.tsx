@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 
 interface FeaturedCourse {
@@ -21,7 +22,12 @@ interface FeaturedCourse {
 
 const fallbackGradient = "linear-gradient(135deg,#0d1f3c,#0a2a1a)";
 
+function slugify(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 export function PopularCourses() {
+  const router = useRouter();
   const { data, isLoading } = useSWR<FeaturedCourse[]>("/api/courses/public/featured-courses");
   const courses = (Array.isArray(data) ? data : []).slice(0, 10);
 
@@ -45,7 +51,7 @@ export function PopularCourses() {
               </div>
             ))
           : courses.map((c) => (
-              <div key={c.id} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden cursor-pointer shadow-[var(--shadow)] hover:-translate-y-1 hover:border-[rgba(37,99,235,.3)] hover:shadow-[var(--shadow-lg)] group">
+              <div key={c.id} onClick={() => router.push(`/courses/${slugify(c.title)}`)} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden cursor-pointer shadow-[var(--shadow)] hover:-translate-y-1 hover:border-[rgba(37,99,235,.3)] hover:shadow-[var(--shadow-lg)] group">
                 <div className="relative aspect-[28/9] w-full overflow-hidden rounded-[18px_18px_0_0]" style={{ background: fallbackGradient }}>
                   {c.thumbnailUrl && (
                     <div className="absolute inset-0">

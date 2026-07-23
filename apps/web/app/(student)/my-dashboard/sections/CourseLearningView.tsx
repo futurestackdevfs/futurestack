@@ -96,6 +96,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
   const [discussionCount, setDiscussionCount] = useState<number | null>(null);
   const [certEarned, setCertEarned] = useState(false);
   const [showAchievement, setShowAchievement] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
 
   const { data: detail, isLoading } = useSWR<StudentCourseDetail>(
     `/api/student/courses/${courseId}`,
@@ -185,22 +186,22 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
   return (
     <div className="flex flex-col bg-[var(--bg)] h-full font-['Inter',system-ui,-apple-system,sans-serif]">
       {/* BREADCRUMB */}
-      <div className="flex items-center gap-[5px] px-4 py-[7px] bg-[var(--surface)] border-b border-[var(--border)] text-[10px] text-[var(--text3)] shrink-0">
-        <span className="cursor-pointer hover:text-[var(--orange)] transition-colors" onClick={onBack}>futurestack</span>
-        <span className="text-[var(--border2)]">/</span>
+      <div className="flex items-center gap-[4px] px-3 sm:px-4 py-[6px] sm:py-[7px] bg-[var(--surface)] border-b border-[var(--border)] text-[9px] sm:text-[10px] text-[var(--text3)] shrink-0">
+        <span className="cursor-pointer hover:text-[var(--orange)] transition-colors hidden sm:inline" onClick={onBack}>futurestack</span>
+        <span className="text-[var(--border2)] hidden sm:inline">/</span>
         <span className="cursor-pointer hover:text-[var(--orange)] transition-colors" onClick={onBack}>my-courses</span>
         <span className="text-[var(--border2)]">/</span>
-        <span className="text-[var(--orange)]">{course.title.toLowerCase().replace(/\s+/g, '-')}</span>
-        <span className="ml-auto flex items-center gap-[6px]">
+        <span className="text-[var(--orange)] truncate max-w-[90px] sm:max-w-[200px]">{course.title.toLowerCase().replace(/\s+/g, '-')}</span>
+        <span className="ml-auto flex items-center gap-[6px] hidden sm:flex">
           <span className="text-[var(--orange)] text-[10px]" style={{ animation: "pulse 1.6s ease infinite" }}>●</span>
           <span>{detail.sections.length} sections · {progress.progressPercent}% complete</span>
         </span>
       </div>
 
       {/* COURSE BODY */}
-      <div className="flex-1 overflow-hidden" style={{ display: "grid", gridTemplateColumns: "385px 1fr" }}>
+      <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[385px_1fr]">
         {/* LEFT PANEL — player + info */}
-        <div className="bg-[var(--surface)] border-r border-[var(--border)] overflow-y-auto flex flex-col">
+        <div className="bg-[var(--surface)] border-r-0 lg:border-r border-[var(--border)] overflow-y-auto flex flex-col">
           {/* Real Video or Quiz Player */}
           <div className="shrink-0">
             {currentItem?.type === 'video' ? (
@@ -233,24 +234,24 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
           </div>
 
           {/* Progress info */}
-          <div className="px-4 py-[14px] border-b border-[var(--border)]">
-            <div className="text-[13px] font-bold text-[var(--text)] mb-[3px]">
+          <div className="px-3 sm:px-4 py-[10px] sm:py-[14px] border-b border-[var(--border)]">
+            <div className="text-[12px] sm:text-[13px] font-bold text-[var(--text)] mb-[2px] sm:mb-[3px]">
               {currentItem?.title ?? course.title}
             </div>
-            <div className="flex items-center gap-[5px] text-[9.5px] text-[var(--text3)] mb-3">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <div className="flex items-center gap-[5px] text-[9px] sm:text-[9.5px] text-[var(--text3)] mb-2 sm:mb-3">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="hidden sm:block"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               {currentItem?.type === 'quiz' ? 'Quiz' : 'Video'} · {category}
             </div>
             <div className="flex justify-between items-center mb-[5px]">
-              <span className="text-[9px] font-bold uppercase tracking-[.06em] text-[var(--text3)]">Course Progress</span>
-              <span className="text-[14px] font-extrabold text-[var(--orange)]">{progress.progressPercent}%</span>
+              <span className="text-[8.5px] sm:text-[9px] font-bold uppercase tracking-[.06em] text-[var(--text3)]">Progress</span>
+              <span className="text-[13px] sm:text-[14px] font-extrabold text-[var(--orange)]">{progress.progressPercent}%</span>
             </div>
-            <div className="h-[6px] bg-[var(--border)] rounded-[99px] overflow-hidden mb-[6px]">
+            <div className="h-[5px] sm:h-[6px] bg-[var(--border)] rounded-[99px] overflow-hidden mb-[4px] sm:mb-[6px]">
               <div className="h-full bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] rounded-[99px] transition-[width_.9s_ease]"
                 style={{ width: `${progress.progressPercent}%` }} />
             </div>
-            <div className="text-[11px] text-[var(--text3)] mb-3">
-              <strong className="text-[var(--orange)]">{progress.completedItems} of {progress.totalItems}</strong> lessons completed
+            <div className="text-[10px] sm:text-[11px] text-[var(--text3)] mb-2 sm:mb-3">
+              <strong className="text-[var(--orange)]">{progress.completedItems} of {progress.totalItems}</strong> done
             </div>
             <button 
               onClick={async () => {
@@ -272,9 +273,9 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                   }
                 }
               }}
-              className="w-full py-[9px] rounded-[8px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[12px] font-bold flex items-center justify-center gap-[6px] transition-all hover:opacity-90"
+              className="w-full py-[8px] sm:py-[9px] rounded-[7px] sm:rounded-[8px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[11px] sm:text-[12px] font-bold flex items-center justify-center gap-[6px] transition-all hover:opacity-90"
               style={{ boxShadow: "0 3px 14px rgba(240,90,26,.35)" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               {resumeLabel}
             </button>
           </div>
@@ -299,20 +300,20 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
 
           {/* Instructor */}
           {instructor && (
-            <div className="px-4 py-[14px] border-b border-[var(--border)]">
-              <div className="text-[8.5px] font-bold uppercase tracking-[.1em] text-[var(--text3)] mb-[10px]">Instructor</div>
-              <div className="flex items-center gap-[10px] mb-[10px]">
-                <div className="w-[38px] h-[38px] rounded-full bg-gradient-to-r from-[var(--blue)] to-[var(--blue2)] flex items-center justify-center text-[13px] font-bold text-white shrink-0">
+            <div className="px-3 sm:px-4 py-[10px] sm:py-[14px] border-b border-[var(--border)]">
+              <div className="text-[8px] sm:text-[8.5px] font-bold uppercase tracking-[.1em] text-[var(--text3)] mb-[8px] sm:mb-[10px]">Instructor</div>
+              <div className="flex items-center gap-[8px] sm:gap-[10px] mb-[8px] sm:mb-[10px]">
+                <div className="w-[34px] sm:w-[38px] h-[34px] sm:h-[38px] rounded-full bg-gradient-to-r from-[var(--blue)] to-[var(--blue2)] flex items-center justify-center text-[11px] sm:text-[13px] font-bold text-white shrink-0">
                   {instructorInitials}
                 </div>
                 <div>
-                  <div className="text-[12.5px] font-bold text-[var(--text)] mb-[1px]">{instructor.name}</div>
-                  <div className="text-[9px] text-[var(--text3)] leading-[1.4]">
+                  <div className="text-[11.5px] sm:text-[12.5px] font-bold text-[var(--text)] mb-[1px]">{instructor.name}</div>
+                  <div className="text-[8.5px] sm:text-[9px] text-[var(--text3)] leading-[1.4]">
                     {instructor.bio ?? 'Senior Instructor'}<br />{category} Expert
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-[8px]">
+              <div className="grid grid-cols-3 gap-[6px] sm:gap-[8px]">
                 {[
                   { num: instructor.yearsExperience != null ? `${instructor.yearsExperience}+` : '—', lbl: 'Years Exp.' },
                   { num: String(instructor.coursesTaughtCount), lbl: 'Courses' },
@@ -335,32 +336,36 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
 
         {/* RIGHT PANEL — tabs */}
         <div className="overflow-hidden flex flex-col bg-[var(--bg)]">
-          <div className="flex bg-[var(--surface)] border-b border-[var(--border)] shrink-0 overflow-x-auto">
+          <div className="flex bg-[var(--surface)] border-b border-[var(--border)] shrink-0">
             {TABS.map(tab => {
               const info = TAB_LABELS[tab];
               return (
                 <button key={tab} onClick={() => setActiveTab(tab)}
-                  className={`flex items-center gap-[5px] px-5 py-3 text-[12.5px] font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-all bg-transparent border-none ${
+                  className={`flex items-center justify-center gap-[3px] sm:gap-[5px] px-3 sm:px-5 py-[10px] sm:py-3 text-[11px] sm:text-[12.5px] font-semibold cursor-pointer whitespace-nowrap flex-1 sm:shrink-0 transition-all bg-transparent border-none ${
                     activeTab === tab
                       ? "text-[var(--orange)] border-b-2 border-[var(--orange)] bg-[var(--surface)]"
                       : "text-[var(--text3)] hover:text-[var(--text2)] hover:bg-[var(--card-h)]"
                   }`}>
-                  <span className="text-[13px]">{info.icon}</span>
-                  {info.label}
+                  <span className="text-[11px] sm:text-[13px] hidden sm:inline">{info.icon}</span>
+                  <span className="sm:hidden truncate">{info.label}</span>
+                  <span className="hidden sm:inline">{info.label}</span>
                   {info.badge && (
-                    <span className="text-[9px] bg-[var(--orange-d)] text-[var(--orange)] px-[5px] py-[1px] rounded-[3px] ml-[3px]">{info.badge}</span>
+                    <span className="text-[8px] sm:text-[9px] bg-[var(--orange-d)] text-[var(--orange)] px-[4px] sm:px-[5px] py-[1px] rounded-[3px]">{info.badge}</span>
                   )}
                   {tab === "discussion" && discussionCount !== null && discussionCount > 0 && (
-                    <span className="text-[9px] bg-[var(--orange-d)] text-[var(--orange)] px-[5px] py-[1px] rounded-[3px] ml-[3px]">{discussionCount}</span>
+                    <span className="text-[8px] sm:text-[9px] bg-[var(--orange-d)] text-[var(--orange)] px-[4px] sm:px-[5px] py-[1px] rounded-[3px]">{discussionCount}</span>
                   )}
                 </button>
               );
             })}
+            {activeTab === "discussion" && (
+              <span onClick={() => setShowInfo(true)} className="ml-auto mr-2 self-center w-[20px] h-[20px] rounded-[4px] flex items-center justify-center text-[10px] font-bold border border-[var(--border)] text-[var(--text3)] cursor-pointer hover:border-[var(--orange)] hover:text-[var(--orange)] hover:bg-[var(--orange-d)] transition-all shrink-0 sm:hidden">i</span>
+            )}
           </div>
 
           {/* CURRICULUM */}
           <div className={`flex-1 overflow-y-auto ${activeTab === "curriculum" ? "flex flex-col" : "hidden"}`}>
-            <div className="p-4 flex flex-col gap-3">
+            <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-3 sm:pt-4 flex flex-col gap-[10px] sm:gap-3">
               {detail.sections.map((section, si) => {
                 const isOpen = openSections.has(section.id);
                 const hasActive = section.items.some(i => i.id === currentItemId);
@@ -373,15 +378,15 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                     className="bg-[var(--card)] border border-[var(--border)] rounded-[10px] overflow-hidden"
                     style={{ boxShadow: "var(--sh)", borderColor: hasActive ? "rgba(240,90,26,.3)" : undefined }}>
                     <div onClick={() => toggleSection(section.id)}
-                      className={`flex items-center gap-[10px] px-4 py-3 cursor-pointer select-none transition-all ${hasActive ? "bg-[rgba(240,90,26,.04)]" : "bg-[var(--surface)] hover:bg-[var(--card-h)]"}`}>
-                      <span className={`text-[10px] text-[var(--text3)] shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
-                      <span className="text-[9px] font-bold text-[var(--orange)] w-5 shrink-0">{String(si + 1).padStart(2, "0")}</span>
-                      <span className="text-[12.5px] font-bold text-[var(--text)] flex-1">{section.title}</span>
-                      <span className="text-[9px] text-[var(--text3)] flex gap-[10px] shrink-0">
+                      className={`flex items-center gap-[8px] sm:gap-[10px] px-3 sm:px-4 py-[10px] sm:py-3 cursor-pointer select-none transition-all ${hasActive ? "bg-[rgba(240,90,26,.04)]" : "bg-[var(--surface)] hover:bg-[var(--card-h)]"}`}>
+                      <span className={`text-[9px] sm:text-[10px] text-[var(--text3)] shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
+                      <span className="text-[8px] sm:text-[9px] font-bold text-[var(--orange)] w-[18px] sm:w-5 shrink-0">{String(si + 1).padStart(2, "0")}</span>
+                      <span className="text-[11.5px] sm:text-[12.5px] font-bold text-[var(--text)] flex-1 truncate">{section.title}</span>
+                      <span className="text-[8.5px] sm:text-[9px] text-[var(--text3)] gap-[8px] sm:gap-[10px] shrink-0 hidden sm:flex">
                         <span>{section.totalItems} lessons</span>
                         <span>{fmtMins(sectionMinutes)}</span>
                       </span>
-                      <span className="text-[9px] font-bold text-[var(--orange)] shrink-0">
+                      <span className="text-[8.5px] sm:text-[9px] font-bold text-[var(--orange)] shrink-0">
                         {section.completedItems}/{section.totalItems}
                       </span>
                     </div>
@@ -394,52 +399,51 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                         return (
                           <div key={item.id}
                             onClick={() => setCurrentItemId(item.id)}
-                            className={`grid items-center gap-[10px] px-4 py-[9px] border-t border-[var(--border)] transition-all ${
+                            className={`flex items-center gap-x-[8px] sm:gap-x-[10px] gap-y-1 px-3 sm:px-4 py-[7px] sm:py-[9px] border-t border-[var(--border)] transition-all ${
                               isSelected
-                                ? "bg-[rgba(240,90,26,.04)] border-l-2 border-l-[var(--orange)] cursor-pointer"
+                                ? "bg-[rgba(240,90,26,.04)] border-l-[3px] border-l-[var(--orange)] cursor-pointer"
                                 : item.isCompleted
                                   ? "hover:bg-[var(--card-h)] cursor-pointer opacity-80"
                                   : "hover:bg-[var(--card-h)] cursor-pointer"
-                            }`}
-                            style={{ gridTemplateColumns: "24px 1fr auto auto auto" }}>
+                            } ${item.type === 'quiz' ? "sm:grid sm:grid-cols-[24px_1fr_auto_auto_auto]" : "sm:grid sm:grid-cols-[24px_1fr_auto_auto_auto]"}`}>
 
                             {/* Status dot */}
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                            <div className={`w-[18px] sm:w-5 h-[18px] sm:h-5 rounded-full flex items-center justify-center text-[8px] sm:text-[9px] font-bold shrink-0 ${
                               item.isCompleted
                                 ? "bg-green-600 dark:bg-green-500 text-white"
                                 : isSelected
                                   ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
                                   : "bg-[var(--orange-d)] text-[var(--orange)]"
                             }`}
-                              style={isSelected ? { boxShadow: "0 2px 8px rgba(240,90,26,.5)", animation: "pulse 1.6s ease infinite" } : {}}>
+                              style={isSelected ? { boxShadow: "0 2px 8px rgba(240,90,26,.5)" } : {}}>
                               {item.isCompleted ? "✓" : isSelected ? "▶" : "○"}
                             </div>
 
                             {/* Title + type */}
-                            <div>
-                              <div className="text-[11.5px] font-semibold text-[var(--text)] leading-[1.3]"
+                            <div className="flex-1 sm:flex-none min-w-0">
+                              <div className="text-[10.5px] sm:text-[11.5px] font-semibold text-[var(--text)] leading-[1.3] truncate"
                                 style={isSelected ? { color: "var(--orange)" } : {}}>
                                 {item.title}
                               </div>
-                              <div className="text-[9px] text-[var(--text3)] mt-[1px]">
+                              <div className="text-[8.5px] sm:text-[9px] text-[var(--text3)] mt-[1px]">
                                 {item.type === 'quiz'
-                                  ? `📝 Quiz · ${item.totalQuestions ?? '?'} questions`
+                                  ? `📝 Quiz · ${item.totalQuestions ?? '?'} q`
                                   : '📹 Video'}
                               </div>
                             </div>
 
                             {/* Duration */}
-                            <div className="text-[10px] text-[var(--text2)] text-right whitespace-nowrap">
+                            <div className="text-[9px] sm:text-[10px] text-[var(--text2)] text-right whitespace-nowrap hidden sm:block">
                               {item.type === 'video' && item.durationSeconds ? fmtMins(item.durationSeconds) : ''}
                             </div>
 
                             {/* Score */}
-                            <div className="text-[10px] font-bold text-right whitespace-nowrap text-[var(--text3)]">
+                            <div className="text-[9px] sm:text-[10px] font-bold text-right whitespace-nowrap text-[var(--text3)] hidden sm:block">
                               {item.score != null ? `${item.score}%` : '—'}
                             </div>
 
                             {/* Badge */}
-                            <div className={`text-[8px] font-bold px-[7px] py-[2px] rounded-[3px] text-center whitespace-nowrap ${
+                            <div className={`text-[7.5px] sm:text-[8px] font-bold px-[5px] sm:px-[7px] py-[1px] sm:py-[2px] rounded-[3px] text-center whitespace-nowrap shrink-0 ${
                               item.isCompleted
                                 ? "bg-green-500/15 text-green-600 dark:text-green-400"
                                 : isSelected
@@ -461,7 +465,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
 
           {/* OVERVIEW */}
           <div className={`flex-1 overflow-y-auto ${activeTab === "overview" ? "flex flex-col" : "hidden"}`}>
-            <div className="p-5 flex flex-col gap-[22px]">
+            <div className="p-3 sm:p-5 flex flex-col gap-[14px] sm:gap-[22px]">
               <div>
                 <div className="flex items-center gap-[8px] text-[9px] font-bold uppercase tracking-[.12em] text-[var(--text3)] mb-[10px]">
                   About This Course <span className="flex-1 h-px bg-[var(--border)]" />
@@ -504,7 +508,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
 
           {/* RESOURCES */}
           <div className={`flex-1 overflow-y-auto ${activeTab === "resources" ? "flex flex-col" : "hidden"}`}>
-            <div className="p-4 flex flex-col gap-[8px]">
+            <div className="p-3 sm:p-4 flex flex-col gap-[6px] sm:gap-[8px]">
               {detail.resources.length === 0 ? (
                 <div className="flex flex-col items-center py-10 text-center">
                   <div className="text-3xl mb-3">📄</div>
@@ -538,6 +542,37 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
           </div>
         </div>
       </div>
+
+      {/* Discussion info popup */}
+      {showInfo && (
+        <div className="fixed inset-0 z-50 flex flex-col sm:hidden">
+          <div className="flex-1" style={{ background: "rgba(0,0,0,.35)" }} onClick={() => setShowInfo(false)} />
+          <div className="bg-[var(--card)] rounded-t-2xl px-4 pt-4 pb-5 shadow-[0_-8px_30px_rgba(0,0,0,.12)]">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[12px] font-bold text-[var(--text)]">💬 Discussion Info</span>
+              <button onClick={() => setShowInfo(false)} className="w-[22px] h-[22px] rounded-full flex items-center justify-center bg-[var(--bg)] border-none cursor-pointer text-[var(--muted)] hover:text-[var(--text)]">
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {[
+                { ico: "❓", title: "Doubts", desc: "Ask questions about course content." },
+                { ico: "💡", title: "Tips", desc: "Share useful tips and tricks." },
+                { ico: "📢", title: "Announcements", desc: "Updates from instructors." },
+                { ico: "📎", title: "Resources", desc: "Supplementary articles & tools." },
+              ].map(item => (
+                <div key={item.title} className="flex items-center gap-2.5 p-2.5 rounded-[8px] bg-[var(--surface)] border border-[var(--border)]">
+                  <div className="w-[22px] h-[22px] rounded-[5px] bg-[var(--bg2)] border border-[var(--border)] flex items-center justify-center text-[11px] shrink-0">{item.ico}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-bold text-[var(--text)]">{item.title}</div>
+                    <div className="text-[9.5px] text-[var(--text3)]">{item.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`@keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.4 } }`}</style>
 

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import useSWR from "swr";
 import { useState } from "react";
 import { useAuth } from "@/app/auth/hooks/use-auth";
@@ -161,9 +162,139 @@ async function downloadCertificatePdf(cert: EarnedCert, studentName: string) {
   }
 }
 
-export default function CertificatesSection({ embedded }: { embedded?: boolean }) {
+const staticLocked: LockedCert[] = [
+  { courseId: "fs-101", courseTitle: "Full-Stack React & Node.js Mastery", category: "Full Stack", price: 4999 },
+  { courseId: "ai-201", courseTitle: "Machine Learning with Python", category: "AI / ML", price: 6499 },
+  { courseId: "cloud-301", courseTitle: "AWS Cloud Architecture", category: "Cloud", price: 5499 },
+  { courseId: "devops-401", courseTitle: "DevOps with Docker & Kubernetes", category: "DevOps", price: 5999 },
+  { courseId: "ds-501", courseTitle: "Data Science & Analytics", category: "Data Science", price: 4499 },
+  { courseId: "sec-601", courseTitle: "Cybersecurity Fundamentals", category: "Security", price: 3999 },
+];
+
+function StaticCertificates({ studentName }: { studentName: string }) {
+  const [activeLockedId, setActiveLockedId] = useState<string | null>(staticLocked[0]?.courseId ?? null);
+  const activeLocked = staticLocked.find(c => c.courseId === activeLockedId) ?? null;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] flex-1 min-h-0 overflow-hidden">
+      {/* ─── LEFT ─── */}
+      <div className="border-r border-[var(--border)] overflow-y-auto bg-[var(--surface)] flex flex-col">
+        <div className="px-5 py-[18px] border-b border-[var(--border)] bg-[var(--surface)]">
+          <div className="font-['Inter_Tight',sans-serif] text-[18px] font-[800] text-[var(--text)] mb-[2px]">My Certificates</div>
+          <div className="text-[11.5px] text-[var(--text3)] mb-[14px]">Verified credentials recognised by 400+ hiring partners</div>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { num: 0, lbl: "Earned", color: "var(--green)" },
+              { num: 0, lbl: "In Progress", color: "var(--orange)" },
+              { num: staticLocked.length, lbl: "Locked", color: "var(--text)" },
+            ].map(s => (
+              <div key={s.lbl} className="text-center py-2.5 px-1.5 bg-[var(--bg2)] border border-[var(--border)] rounded-lg">
+                <div className="font-['Inter_Tight',sans-serif] text-[22px] font-[800] leading-none" style={{ color: s.color }}>{s.num}</div>
+                <div className="font-['JetBrains_Mono',monospace] text-[8px] uppercase tracking-[.07em] text-[var(--text3)] mt-[3px]">{s.lbl}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--text3)] flex items-center gap-2 px-5 pt-2.5 pb-1.5">
+          🔒 Locked
+          <span className="flex-1 h-[1px] bg-[var(--border)]" />
+        </div>
+
+        {staticLocked.map(c => (
+          <div
+            key={c.courseId}
+            onClick={() => setActiveLockedId(c.courseId)}
+            className={`flex items-center gap-3 px-5 py-2.5 border-b border-[var(--border)] cursor-pointer transition-colors duration-100 ${activeLockedId === c.courseId ? "bg-[rgba(240,90,26,.05)] border-l-2 border-l-[var(--orange)] opacity-100" : "hover:bg-[var(--card-h)] opacity-[.55]"}`}
+          >
+            <div className="w-[34px] h-[34px] rounded-[9px] bg-[var(--bg2)] border border-[var(--border)] flex items-center justify-center text-[14px] flex-shrink-0 text-[var(--text3)]">🔒</div>
+            <div className="flex-1">
+              <div className="text-[12px] font-semibold text-[var(--text3)]">{c.courseTitle}</div>
+              <div className="font-['JetBrains_Mono',monospace] text-[8.5px] text-[var(--text3)] mt-[2px]">{c.category}{c.price != null ? ` · ₹${c.price.toLocaleString("en-IN")}` : ""}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ─── RIGHT ─── */}
+      <div className="bg-[var(--bg)] flex flex-col items-center gap-5 py-8 px-7 overflow-y-auto">
+        {activeLocked ? (
+          <div className="w-full max-w-[600px] bg-[#fdfbf6] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,.14),0_2px_8px_rgba(0,0,0,.08)] overflow-hidden relative [animation:fadeUp_.35s_ease_both] grayscale-[.4]">
+            <div className="absolute inset-0 pointer-events-none z-0 opacity-[.5]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px,rgba(201,168,76,.15) 1px,transparent 0)", backgroundSize: "14px 14px" }} />
+            <div className="absolute right-[-30px] bottom-[-40px] w-[240px] h-[240px] opacity-[.05] pointer-events-none z-0 flex items-center justify-center font-['Inter_Tight',sans-serif] font-[800] text-[160px] text-[#0d1f3c] rotate-[-8deg]">FS</div>
+            <div className="m-[9px] border border-[#c9a84c] rounded-[6px] relative z-[1]">
+              <div className="m-[7px] border-[2.5px] border-[#c9a84c] rounded-[4px] px-9 py-[30px] pb-[26px] relative bg-transparent">
+                <div className="absolute top-[-2.5px] left-[-2.5px] w-[22px] h-[22px] border-t-[2.5px] border-l-[2.5px] border-[#8b6914] rounded-tl-[4px] z-[2]" />
+                <div className="absolute top-[-2.5px] right-[-2.5px] w-[22px] h-[22px] border-t-[2.5px] border-r-[2.5px] border-[#8b6914] rounded-tr-[4px] z-[2]" />
+                <div className="absolute bottom-[-2.5px] left-[-2.5px] w-[22px] h-[22px] border-b-[2.5px] border-l-[2.5px] border-[#8b6914] rounded-bl-[4px] z-[2]" />
+                <div className="absolute bottom-[-2.5px] right-[-2.5px] w-[22px] h-[22px] border-b-[2.5px] border-r-[2.5px] border-[#8b6914] rounded-br-[4px] z-[2]" />
+
+
+
+                <div className="text-center border-b border-[#e8d99a] pb-4 mb-[18px] relative z-[1]">
+                  <div className="font-['Inter_Tight',sans-serif] text-[10px] font-[800] uppercase tracking-[.24em] text-[#8b6914] mb-[6px]">FutureStack Academy</div>
+                  <div className="font-['Instrument_Serif',Georgia,serif] text-[19px] italic text-[#5a4008] leading-[1.3]">Certificate of Completion</div>
+                </div>
+
+                <div className="relative w-[64px] h-[80px] mx-auto mb-4 z-[1]">
+                  <div className="w-[64px] h-[64px] rounded-full bg-[linear-gradient(135deg,#c9a84c,#e8c96a,#c9a84c)] flex items-center justify-center text-[28px] shadow-[0_3px_14px_rgba(201,168,76,.45),inset_0_0_0_3px_rgba(255,255,255,.35)] relative z-[2]">
+                    {getEmoji(activeLocked.category)}
+                  </div>
+                </div>
+
+                <div className="text-[10.5px] text-[#8b7340] text-center tracking-[.08em] uppercase mb-2 relative z-[1] whitespace-nowrap">This certifies that</div>
+                <div className="font-['Instrument_Serif',Georgia,serif] text-[32px] italic text-[#1a1208] text-center leading-[1.15] mb-[14px] pb-2.5 border-b border-dashed border-[#d4b96a] relative z-[1] whitespace-nowrap overflow-hidden text-ellipsis px-4">{studentName}</div>
+
+                <div className="text-[10px] text-[#8b7340] text-center tracking-[.1em] uppercase mb-[5px] relative z-[1] whitespace-nowrap">has successfully completed</div>
+                <div className="font-['Inter_Tight',sans-serif] text-[16px] font-[800] text-[#0d1f3c] text-center mb-3 leading-[1.3] relative z-[1] px-4">{activeLocked.courseTitle}</div>
+
+                <div className="text-[11px] text-[#5a4a30] text-center leading-[1.65] max-w-[400px] mx-auto mb-[18px] relative z-[1]">Master {activeLocked.category} skills through hands-on projects and real-world scenarios to earn this credential.</div>
+
+                <div className="flex justify-between items-end border-t border-[#e8d99a] pt-4 relative z-[1] w-full">
+                  <div className="text-center w-[32%]">
+                    <div className="font-['Instrument_Serif',Georgia,serif] italic text-[15px] text-[#1a1208] border-b border-[#c9a84c] pb-[5px] mb-[4px] whitespace-nowrap overflow-hidden text-ellipsis">FutureStack Faculty</div>
+                    <div className="text-[8.5px] uppercase tracking-[.08em] text-[#8b7340] whitespace-nowrap">Course Instructor</div>
+                  </div>
+                  <div className="text-center flex flex-col items-center justify-end w-[32%]">
+                    <img src="/images/logo.png" alt="FutureStack" className="h-[26px] w-auto object-contain" />
+                  </div>
+                  <div className="text-center w-[32%]">
+                    <div className="font-['Inter',sans-serif] text-[7.5px] text-[#b09040] mb-[2px] whitespace-nowrap">ID: {activeLocked.courseId}••••</div>
+                    <div className="font-['Inter',sans-serif] text-[8px] text-[#8b6914] font-semibold whitespace-nowrap">Not yet issued</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="absolute top-[14px] right-[-2px] z-[3] bg-[linear-gradient(135deg,#6b7280,#9ca3af)] text-white font-['Inter',sans-serif] text-[8.5px] font-bold py-[4px] pl-[10px] pr-3 shadow-[0_2px_8px_rgba(107,114,128,.35)] flex items-center gap-1" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 50%)" }}>
+              🔒 Locked
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-[14px] px-6 py-10 text-center">
+            <div className="w-[72px] h-[72px] rounded-full bg-[var(--bg2)] border-2 border-[var(--border)] flex items-center justify-center text-[32px] text-[var(--text3)] shadow-[inset_0_2px_8px_rgba(0,0,0,.06)]">🔒</div>
+            <div className="font-['Inter_Tight',sans-serif] text-[17px] font-[800] text-[var(--text)]">Select a course</div>
+            <div className="text-[12px] text-[var(--text3)] max-w-[320px] leading-[1.7]">Pick a course from the left panel to preview its locked certificate.</div>
+          </div>
+        )}
+        {activeLocked && (
+          <div className="flex flex-col sm:flex-row gap-2.5 w-full max-w-[580px]">
+            <Link href={`/courses`} className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-[var(--orange)] text-white shadow-[0_3px_12px_rgba(240,90,26,.3)] border-none hover:bg-[var(--orange2)] hover:-translate-y-[1px] no-underline">
+              Enroll Now →
+            </Link>
+            <Link href={`/paths`} className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)] hover:border-[var(--blue)] hover:text-[var(--blue)] no-underline">
+              View Learning Path
+            </Link>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function CertificatesSection({ embedded, enrolledCount }: { embedded?: boolean; enrolledCount?: number }) {
   const { user } = useAuth();
-  const { data, isLoading, error } = useSWR<CertificatesResponse>("/api/certificates/my");
+  const skipApi = !enrolledCount || enrolledCount === 0;
+  const { data, isLoading, error } = useSWR<CertificatesResponse>(skipApi ? null : "/api/certificates/my");
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const earned = data?.earned ?? [];
@@ -210,16 +341,10 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
             <div className="font-['JetBrains_Mono',monospace] text-[11px] text-[var(--text3)]">Loading certificates…</div>
           </div>
         </div>
-      ) : error ? (
-        <div className="flex items-center justify-center flex-1">
-          <div className="text-center px-6 py-10">
-            <div className="text-[40px] mb-3">⚠️</div>
-            <div className="font-['Inter_Tight',sans-serif] text-[16px] font-bold text-[var(--text)] mb-2">Failed to load certificates</div>
-            <div className="text-[12px] text-[var(--text3)] max-w-[320px] mx-auto leading-[1.6]">There was a problem fetching your certificates. Please try again later.</div>
-          </div>
-        </div>
+      ) : error || skipApi ? (
+        <StaticCertificates studentName={studentName} />
       ) : (
-        <div className="grid grid-cols-[2fr_3fr] flex-1 min-h-0 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] flex-1 min-h-0 overflow-hidden">
           {/* ─── LEFT ─── */}
           <div className="border-r border-[var(--border)] overflow-y-auto bg-[var(--surface)] flex flex-col">
             <div className="px-5 py-[18px] border-b border-[var(--border)] bg-[var(--surface)]">
@@ -235,7 +360,7 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
               </div>
             </div>
 
-            <div className="flex gap-[7px] px-5 py-3 border-b border-[var(--border)] bg-[var(--bg2)]">
+            <div className="flex flex-col sm:flex-row gap-[7px] px-5 py-3 border-b border-[var(--border)] bg-[var(--bg2)]">
               <button className="flex-1 py-[7px] px-2.5 rounded-[7px] text-[11.5px] font-semibold flex items-center justify-center gap-1.5 transition-all duration-[0.15s] bg-[linear-gradient(135deg,#0a66c2,#1a8cff)] text-white border-none hover:opacity-[.88] hover:-translate-y-[1px]">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z" /><circle cx="4" cy="4" r="2" /></svg>
                 Share on LinkedIn
@@ -360,14 +485,7 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
 
                       <div className="flex items-center justify-center gap-[9px] mb-[14px] relative z-[1]">
                         <img src="/images/logo.png" alt="FutureStack" className="h-[34px] w-auto object-contain flex-shrink-0" style={{ mixBlendMode: 'multiply' }} />
-                        <div className="w-[34px] h-[34px] rounded-lg flex-shrink-0 bg-[linear-gradient(135deg,#f05a1a,#ff7a3c)] flex items-center justify-center font-['Inter_Tight',sans-serif] font-[800] text-[15px] text-white shadow-[0_3px_10px_rgba(240,90,26,.35)]">FS</div>
-                        <div className="text-left leading-[1.1]">
-                          <div className="font-['Inter_Tight',sans-serif] font-[800] text-[15px] text-[#1a1208]"><span className="text-[#f05a1a]">Future</span>Stack</div>
-                          <div className="text-[7.5px] text-[#8b7340] tracking-[.08em] uppercase mt-[1px]">Think Ahead. Code Beyond.</div>
-                        </div>
-                      </div>
-
-                      <div className="text-center border-b border-[#e8d99a] pb-4 mb-[18px] relative z-[1]">
+                      </div>                      <div className="text-center border-b border-[#e8d99a] pb-4 mb-[18px] relative z-[1]">
                         <div className="font-['Inter_Tight',sans-serif] text-[10px] font-[800] uppercase tracking-[.24em] text-[#8b6914] mb-[6px]">FutureStack Academy</div>
                         <div className="font-['Instrument_Serif',Georgia,serif] text-[19px] italic text-[#5a4008] leading-[1.3]">Certificate of Completion</div>
                       </div>
@@ -417,7 +535,7 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                   </div>
                 </div>
 
-                <div className="flex gap-2.5 w-full max-w-[580px]">
+                <div className="flex flex-col sm:flex-row gap-2.5 w-full max-w-[580px]">
                   <button
                     onClick={() => downloadCertificatePdf(activeEarned, studentName)}
                     className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-[var(--orange)] text-white shadow-[0_3px_12px_rgba(240,90,26,.3)] border-none hover:bg-[var(--orange2)] hover:-translate-y-[1px] cursor-pointer"
@@ -435,7 +553,7 @@ export default function CertificatesSection({ embedded }: { embedded?: boolean }
                   </button>
                 </div>
 
-                <div className="w-full max-w-[580px] bg-[var(--surface)] border border-[var(--border)] rounded-[10px] px-[18px] py-[14px] grid grid-cols-4">
+                <div className="w-full max-w-[580px] bg-[var(--surface)] border border-[var(--border)] rounded-[10px] px-[18px] py-[14px] grid grid-cols-2 sm:grid-cols-4">
                   {[
                     { val: activeEarned.score !== null ? `${activeEarned.score}%` : "—", lbl: "Final Score", color: activeEarned.score !== null ? "var(--green)" : "var(--text3)" },
                     { val: String(activeEarned.totalSections), lbl: "Modules" },

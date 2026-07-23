@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useMemo } from "react";
 import useSWR from "swr";
 
@@ -71,11 +72,13 @@ function buildFilters(selectedFilters: Set<string>) {
 export default function CoursesPage() {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set());
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("Most Popular");
   const [currentPage, setCurrentPage] = useState(1);
   const [enrolled, setEnrolled] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const perPage = 12;
 
   const params = useMemo(() => {
@@ -243,25 +246,34 @@ export default function CoursesPage() {
           ) : (
             <div className="grid gap-4" style={{ gridTemplateColumns: viewMode === "list" ? "1fr" : "repeat(auto-fill, minmax(270px, 1fr))" }}>
               {allCourses.map((course) => (
-                <Link key={course.id} href={`/courses/${course.slug}`} className={`border border-[var(--border)] rounded-xl bg-[var(--card)] overflow-hidden cursor-pointer relative flex flex-col transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-[5px] hover:shadow-[var(--shadow-lg)] hover:border-[#C7D8FF] ${viewMode === "list" ? "md:flex-row" : ""} no-underline`}>
-                  <div className={`relative overflow-hidden ${viewMode === "list" ? "w-full md:w-[200px] h-full min-h-[120px]" : "h-[90px]"}`}>
-                    <img src={course.img} alt={course.title} className="w-full h-full object-cover transition-transform duration-[350ms] hover:scale-105" />
+                <article
+                  key={course.id}
+                  className={`group border border-[var(--border)] rounded-xl bg-[var(--card)] overflow-hidden cursor-pointer flex flex-col transition-[transform,box-shadow,border-color] duration-[220ms] ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-[5px] hover:shadow-[var(--shadow-lg)] hover:border-[#C7D8FF] ${viewMode === "list" ? "md:flex-row" : ""}`}
+                  onClick={() => router.push(`/courses/${course.slug}`)}
+                  role="link"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter") router.push(`/courses/${course.slug}`); }}
+                >
+                  <div className={`relative overflow-hidden ${viewMode === "list" ? "md:w-[200px] md:h-full md:min-h-[120px]" : "h-[150px]"}`}>
+                    <img src={course.img} alt={course.title} className="w-full h-full object-cover transition-transform duration-[350ms] group-hover:scale-105" />
                     <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[rgba(13,31,92,.55)]"></div>
                     {course.badge && (
                       <span className={`absolute top-2.5 left-2.5 px-3 py-[4px] rounded-[20px] text-[10.5px] font-extrabold tracking-[.5px] uppercase text-white shadow-[0_2px_10px_rgba(0,0,0,.25)] ${course.badgeClass}`}>{course.badge}</span>
                     )}
                   </div>
-                  <div className="p-[14px_15px_12px] flex-1 flex flex-col gap-1.5">
+                  <div className="p-[14px_15px_10px] flex-1 flex flex-col gap-1">
+                    <div className="text-[11px] font-semibold text-[var(--orange)] uppercase tracking-[.6px]">{course.category}</div>
                     <div className="font-['Syne',sans-serif] text-[14.5px] font-bold text-[var(--text)] leading-[1.35] line-clamp-2">{course.title}</div>
-                    {course.careerTitle && (
-                      <div className="text-[11.5px] font-semibold text-[var(--blue)] line-clamp-1">🎯 {course.careerTitle}</div>
-                    )}
-                    {course.techStack?.length > 0 && (
-                      <div className="text-[12px] text-[var(--muted)] line-clamp-1">{formatTechLine(course.techStack)}</div>
-                    )}
-                    <div className="flex items-center gap-1">
-                      <svg className="w-3.5 h-3.5 shrink-0 text-[var(--muted)]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
-                      <span className="text-[12px] text-[var(--muted)]">{Math.max(1, Math.round(course.hours / 10))} weeks to complete</span>
+                    <div className="text-[12px] text-[var(--muted)] leading-[1.55] line-clamp-2">{course.description}</div>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <div className="flex items-center gap-[1px]">{renderStars(course.rating, course.id)}</div>
+                      <span className="text-[11.5px] font-bold text-[var(--text)]">{course.rating}</span>
+                      <span className="text-[11px] text-[var(--muted)]">({course.reviews})</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11.5px] text-[var(--muted)] mt-auto pt-1.5">
+                      <span className="flex items-center gap-1"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>{course.hours} hrs</span>
+                      <span className="flex items-center gap-1"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>{course.students}</span>
+                      <span>{course.level}</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between gap-2 px-[15px] py-[10px_13px] border-t border-[var(--border)]">
@@ -269,14 +281,11 @@ export default function CoursesPage() {
                       <div className={`w-[26px] h-[26px] rounded-full text-[10px] font-bold text-white flex items-center justify-center shrink-0 bg-gradient-to-br ${course.mentorColor}`}>{course.mentor}</div>
                       <span className="text-[12px] text-[var(--text2)] font-medium truncate">{course.mentorName}</span>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] font-bold text-[var(--blue)] bg-[var(--blue-dim)] px-[7px] py-[3px] rounded-full whitespace-nowrap">Certificate</span>
-                      <button className="px-[9px] py-[4px] rounded-[5px] border-none text-[10px] font-bold text-white shadow-[0_2px_6px_rgba(240,78,0,.2)] cursor-pointer transition-[opacity,transform] duration-[180ms] hover:opacity-[.88] hover:-translate-y-px whitespace-nowrap" style={{ background: enrolled.has(course.id) ? "linear-gradient(135deg,#22C55E,#16A34A)" : "linear-gradient(135deg,var(--orange),var(--orange2))" }} onClick={() => handleEnroll(course.id)}>
-                        {enrolled.has(course.id) ? "✓ Added!" : "Enroll →"}
-                      </button>
-                    </div>
+                    <button className="px-[14px] py-[6px] rounded-[6px] border-none text-[11px] font-bold text-white shadow-[0_2px_6px_rgba(240,78,0,.2)] cursor-pointer transition-[opacity,transform] duration-[180ms] hover:opacity-[.88] active:scale-[.97] whitespace-nowrap" style={{ background: enrolled.has(course.id) ? "linear-gradient(135deg,#22C55E,#16A34A)" : "linear-gradient(135deg,var(--orange),var(--orange2))" }} onClick={(e) => { e.stopPropagation(); handleEnroll(course.id); }}>
+                      {enrolled.has(course.id) ? "✓ Added!" : "Enroll →"}
+                    </button>
                   </div>
-                </Link>
+                </article>
               ))}
             </div>
           )}
@@ -311,6 +320,64 @@ export default function CoursesPage() {
           </div>
         </div>
       </main>
+
+      {/* Mobile filter FAB */}
+      <button onClick={() => setMobileFilterOpen(true)} className="fixed bottom-5 right-5 z-40 lg:hidden w-[48px] h-[48px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-[250ms] hover:scale-105 active:scale-95 border-none outline-none" style={{ background: "linear-gradient(135deg, #f05a1a 0%, #ff7a3c 100%)", boxShadow: "0 4px 16px rgba(240,90,26,.35), inset 0 1px 0 rgba(255,255,255,.2)" }}>
+        <svg width="18" height="18" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M4 6h16M8 12h8M11 18h2" strokeLinecap="round" /></svg>
+        {selectedFilters.size > 0 && (
+          <span className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-white text-[var(--orange)] text-[9px] font-bold flex items-center justify-center shadow-[0_2px_6px_rgba(0,0,0,.15)]">{selectedFilters.size}</span>
+        )}
+      </button>
+
+      {/* Mobile filter overlay */}
+      {mobileFilterOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex flex-col" style={{ background: "rgba(0,0,0,.35)" }}>
+          <div className="flex-1" onClick={() => setMobileFilterOpen(false)} />
+          <div className="bg-[var(--card)] rounded-t-2xl max-h-[75vh] overflow-y-auto px-4 pt-4 pb-8 shadow-[0_-8px_30px_rgba(0,0,0,.12)]">
+            <div className="flex items-center justify-between mb-3">
+              <div className="px-[13px] text-[13px] font-bold text-[var(--text2)] tracking-[.3px]">Filters</div>
+              <div className="flex items-center gap-2">
+                {selectedFilters.size > 0 && (
+                  <button className="text-[12px] text-[var(--orange)] font-semibold bg-transparent border-none cursor-pointer hover:opacity-75" onClick={clearAllFilters}>Clear All</button>
+                )}
+                <button onClick={() => setMobileFilterOpen(false)} className="w-[30px] h-[30px] rounded-full flex items-center justify-center bg-[var(--bg)] border-none cursor-pointer text-[var(--muted)] hover:text-[var(--text)]">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+              </div>
+            </div>
+            {facets.length === 0 && (
+              <div className="px-[13px] py-2 text-[12px] text-[var(--muted)]">Loading filters…</div>
+            )}
+            {facets.map((s) => {
+              const hasActive = [...selectedFilters].some((f) => f.startsWith(s.key + "-"));
+              return (
+                <div key={s.key} className="border border-[var(--border)] rounded-[10px] overflow-hidden mb-2">
+                  <div className={`flex items-center justify-between px-[13px] py-2.5 font-bold text-[12px] tracking-[.6px] uppercase text-[var(--muted)] bg-[var(--bg)] cursor-pointer select-none hover:bg-gray-100 ${hasActive ? "text-[var(--blue)]" : ""}`} onClick={() => setOpenSection((prev) => (prev === s.key ? null : s.key))}>
+                    {s.title}
+                    <svg className={`w-3.5 h-3.5 transition-transform ${openSection === s.key ? "" : "-rotate-90"}`} fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+                  </div>
+                  {openSection === s.key && (
+                    <div className="px-[13px] py-2.5 flex flex-col gap-[7px] max-h-[200px] overflow-y-auto overscroll-contain">
+                      {s.options.map((opt) => {
+                        const key = `${s.key}-${opt.value}`;
+                        return (
+                          <div key={opt.value} className="flex items-center gap-[9px] cursor-pointer px-[7px] py-[5px] rounded-[6px] hover:bg-[var(--blue-dim)]" onClick={() => toggleFilter(key)}>
+                            <input type="checkbox" checked={selectedFilters.has(key)} onChange={() => {}} className="accent-[var(--blue)] w-3.5 h-3.5 cursor-pointer pointer-events-none" />
+                            <label className="flex-1 flex justify-between items-center text-[13px] text-[var(--text2)] cursor-pointer pointer-events-none">
+                              {opt.value} <span className="text-[11px] text-[var(--muted)] bg-[var(--bg)] px-[6px] py-[1px] rounded-[10px]">{opt.count}</span>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <button onClick={() => setMobileFilterOpen(false)} className="w-full mt-3 py-[11px] rounded-[10px] border-none text-[13px] font-bold text-white cursor-pointer transition-opacity hover:opacity-90" style={{ background: "linear-gradient(135deg, var(--orange), var(--orange2))" }}>Apply Filters</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

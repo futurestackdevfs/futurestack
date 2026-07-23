@@ -296,28 +296,6 @@ export default function DiscussionTab({ courseId, onCountChange }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Tag Legend */}
-      <details className="cursor-pointer select-none px-3 py-1.5" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-        <summary className="font-mono text-[8px] uppercase tracking-wider" style={{ color: "var(--text3)" }}>
-          Tag legend — click to expand
-        </summary>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-          {([
-            { tag: "DOUBT", desc: "Question / doubt", who: "Everyone" },
-            { tag: "TIP", desc: "Helpful tip / trick", who: "Everyone" },
-            { tag: "ANNOUNCEMENT", desc: "Official announcement", who: "Staff only" },
-            { tag: "RESOURCE", desc: "Useful link / reference material", who: "Everyone" },
-          ] as const).map(({ tag, desc, who }) => (
-            <div key={tag} className="flex items-center gap-1.5">
-              <span className="font-mono text-[7.5px] font-bold px-1 py-[1px] rounded" style={{ background: TAG_STYLES[tag]?.bg || "var(--panel)", color: TAG_STYLES[tag]?.text || "var(--text3)" }}>
-                {TAG_ICONS[tag]} {TAG_STYLES[tag]?.label || tag.toLowerCase()}
-              </span>
-              <span className="font-mono text-[7.5px]" style={{ color: "var(--text3)" }}>— {desc}</span>
-              <span className="font-mono text-[7px] px-1 rounded" style={{ background: "var(--blue-d)", color: "var(--blue)" }}>{who}</span>
-            </div>
-          ))}
-        </div>
-      </details>
 
       {/* Header bar */}
       <div className="flex items-center justify-between px-3 py-2.5" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>

@@ -29,6 +29,7 @@ export interface EnrolledCourse {
 export interface StudentDashboard {
   user: DashboardUser;
   enrolledCourses: EnrolledCourse[];
+  resumeCourses: EnrolledCourse[];
 }
 
 export function useStudentDashboard() {

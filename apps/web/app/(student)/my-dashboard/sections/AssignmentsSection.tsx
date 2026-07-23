@@ -38,7 +38,7 @@ export default function AssignmentsSection() {
   return (
     <div className="flex flex-col gap-4 px-[18px] py-4">
       {/* STATS ROW */}
-      <div className="grid grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {[
           { ico: "🚨", num: "3", lbl: "Overdue", icoBg: "rgba(220,38,38,.1)", numColor: "#dc2626" },
           { ico: "⏰", num: "2", lbl: "Due Today", icoBg: "var(--orange-d)", numColor: "var(--orange)" },
@@ -115,10 +115,10 @@ export default function AssignmentsSection() {
           {filtered.map(a => (
             <div
               key={a.id}
-              className={`bg-[var(--card)] border border-[var(--border)] rounded-xl px-4 py-[14px] grid grid-cols-[auto_1fr_auto_auto] gap-[14px] items-center transition-all duration-[0.15s] cursor-pointer hover:border-[var(--border2)] hover:shadow-[var(--sh)] hover:translate-x-[3px] [animation:fadeUp_.3s_ease_both] ${a.border} ${a.id > 6 ? "opacity-70" : ""}`}
+              className={`bg-[var(--card)] border border-[var(--border)] rounded-xl px-4 py-[14px] flex items-start gap-3 sm:grid sm:grid-cols-[auto_1fr_auto_auto] sm:gap-[14px] sm:items-center transition-all duration-[0.15s] cursor-pointer hover:border-[var(--border2)] hover:shadow-[var(--sh)] hover:translate-x-[3px] [animation:fadeUp_.3s_ease_both] ${a.border} ${a.id > 6 ? "opacity-70" : ""}`}
             >
               <div className="w-10 h-10 rounded-[9px] flex items-center justify-center text-[20px] flex-shrink-0" style={{ background: a.bg }}>{a.emoji}</div>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1 sm:flex-none">
                 <div className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)] uppercase tracking-[.06em] mb-[3px]">{a.course}</div>
                 <div className="text-[13px] font-bold text-[var(--text)] mb-[4px] truncate">{a.title}</div>
                 <div className="flex items-center gap-2.5 flex-wrap">
@@ -129,8 +129,33 @@ export default function AssignmentsSection() {
                     <span key={i} className="font-['JetBrains_Mono',monospace] text-[9.5px] text-[var(--text3)] flex items-center gap-[3px]">{m}</span>
                   ))}
                 </div>
+                <div className="flex items-center gap-3 mt-2 sm:hidden">
+                  <div className="flex-1">
+                    <div className="font-['JetBrains_Mono',monospace] text-[8.5px] text-[var(--text3)] mb-[3px] flex justify-between">
+                      <span>{a.border.includes("var(--green)") ? "Score" : "Progress"}</span>
+                      <span className={a.border.includes("var(--green)") ? "text-[var(--green)] font-bold" : ""}>{a.pct}%</span>
+                    </div>
+                    <div className="h-[4px] bg-[var(--border)] rounded-[99px] overflow-hidden">
+                      <div className="h-full rounded-[99px]" style={{ width: `${a.pct}%`, background: a.pctColor }} />
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)] mb-[2px]">{a.dueLabel}</div>
+                    <div className={`font-['Syne',sans-serif] text-[12px] font-bold ${a.dueCls}`}>{a.dueVal}</div>
+                  </div>
+                </div>
+                <div className="flex gap-1.5 mt-2 sm:hidden">
+                  {a.actions.map((act, i) => (
+                    <button
+                      key={i}
+                      className={`px-3 py-[5px] rounded-[6px] text-[11px] font-semibold transition-all duration-[0.15s] whitespace-nowrap ${act.cls}`}
+                    >
+                      {act.lbl}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex-shrink-0 w-20">
+              <div className="hidden sm:block sm:w-20">
                 <div className="font-['JetBrains_Mono',monospace] text-[8.5px] text-[var(--text3)] mb-[3px] flex justify-between">
                   <span>{a.border.includes("var(--green)") ? "Score" : "Progress"}</span>
                   <span className={a.border.includes("var(--green)") ? "text-[var(--green)] font-bold" : ""}>{a.pct}%</span>
@@ -139,11 +164,11 @@ export default function AssignmentsSection() {
                   <div className="h-full rounded-[99px]" style={{ width: `${a.pct}%`, background: a.pctColor }} />
                 </div>
               </div>
-              <div className="text-right flex-shrink-0">
+              <div className="hidden sm:block text-right flex-shrink-0">
                 <div className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)] mb-[2px]">{a.dueLabel}</div>
                 <div className={`font-['Syne',sans-serif] text-[12px] font-bold ${a.dueCls}`}>{a.dueVal}</div>
               </div>
-              <div className="flex gap-1.5 flex-shrink-0">
+              <div className="hidden sm:flex gap-1.5 flex-shrink-0">
                 {a.actions.map((act, i) => (
                   <button
                     key={i}

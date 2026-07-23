@@ -5,6 +5,24 @@ import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CertificatesService } from './certificates.service';
 
+const GRADIENTS = [
+  'linear-gradient(135deg,#4db33d,#2d7ef7)',
+  'linear-gradient(135deg,#a855f7,#ec4899)',
+  'linear-gradient(135deg,#f59e0b,#ef4444)',
+];
+
+function getRelativeTime(date: Date): string {
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs > 1 ? 's' : ''} ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days} day${days > 1 ? 's' : ''} ago`;
+  const months = Math.floor(days / 30);
+  return `${months} month${months > 1 ? 's' : ''} ago`;
+}
+
 @Controller('certificates')
 export class CertificatesController {
   constructor(
@@ -142,6 +160,39 @@ export class CertificatesController {
     }));
 
     return { earned, inProgress, locked };
+  }
+
+  @Get('recent')
+  async getRecentAchievements() {
+    const certs = await this.prisma.certificate.findMany({
+      orderBy: { issuedAt: 'desc' },
+      select: {
+        issuedAt: true,
+        student: { select: { name: true } },
+        course: { select: { title: true } },
+      },
+    });
+
+    const seenCourses = new Set<string>();
+    const seenStudents = new Set<string>();
+    const result: { initial: string; name: string; action: string; time: string; gradient: string }[] = [];
+
+    for (const c of certs) {
+      if (seenCourses.has(c.course.title)) continue;
+      if (seenStudents.has(c.student.name)) continue;
+      seenCourses.add(c.course.title);
+      seenStudents.add(c.student.name);
+      result.push({
+        initial: c.student.name.charAt(0).toUpperCase(),
+        name: c.student.name,
+        action: `Completed ${c.course.title}`,
+        time: getRelativeTime(c.issuedAt),
+        gradient: GRADIENTS[result.length % GRADIENTS.length],
+      });
+      if (result.length >= 3) break;
+    }
+
+    return result;
   }
 
   @Post('claim/:courseId')

@@ -51,7 +51,7 @@ const COMPONENT_MAP: Record<string, ReactNode | ((props: any) => ReactNode)> = {
   },
   schedule: () => <ScheduleSection />,
   assignments: () => <AssignmentsSection />,
-  certificates: () => <CertificatesSection />,
+  certificates: (props: SectionRendererProps) => <CertificatesSection enrolledCount={props.enrolledCourses.length} />,
   projects: () => <ProjectsSection />,
   discussion: (props: SectionRendererProps) => {
     if (props.discussionCourseId) {

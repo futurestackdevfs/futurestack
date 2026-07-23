@@ -27,8 +27,8 @@ export default function ScheduleSection() {
       </div>
 
       {/* Weekly Calendar */}
-      <div className="bg-white dark:bg-[#161b27] border border-[#e2e6ef] dark:border-[#1e2535] rounded-[12px] overflow-hidden">
-        <div className="grid grid-cols-7 divide-x divide-[#e2e6ef] dark:divide-[#1e2535]">
+      <div className="bg-white dark:bg-[#161b27] border border-[#e2e6ef] dark:border-[#1e2535] rounded-[12px] overflow-x-auto">
+        <div className="grid grid-cols-7 divide-x divide-[#e2e6ef] dark:divide-[#1e2535] min-w-[560px]">
           {weeklySchedule.map((day) => (
             <div key={day.day} className="min-h-[140px]">
               <div className="px-2.5 py-2 text-center font-['JetBrains_Mono',monospace] text-[10px] font-semibold text-[#6b7280] dark:text-[#7a859a] border-b border-[#e2e6ef] dark:border-[#1e2535] bg-[#f8f9fc] dark:bg-[#0f1219]">

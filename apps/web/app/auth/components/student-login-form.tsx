@@ -93,7 +93,7 @@ export function StudentLoginForm() {
     <div
       ref={cardRef}
       id="student-login"
-      className={`relative w-full max-w-[280px] overflow-hidden rounded-[20px] border-2 p-4 transition-all duration-300 hover:-translate-y-1 ${highlighted ? 'scale-[1.03]' : ''}`}
+      className={`relative w-full max-w-[280px] mx-auto overflow-hidden rounded-[20px] border-2 p-4 transition-all duration-300 hover:-translate-y-1 ${highlighted ? 'scale-[1.03]' : ''}`}
       style={{
         background: 'linear-gradient(135deg, var(--surface), var(--bg))',
         borderColor: highlighted ? 'rgba(37,99,235,0.7)' : 'rgba(37,99,235,0.18)',

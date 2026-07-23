@@ -55,7 +55,7 @@ export default function ProjectsSection() {
   return (
     <div className="flex flex-col gap-4 px-[18px] py-4">
       {/* STATS ROW */}
-      <div className="grid grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {[
           { ico: "🚀", num: "2", lbl: "Deployed", icoBg: "var(--green-d)", numColor: "var(--green)" },
           { ico: "🔨", num: "2", lbl: "In Progress", icoBg: "var(--orange-d)", numColor: "var(--orange)" },
@@ -81,7 +81,7 @@ export default function ProjectsSection() {
           <Link href="https://github.com" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[var(--blue2)] px-2 py-[2px] border border-[rgba(59,130,246,.25)] rounded-[4px] transition-all duration-[0.15s] whitespace-nowrap hover:bg-[var(--blue-d)] hover:border-[var(--blue2)] no-underline" target="_blank" rel="noopener noreferrer">GitHub Portfolio →</Link>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {projects.map(p => {
             const locked = p.status === "locked";
             return (

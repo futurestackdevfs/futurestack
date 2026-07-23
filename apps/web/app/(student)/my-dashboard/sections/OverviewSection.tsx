@@ -66,7 +66,7 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
   const greeting = getGreeting();
   const dateLabel = getFormattedDate();
 
-  const firstCourse = enrolledCourses.find(c => c.progressPercent < 100) ?? enrolledCourses[0] ?? null;
+  const firstCourse = [...enrolledCourses].filter(c => c.progressPercent < 100).sort((a, b) => b.progressPercent - a.progressPercent)[0] ?? null;
   const ringPct = firstCourse?.progressPercent ?? 0;
   const ringOffset = Number((188.5 * (1 - ringPct / 100)).toFixed(1));
 
@@ -95,7 +95,7 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
             <div className="text-[11.5px] text-[#374151] dark:text-[#b0bac9] max-w-[400px] leading-[1.6]">{welcomeBody}</div>
             <div className="flex gap-2 mt-3">
               {firstCourse ? (
-                <button className="inline-flex items-center gap-1.5 px-4 py-[7px] rounded-[6px] bg-[#f05a1a] dark:bg-[#ff6a1a] text-white text-[11.5px] font-semibold shadow-[0_3px_14px_rgba(240,90,26,.35)] hover:bg-[#ff7a3c] dark:hover:bg-[#ff8c42] hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(240,90,26,.45)] transition-all">{continueLabel}</button>
+                <Link href={`/my-dashboard?courseId=${firstCourse.courseId}`} className="inline-flex items-center gap-1.5 px-4 py-[7px] rounded-[6px] bg-[#f05a1a] dark:bg-[#ff6a1a] text-white text-[11.5px] font-semibold shadow-[0_3px_14px_rgba(240,90,26,.35)] hover:bg-[#ff7a3c] dark:hover:bg-[#ff8c42] hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(240,90,26,.45)] transition-all no-underline whitespace-normal text-left">{continueLabel}</Link>
               ) : (
                 <Link href="/courses" className="inline-flex items-center gap-1.5 px-4 py-[7px] rounded-[6px] bg-[#f05a1a] dark:bg-[#ff6a1a] text-white text-[11.5px] font-semibold shadow-[0_3px_14px_rgba(240,90,26,.35)] hover:bg-[#ff7a3c] dark:hover:bg-[#ff8c42] hover:-translate-y-px hover:shadow-[0_5px_18px_rgba(240,90,26,.45)] transition-all no-underline">Browse Courses</Link>
               )}
@@ -113,7 +113,7 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
                 <div className="font-['JetBrains_Mono',monospace] text-[8px] text-[#6b7280] dark:text-[#7a859a]">Level</div>
               </div>
             </div>
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col max-md:flex-row max-md:gap-3 gap-2">
               <div className="flex items-center gap-[7px]"><span className="text-sm">⚡</span><div><div className="font-['Syne',sans-serif] text-[13px] font-bold text-[#111827] dark:text-[#e8eaf0] leading-none">1,240</div><div className="font-['JetBrains_Mono',monospace] text-[9px] text-[#6b7280] dark:text-[#7a859a]">Total XP</div></div></div>
               <div className="flex items-center gap-[7px]"><span className="text-sm">🔥</span><div><div className="font-['Syne',sans-serif] text-[13px] font-bold text-[#111827] dark:text-[#e8eaf0] leading-none">14</div><div className="font-['JetBrains_Mono',monospace] text-[9px] text-[#6b7280] dark:text-[#7a859a]">Day Streak</div></div></div>
               <div className="flex items-center gap-[7px]"><span className="text-sm">🏅</span><div><div className="font-['Syne',sans-serif] text-[13px] font-bold text-[#111827] dark:text-[#e8eaf0] leading-none">3</div><div className="font-['JetBrains_Mono',monospace] text-[9px] text-[#6b7280] dark:text-[#7a859a]">Certificates</div></div></div>
@@ -209,7 +209,7 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
             <div className="flex-1 h-px bg-[#e2e6ef] dark:bg-[#1e2535]"></div>
           </div>
           <div className="bg-white dark:bg-[#161b27] border border-[#e2e6ef] dark:border-[#1e2535] rounded-[9px] p-3">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {achievements.map((a, i) => (
                 <div key={i} className={`bg-[#f0f2f7] dark:bg-[#10141e] border border-[#e2e6ef] dark:border-[#1e2535] rounded-[7px] p-[10px_8px] flex flex-col items-center gap-1 hover:border-[#f05a1a] dark:hover:border-[#ff6a1a] hover:-translate-y-0.5 transition-all cursor-default ${a.locked ? "opacity-40" : ""}`}>
                   <div className="text-[22px]">{a.icon}</div>

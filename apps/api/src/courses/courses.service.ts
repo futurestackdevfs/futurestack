@@ -219,7 +219,7 @@ export class CoursesService {
         title: s.title,
         order: s.order,
         videos: s.videos.map(v => ({
-          id: v.isPreview ? v.id : null,
+          id: v.id,
           title: v.title,
           durationSeconds: v.durationSeconds,
           order: v.order,
@@ -295,7 +295,7 @@ export class CoursesService {
       items: [
         ...section.videos.map(v => ({
           type: 'video' as const,
-          id: v.isPreview ? v.id : null,   // only expose ID for preview videos
+          id: v.id,
           title: v.title,
           durationSeconds: v.durationSeconds,
           order: v.order,
@@ -348,22 +348,37 @@ export class CoursesService {
     const video = await this.prisma.video.findUnique({
       where: { id: videoId },
       select: {
+        id: true,
         vdoCipherId: true,
         videoStatus: true,
-        isPreview: true,
+        order: true,
         section: {
           select: {
-            course: {
-              select: { status: true },
-            },
+            id: true,
+            courseId: true,
+            course: { select: { status: true } },
           },
         },
       },
     });
 
-    if (!video) {
-      throw new NotFoundException('Video not available for preview');
-    }
+    if (!video) throw new NotFoundException('Video not available for preview');
+    if (video.videoStatus !== 'READY') throw new BadRequestException('Video not ready');
+    if (video.section.course.status !== 'ACTIVE') throw new NotFoundException('Video not available');
+
+    const firstSection = await this.prisma.section.findFirst({
+      where: { courseId: video.section.courseId },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+    if (video.section.id !== firstSection?.id) throw new NotFoundException('Video not available for preview');
+
+    const firstVideo = await this.prisma.video.findFirst({
+      where: { sectionId: video.section.id },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+    if (video.id !== firstVideo?.id) throw new NotFoundException('Video not available for preview');
 
     return this.vdoCipherService.getPlaybackOtp(video.vdoCipherId, {
       name: 'Preview User',

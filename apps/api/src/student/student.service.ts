@@ -161,6 +161,7 @@ export class StudentService {
     return {
       user: userInfo,
       enrolledCourses,
+      resumeCourses: enrolledCourses.filter((c) => c.progressPercent < 100),
     };
   }
 

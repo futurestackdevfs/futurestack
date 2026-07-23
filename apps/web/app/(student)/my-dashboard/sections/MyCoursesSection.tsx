@@ -173,6 +173,15 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
             <div className={`grid gap-[12px] ${view === "grid" ? "grid-cols-3" : "grid-cols-1"}`}>
               <SkeletonCard /><SkeletonCard /><SkeletonCard />
             </div>
+          ) : enrolledCourses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-[60px] px-6 text-center">
+              <div className="w-[56px] h-[56px] rounded-full bg-gradient-to-br from-[#f05a1a] to-[#ff7a3c] flex items-center justify-center text-[24px] mb-[14px] shadow-[0_4px_16px_rgba(240,90,26,.3)]">🎓</div>
+              <div className="font-['Syne',sans-serif] text-[15px] font-bold text-[var(--text)] mb-[6px]">No enrolled courses yet</div>
+              <div className="font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)] mb-[18px] max-w-[280px] leading-[1.6]">Start your learning journey by exploring our course catalog.</div>
+              <Link href="/courses" className="inline-flex items-center gap-[7px] px-[20px] py-[9px] rounded-[8px] text-[12.5px] font-bold text-white bg-gradient-to-r from-[#f05a1a] to-[#ff7a3c] shadow-[0_4px_14px_rgba(240,90,26,.3)] hover:shadow-[0_6px_20px_rgba(240,90,26,.4)] hover:-translate-y-[1px] transition-all no-underline">
+                Browse Courses →
+              </Link>
+            </div>
           ) : visibleCourses.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="text-4xl mb-3">📭</div>
