@@ -32,4 +32,9 @@ export class TrainerController {
   getDoubts(@Req() req: AuthenticatedRequest) {
     return this.trainerService.getDoubts(req.user.id);
   }
+
+  @Get('reviews')
+  getReviews(@Req() req: AuthenticatedRequest) {
+    return this.trainerService.getReviews(req.user.id);
+  }
 }

@@ -76,6 +76,8 @@ model User {
   revenueLedger       RevenueLedger[] @relation("TrainerLedger")
   payouts             Payout[]        @relation("TrainerPayouts")
   refreshTokens       RefreshToken[]
+
+  reviewsGiven        Review[]        @relation("StudentReviews")
 }
 
 model Track {
@@ -119,6 +121,10 @@ model Course {
   resources    CourseResource[]
   discussions  CourseDiscussion[]
   certificates Certificate[]
+  reviews      Review[]
+  
+  averageRating Float @default(0)
+  reviewCount   Int   @default(0)
 }
 
 model CourseResource {
@@ -317,3 +323,21 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
 }
+
+model Review {
+  id        String   @id @default(uuid())
+  rating    Int
+  comment   String?
+  
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId  String
+  
+  student   User     @relation("StudentReviews", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId String
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, studentId])
+}
+

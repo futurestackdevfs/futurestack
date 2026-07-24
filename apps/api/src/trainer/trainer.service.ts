@@ -244,4 +244,25 @@ export class TrainerService {
       replyCount: d._count.replies
     }));
   }
+
+  async getReviews(trainerId: string) {
+    const reviews = await this.prisma.review.findMany({
+      where: { course: { trainerId } },
+      include: {
+        student: { select: { name: true, avatarUrl: true } },
+        course: { select: { title: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return reviews.map(r => ({
+      id: r.id,
+      rating: r.rating,
+      comment: r.comment,
+      createdAt: r.createdAt,
+      studentName: r.student.name,
+      studentAvatar: r.student.avatarUrl,
+      courseTitle: r.course.title
+    }));
+  }
 }
