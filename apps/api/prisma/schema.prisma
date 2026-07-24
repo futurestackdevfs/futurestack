@@ -75,6 +75,7 @@ model User {
 
   revenueLedger       RevenueLedger[] @relation("TrainerLedger")
   payouts             Payout[]        @relation("TrainerPayouts")
+  refreshTokens       RefreshToken[]
 }
 
 model Track {
@@ -305,5 +306,14 @@ model Payout {
   amount    Float
   period    String
   status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  expiresAt DateTime
   createdAt DateTime @default(now())
 }
