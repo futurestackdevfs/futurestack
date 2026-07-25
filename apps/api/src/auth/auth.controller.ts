@@ -139,9 +139,9 @@ export class AuthController {
 
     const redirectUrl = googleRedirect ?? `${frontendUrl}/api/auth/oauth/session`;
 
-    // BFF reads the token off the query string server-side, sets an HttpOnly
-    // cookie, and redirects to the dashboard — the token never reaches the browser.
-    return res.redirect(`${redirectUrl}?token=${accessToken}`);
+    // BFF reads the tokens off the query string server-side, sets HttpOnly cookies,
+    // and redirects to the dashboard — tokens never exposed to browser JS.
+    return res.redirect(`${redirectUrl}?token=${accessToken}&refresh=${rawRefreshToken}`);
   }
 
   @Post('refresh')

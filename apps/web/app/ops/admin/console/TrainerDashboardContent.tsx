@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 
 /* ── Types ── */
@@ -10,6 +10,7 @@ interface Course {
   _count?: { enrollments: number; sections: number };
   sections?: { _count: { videos: number } }[];
   totalLessons?: number; totalHours?: number;
+  trainer?: { rating?: number };
 }
 
 interface Trainer {
@@ -26,19 +27,10 @@ interface Stats {
   totalStudents: number; totalEnrollments: number; activeEnrollments: number;
 }
 
-const SEED_GRADING = [
-  { id: "1", student: "Rahul Sharma", assignment: "MERN Capstone Project", batch: "MERN Weekday", submitted: "2026-06-21", type: "Project", status: "Pending" },
-  { id: "2", student: "Pradeep Singh", assignment: "React Hooks Quiz", batch: "MERN Weekday", submitted: "2026-06-22", type: "Quiz", status: "Pending" },
-  { id: "3", student: "Anjali Mehra", assignment: "REST API Assignment", batch: "MERN Weekend", submitted: "2026-06-20", type: "Assignment", status: "Graded" },
-  { id: "4", student: "Sneha Iyer", assignment: "JWT Auth Module Test", batch: "MERN Weekday", submitted: "2026-06-22", type: "Quiz", status: "Pending" },
-  { id: "5", student: "Karan Mehta", assignment: "State Mgmt — Redux Lab", batch: "MERN Weekend", submitted: "2026-06-19", type: "Lab", status: "Graded" },
-  { id: "6", student: "Divya Pillai", assignment: "Final MERN Capstone", batch: "MERN Weekday", submitted: "2026-06-23", type: "Project", status: "Submitted" },
-];
-
 const BADGE_STYLES: Record<string, { bg: string; fg: string }> = {
-  Pending: { bg: "var(--amber-d)", fg: "var(--amber)" },
-  Submitted: { bg: "var(--blue-d)", fg: "var(--blue)" },
-  Graded: { bg: "var(--green-d)", fg: "var(--green)" },
+  ACTIVE: { bg: "var(--green-d)", fg: "var(--green)" },
+  DRAFT: { bg: "var(--amber-d)", fg: "var(--amber)" },
+  ARCHIVED: { bg: "var(--red-d)", fg: "var(--red)" },
 };
 
 export default function TrainerDashboardContent() {
@@ -46,6 +38,21 @@ export default function TrainerDashboardContent() {
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(0);
+  const PER_PAGE = 7;
+
+  const filteredCourses = useMemo(() => {
+    if (!searchQuery.trim()) return courses;
+    const q = searchQuery.toLowerCase();
+    return courses.filter((c) => c.title.toLowerCase().includes(q));
+  }, [courses, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredCourses.length / PER_PAGE));
+  const safePage = Math.min(page, totalPages - 1);
+  const paginatedCourses = useMemo(() => {
+    return filteredCourses.slice(safePage * PER_PAGE, (safePage + 1) * PER_PAGE);
+  }, [filteredCourses, safePage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,18 +75,18 @@ export default function TrainerDashboardContent() {
 
   const kpi = useMemo(() => {
     const activeCourses = courses.filter((c) => c.status === "ACTIVE");
-    const totalEnrollments = courses.reduce((sum, c) => sum + (c._count?.enrollments ?? 0), 0);
     const totalLessons = courses.reduce((sum, c) => sum + (c.totalLessons ?? 0), 0);
     const avgRating = trainers.length > 0
       ? (trainers.reduce((s, t) => s + (t.rating ?? 0), 0) / trainers.length).toFixed(1)
       : "—";
+    const courseRatings = courses.map((c) => c.trainer?.rating).filter((r): r is number => r != null);
+    const highestRating = courseRatings.length > 0 ? Math.max(...courseRatings).toFixed(1) : null;
     return {
-      sessionsPerWeek: activeCourses.length * 3,
-      toGrade: totalEnrollments > 0 ? Math.floor(totalEnrollments * 0.3) : 0,
       activeMentees: stats?.totalStudents ?? 0,
       avgRating,
+      highestRating,
       activeBatches: activeCourses.length,
-      completion: totalLessons > 0 ? Math.min(95, Math.round((totalEnrollments / Math.max(totalLessons, 1)) * 100)) : 0,
+      completion: totalLessons > 0 ? Math.min(95, Math.round(((stats?.totalEnrollments ?? 0) / Math.max(totalLessons, 1)) * 100)) : 0,
     };
   }, [courses, trainers, stats]);
 
@@ -146,10 +153,10 @@ export default function TrainerDashboardContent() {
 
       {/* KPI Strip */}
       <div className="grid grid-cols-6 rounded overflow-hidden mb-4" style={{ border: "1px solid var(--border)", background: "var(--border)", gap: 1 }}>
-        <KPICell label="Sessions / Week" value={kpi.sessionsPerWeek} delta="↑2 wk" deltaClass="up" color="var(--purple)" />
-        <KPICell label="To Grade" value={kpi.toGrade} delta={`↓${kpi.toGrade} today`} deltaClass="down" color="var(--amber)" />
+        <KPICell label="Total Courses" value={stats?.totalCourses ?? 0} delta={`${stats?.activeCourses ?? 0} active`} color="var(--purple)" />
+        <KPICell label="Total Enrollments" value={stats?.totalEnrollments ?? 0} delta={`${stats?.activeEnrollments ?? 0} active`} color="var(--amber)" />
         <KPICell label="Active Mentees" value={kpi.activeMentees} delta="↑4 mo" deltaClass="up" color="var(--green)" />
-        <KPICell label="Avg Rating" value={kpi.avgRating} delta="↑0.1 mo" deltaClass="up" color="var(--orange)" />
+        <KPICell label="Avg Rating" value={kpi.avgRating} delta={kpi.highestRating ? `Highest ${kpi.highestRating}` : "—"} color="var(--orange)" />
         <KPICell label="Active Batches" value={kpi.activeBatches} delta="running" color="var(--text)" />
         <KPICell label="Completion" value={`${kpi.completion}%`} delta="↑2pp mo" deltaClass="up" color="var(--green)" />
       </div>
@@ -158,41 +165,75 @@ export default function TrainerDashboardContent() {
 
         {/* LEFT COL */}
         <div>
-          {/* Grading Queue */}
-          <Panel title="▤ Grading Queue" meta={`${kpi.toGrade} pending`}>
+          {/* Course Enrollments */}
+          <Panel title={
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span>▤ Course Enrollments</span>
+              <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+                <span style={{ position: "absolute", left: 6, fontSize: 9, color: "var(--text3)", pointerEvents: "none" }}>🔍</span>
+                <input
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+                  placeholder="Search…"
+                  style={{
+                    width: 100, fontSize: 10, padding: "2px 4px 2px 18px", border: "1px solid var(--border)",
+                    background: "var(--surface)", color: "var(--text)", borderRadius: 3, outline: "none",
+                  }}
+                />
+              </div>
+            </div>
+          } meta={`${filteredCourses.length} / ${courses.length} courses`}>
             <table className="w-full border-collapse" style={{ fontSize: 11 }}>
               <thead>
-                <tr>{["Student", "Assignment", "Batch", "Submitted", "Type", "Status"].map((h) => (
+                <tr>{["Course", "Students", "Rating", "Status", "Price"].map((h) => (
                   <th key={h} className="text-left font-mono text-[8.5px] font-bold uppercase tracking-wider px-2.5 py-1.5"
                     style={{ color: "var(--text3)", borderBottom: "1px solid var(--border2)", background: "var(--panel)" }}>{h}</th>
                 ))}</tr>
               </thead>
               <tbody>
-                {SEED_GRADING.map((g, idx) => {
-                  const st = BADGE_STYLES[g.status] || BADGE_STYLES.Pending;
+                {paginatedCourses.map((c, idx) => {
+                  const st = BADGE_STYLES[c.status] || BADGE_STYLES.DRAFT;
                   return (
-                    <tr key={g.id}
+                    <tr key={c.id}
                       style={{ background: idx % 2 === 0 ? "var(--surface)" : "var(--panel)" }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--row-h)"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? "var(--surface)" : "var(--panel)"; }}
                     >
-                      <td className="px-2.5 py-1.5 font-semibold" style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{g.student}</td>
-                      <td className="px-2.5 py-1.5" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{g.assignment}</td>
-                      <td className="px-2.5 py-1.5" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{g.batch}</td>
-                      <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{g.submitted}</td>
-                      <td className="px-2.5 py-1.5" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{g.type}</td>
+                      <td className="px-2.5 py-1.5 font-semibold" style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{c.title}</td>
+                      <td className="px-2.5 py-1.5" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{c._count?.enrollments ?? 0}</td>
+                      <td className="px-2.5 py-1.5" style={{ color: "var(--orange)", borderBottom: "1px solid var(--border)" }}>{c.trainer?.rating != null ? `★ ${c.trainer.rating.toFixed(1)}` : "—"}</td>
                       <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
                         <span className="inline-flex items-center gap-1 font-mono text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
                           style={{ background: st.bg, color: st.fg }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", background: st.fg }} />
-                          {g.status}
+                          {c.status === "ACTIVE" ? "Active" : c.status === "DRAFT" ? "Draft" : c.status}
                         </span>
                       </td>
+                      <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>₹{(c.price ?? 0).toLocaleString()}</td>
                     </tr>
                   );
                 })}
+                {paginatedCourses.length === 0 && (
+                  <tr><td colSpan={5} className="font-mono text-[10.5px] py-2 text-center" style={{ color: "var(--text3)" }}>No courses found.</td></tr>
+                )}
               </tbody>
             </table>
+            {totalPages > 1 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, paddingTop: 8, borderTop: "1px solid var(--border)", marginTop: 6 }}>
+                <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={safePage === 0}
+                  style={{ fontSize: 10, padding: "1px 6px", border: "1px solid var(--border)", background: "var(--surface)", color: safePage === 0 ? "var(--text3)" : "var(--text)", borderRadius: 3, cursor: safePage === 0 ? "default" : "pointer" }}>◀</button>
+                {Array.from({ length: totalPages }, (_, i) => (
+                  <button key={i} onClick={() => setPage(i)}
+                    style={{
+                      fontSize: 10, padding: "1px 6px", border: "1px solid var(--border)",
+                      background: i === safePage ? "var(--orange)" : "var(--surface)",
+                      color: i === safePage ? "#fff" : "var(--text2)", borderRadius: 3, cursor: "pointer",
+                    }}>{i + 1}</button>
+                ))}
+                <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={safePage === totalPages - 1}
+                  style={{ fontSize: 10, padding: "1px 6px", border: "1px solid var(--border)", background: "var(--surface)", color: safePage === totalPages - 1 ? "var(--text3)" : "var(--text)", borderRadius: 3, cursor: safePage === totalPages - 1 ? "default" : "pointer" }}>▶</button>
+              </div>
+            )}
           </Panel>
 
           {/* Active Batches */}
@@ -277,7 +318,7 @@ function KPICell({ label, value, delta, deltaClass, color }: { label: string; va
   );
 }
 
-function Panel({ title, meta, action, children }: { title: string; meta?: string; action?: React.ReactNode; children: React.ReactNode }) {
+function Panel({ title, meta, action, children }: { title: React.ReactNode; meta?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="rounded overflow-hidden mb-3.5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 13px", background: "var(--panel)", borderBottom: "1px solid var(--border)" }}>

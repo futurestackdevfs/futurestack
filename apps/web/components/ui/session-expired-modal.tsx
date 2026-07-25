@@ -1,6 +1,16 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { saveToken, saveStaffToken } from '@/app/auth/lib/token-store';
+import { emit } from '@/app/auth/hooks/use-auth';
+
+function decodeJwt(token: string) {
+  try {
+    return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  } catch {
+    return null;
+  }
+}
 
 export function SessionExpiredModal() {
   const router = useRouter();
@@ -10,9 +20,46 @@ export function SessionExpiredModal() {
   const dismiss = useCallback(() => {
     setVisible(false);
     setCountdown(10);
+    try { sessionStorage.removeItem('fs_last_role'); } catch {}
   }, []);
 
-  const signIn = useCallback(() => {
+  const signIn = useCallback(async () => {
+    try {
+      const lastRole = sessionStorage.getItem('fs_last_role') ?? 'STUDENT';
+      const refreshRes = await fetch(`/api/auth/refresh?role=${lastRole}`, { method: 'POST' });
+      if (refreshRes.ok) {
+        const data = await refreshRes.json();
+        if (data.accessToken) {
+          const payload = decodeJwt(data.accessToken);
+          const uid = payload?.sub;
+          const role = payload?.role;
+          if (uid) {
+            if (role && role !== 'STUDENT') {
+              await saveStaffToken(uid, data.accessToken);
+            } else {
+              await saveToken(uid, data.accessToken);
+            }
+            await fetch(
+              role && role !== 'STUDENT' ? '/api/auth/set-token-staff' : '/api/auth/set-token',
+              {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ token: data.accessToken }),
+              },
+            );
+            emit({
+              user: { id: uid, name: payload.name, email: payload.email, role: payload.role, avatarUrl: payload.avatarUrl, emailVerified: payload.emailVerified },
+              isAuthenticated: true,
+              isLoading: false,
+            });
+            dismiss();
+            return;
+          }
+        }
+      }
+    } catch {
+      // Silent refresh failed — fall through to redirect
+    }
     dismiss();
     router.push('/');
   }, [dismiss, router]);

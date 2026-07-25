@@ -52,10 +52,33 @@ async function proxy(req: NextRequest) {
   const resCt = backendRes.headers.get('content-type');
   if (resCt) resHeaders.set('content-type', resCt);
 
-  return new NextResponse(resBody, {
+  const response = new NextResponse(resBody, {
     status: backendRes.status,
     headers: resHeaders,
   });
+
+  // Forward Set-Cookie using Next.js cookie API (raw header approach doesn't work)
+  const setCookie = backendRes.headers.get('set-cookie');
+  if (setCookie) {
+    const [nv, ...rawAttrs] = setCookie.split(';').map(s => s.trim());
+    const eq = nv.indexOf('=');
+    if (eq > 0) {
+      const name = nv.slice(0, eq);
+      const value = nv.slice(eq + 1);
+      const opts: Record<string, any> = {};
+      for (const a of rawAttrs) {
+        const al = a.toLowerCase();
+        if (al === 'httponly') opts.httpOnly = true;
+        else if (al === 'secure') opts.secure = true;
+        else if (al.startsWith('max-age=')) opts.maxAge = parseInt(al.slice(8), 10);
+        else if (al.startsWith('path=')) opts.path = al.slice(5);
+        else if (al.startsWith('samesite=')) opts.sameSite = al.slice(9);
+      }
+      response.cookies.set(name, value, opts);
+    }
+  }
+
+  return response;
 }
 
 export const GET = proxy;

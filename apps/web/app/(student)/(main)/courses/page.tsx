@@ -209,6 +209,7 @@ export default function CoursesPage() {
               <select value={sort} onChange={(e) => setSort(e.target.value)} className="py-[7px] px-3 border-[1.5px] border-[var(--border)] rounded-[7px] text-[13px] text-[var(--text2)] bg-[var(--card)] outline-none cursor-pointer hover:border-[var(--blue)] focus:border-[var(--blue)]">
                 <option>Most Popular</option>
                 <option>Highest Rated</option>
+                <option>Lowest Rated</option>
                 <option>Newest First</option>
                 <option>Duration: Shortest</option>
               </select>

@@ -554,7 +554,7 @@ export class CoursesService {
   async listCourses() {
     const courses = await this.prisma.course.findMany({
       include: {
-        trainer: { select: { id: true, name: true, email: true } },
+        trainer: { select: { id: true, name: true, email: true, rating: true } },
         _count: { select: { enrollments: true, sections: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -615,6 +615,7 @@ export class CoursesService {
 
     let orderBy: any = { createdAt: 'desc' };
     if (opts.sort === 'Highest Rated') orderBy = { trainer: { rating: 'desc' } };
+    else if (opts.sort === 'Lowest Rated') orderBy = { trainer: { rating: 'asc' } };
     else if (opts.sort === 'Most Popular') orderBy = { enrollments: { _count: 'desc' } };
 
     const courses = await this.prisma.course.findMany({

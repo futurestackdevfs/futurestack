@@ -69,27 +69,26 @@ async function bootstrap() {
     }
     emit({ user, isAuthenticated: true, isLoading: false });
   } catch (err) {
-    await clearToken();
-    await clearSessionCookie('student');
-    await clearStaffToken();
-    await clearSessionCookie('staff');
+    try { await clearToken(); } catch {}
+    try { await clearSessionCookie('student'); } catch {}
+    try { await clearStaffToken(); } catch {}
+    try { await clearSessionCookie('staff'); } catch {}
     emit({ user: null, isAuthenticated: false, isLoading: false });
-    if (err instanceof Error && (err as Error & { isSessionExpired?: boolean }).isSessionExpired) {
-      showToast('Your session has expired. Please sign in again.');
-    }
   }
 }
 
 if (typeof window !== 'undefined') {
   window.addEventListener('fs:session-expired', async () => {
     if (!shared.isAuthenticated) return;
-    await clearToken();
-    await clearSessionCookie('student');
-    await clearStaffToken();
-    await clearSessionCookie('staff');
+    // Save the last known role before clearing so session-expired-modal can try silent refresh with the right cookie
+    try { sessionStorage.setItem('fs_last_role', shared.user?.role ?? 'STUDENT'); } catch {}
+    try { await clearToken(); } catch {}
+    try { await clearSessionCookie('student'); } catch {}
+    try { await clearStaffToken(); } catch {}
+    try { await clearSessionCookie('staff'); } catch {}
     bootstrapped = false;
     emit({ user: null, isAuthenticated: false, isLoading: false });
-    showToast('Your session has expired. Please sign in again.');
+    showToast('Session expired. Tap to sign in again.');
   });
 }
 

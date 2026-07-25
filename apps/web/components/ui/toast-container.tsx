@@ -80,7 +80,43 @@ export function ToastContainer() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
           </span>
-          {toast.message}
+          {toast.message.toLowerCase().includes('session') ? (
+            <button
+              onClick={async () => {
+                const isOps = window.location.pathname.startsWith('/ops');
+                const roles = isOps ? ['ADMIN', 'TRAINER', 'COORDINATOR', 'CONTENT_MANAGER', 'SUPPORT'] : ['STUDENT'];
+                for (const role of roles) {
+                  try {
+                    const qs = role !== 'STUDENT' ? `?role=${role}` : '';
+                    const res = await fetch(`/api/auth/refresh${qs}`, { method: 'POST' });
+                    if (res.ok) {
+                      const { accessToken, user } = await res.json();
+                      if (accessToken) {
+                        const uid = JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub;
+                        const saveKey = isOps ? 'fs_staff_uid' : 'fs_uid';
+                        localStorage.setItem(saveKey, uid);
+                        localStorage.setItem(isOps ? 'fs_token_staff' : 'fs_token', accessToken);
+                        await fetch(isOps ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
+                          method: 'POST',
+                          headers: { 'content-type': 'application/json' },
+                          body: JSON.stringify({ token: accessToken }),
+                        });
+                        window.location.reload();
+                        return;
+                      }
+                    }
+                  } catch {}
+                }
+                window.location.href = isOps ? '/auth/staff-login' : '/auth/login';
+              }}
+              className="bg-transparent border-none p-0 text-left cursor-pointer underline underline-offset-2"
+              style={{ textDecorationColor: 'inherit' }}
+            >
+              {toast.message}
+            </button>
+          ) : (
+            toast.message
+          )}
         </div>
       ))}
     </div>
