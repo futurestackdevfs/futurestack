@@ -9,6 +9,7 @@ import { AppService } from './app.service';
 import { StudentModule } from './student/student.module';
 import { AdminModule } from './admin/admin.module';
 import { CoursesModule } from './courses/courses.module';
+import { UploadModule } from './upload/upload.module';
 import { DiscussionModule } from './discussion/discussion.module';
 import { CertificatesModule } from './certificates/certificates.module';
 import { TrainerModule } from './trainer/trainer.module';
@@ -36,6 +37,7 @@ import { ReviewsModule } from './reviews/reviews.module';
     StudentModule,
     AdminModule,
     CoursesModule,
+    UploadModule,
     DiscussionModule,
     CertificatesModule,
     TrainerModule,
@@ -51,4 +53,4 @@ import { ReviewsModule } from './reviews/reviews.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule { }

@@ -43,7 +43,7 @@ export class VdoCipherService {
     const data = await response.json();
     
     // Log the raw response so we can verify the exact field name for uploadLink vs uploadUrl
-    this.logger.log(`Raw VdoCipher credentials response: ${JSON.stringify(data)}`);
+    this.logger.log(`VdoCipher credentials obtained for video: ${data.videoId}`);
 
     return {
       vdoCipherId: data.videoId,
@@ -56,8 +56,10 @@ export class VdoCipherService {
         'x-amz-algorithm': data.clientPayload['x-amz-algorithm'],
         'x-amz-date': data.clientPayload['x-amz-date'],
         'x-amz-credential': data.clientPayload['x-amz-credential'],
-        success_action_status: data.clientPayload.success_action_status,
-        success_action_redirect: '',
+        // VdoCipher's policy still requires these fields even when their API
+        // no longer returns them in clientPayload. Defaults keep S3 happy.
+        success_action_status: data.clientPayload.success_action_status ?? '201',
+        success_action_redirect: data.clientPayload.success_action_redirect ?? '',
       },
     };
   }
@@ -67,6 +69,23 @@ export class VdoCipherService {
    * The OTP is valid for ~5 minutes and single-use.
    * Pass the student's name and email to embed as a visible watermark.
    */
+  async deleteVideo(vdoCipherId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/videos?videos=${vdoCipherId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Apisecret ${this.apiKey}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (response.ok || response.status === 404) return;
+    const body = await response.text().catch(() => '');
+    throw new InternalServerErrorException(
+      `VdoCipher delete failed (${response.status}) for ${vdoCipherId}: ${body}`,
+    );
+  }
+
   async getPlaybackOtp(
     vdoCipherId: string,
     watermark: { name: string; email: string },

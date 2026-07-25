@@ -60,7 +60,6 @@ model User {
   bio                  String?
   yearsExperience      Int?
   rating               Float?
-  trainerCode          String?         @unique
 
   enrollments          Enrollment[]
   videoProgress        VideoProgress[]
@@ -105,15 +104,14 @@ model Course {
   trainerId    String?
   trainer      User?         @relation("CourseTrainer", fields: [trainerId], references: [id])
 
-  category     String?
-  skillLevel   SkillLevel?
-  code         String?       @unique
-
   // Overview tab content
   whatYoullLearn String[]    @default([])  // bullet list, e.g. ["Build production-grade apps", ...]
   techStack      String[]    @default([])  // chips, e.g. ["MongoDB", "React.js", "Docker"]
   careerTitle    String?                    // e.g. "High-demand skill — average salary ₹18L–₹40L/yr"
   careerBody     String?                    // longer paragraph
+  category       String?                    // e.g. "Web Development"
+  code           String?     @unique        // internal course code
+  skillLevel     SkillLevel?
 
   sections     Section[]
   enrollments  Enrollment[]

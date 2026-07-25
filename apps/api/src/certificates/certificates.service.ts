@@ -58,7 +58,8 @@ export class CertificatesService {
     
     const year = new Date().getFullYear();
     const sequence = String(rank).padStart(3, '0');
-    const credentialId = `FS-${year}-${course?.code ?? 'CRS'}-${sequence}`;
+    const safeCode = course?.code ?? `CRS-${courseId.substring(0, 4).toUpperCase()}`;
+    const credentialId = `FS-${year}-${safeCode}-${sequence}`;
 
     // Create the certificate
     await this.prisma.certificate.create({

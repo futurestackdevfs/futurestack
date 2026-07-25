@@ -23,6 +23,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterTrainerDto } from './dto/register-trainer.dto';
 
+
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -131,12 +132,16 @@ export class AuthController {
 
     this.setRefreshTokenCookie(res, rawRefreshToken, Role.STUDENT);
 
+    const googleRedirect =
+      this.configService.get<string>('GOOGLE_REDIRECT_URL');
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
-    return res.redirect(
-      `${frontendUrl}/api/auth/oauth/session?token=${accessToken}`,
-    );
+    const redirectUrl = googleRedirect ?? `${frontendUrl}/api/auth/oauth/session`;
+
+    // BFF reads the tokens off the query string server-side, sets HttpOnly cookies,
+    // and redirects to the dashboard — tokens never exposed to browser JS.
+    return res.redirect(`${redirectUrl}?token=${accessToken}&refresh=${rawRefreshToken}`);
   }
 
   @Post('refresh')

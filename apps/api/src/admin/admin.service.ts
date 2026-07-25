@@ -13,8 +13,28 @@ export class AdminService {
     private readonly vdoCipherService: VdoCipherService,
   ) {}
 
+  async listAllTrainers() {
+    const trainers = await this.prisma.user.findMany({
+      where: { role: Role.TRAINER },
+      select: {
+        id: true, name: true, email: true, bio: true,
+        yearsExperience: true, rating: true, avatarUrl: true,
+        approvalStatus: true, isActive: true, createdAt: true,
+        _count: { select: { coursesTaught: true, enrollments: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    return trainers.map((t) => ({
+      id: t.id, name: t.name, email: t.email, bio: t.bio,
+      yearsExperience: t.yearsExperience, rating: t.rating,
+      avatarUrl: t.avatarUrl, approvalStatus: t.approvalStatus ?? 'PENDING',
+      isActive: t.isActive, createdAt: t.createdAt,
+      coursesTaught: t._count.coursesTaught, totalStudents: t._count.enrollments,
+    }));
+  }
+
   async listPendingTrainers() {
-    return this.prisma.user.findMany({
+    const trainers = await this.prisma.user.findMany({
       where: { role: Role.TRAINER, approvalStatus: 'PENDING' },
       select: {
         id: true,
@@ -22,30 +42,25 @@ export class AdminService {
         email: true,
         bio: true,
         yearsExperience: true,
-        trainerCode: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'asc' }, // oldest applications first
     });
+
+    return trainers;
   }
 
   async approveTrainer(trainerId: string) {
     const trainer = await this.findPendingTrainer(trainerId);
 
-    const approvedCount = await this.prisma.user.count({
-      where: { role: Role.TRAINER, approvalStatus: 'APPROVED' },
-    });
-    const trainerCode = `TR-${String(approvedCount + 1).padStart(2, '0')}`;
-
     const updated = await this.prisma.user.update({
       where: { id: trainer.id },
-      data: { approvalStatus: 'APPROVED', trainerCode },
+      data: { approvalStatus: 'APPROVED' },
     });
 
     return {
       message: `${updated.name} has been approved as a trainer.`,
       trainerId: updated.id,
-      trainerCode: updated.trainerCode,
     };
   }
 
@@ -73,9 +88,9 @@ export class AdminService {
       throw new NotFoundException('Trainer not found');
     }
 
-    if (trainer.approvalStatus !== 'PENDING') {
+    if (trainer.approvalStatus === 'APPROVED' || trainer.approvalStatus === 'REJECTED') {
       throw new ConflictException(
-        `This trainer's application has already been ${trainer.approvalStatus?.toLowerCase()}`,
+        `This trainer's application has already been ${trainer.approvalStatus.toLowerCase()}`,
       );
     }
 
@@ -93,7 +108,6 @@ export class AdminService {
         yearsExperience: true,
         rating: true,
         avatarUrl: true,
-        trainerCode: true,
         createdAt: true,
         _count: { select: { coursesTaught: true } },
       },
@@ -137,6 +151,25 @@ export class AdminService {
     };
   }
 
+  async listAllUsers() {
+    return this.prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        emailVerified: true,
+        avatarUrl: true,
+        approvalStatus: true,
+        createdAt: true,
+        lastLoginAt: true,
+        _count: { select: { enrollments: true, coursesTaught: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   /**
    * Admin directly creates a Coordinator, Support, or Admin account.
    * Unlike trainer self-registration, this account is immediately usable —
@@ -157,6 +190,8 @@ export class AdminService {
         name: dto.name,
         password: hashedPassword,
         role: dto.role as Role,
+        // Admin-created trainers are pre-approved — no pending review needed
+        ...(dto.role === 'TRAINER' && { approvalStatus: 'APPROVED' }),
       },
     });
 
@@ -175,19 +210,39 @@ export class AdminService {
       throw new NotFoundException('Section not found');
     }
 
+    // Re-upload: delete old VdoCipher video, update existing DB record
+    if (dto.videoId) {
+      const existing = await this.prisma.video.findUnique({
+        where: { id: dto.videoId },
+      });
+      if (existing) {
+        await this.vdoCipherService.deleteVideo(existing.vdoCipherId);
+      }
+    }
+
     const { vdoCipherId, uploadUrl, uploadCredentials } =
       await this.vdoCipherService.getUploadCredentials(dto.title);
 
-    const video = await this.prisma.video.create({
-      data: {
-        title: dto.title,
-        sectionId: dto.sectionId,
-        order: dto.order,
-        vdoCipherId: vdoCipherId,
-        durationSeconds: 0,      // updated later by webhook
-        videoStatus: 'UPLOADING',
-      },
-    });
+    const video = dto.videoId
+      ? await this.prisma.video.update({
+          where: { id: dto.videoId },
+          data: {
+            title: dto.title,
+            vdoCipherId,
+            durationSeconds: 0,
+            videoStatus: 'UPLOADING',
+          },
+        })
+      : await this.prisma.video.create({
+          data: {
+            title: dto.title,
+            sectionId: dto.sectionId,
+            order: dto.order,
+            vdoCipherId,
+            durationSeconds: 0,
+            videoStatus: 'UPLOADING',
+          },
+        });
 
     return {
       videoId: video.id,

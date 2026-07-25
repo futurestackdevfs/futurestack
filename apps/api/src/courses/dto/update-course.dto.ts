@@ -8,6 +8,10 @@ export class UpdateCourseDto {
 
   @IsOptional()
   @IsString()
+  code?: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
 
   @IsOptional()
@@ -22,18 +26,6 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsString()
   trainerId?: string;
-
-  @IsOptional()
-  @IsString()
-  category?: string;
-
-  @IsOptional()
-  @IsEnum(SkillLevel)
-  skillLevel?: SkillLevel;
-
-  @IsOptional()
-  @IsString()
-  code?: string;
 
   @IsOptional()
   @IsArray()
@@ -56,4 +48,12 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsEnum(CourseStatus)
   status?: CourseStatus;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsEnum(SkillLevel)
+  skillLevel?: SkillLevel;
 }

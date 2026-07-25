@@ -99,7 +99,14 @@ export class AuthService {
   }
 
   private signToken(user: SafeUser) {
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      avatarUrl: user.avatarUrl ?? null,
+      emailVerified: user.emailVerified ?? false,
+    };
     return this.jwtService.sign(payload);
   }
 
@@ -126,13 +133,12 @@ export class AuthService {
       },
     });
 
-    const safeUser = this.stripPassword(user);
     const rawRefreshToken = await this.createRefreshToken(user.id);
 
     return {
-      accessToken: this.signToken(safeUser),
+      accessToken: this.signToken({ id: user.id, email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl, emailVerified: user.emailVerified } as SafeUser),
       rawRefreshToken,
-      user: safeUser,
+      user: { email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl, emailVerified: user.emailVerified },
     };
   }
 
@@ -264,8 +270,6 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
-        avatarUrl: user.avatarUrl,
-        emailVerified: user.emailVerified,
       },
     };
   }
@@ -302,8 +306,7 @@ export class AuthService {
 
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
-    const resetUrl = `${frontendUrl}/reset-password?token=${rawToken}`;
-
+    const resetUrl = `${frontendUrl}/auth/reset-password?token=${rawToken}`;
     await this.mailService.sendPasswordResetEmail(user.email, resetUrl);
 
     return genericResponse;

@@ -53,74 +53,92 @@ export class StudentService {
     private readonly vdoCipherService: VdoCipherService,
   ) {}
 
-  async getDashboard(studentId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: studentId } });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const enrollments = await this.prisma.enrollment.findMany({
-      where: { studentId, status: 'active' },
-      include: {
-        course: {
-          include: {
-            sections: {
-              orderBy: { order: 'asc' },
-              include: {
-                videos: { orderBy: { order: 'asc' } },
+  async getDashboard(
+    studentId: string,
+    userInfo: { id: string; email: string; name: string; role: string },
+  ) {
+    // Run queries in parallel — progress doesn't depend on enrollments
+    const [enrollments, allProgress, allQuizAttempts] = await Promise.all([
+      this.prisma.enrollment.findMany({
+        where: { studentId, status: 'active' },
+        select: {
+          course: {
+            select: {
+              id: true,
+              title: true,
+              thumbnailUrl: true,
+              sections: {
+                orderBy: { order: 'asc' },
+                select: {
+                  title: true,
+                  videos: {
+                    orderBy: { order: 'asc' },
+                    select: { id: true, title: true, durationSeconds: true, order: true },
+                  },
+                  quizzes: {
+                    orderBy: { order: 'asc' },
+                    select: { id: true, title: true, order: true },
+                  },
+                },
               },
             },
           },
         },
-      },
-    });
+      }),
+      this.prisma.videoProgress.findMany({
+        where: { studentId },
+        select: { videoId: true, isCompleted: true },
+      }),
+      this.prisma.quizAttempt.findMany({
+        where: { studentId },
+        select: { quizId: true, isCompleted: true },
+      }),
+    ]);
 
-    // Fetch all of this student's video progress once, rather than
-    // per-enrollment, to avoid N+1 queries.
-    const allProgress = await this.prisma.videoProgress.findMany({
-      where: { studentId },
-    });
     const progressByVideoId = new Map(allProgress.map((p) => [p.videoId, p]));
+    const quizAttemptById = new Map(allQuizAttempts.map((a) => [a.quizId, a]));
 
     const enrolledCourses: CourseProgress[] = enrollments.map((enrollment) => {
       const course = enrollment.course;
 
-      // Flatten sections → videos, keeping section title for "next video" display.
-      // Order matters here — it's how we determine which video is "next"
-      // under the strictly-sequential video rule.
-      const orderedVideos = course.sections.flatMap((section) =>
-        section.videos.map((video) => ({
-          id: video.id,
-          title: video.title,
-          durationSeconds: video.durationSeconds,
-          sectionTitle: section.title,
-        })),
-      );
+      // Flatten sections → items (videos + quizzes), keeping section title for "next" display.
+      // Order matters here — it's how we determine which item is "next"
+      // under the strictly-sequential rule.
+      const orderedItems = course.sections.flatMap((section) => {
+        const items = [
+          ...section.videos.map((v) => ({ ...v, type: 'video' as const, sectionTitle: section.title })),
+          ...section.quizzes.map((q) => ({ ...q, type: 'quiz' as const, durationSeconds: 0, sectionTitle: section.title })),
+        ];
+        return items.sort((a, b) => a.order - b.order);
+      });
 
-      const totalVideos = orderedVideos.length;
+      // We continue to return "totalVideos" and "completedVideos" in the payload 
+      // so we don't break frontend types, but they actually represent "totalItems".
+      const totalVideos = orderedItems.length;
 
       let completedVideos = 0;
       let secondsRemaining = 0;
       let nextVideo: NextVideo | null = null;
 
-      for (const video of orderedVideos) {
-        const progress = progressByVideoId.get(video.id);
-        const isCompleted = progress?.isCompleted ?? false;
+      for (const item of orderedItems) {
+        let isCompleted = false;
+        
+        if (item.type === 'video') {
+          isCompleted = progressByVideoId.get(item.id)?.isCompleted ?? false;
+          if (!isCompleted) secondsRemaining += item.durationSeconds;
+        } else {
+          isCompleted = quizAttemptById.get(item.id)?.isCompleted ?? false;
+        }
 
         if (isCompleted) {
           completedVideos += 1;
-        } else {
-          secondsRemaining += video.durationSeconds;
-          // First incomplete video in sequence order is "next" —
-          // matches the strictly-sequential unlock rule.
-          if (!nextVideo) {
-            nextVideo = {
-              id: video.id,
-              title: video.title,
-              sectionTitle: video.sectionTitle,
-            };
-          }
+        } else if (!nextVideo) {
+          // First incomplete item in sequence order is "next"
+          nextVideo = {
+            id: item.id,
+            title: item.title,
+            sectionTitle: item.sectionTitle,
+          };
         }
       }
 
@@ -141,45 +159,42 @@ export class StudentService {
     });
 
     return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
+      user: userInfo,
       enrolledCourses,
+      resumeCourses: enrolledCourses.filter((c) => c.progressPercent < 100),
     };
   }
 
   async getCourseDetail(studentId: string, courseId: string) {
-    // Must be actively enrolled to view the full curriculum —
-    // prevents students from browsing paid content they haven't bought.
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { studentId_courseId: { studentId, courseId } },
-    });
+    // Fetch enrollment check and full course data in parallel —
+    // both are independent reads, no need to wait for enrollment before fetching course.
+    const [enrollment, course] = await Promise.all([
+      this.prisma.enrollment.findUnique({
+        where: { studentId_courseId: { studentId, courseId } },
+      }),
+      this.prisma.course.findUnique({
+        where: { id: courseId },
+        include: {
+          trainer: {
+            include: {
+              _count: { select: { coursesTaught: true } },
+            },
+          },
+          resources: true,
+          sections: {
+            orderBy: { order: 'asc' },
+            include: {
+              videos: { orderBy: { order: 'asc' } },
+              quizzes: { orderBy: { order: 'asc' } },
+            },
+          },
+        },
+      }),
+    ]);
 
     if (!enrollment || enrollment.status !== 'active') {
       throw new ForbiddenException('You are not enrolled in this course');
     }
-
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-      include: {
-        trainer: {
-          include: {
-            _count: { select: { coursesTaught: true } },
-          },
-        },
-        resources: true,
-        sections: {
-          orderBy: { order: 'asc' },
-          include: {
-            videos: { orderBy: { order: 'asc' } },
-            quizzes: { orderBy: { order: 'asc' } },
-          },
-        },
-      },
-    });
 
     if (!course) {
       throw new NotFoundException('Course not found');
@@ -457,10 +472,11 @@ export class StudentService {
       throw new BadRequestException('This video is not yet available for playback');
     }
 
-    // Check sequential lock — student must have completed the previous item
-    // to access this video (same logic as getCourseDetail isCurrent/isLocked)
-    // For now: just verify they've started the course at least
-    // Full sequential check can be added later
+    // Fetch saved progress position for resume
+    const progress = await this.prisma.videoProgress.findUnique({
+      where: { studentId_videoId: { studentId, videoId } },
+      select: { lastPositionSec: true },
+    });
 
     // Fetch student info for watermark
     const student = await this.prisma.user.findUnique({
@@ -479,6 +495,7 @@ export class StudentService {
       videoId: video.id,
       title: video.title,
       durationSeconds: video.durationSeconds,
+      initialPosition: progress?.lastPositionSec ?? 0,
     };
   }
 }

@@ -7,6 +7,10 @@ export class CreateCourseDto {
 
   @IsOptional()
   @IsString()
+  code?: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
 
   @IsOptional()
@@ -20,14 +24,6 @@ export class CreateCourseDto {
   @IsOptional()
   @IsString()
   trainerId?: string;
-
-  @IsOptional()
-  @IsString()
-  category?: string;
-
-  @IsOptional()
-  @IsEnum(SkillLevel)
-  skillLevel?: SkillLevel;
 
   @IsOptional()
   @IsArray()
@@ -50,4 +46,12 @@ export class CreateCourseDto {
   @IsOptional()
   @IsEnum(CourseStatus)
   status?: CourseStatus;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsEnum(SkillLevel)
+  skillLevel?: SkillLevel;
 }

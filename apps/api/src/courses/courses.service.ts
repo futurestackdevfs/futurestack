@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { VdoCipherService } from '../vdocipher/vdocipher.service';
 import { CreateTrackDto } from './dto/create-track.dto';
 import { UpdateTrackDto } from './dto/update-track.dto';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -20,16 +21,57 @@ import { CreateResourceDto } from './dto/create-resource.dto';
 import { FeatureDto } from './dto/feature.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
 
+const SKILL_LEVEL_LABELS: Record<string, string> = {
+  BEGINNER: 'Beginner',
+  INTERMEDIATE: 'Intermediate',
+  ADVANCED: 'Advanced',
+};
+
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+// DB values are sometimes stored as bare relative paths (e.g. "images/foo.png")
+// which the browser resolves against the current page URL instead of the site
+// root, causing 404s. Normalize to an absolute path/URL.
+function normalizeThumbnail(url: string | null | undefined, fallback: string | null = null): string | null {
+  if (!url) return fallback;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) return url;
+  return `/${url}`;
+}
+
 @Injectable()
 export class CoursesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly vdoCipherService: VdoCipherService,
+  ) { }
 
   // ==================== PUBLIC ====================
 
+  private async getVideoStats(courseIds: string[]): Promise<Map<string, { totalSeconds: number; videoCount: number }>> {
+    if (courseIds.length === 0) return new Map();
+    const rows: { courseId: string; totalSeconds: number | null; videoCount: number | null }[] =
+      await this.prisma.$queryRawUnsafe(
+        `SELECT s."courseId", COALESCE(SUM(v."durationSeconds"), 0) as "totalSeconds", COUNT(v.id) as "videoCount"
+         FROM "Section" s LEFT JOIN "Video" v ON v."sectionId" = s."id"
+         WHERE s."courseId" = ANY($1)
+         GROUP BY s."courseId"`,
+        courseIds,
+      );
+    const map = new Map<string, { totalSeconds: number; videoCount: number }>();
+    for (const row of rows) {
+      map.set(row.courseId, { totalSeconds: Number(row.totalSeconds ?? 0), videoCount: Number(row.videoCount ?? 0) });
+    }
+    return map;
+  }
+
   async featuredCourses() {
+    const SLOT_COUNT = 10;
     const courses = await this.prisma.course.findMany({
-      where: { isFeatured: true, status: 'ACTIVE' },
+      where: { isFeatured: true, status: 'ACTIVE', displayOrder: { lt: SLOT_COUNT } },
       orderBy: { displayOrder: 'asc' },
+      take: SLOT_COUNT,
       select: {
         id: true,
         title: true,
@@ -38,22 +80,53 @@ export class CoursesService {
         price: true,
         techStack: true,
         displayOrder: true,
+        whatYoullLearn: true,
+        careerTitle: true,
+        careerBody: true,
+        createdAt: true,
         trainer: { select: { name: true } },
-        _count: { select: { sections: true } },
-        sections: { select: { _count: { select: { videos: true } } } },
+        _count: { select: { sections: true, enrollments: true } },
       },
     });
-    // Prisma can't count videos directly on Course, so we aggregate from sections.
-    return courses.map(({ sections, ...rest }) => ({
-      ...rest,
-      totalVideos: sections.reduce((sum, s) => sum + s._count.videos, 0),
-    }));
+
+    // Filter out duplicates in case of database inconsistencies
+    const uniqueCourses: typeof courses = [];
+    const seenOrders = new Set();
+    for (const c of courses) {
+      if (!seenOrders.has(c.displayOrder)) {
+        seenOrders.add(c.displayOrder);
+        uniqueCourses.push(c);
+      }
+    }
+
+    const videoStats = await this.getVideoStats(uniqueCourses.map((c) => c.id));
+
+    const enrollmentCounts = uniqueCourses.map((c) => c._count.enrollments).sort((a, b) => b - a);
+    const trendingThreshold = enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+    return uniqueCourses.map(({ createdAt, ...rest }) => {
+      const stats = videoStats.get(rest.id) ?? { totalSeconds: 0, videoCount: 0 };
+      const isTrending = rest._count.enrollments > 0 && rest._count.enrollments >= trendingThreshold;
+      const isNew = createdAt >= fourteenDaysAgo;
+
+      return {
+        ...rest,
+        thumbnailUrl: normalizeThumbnail(rest.thumbnailUrl),
+        totalVideos: stats.videoCount,
+        durationHours: Math.round(stats.totalSeconds / 3600) || 1,
+        badge: isTrending ? '🔥 Trending' : isNew ? '✨ New' : null,
+        badgeClass: isTrending ? 'bg-orange-500' : 'bg-blue-500',
+      };
+    });
   }
 
   async featuredTracks() {
-    return this.prisma.track.findMany({
-      where: { isFeatured: true },
+    const SLOT_COUNT = 10;
+    const tracks = await this.prisma.track.findMany({
+      where: { isFeatured: true, displayOrder: { lt: SLOT_COUNT } },
       orderBy: { displayOrder: 'asc' },
+      take: SLOT_COUNT,
       select: {
         id: true,
         title: true,
@@ -62,6 +135,105 @@ export class CoursesService {
         _count: { select: { courses: true } },
       },
     });
+
+    const uniqueTracks: typeof tracks = [];
+    const seenOrders = new Set();
+    for (const t of tracks) {
+      if (!seenOrders.has(t.displayOrder)) {
+        seenOrders.add(t.displayOrder);
+        uniqueTracks.push(t);
+      }
+    }
+    return uniqueTracks;
+  }
+
+  async publicCourseBySlug(slug: string) {
+    const courses = await this.prisma.course.findMany({
+      where: { status: 'ACTIVE' },
+      select: { id: true, title: true },
+    });
+    const matched = courses.find((c) => slugify(c.title) === slug);
+    if (!matched) throw new NotFoundException('Course not found');
+    return this.publicCourseDetail(matched.id);
+  }
+
+  async publicCourseDetail(id: string) {
+    const course = await this.prisma.course.findFirst({
+      where: { id, status: 'ACTIVE' },
+      include: {
+        trainer: {
+          select: { id: true, name: true, avatarUrl: true, bio: true, yearsExperience: true, rating: true, coursesTaught: { select: { id: true } } },
+        },
+        resources: { orderBy: { createdAt: 'asc' } },
+        sections: {
+          orderBy: { order: 'asc' },
+          include: {
+            videos: {
+              orderBy: { order: 'asc' },
+              select: { id: true, title: true, durationSeconds: true, order: true, isPreview: true },
+            },
+            quizzes: {
+              orderBy: { order: 'asc' },
+              select: { id: true, title: true, order: true, totalQuestions: true },
+            },
+          },
+        },
+        _count: { select: { enrollments: true } },
+      },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+
+    const totalVideos = course.sections.reduce((sum, s) => sum + s.videos.length, 0);
+    const totalQuizzes = course.sections.reduce((sum, s) => sum + s.quizzes.length, 0);
+
+    return {
+      id: course.id,
+      slug: slugify(course.title),
+      title: course.title,
+      description: course.description ?? '',
+      thumbnailUrl: normalizeThumbnail(course.thumbnailUrl),
+      price: course.price,
+      whatYoullLearn: course.whatYoullLearn,
+      techStack: course.techStack,
+      careerTitle: course.careerTitle,
+      careerBody: course.careerBody,
+      category: course.category ?? course.techStack[0] ?? 'General',
+      hours: Math.round(
+        course.sections.reduce((sum, s) => sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0), 0) / 3600,
+      ) || 1,
+      level: SKILL_LEVEL_LABELS[course.skillLevel ?? 'INTERMEDIATE'],
+      rating: course.trainer?.rating ?? 4.7,
+      students: course._count.enrollments,
+      mentorInitials: (course.trainer?.name ?? 'TM').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+      mentorName: course.trainer?.name ?? 'Team',
+      mentorAvatar: course.trainer?.avatarUrl ?? null,
+      mentorBio: course.trainer?.bio ?? null,
+      mentorYearsExp: course.trainer?.yearsExperience ?? null,
+      mentorRating: course.trainer?.rating ?? null,
+      mentorCoursesTaught: course.trainer?.coursesTaught.length ?? null,
+      totalLessons: totalVideos + totalQuizzes,
+      totalVideos,
+      totalQuizzes,
+      sections: course.sections.map(s => ({
+        id: s.id,
+        title: s.title,
+        order: s.order,
+        videos: s.videos.map(v => ({
+          id: v.id,
+          title: v.title,
+          durationSeconds: v.durationSeconds,
+          order: v.order,
+          isPreview: v.isPreview,
+        })),
+        quizzes: s.quizzes.map(q => ({
+          id: null,
+          title: q.title,
+          order: q.order,
+          totalQuestions: q.totalQuestions,
+        })),
+      })),
+      resources: course.resources,
+    };
   }
 
   async getCourseOverview(courseId: string) {
@@ -123,7 +295,7 @@ export class CoursesService {
       items: [
         ...section.videos.map(v => ({
           type: 'video' as const,
-          id: v.isPreview ? v.id : null,   // only expose ID for preview videos
+          id: v.id,
           title: v.title,
           durationSeconds: v.durationSeconds,
           order: v.order,
@@ -145,7 +317,6 @@ export class CoursesService {
     return {
       id: course.id,
       title: course.title,
-      code: course.code,
       category: course.category,
       skillLevel: course.skillLevel,
       description: course.description,
@@ -173,6 +344,48 @@ export class CoursesService {
     };
   }
 
+  async getPublicVideoOtp(videoId: string) {
+    const video = await this.prisma.video.findUnique({
+      where: { id: videoId },
+      select: {
+        id: true,
+        vdoCipherId: true,
+        videoStatus: true,
+        order: true,
+        section: {
+          select: {
+            id: true,
+            courseId: true,
+            course: { select: { status: true } },
+          },
+        },
+      },
+    });
+
+    if (!video) throw new NotFoundException('Video not available for preview');
+    if (video.videoStatus !== 'READY') throw new BadRequestException('Video not ready');
+    if (video.section.course.status !== 'ACTIVE') throw new NotFoundException('Video not available');
+
+    const firstSection = await this.prisma.section.findFirst({
+      where: { courseId: video.section.courseId },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+    if (video.section.id !== firstSection?.id) throw new NotFoundException('Video not available for preview');
+
+    const firstVideo = await this.prisma.video.findFirst({
+      where: { sectionId: video.section.id },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+    if (video.id !== firstVideo?.id) throw new NotFoundException('Video not available for preview');
+
+    return this.vdoCipherService.getPlaybackOtp(video.vdoCipherId, {
+      name: 'Preview User',
+      email: 'preview@futurestack.in',
+    });
+  }
+
   async searchCourses(query: {
     q?: string;
     category?: string;
@@ -180,7 +393,7 @@ export class CoursesService {
     limit?: number;
   }) {
     const limit = Math.min(query.limit ?? 10, 50); // cap at 50
-  
+
     const where: any = {
       status: 'ACTIVE',
       ...(query.category && { category: query.category }),
@@ -194,7 +407,7 @@ export class CoursesService {
         ]
       })
     };
-  
+
     const courses = await this.prisma.course.findMany({
       where,
       take: limit,
@@ -222,7 +435,7 @@ export class CoursesService {
         }
       }
     });
-  
+
     return {
       query: query.q ?? null,
       total: courses.length,
@@ -321,31 +534,222 @@ export class CoursesService {
 
   // ==================== COURSES ====================
 
+  private async generateCourseCode(title: string): Promise<string> {
+    const prefix = title.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 3) || 'CRS';
+    const last = await this.prisma.course.findFirst({
+      where: { code: { startsWith: `CRS-${prefix}-` } },
+      orderBy: { code: 'desc' },
+      select: { code: true },
+    });
+    const next = last?.code ? parseInt(last.code.split('-').pop() ?? '0', 10) + 1 : 1;
+    return `CRS-${prefix}-${String(next).padStart(3, '0')}`;
+  }
+
   async createCourse(dto: CreateCourseDto) {
     if (dto.trainerId) await this.validateApprovedTrainer(dto.trainerId);
-    const course = await this.prisma.course.create({ data: dto });
-
-    // Build a 2-4 letter prefix from category initials, e.g. "Full Stack" → "FS"
-    const prefix = dto.category
-      ? dto.category.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 4)
-      : 'CRS';
-
-    const existingCount = await this.prisma.course.count({
-      where: { code: { startsWith: `${prefix}-` } },
-    });
-    const code = `${prefix}-${String(existingCount + 1).padStart(2, '0')}`;
-
-    return this.prisma.course.update({ where: { id: course.id }, data: { code } });
+    const code = dto.code ?? await this.generateCourseCode(dto.title);
+    return this.prisma.course.create({ data: { ...dto, code } });
   }
 
   async listCourses() {
-    return this.prisma.course.findMany({
+    const courses = await this.prisma.course.findMany({
       include: {
-        trainer: { select: { id: true, name: true, email: true } },
+        trainer: { select: { id: true, name: true, email: true, rating: true } },
         _count: { select: { enrollments: true, sections: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const [videoStats, quizCounts] = await Promise.all([
+      this.getVideoStats(courses.map((c) => c.id)),
+      this.getQuizCounts(courses.map((c) => c.id)),
+    ]);
+
+    return courses.map((course) => {
+      const stats = videoStats.get(course.id) ?? { totalSeconds: 0, videoCount: 0 };
+      const totalHours = Math.round(stats.totalSeconds / 3600);
+      return {
+        ...course,
+        totalLessons: stats.videoCount + (quizCounts.get(course.id) ?? 0),
+        totalHours,
+        durationWeeks: totalHours > 0 ? Math.max(1, Math.round(totalHours / 10)) : 0,
+      };
+    });
+  }
+
+  private async getQuizCounts(courseIds: string[]): Promise<Map<string, number>> {
+    if (courseIds.length === 0) return new Map();
+    const rows: { courseId: string; quizCount: number | null }[] =
+      await this.prisma.$queryRawUnsafe(
+        `SELECT s."courseId", COUNT(q.id) as "quizCount"
+         FROM "Section" s LEFT JOIN "Quiz" q ON q."sectionId" = s."id"
+         WHERE s."courseId" = ANY($1)
+         GROUP BY s."courseId"`,
+        courseIds,
+      );
+    return new Map(rows.map((r) => [r.courseId, Number(r.quizCount ?? 0)]));
+  }
+
+  async findAllCards(opts: { page: number; perPage: number; search?: string; sort?: string; filters?: Record<string, string[]> }) {
+    const where: any = { status: 'ACTIVE' };
+
+    if (opts.search?.trim()) {
+      const q = opts.search.trim();
+      where.OR = [
+        { title: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { techStack: { has: q } },
+        { careerTitle: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    // `category` and `duration` are computed fields, so all filtering happens
+    // in memory AFTER building the cards but BEFORE pagination — this keeps
+    // `total` and page numbers correct. The catalog is small enough for this.
+    const activeFilters: { field: string; values: string[] }[] = [];
+    if (opts.filters) {
+      for (const [field, values] of Object.entries(opts.filters)) {
+        if (values.length > 0) activeFilters.push({ field, values });
+      }
+    }
+
+    let orderBy: any = { createdAt: 'desc' };
+    if (opts.sort === 'Highest Rated') orderBy = { trainer: { rating: 'desc' } };
+    else if (opts.sort === 'Lowest Rated') orderBy = { trainer: { rating: 'asc' } };
+    else if (opts.sort === 'Most Popular') orderBy = { enrollments: { _count: 'desc' } };
+
+    const courses = await this.prisma.course.findMany({
+      where,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        thumbnailUrl: true,
+        price: true,
+        techStack: true,
+        whatYoullLearn: true,
+        careerTitle: true,
+        careerBody: true,
+        category: true,
+        skillLevel: true,
+        createdAt: true,
+        trainer: { select: { name: true, rating: true } },
+        _count: { select: { enrollments: true } },
+      },
+      orderBy,
+    });
+
+    const videoStats = await this.getVideoStats(courses.map((c) => c.id));
+
+    // Build computed card data
+    const enrollmentCounts = courses.map((c) => c._count.enrollments).sort((a, b) => b - a);
+    const trendingThreshold = enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+    let data = courses.map((course) => {
+      const stats = videoStats.get(course.id) ?? { totalSeconds: 0, videoCount: 0 };
+      const totalHours = Math.round(stats.totalSeconds / 3600);
+
+      const isTrending = course._count.enrollments > 0 && course._count.enrollments >= trendingThreshold;
+      const isNew = course.createdAt >= fourteenDaysAgo;
+      const badge = isTrending ? '🔥 Trending' : isNew ? '✨ New' : null;
+      const badgeClass = isTrending ? 'bg-orange-500' : 'bg-blue-500';
+      const category = course.category ?? course.techStack[0] ?? 'General';
+      const level = SKILL_LEVEL_LABELS[course.skillLevel ?? 'INTERMEDIATE'];
+      const durationLabel = totalHours > 50 ? '50+ hrs' : totalHours > 20 ? '20 – 50 hrs' : '5 – 20 hrs';
+
+      return {
+        id: course.id,
+        slug: slugify(course.title),
+        category,
+        title: course.title,
+        description: course.description ?? '',
+        hours: totalHours || 20,
+        students: `${((course._count.enrollments / 1000) * 10).toFixed(1).replace('.0', '')}k`,
+        level,
+        rating: course.trainer?.rating ?? 4.7,
+        reviews: `${course._count.enrollments}`,
+        badge,
+        badgeClass,
+        mentor: (course.trainer?.name ?? 'TM').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+        mentorName: course.trainer?.name ?? 'Team',
+        mentorColor: 'from-blue-500 to-blue-600',
+        img: normalizeThumbnail(course.thumbnailUrl, '/images/C1.png'),
+        mode: 'Self-Paced',
+        goal: 'Upskill',
+        tech: category,
+        duration: durationLabel,
+        price: course.price,
+        techStack: course.techStack,
+        whatYoullLearn: course.whatYoullLearn,
+        careerTitle: course.careerTitle,
+        careerBody: course.careerBody,
+      };
+    });
+
+    // Facets are computed from the search-matched set (before filters), so the
+    // sidebar always shows every available option with its true catalog count.
+    const countBy = (getValues: (c: (typeof data)[number]) => string[]) => {
+      const counts = new Map<string, number>();
+      for (const c of data) {
+        for (const v of getValues(c)) {
+          if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+        }
+      }
+      return [...counts.entries()]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([value, count]) => ({ value, count }));
+    };
+    // Fixed option lists shown even when no course matches them (count 0).
+    // level/mode/goal are not DB fields yet — every card carries the defaults,
+    // so most of these stay at 0 until real columns exist.
+    const fixedOptions = (items: string[], getValue: (c: (typeof data)[number]) => string) =>
+      items.map((value) => ({ value, count: data.filter((c) => getValue(c) === value).length }));
+
+    const DURATION_ORDER = ['5 – 20 hrs', '20 – 50 hrs', '50+ hrs'];
+    const facets = [
+      {
+        key: 'level',
+        title: 'Skill Level',
+        options: fixedOptions(Object.values(SKILL_LEVEL_LABELS), (c) => c.level),
+      },
+      { key: 'category', title: 'Category', options: countBy((c) => [c.category]) },
+      {
+        key: 'duration',
+        title: 'Duration',
+        options: fixedOptions(DURATION_ORDER, (c) => c.duration),
+      },
+      {
+        key: 'mode',
+        title: 'Learning Mode',
+        options: fixedOptions(['Self-Paced', 'Live Cohort', 'Mentor-Led', 'Bootcamp'], (c) => c.mode),
+      },
+      {
+        key: 'goal',
+        title: 'Career Goal',
+        options: fixedOptions(['Get Hired', 'Upskill', 'Freelance', 'Start-up Ready'], (c) => c.goal),
+      },
+      { key: 'tech', title: 'Technology Stack', options: countBy((c) => c.techStack) },
+    ];
+
+    // Apply filters (tech matches any chip in the stack; others match the computed field)
+    for (const { field, values } of activeFilters) {
+      if (field === 'tech') {
+        data = data.filter((c) => c.techStack.some((t) => values.includes(t)));
+      } else if (['duration', 'category', 'level', 'mode', 'goal'].includes(field)) {
+        data = data.filter((c) => values.includes(String((c as any)[field])));
+      }
+    }
+
+    if (opts.sort === 'Duration: Shortest') {
+      data.sort((a, b) => a.hours - b.hours);
+    }
+
+    const total = data.length;
+    const start = (opts.page - 1) * opts.perPage;
+    data = data.slice(start, start + opts.perPage);
+
+    return { data, total, page: opts.page, perPage: opts.perPage, facets };
   }
 
   async getCourse(id: string) {
@@ -475,7 +879,8 @@ export class CoursesService {
   }
 
   async deleteVideo(id: string) {
-    await this.findVideoOrFail(id);
+    const video = await this.findVideoOrFail(id);
+    await this.vdoCipherService.deleteVideo(video.vdoCipherId);
     await this.prisma.video.delete({ where: { id } });
     return { message: 'Video deleted' };
   }
@@ -522,5 +927,50 @@ export class CoursesService {
     if (!resource) throw new NotFoundException('Resource not found');
     await this.prisma.courseResource.delete({ where: { id } });
     return { message: 'Resource deleted' };
+  }
+
+  // ==================== TRAINER REVENUE ====================
+
+  async trainerRevenue(trainerId: string) {
+    const courses = await this.prisma.course.findMany({
+      where: { trainerId, status: 'ACTIVE' },
+      select: { id: true, title: true, price: true, code: true },
+    });
+
+    const courseIds = courses.map(c => c.id);
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { courseId: { in: courseIds }, status: 'active' },
+      include: {
+        student: { select: { id: true, name: true } },
+        course: { select: { title: true, price: true, code: true } },
+      },
+      orderBy: { enrolledAt: 'desc' },
+    });
+
+    const list = enrollments.map(e => {
+      const paymentMode = e.amountPaid >= e.course.price
+        ? 'Full'
+        : e.amountPaid > 0
+          ? 'EMI'
+          : 'Pending';
+
+      return {
+        id: e.id,
+        student: e.student.name,
+        batchCode: e.course.code ?? e.course.title.slice(0, 8).toUpperCase(),
+        course: e.course.title,
+        courseFee: e.course.price,
+        paymentMode,
+        enrolledOn: e.enrolledAt.toISOString().slice(0, 10),
+      };
+    });
+
+    return { enrollments: list };
+  }
+
+  async trainerPayouts(trainerId: string) {
+    // Payout records not yet modeled in the database.
+    // Return empty list until the feature is implemented.
+    return [];
   }
 }
