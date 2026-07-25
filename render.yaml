@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: futurestack-api
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npx pnpm install && npx pnpm --filter api exec prisma generate && npx pnpm --filter api build
+    startCommand: npx pnpm --filter api start:prod
+    envVars:
+      - key: PORT
+        value: 3002
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: "FutureStack <onboarding@resend.dev>"
+      - key: VDOCIPHER_API_KEY
+        sync: false
