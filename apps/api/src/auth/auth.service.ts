@@ -32,6 +32,72 @@ export class AuthService {
     return safeUser;
   }
 
+  private hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  private generateRawRefreshToken(): string {
+    return crypto.randomBytes(40).toString('hex');
+  }
+
+  private async cleanupExpiredTokens(userId: string): Promise<void> {
+    await this.prisma.refreshToken.deleteMany({
+      where: { userId, expiresAt: { lt: new Date() } },
+    });
+  }
+
+  async createRefreshToken(userId: string): Promise<string> {
+    await this.cleanupExpiredTokens(userId);
+    const raw = this.generateRawRefreshToken();
+    const hash = this.hashToken(raw);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await this.prisma.refreshToken.create({
+      data: { tokenHash: hash, userId, expiresAt },
+    });
+
+    return raw;
+  }
+
+  async refreshTokens(rawToken: string): Promise<{
+    accessToken: string;
+    newRawRefreshToken: string;
+    user: SafeUser;
+  }> {
+    const hash = this.hashToken(rawToken);
+
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: hash },
+      include: { user: true },
+    });
+
+    if (!stored || stored.expiresAt < new Date()) {
+      if (stored) {
+        await this.prisma.refreshToken.delete({ where: { tokenHash: hash } });
+      }
+      throw new UnauthorizedException('Refresh token is invalid or expired');
+    }
+
+    if (!stored.user.isActive) {
+      throw new UnauthorizedException('Account is suspended');
+    }
+
+    // Token rotation — invalidate old, issue new
+    await this.prisma.refreshToken.delete({ where: { tokenHash: hash } });
+    const newRawRefreshToken = await this.createRefreshToken(stored.userId);
+
+    const safeUser = this.stripPassword(stored.user);
+    const accessToken = this.signToken(safeUser);
+
+    return { accessToken, newRawRefreshToken, user: safeUser };
+  }
+
+  async logout(rawToken: string): Promise<void> {
+    if (!rawToken) return;
+    const hash = this.hashToken(rawToken);
+    await this.prisma.refreshToken.deleteMany({ where: { tokenHash: hash } });
+  }
+
   private signToken(user: SafeUser) {
     const payload = {
       sub: user.id,
@@ -67,16 +133,13 @@ export class AuthService {
       },
     });
 
+    const safeUser = this.stripPassword(user);
+    const rawRefreshToken = await this.createRefreshToken(user.id);
+
     return {
-      accessToken: this.signToken(user),
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        avatarUrl: user.avatarUrl,
-        emailVerified: user.emailVerified,
-      },
+      accessToken: this.signToken(safeUser),
+      rawRefreshToken,
+      user: safeUser,
     };
   }
 
@@ -198,8 +261,11 @@ export class AuthService {
       data: { lastLoginAt: new Date() },
     });
 
+    const rawRefreshToken = await this.createRefreshToken(user.id);
+
     return {
       accessToken: this.signToken(user),
+      rawRefreshToken,
       user: {
         id: user.id,
         email: user.email,

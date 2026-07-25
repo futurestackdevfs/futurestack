@@ -14,6 +14,7 @@ import { DiscussionModule } from './discussion/discussion.module';
 import { CertificatesModule } from './certificates/certificates.module';
 import { TrainerModule } from './trainer/trainer.module';
 import { VdoCipherModule } from './vdocipher/vdocipher.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { VdoCipherModule } from './vdocipher/vdocipher.module';
     CertificatesModule,
     TrainerModule,
     VdoCipherModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [
