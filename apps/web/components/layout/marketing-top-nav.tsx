@@ -14,6 +14,12 @@ export function TopNav() {
   const router = useRouter();
   const pathname = usePathname();
   const [animate, setAnimate] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<{ slug: string; title: string; category: string }[]>([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestIdx, setSuggestIdx] = useState(-1);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const suggestRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const v = sessionStorage.getItem("fs-nav-animated");
@@ -38,6 +44,80 @@ export function TopNav() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+      if (e.key === 'Escape') {
+        setSearchQuery("");
+        setSuggestOpen(false);
+        searchRef.current?.blur();
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSuggestions([]); setSuggestOpen(false); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/courses/public/cards?search=${encodeURIComponent(searchQuery.trim())}&perPage=5`);
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions((data.data ?? []).map((c: any) => ({ slug: c.slug, title: c.title, category: c.category })));
+          setSuggestOpen(true);
+          setSuggestIdx(-1);
+        }
+      } catch {}
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (suggestRef.current && !suggestRef.current.contains(e.target as Node) &&
+          searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSuggestOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  function navigateToCourse(slug: string) {
+    router.push(`/courses/${slug}`);
+    setSearchQuery("");
+    setSuggestOpen(false);
+    setMobileOpen(false);
+  }
+
+  function handleSearchKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSuggestIdx(i => Math.min(i + 1, suggestions.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setSuggestIdx(i => Math.max(i - 1, -1)); }
+    else if (e.key === 'Enter') {
+      if (suggestIdx >= 0 && suggestions[suggestIdx]) {
+        navigateToCourse(suggestions[suggestIdx].slug);
+      } else if (searchQuery.trim()) {
+        router.push(`/courses?search=${encodeURIComponent(searchQuery.trim())}`);
+        setSearchQuery("");
+        setSuggestOpen(false);
+        setMobileOpen(false);
+      }
+    }
+  }
+
+  function highlightMatch(text: string, query: string) {
+    if (!query.trim()) return text;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return text;
+    return (
+      <>{text.slice(0, idx)}<strong className="text-[var(--text)] font-bold">{text.slice(idx, idx + query.length)}</strong>{text.slice(idx + query.length)}</>
+    );
+  }
+
   function toggleTheme() {
     const html = document.documentElement;
     const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
@@ -55,13 +135,35 @@ export function TopNav() {
   return (
     <nav className={`flex items-center gap-3 md:gap-5 px-3 md:px-6 h-14 bg-[var(--surface)] border-b border-[var(--border)] fixed top-0 left-0 right-0 z-[999] shadow-[var(--shadow)] ${animate ? "[animation:slideDown_.4s_ease_both]" : ""}`}>
       <Link href="/" className="flex items-center gap-2.5 shrink-0 no-underline">
-        <img src="/images/logo.png" alt="FutureStack" style={{ height: 35 }} className="max-md:!h-[28px]" />
+        <img src="/images/logo.png" alt="FutureStack" style={{ height: 28 }} className="max-md:!h-[22px]" />
       </Link>
 
-      <div className="hidden md:flex flex-1 max-w-[320px] items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 gap-2 h-[34px] transition-[border-color,box-shadow] duration-200 focus-within:border-[var(--blue2)] focus-within:shadow-[0_0_0_3px_var(--blue-d)]">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-        <input type="text" placeholder="Search courses, topics, or skills…" className="bg-transparent border-none outline-none text-[var(--text)] text-[13px] w-full placeholder:text-[var(--muted)]" />
-        <span className="text-[10px] text-[var(--muted)] border border-[var(--border)] rounded px-[5px] py-[1px] shrink-0 hidden sm:inline">Ctrl+K</span>
+      <div className="hidden md:flex flex-1 max-w-[320px] relative">
+        <div className="flex-1 flex items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 gap-2 h-[34px] transition-[border-color,box-shadow] duration-200 focus-within:border-[var(--blue2)] focus-within:shadow-[0_0_0_3px_var(--blue-d)]">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+          <input ref={searchRef} type="text" placeholder="Search courses, topics, or skills…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={handleSearchKey} className="bg-transparent border-none outline-none text-[var(--text)] text-[13px] w-full placeholder:text-[var(--muted)]" />
+          <span className="text-[10px] text-[var(--muted)] border border-[var(--border)] rounded px-[5px] py-[1px] shrink-0 hidden sm:inline">Ctrl+K</span>
+        </div>
+        {suggestOpen && suggestions.length > 0 && (
+          <div ref={suggestRef} className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-[0_8px_24px_rgba(0,0,0,.12)] overflow-hidden z-50">
+            {suggestions.map((s, i) => (
+              <button key={s.slug} onClick={() => navigateToCourse(s.slug)}
+                onMouseEnter={() => setSuggestIdx(i)}
+                className={`w-full flex items-center gap-2 px-3 py-[9px] text-left border-none cursor-pointer transition-colors ${i === suggestIdx ? 'bg-[var(--bg)]' : 'bg-transparent'}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[12px] font-semibold text-[var(--text)] truncate">{highlightMatch(s.title, searchQuery)}</div>
+                  <div className="text-[9px] text-[var(--text3)] truncate">{s.category}</div>
+                </div>
+                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="shrink-0 text-[var(--muted)]"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              </button>
+            ))}
+            <button onClick={() => { router.push(`/courses?search=${encodeURIComponent(searchQuery.trim())}`); setSearchQuery(""); setSuggestOpen(false); setMobileOpen(false); }}
+              className="w-full flex items-center justify-center gap-1 px-3 py-[8px] text-[10px] font-semibold text-[var(--blue2)] bg-transparent border-t border-[var(--border)] cursor-pointer hover:bg-[var(--bg)] transition-colors">
+              <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              See all results for "{searchQuery}"
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Desktop nav links */}
@@ -304,7 +406,7 @@ export function TopNav() {
         <div className="px-3 pt-3 pb-1">
           <div className="flex items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-2.5 gap-1.5 h-[32px] focus-within:border-[var(--blue2)]">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <input type="text" placeholder="Search courses…" className="bg-transparent border-none outline-none text-[var(--text)] text-[12px] w-full placeholder:text-[var(--muted)]" />
+            <input type="text" placeholder="Search courses…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={handleSearchKey} className="bg-transparent border-none outline-none text-[var(--text)] text-[12px] w-full placeholder:text-[var(--muted)]" />
           </div>
         </div>
 

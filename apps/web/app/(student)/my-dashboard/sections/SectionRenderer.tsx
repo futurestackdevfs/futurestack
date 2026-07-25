@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
 import OverviewSection from "./OverviewSection";
 import MyCoursesSection from "./MyCoursesSection";
 import ScheduleSection from "./ScheduleSection";
@@ -79,7 +80,12 @@ const COMPONENT_MAP: Record<string, ReactNode | ((props: any) => ReactNode)> = {
         {props.isLoading ? (
           <div className="text-[11px] font-mono" style={{ color: "var(--text3)" }}>Loading courses…</div>
         ) : props.enrolledCourses.length === 0 ? (
-          <div className="text-[11px] font-mono" style={{ color: "var(--text3)" }}>No enrolled courses yet. Browse the catalog to get started!</div>
+          <div className="flex flex-col items-center justify-center py-[40px] px-6 text-center">
+            <div className="w-[44px] h-[44px] rounded-full bg-gradient-to-br from-[#f05a1a] to-[#ff7a3c] flex items-center justify-center text-[20px] mb-[10px] shadow-[0_4px_14px_rgba(240,90,26,.25)]">🎓</div>
+            <Link href="/courses" className="text-[11px] font-bold text-white bg-gradient-to-r from-[#f05a1a] to-[#ff7a3c] px-[16px] py-[7px] rounded-[6px] no-underline shadow-[0_3px_10px_rgba(240,90,26,.25)] hover:shadow-[0_5px_16px_rgba(240,90,26,.35)] hover:-translate-y-[1px] transition-all inline-flex items-center gap-[5px]">
+              Browse Courses →
+            </Link>
+          </div>
         ) : (
           <div className="grid grid-cols-1 gap-2">
             {props.enrolledCourses.map((course) => {

@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { authApi } from '@/app/auth/lib/auth-api';
-import { saveStaffToken, clearToken } from '@/app/auth/lib/token-store';
+import { saveStaffToken } from '@/app/auth/lib/token-store';
+
+function decodeToken(token: string) {
+  return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+}
 
 const roles = [
   { id: 'ADMIN',           icon: '🛡️', label: 'Admin',           color: '#9333ea' },
@@ -65,11 +69,8 @@ export function StaffLoginForm() {
     setError(null);
     try {
       const { accessToken, user } = await authApi.loginOps(email, password);
-      // Clear student session so admin login doesn't leak into student section
-      await clearToken();
-      await fetch('/api/auth/set-token', { method: 'DELETE' });
-      // Save staff token in separate storage (isolated from student)
-      await saveStaffToken(user.id, accessToken);
+      const uid = decodeToken(accessToken).sub;
+      await saveStaffToken(uid, accessToken);
       await fetch('/api/auth/set-token-staff', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

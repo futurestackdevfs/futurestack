@@ -3,6 +3,10 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authApi } from '../../lib/auth-api';
 import { saveToken } from '../../lib/token-store';
+
+function decodeId(token: string) {
+  return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub as string;
+}
 import { showToast } from '@/lib/toast';
 import { emit } from '../../hooks/use-auth';
 
@@ -21,7 +25,7 @@ function OAuthHandler() {
     authApi
       .me(token)
       .then(async (user) => {
-        await saveToken(user.id, token);
+        await saveToken(decodeId(token), token);
         // Set HttpOnly session cookie so the BFF proxy can forward it
         await fetch('/api/auth/set-token', {
           method: 'POST',

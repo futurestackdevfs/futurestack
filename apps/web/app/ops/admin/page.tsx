@@ -108,7 +108,7 @@ const SCHEMAS: Record<string, FieldDef[]> = {
     { key: "careerTitle", label: "Career Relevance — Headline", type: "text", required: true, full: true, placeholder: "e.g. High-demand skill — average salary ₹18L – ₹40L/yr" },
     { key: "careerBody", label: "Career Relevance — Body", type: "textarea", required: true, full: true, placeholder: "Companies that hire for this skill, salary context, market demand…" },
     { key: "trainerId", label: "Primary Instructor", type: "select", required: true, optionsFrom: "instructors" },
-    { key: "thumbnailUrl", label: "Thumbnail Image", type: "file", required: true, full: true },
+    { key: "thumbnailUrl", label: "Thumbnail Image", type: "file", required: false, full: true },
     { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
     // Computed from the curriculum — optional, kept at the very end of the form
     { key: "duration", label: "Duration", type: "duration", placeholder: "e.g. 16" },
@@ -575,23 +575,24 @@ export default function AdminMasterDataPage() {
           });
           if (res.ok) {
             const created = await res.json();
+            const newCourse = {
+              id: created.id, _backendId: created.id,
+              name: created.title || body.title,
+              title: created.title || body.title,
+              description: created.description || "",
+              price: created.price ?? 0,
+              status: created.status || "DRAFT",
+              modules: 0, instructor: "", instructorEmail: "",
+              thumbnailUrl: created.thumbnailUrl || "",
+              category: created.category || body.category || "",
+              level: SKILL_LEVEL_LABELS[created.skillLevel || body.skillLevel] || "",
+              duration: 0, totalLessons: 0, totalHours: 0,
+              techStack: [], whatYoullLearn: [],
+              careerTitle: "", careerBody: "", enrollments: 0,
+            };
             setDb((prev) => ({
               ...prev,
-              courses: [...prev.courses, {
-                id: created.id, _backendId: created.id,
-                name: created.title || body.title,
-                title: created.title || body.title,
-                description: created.description || "",
-                price: created.price ?? 0,
-                status: created.status || "DRAFT",
-                modules: 0, instructor: "", instructorEmail: "",
-                thumbnailUrl: created.thumbnailUrl || "",
-                category: created.category || body.category || "",
-                level: SKILL_LEVEL_LABELS[created.skillLevel || body.skillLevel] || "",
-                duration: 0, totalLessons: 0, totalHours: 0,
-                techStack: [], whatYoullLearn: [],
-                careerTitle: "", careerBody: "", enrollments: 0,
-              }],
+              courses: [newCourse, ...prev.courses],
             }));
             addToast(`Course added successfully`);
           } else {

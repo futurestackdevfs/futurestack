@@ -534,9 +534,21 @@ export class CoursesService {
 
   // ==================== COURSES ====================
 
+  private async generateCourseCode(title: string): Promise<string> {
+    const prefix = title.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 3) || 'CRS';
+    const last = await this.prisma.course.findFirst({
+      where: { code: { startsWith: `CRS-${prefix}-` } },
+      orderBy: { code: 'desc' },
+      select: { code: true },
+    });
+    const next = last?.code ? parseInt(last.code.split('-').pop() ?? '0', 10) + 1 : 1;
+    return `CRS-${prefix}-${String(next).padStart(3, '0')}`;
+  }
+
   async createCourse(dto: CreateCourseDto) {
     if (dto.trainerId) await this.validateApprovedTrainer(dto.trainerId);
-    return this.prisma.course.create({ data: dto });
+    const code = dto.code ?? await this.generateCourseCode(dto.title);
+    return this.prisma.course.create({ data: { ...dto, code } });
   }
 
   async listCourses() {

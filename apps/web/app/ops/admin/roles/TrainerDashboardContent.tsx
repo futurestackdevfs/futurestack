@@ -33,7 +33,7 @@ export default function TrainerDashboardContent() {
         {[
           { label: "Active Courses", value: 3, delta: "this month", color: "var(--orange)" },
           { label: "Total Students", value: 119, delta: "across all batches", color: "var(--blue)" },
-          { label: "Avg. Rating", value: "4.8 ⭐", delta: "from 87 reviews", color: "var(--purple)" },
+          { label: "Avg. Rating", value: "— ⭐", delta: "no reviews yet", color: "var(--purple)" },
           { label: "Pending Reviews", value: 4, delta: "needs attention", color: "var(--amber)" },
         ].map((kpi, i) => (
           <div key={i} style={{ background: "var(--surface)" }} className="px-3.5 py-2.5">

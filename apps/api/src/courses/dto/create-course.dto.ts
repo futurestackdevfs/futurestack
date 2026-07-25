@@ -7,6 +7,10 @@ export class CreateCourseDto {
 
   @IsOptional()
   @IsString()
+  code?: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
 
   @IsOptional()

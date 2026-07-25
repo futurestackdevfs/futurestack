@@ -23,6 +23,10 @@ async function proxy(req: NextRequest) {
     if (cookie) headers.set('authorization', `Bearer ${cookie.value}`);
   }
 
+  // Forward cookies so the backend can read refresh token cookies
+  const cookieHeader = req.headers.get('cookie');
+  if (cookieHeader) headers.set('cookie', cookieHeader);
+
   const body = req.method !== 'GET' && req.method !== 'HEAD'
     ? await req.arrayBuffer()
     : undefined;

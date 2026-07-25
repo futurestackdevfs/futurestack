@@ -113,7 +113,7 @@ export class ReviewsService {
     // Update Trainer
     if (course.trainerId) {
       const trainerAggregate = await this.prisma.course.aggregate({
-        where: { trainerId: course.trainerId },
+        where: { trainerId: course.trainerId, reviewCount: { gt: 0 } },
         _avg: { averageRating: true },
       });
 

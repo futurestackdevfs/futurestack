@@ -133,13 +133,12 @@ export class AuthService {
       },
     });
 
-    const safeUser = this.stripPassword(user);
     const rawRefreshToken = await this.createRefreshToken(user.id);
 
     return {
-      accessToken: this.signToken(safeUser),
+      accessToken: this.signToken({ id: user.id, email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl, emailVerified: user.emailVerified } as SafeUser),
       rawRefreshToken,
-      user: safeUser,
+      user: { email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl, emailVerified: user.emailVerified },
     };
   }
 
@@ -271,8 +270,6 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
-        avatarUrl: user.avatarUrl,
-        emailVerified: user.emailVerified,
       },
     };
   }

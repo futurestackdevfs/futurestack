@@ -3,7 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
+import { useAuth } from "@/app/auth/hooks/use-auth";
+import { loadToken } from "@/app/auth/lib/token-store";
+import { StarRating } from "@/components/StarRating";
+import { ReviewForm } from "@/components/ReviewForm";
 
 const API = '/api';
 const fetcher = async (url: string) => {
@@ -64,6 +68,35 @@ interface CourseCard {
   mentorName: string;
 }
 
+interface ReviewItem {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  student: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+  };
+}
+
+interface ReviewsResponse {
+  data: ReviewItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+interface MyReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  courseId: string;
+  studentId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Public preview player — same UI as VdoCipherVideoPlayer but without auth/watermark */
 function PreviewPlayer({ videoId, title, durationSeconds }: { videoId: string; title: string; durationSeconds: number }) {
   const [started, setStarted] = useState(false);
@@ -99,7 +132,7 @@ function PreviewPlayer({ videoId, title, durationSeconds }: { videoId: string; t
   }
 
   return (
-    <div className="relative w-full aspect-[16/9] bg-black overflow-hidden">
+    <div className="relative w-full aspect-[16/9] bg-black overflow-hidden min-h-[202px]">
       {started && playerSrc ? (
         <iframe
           src={playerSrc}
@@ -123,15 +156,15 @@ function PreviewPlayer({ videoId, title, durationSeconds }: { videoId: string; t
         <div className="absolute inset-0 bg-black flex items-center justify-center">
           <button
             onClick={handlePlay}
-            className="w-16 h-16 rounded-full bg-gradient-to-br from-[var(--orange)] to-[var(--orange2)] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer border-none"
+            className="w-20 h-20 rounded-full bg-gradient-to-br from-[var(--orange)] to-[var(--orange2)] flex items-center justify-center transition-transform hover:scale-110 cursor-pointer border-none"
             style={{ boxShadow: "0 6px 28px rgba(240,90,26,.55)" }}
           >
-            <div className="w-0 h-0 border-solid border-t-[11px] border-b-[11px] border-l-[20px] border-transparent border-l-white ml-[4px]" />
+            <div className="w-0 h-0 border-solid border-t-[14px] border-b-[14px] border-l-[24px] border-transparent border-l-white ml-[5px]" />
           </button>
-          <div className="absolute top-2 left-2 bg-[var(--green)] text-white px-2 py-[2px] rounded-[4px] text-[9px] font-bold uppercase tracking-[.4px]">
+          <div className="absolute top-3 left-3 bg-[var(--green)] text-white px-3 py-[3px] rounded-[4px] text-[10px] font-bold uppercase tracking-[.4px]">
             Free Preview
           </div>
-          <div className="absolute bottom-[10px] right-[10px] bg-black/65 text-white text-[10px] px-[7px] py-[2px] rounded-[4px]">
+          <div className="absolute bottom-[12px] right-[12px] bg-black/65 text-white text-[11px] px-[9px] py-[3px] rounded-[4px]">
             {Math.floor(durationSeconds / 60)}:{(durationSeconds % 60).toString().padStart(2, "0")}
           </div>
         </div>
@@ -146,6 +179,15 @@ export default function CourseDetailPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [plan, setPlan] = useState("annual");
   const [openFaq, setOpenFaq] = useState<string | null>(null);
+  const [reviewPage, setReviewPage] = useState(1);
+  const [myReview, setMyReview] = useState<MyReview | null>(null);
+  const [myReviewLoading, setMyReviewLoading] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [leftReviewForm, setLeftReviewForm] = useState(false);
+  const [leftReviewRating, setLeftReviewRating] = useState(5);
+  const [leftReviewComment, setLeftReviewComment] = useState('');
+  const [leftReviewSubmitting, setLeftReviewSubmitting] = useState(false);
+  const [leftReviewError, setLeftReviewError] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
   const scrollToPreview = () => {
@@ -159,6 +201,77 @@ export default function CourseDetailPage() {
   const { data: allCards } = useSWR<{ data: CourseCard[] }>(`${API}/courses/public/cards`, fetcher);
   const related = (allCards?.data ?? []).filter((c) => c.id !== course?.id).slice(0, 3);
   const isLoading = isLoadingCourse;
+
+  const { user, isAuthenticated } = useAuth();
+
+  // Fetch reviews
+  const courseId = course?.id;
+  const { data: reviewsData, isLoading: reviewsLoading, mutate: mutateReviews } = useSWR<ReviewsResponse>(
+    courseId ? `${API}/courses/${courseId}/reviews?page=${reviewPage}&limit=10` : null,
+    fetcher,
+  );
+
+  // Fetch my review if authenticated
+  useEffect(() => {
+    if (!courseId || !isAuthenticated) return;
+    let cancelled = false;
+    setMyReviewLoading(true);
+    (async () => {
+      const token = await loadToken();
+      const res = await fetch(`${API}/courses/${courseId}/reviews/me`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (cancelled) return;
+      if (res.ok) {
+        const data = await res.json();
+        setMyReview(data);
+      } else {
+        setMyReview(null);
+      }
+      setMyReviewLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId, isAuthenticated]);
+
+  const handleSubmitReview = async (rating: number, comment: string) => {
+    const token = await loadToken();
+    if (!token || !courseId) return;
+    const isUpdate = !!myReview;
+    const url = isUpdate
+      ? `${API}/courses/${courseId}/reviews/${myReview!.id}`
+      : `${API}/courses/${courseId}/reviews`;
+    const res = await fetch(url, {
+      method: isUpdate ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ rating, comment }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message || 'Failed to submit review');
+    }
+    const data = await res.json();
+    setMyReview(data);
+    setShowReviewForm(false);
+    mutateReviews();
+  };
+
+  const handleLeftBarSubmit = async () => {
+    setLeftReviewSubmitting(true);
+    try {
+      await handleSubmitReview(leftReviewRating, leftReviewComment);
+      setLeftReviewForm(false);
+      setLeftReviewError(null);
+    } catch (e: any) {
+      setLeftReviewError(e.message || 'Failed to submit review');
+    } finally {
+      setLeftReviewSubmitting(false);
+    }
+  };
+
+  const reviews = reviewsData?.data ?? [];
+  const reviewsTotal = reviewsData?.total ?? 0;
+  const reviewCount = (course as any)?.reviewCount ?? reviewsTotal;
+  const displayReviewCount = reviewCount || course?.students || 0;
 
   // First video of first section = free preview (backend always exposes its id)
   const freePreviewVideo = course?.sections?.[0]?.videos?.[0] ?? null;
@@ -222,8 +335,8 @@ export default function CourseDetailPage() {
             <div className="flex items-center gap-4 flex-wrap">
               <span className="flex items-center gap-[5px] text-[13px] text-[rgba(255,255,255,.75)]">
                 <svg width="14" height="14" fill="#F59E0B" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                <span className="font-bold text-[#F59E0B]">{course.rating}</span>
-                <span className="font-normal text-[rgba(255,255,255,.55)]">({course.students} reviews)</span>
+                <span className="font-bold text-[#F59E0B]">{Math.floor(course.rating)}</span>
+                <span className="font-normal text-[rgba(255,255,255,.55)]">({displayReviewCount} reviews)</span>
               </span>
               <span className="flex items-center gap-[5px] text-[13px] text-[rgba(255,255,255,.75)]">
                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
@@ -248,7 +361,7 @@ export default function CourseDetailPage() {
 
       {/* 3-Column Layout */}
       <div className="max-w-[1700px] mx-auto px-6">
-        <div className="grid grid-cols-[300px_1fr_308px] gap-5 py-6 items-start" style={{ alignItems: "start" }}>
+        <div className="grid grid-cols-[360px_1fr_308px] gap-5 py-6 items-start" style={{ alignItems: "start" }}>
           {/* LEFT */}
           <aside className="flex flex-col gap-4 sticky top-[72px]">
             <div ref={previewRef} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden shadow-[var(--shadow)]">
@@ -293,10 +406,67 @@ export default function CourseDetailPage() {
                   <div className="text-[11px] text-[var(--muted)]">Courses</div>
                 </div>
                 <div className="flex-1 text-center p-2 bg-[var(--bg)] rounded-[8px]">
-                  <div className="text-base font-extrabold text-[var(--text)]">{course.mentorRating ?? "-"}★</div>
+                  <div className="text-base font-extrabold text-[var(--text)]">{course.mentorRating ? Math.floor(course.mentorRating) : "-"}★</div>
                   <div className="text-[11px] text-[var(--muted)]">Rating</div>
                 </div>
               </div>
+
+              {myReview && !leftReviewForm ? (
+                <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-[6px]">
+                      <span className="inline-flex items-center gap-[3px] text-[9px] font-bold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/40 px-[7px] py-[2px] rounded-[4px] border border-green-300 dark:border-green-700">✓ Reviewed</span>
+                      <StarRating value={myReview.rating} size={11} />
+                    </div>
+                    <button onClick={() => { setLeftReviewRating(myReview.rating); setLeftReviewComment(myReview.comment ?? ''); setLeftReviewForm(true); }}
+                      className="text-[9px] font-semibold text-[var(--blue2)] bg-transparent border border-[var(--blue-dim)] rounded-[4px] px-[7px] py-[2px] cursor-pointer hover:bg-[var(--blue-dim)]/20 transition-all">Edit</button>
+                  </div>
+                  {myReview.comment && (
+                    <div className="text-[11px] text-[var(--text2)] leading-[1.6] mt-[2px]">{myReview.comment}</div>
+                  )}
+                </div>
+              ) : leftReviewForm ? (
+                <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                  <div className="flex items-center gap-[5px] mb-2">
+                    <span className="text-[9px] font-bold text-[var(--text3)] uppercase tracking-[.04em]">Rate</span>
+                    <div className="flex items-center gap-[2px] ml-1">
+                      {[1,2,3,4,5].map(s => (
+                        <button key={s} type="button" onClick={() => setLeftReviewRating(s)}
+                          className="w-[18px] h-[18px] border-none bg-transparent cursor-pointer p-0 transition-transform hover:scale-110">
+                          <svg viewBox="0 0 20 20" width="18" height="18">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" fill={s <= leftReviewRating ? "#F59E0B" : "#D1D5DB"}/>
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-[9px] font-bold text-[var(--text)] ml-[2px]">{leftReviewRating}/5</span>
+                  </div>
+                  <textarea
+                    value={leftReviewComment}
+                    onChange={e => setLeftReviewComment(e.target.value)}
+                    placeholder="How was this course?"
+                    rows={2}
+                    maxLength={1000}
+                    className="w-full border border-[var(--border)] rounded-[8px] bg-[var(--card)] text-[11px] text-[var(--text)] p-[10px] outline-none resize-none focus:border-[var(--orange)]/50 focus:ring-1 focus:ring-[var(--orange)]/20 transition-all placeholder:text-[var(--text3)]"
+                  />
+                  <div className="flex items-center justify-between mt-[10px]">
+                    <span className="text-[8px] text-[var(--text3)]">{leftReviewComment.length}/1000</span>
+                    <div className="flex items-center gap-[6px]">
+                      <button onClick={() => setLeftReviewForm(false)}
+                        className="px-[10px] py-[5px] rounded-[6px] border border-[var(--border)] bg-transparent text-[9px] font-semibold text-[var(--text3)] cursor-pointer hover:text-[var(--text)] hover:border-[var(--text3)] transition-all">Cancel</button>
+                      <button onClick={handleLeftBarSubmit} disabled={leftReviewSubmitting}
+                        className="px-[14px] py-[5px] rounded-[6px] border-none bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[9px] font-bold cursor-pointer transition-all hover:shadow-[0_2px_10px_rgba(240,90,26,.3)] disabled:opacity-50 disabled:cursor-not-allowed">{leftReviewSubmitting ? '…' : myReview ? 'Update' : 'Submit'}</button>
+                    </div>
+                  </div>
+                </div>
+              ) : isAuthenticated ? (
+                <button onClick={() => { setLeftReviewRating(5); setLeftReviewComment(''); setLeftReviewForm(true); }}
+                  className="mt-3 pt-3 border-t border-[var(--border)] w-full flex items-center justify-center gap-[5px] text-[10px] font-semibold text-[var(--blue2)] bg-transparent border-x-0 border-b-0 cursor-pointer hover:opacity-70 transition-all py-[6px] rounded-[6px] border-dashed border-[var(--blue-dim)]"
+                  style={{ borderStyle: "none dashed dashed dashed" }}>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                  Write a Review
+                </button>
+              ) : null}
             </div>
 
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-[14px_16px] shadow-[var(--shadow)]">
@@ -481,31 +651,107 @@ export default function CourseDetailPage() {
             {activeTab === "reviews" && (
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-[22px_24px] shadow-[var(--shadow)] mb-4">
                 <div className="font-['Syne',sans-serif] text-[20px] font-bold text-[var(--text)] pb-3 border-b border-[var(--border)] mb-3.5">Student Reviews</div>
+
+                {/* Aggregate Rating */}
                 <div className="flex gap-5 items-center mb-5 p-4 bg-[var(--bg)] rounded-[10px] border border-[var(--border)]">
                   <div className="text-center flex-shrink-0">
-                    <div className="text-[42px] font-extrabold text-[var(--text)] leading-none font-['Syne',sans-serif]">{course.rating}</div>
-                    <div className="flex gap-[2px] my-1 justify-center">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <svg key={s} className="w-3 h-3" viewBox="0 0 20 20" fill={s <= Math.floor(course.rating) ? "#F59E0B" : "var(--border2)"}><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                      ))}
-                    </div>
-                    <div className="text-[12px] text-[var(--muted)]">Course Rating</div>
-                  </div>
-                  <div className="flex-1">
-                    {[5, 4, 3, 2, 1].map((star) => {
-                      const pct = star === 5 ? 84 : star === 4 ? 12 : star === 3 ? 3 : star === 2 ? 1 : 0;
-                      return (
-                        <div key={star} className="flex items-center gap-2 mb-[5px]">
-                          <span className="text-[12px] text-[var(--muted)] w-3 text-right">{star}</span>
-                          <div className="flex-1 h-[6px] bg-[var(--border)] rounded-[3px] overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] rounded-[3px]" style={{ width: `${pct}%` }}></div>
-                          </div>
-                          <span className="text-[11px] text-[var(--muted)] w-7">{pct}%</span>
-                        </div>
-                      );
-                    })}
+                    <div className="text-[42px] font-extrabold text-[var(--text)] leading-none font-['Syne',sans-serif]">{Math.floor(course.rating)}</div>
+                    <StarRating value={course.rating} size={12} />
+                    <div className="text-[12px] text-[var(--muted)] mt-1">{displayReviewCount} reviews</div>
                   </div>
                 </div>
+
+                {/* My Review or Write Review Button */}
+                {isAuthenticated && (
+                  <>
+                    {myReview && !showReviewForm ? (
+                      <div className="border border-[var(--border)] rounded-xl p-4 mb-4 bg-[var(--bg)]">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <StarRating value={myReview.rating} size={14} />
+                            <span className="text-[12px] font-bold text-[var(--text)]">Your Review</span>
+                          </div>
+                          <button
+                            onClick={() => setShowReviewForm(true)}
+                            className="text-[11px] font-semibold text-[var(--blue)] bg-transparent border-none cursor-pointer hover:underline"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                        {myReview.comment && (
+                          <div className="text-[13px] text-[var(--text2)] leading-[1.6]">{myReview.comment}</div>
+                        )}
+                      </div>
+                    ) : showReviewForm ? (
+                      <ReviewForm
+                        initialRating={myReview?.rating ?? 5}
+                        initialComment={myReview?.comment ?? ''}
+                        isEditing={!!myReview}
+                        onSubmit={handleSubmitReview}
+                        onCancel={() => setShowReviewForm(false)}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setShowReviewForm(true)}
+                        className="w-full mb-4 py-[10px] rounded-[10px] border border-dashed border-[var(--blue-dim)] bg-[var(--blue-dim)]/20 text-[13px] font-semibold text-[var(--blue)] cursor-pointer hover:bg-[var(--blue-dim)]/30 transition-colors"
+                      >
+                        ✍ Write a Review
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {/* Reviews List */}
+                {reviewsLoading ? (
+                  <div className="text-center py-8 text-[var(--muted)] text-[13px]">Loading reviews…</div>
+                ) : reviews.length === 0 ? (
+                  <div className="text-center py-8 text-[var(--muted)] text-[13px]">No reviews yet. Be the first!</div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {reviews.map((review) => (
+                      <div key={review.id} className="border border-[var(--border)] rounded-xl p-4 bg-[var(--card)]">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--blue)] to-[var(--blue-dim)] flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0">
+                            {review.student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] font-bold text-[var(--text)] truncate">{review.student.name}</div>
+                            <div className="flex items-center gap-2">
+                              <StarRating value={review.rating} size={11} />
+                              <span className="text-[11px] text-[var(--muted)]">{new Date(review.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                            </div>
+                          </div>
+                        </div>
+                        {review.comment && (
+                          <div className="text-[13px] text-[var(--text2)] leading-[1.65] ml-[45px]">{review.comment}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Pagination */}
+                {reviewsTotal > 10 && (
+                  <div className="flex items-center justify-center gap-2 mt-5">
+                    <button
+                      disabled={reviewPage <= 1}
+                      onClick={() => setReviewPage((p) => p - 1)}
+                      className="px-3 py-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--card)] text-[12px] font-semibold text-[var(--text2)] cursor-pointer disabled:opacity-40 hover:border-[var(--blue)] transition-colors"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-[12px] text-[var(--muted)]">
+                      Page {reviewPage} of {Math.ceil(reviewsTotal / 10)}
+                    </span>
+                    <button
+                      disabled={reviewPage >= Math.ceil(reviewsTotal / 10)}
+                      onClick={() => setReviewPage((p) => p + 1)}
+                      className="px-3 py-[6px] rounded-[6px] border border-[var(--border)] bg-[var(--card)] text-[12px] font-semibold text-[var(--text2)] cursor-pointer disabled:opacity-40 hover:border-[var(--blue)] transition-colors"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </main>
@@ -607,7 +853,7 @@ export default function CourseDetailPage() {
             { num: "92%", lbl: "Placement Rate" },
             { num: "₹22L+", lbl: "Avg. Starting Salary" },
             { num: course.students.toString(), lbl: "Students Enrolled" },
-            { num: `${course.rating}★`, lbl: "Course Rating" },
+            { num: `${Math.floor(course.rating)}★`, lbl: "Course Rating" },
           ].map((stat, i) => (
             <div key={i} className="text-center relative z-[1]">
               <div className="text-[32px] font-bold text-white font-['Syne',sans-serif] leading-none">
@@ -631,7 +877,7 @@ export default function CourseDetailPage() {
                   <div className="p-3">
                     <div className="text-[11px] font-bold uppercase tracking-[.5px] text-[var(--orange)]">{rc.category}</div>
                     <div className="text-[13px] font-bold text-[var(--text)] leading-[1.35] mt-1">{rc.title}</div>
-                    <div className="flex items-center gap-2 text-[12px] text-[var(--muted)] mt-1.5">⭐ {rc.rating} · {rc.hours}h · {rc.level}</div>
+                    <div className="flex items-center gap-2 text-[12px] text-[var(--muted)] mt-1.5">⭐ {Math.floor(rc.rating)} · {rc.hours}h · {rc.level}</div>
                   </div>
                 </Link>
               ))}
@@ -655,6 +901,26 @@ export default function CourseDetailPage() {
           ))}
         </div>
       </div>
+
+      {leftReviewError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.45)" }}>
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-[14px] p-[24px_28px] max-w-[360px] w-full shadow-[0_12px_40px_rgba(0,0,0,.2)]" style={{ animation: "slideUp .3s ease both" }}>
+            <div className="w-[40px] h-[40px] rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-[18px] mb-[12px]">🔒</div>
+            <div className="font-['Syne',sans-serif] text-[15px] font-bold text-[var(--text)] mb-[6px]">Enrollment Required</div>
+            <div className="text-[11px] text-[var(--text2)] leading-[1.6] mb-[16px]">{leftReviewError}</div>
+            <div className="flex items-center gap-[8px]">
+              <Link href="/courses" onClick={() => setLeftReviewError(null)}
+                className="flex-1 text-center px-[16px] py-[9px] rounded-[8px] text-[11px] font-bold text-white bg-gradient-to-r from-[#f05a1a] to-[#ff7a3c] no-underline shadow-[0_3px_10px_rgba(240,90,26,.25)] hover:shadow-[0_5px_16px_rgba(240,90,26,.35)] hover:-translate-y-[1px] transition-all">
+                Browse Courses
+              </Link>
+              <button onClick={() => setLeftReviewError(null)}
+                className="px-[14px] py-[9px] rounded-[8px] text-[11px] font-semibold text-[var(--text3)] bg-transparent border border-[var(--border)] cursor-pointer hover:text-[var(--text)] hover:border-[var(--text3)] transition-all">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

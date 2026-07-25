@@ -2,7 +2,7 @@
 const API = '/api';
 
 export type User = {
-  id: string;
+  id?: string;
   name: string;
   email: string;
   role: string;
@@ -18,18 +18,41 @@ async function request<T>(
 ): Promise<T> {
   const { token, ...init } = options;
 
-  let res: Response;
-  try {
-    res = await fetch(`${API}${path}`, {
+  const doFetch = async (t?: string): Promise<Response> => {
+    return fetch(`${API}${path}`, {
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(t ? { Authorization: `Bearer ${t}` } : {}),
         ...init.headers,
       },
     });
+  };
+
+  let res: Response;
+  try {
+    res = await doFetch(token);
   } catch {
     throw new Error(`Cannot reach the API at ${API}. Make sure the backend is running.`);
+  }
+
+  // On 401 with a token, try refreshing before giving up
+  if (res.status === 401 && token && !path.includes('/refresh') && !path.includes('/login')) {
+    try {
+      const refreshRes = await fetch(`${API}/auth/refresh`, { method: 'POST' });
+      if (refreshRes.ok) {
+        const refreshData = await refreshRes.json();
+        const { loadToken, saveToken } = await import('./token-store');
+        const uid = localStorage.getItem('fs_uid');
+        if (uid && refreshData.accessToken) {
+          await saveToken(uid, refreshData.accessToken);
+        }
+        // Retry original request with new token
+        res = await doFetch(refreshData.accessToken);
+      }
+    } catch {
+      // Refresh failed — fall through to error handling below
+    }
   }
 
   const contentType = res.headers.get('content-type') ?? '';
@@ -97,5 +120,17 @@ export const authApi = {
 
   loginWithGoogle() {
     window.location.href = `/api/auth/google`;
+  },
+
+  async logout() {
+    return request<{ message: string }>('/auth/logout', {
+      method: 'POST',
+    });
+  },
+
+  async refreshToken(role = 'STUDENT') {
+    return request<{ accessToken: string; user: User }>(`/auth/refresh?role=${role}`, {
+      method: 'POST',
+    });
   },
 };

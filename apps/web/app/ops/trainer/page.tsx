@@ -13,6 +13,7 @@ import { type CourseFormValues } from "./sections/CourseModal";
 import SessionsView from "./console/SessionsView";
 import ProgressView from "./console/ProgressView";
 import ReviewsView from "./console/ReviewsView";
+import StudentRatingsView from "./console/StudentRatingsView";
 import DoubtsView from "./console/DoubtsView";
 import FeedbackView from "./console/FeedbackView";
 import RevenueView from "./console/RevenueView";
@@ -101,7 +102,7 @@ export default function TrainerDashboardPage() {
       try {
         const u = await authApi.me(t);
         setUser({
-          id: u.id, name: u.name, email: u.email, role: u.role,
+          id: u.id!, name: u.name, email: u.email, role: u.role,
           initials: u.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "T",
         });
       } catch { window.location.href = "/auth/staff-login"; }
@@ -264,8 +265,17 @@ export default function TrainerDashboardPage() {
     addToast(status === "Approved" ? "Project approved" : "Revision requested");
   }
 
+  function genCourseCode(title: string, existing: any[]): string {
+    const prefix = (title.match(/[a-zA-Z0-9]/g) ?? []).join('').toUpperCase().slice(0, 3) || 'CRS';
+    const maxSeq = existing
+      .filter(c => c.code?.startsWith(`CRS-${prefix}-`))
+      .reduce((max, c) => Math.max(max, parseInt(c.code.split('-').pop() ?? '0', 10)), 0);
+    return `CRS-${prefix}-${String(maxSeq + 1).padStart(3, '0')}`;
+  }
+
   function addCourse(input: CourseFormValues) {
-    const autoCode = "NEW-" + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const stored = user ? loadLocal<any[]>(user.id, "courses", []) : [];
+    const autoCode = genCourseCode(input.title || "Untitled Course", stored);
     const newCourse: TrainerBatch = {
       id: Date.now(),
       code: autoCode,
@@ -280,14 +290,12 @@ export default function TrainerDashboardPage() {
     };
     setBatches((prev) => [newCourse, ...prev]);
     if (user) {
-      const stored = loadLocal<any[]>(user.id, "courses", []);
       saveLocal(user.id, "courses", [{ ...input, code: autoCode, id: newCourse.id }, ...stored]);
     }
     addToast("Course added");
   }
 
   function updateCourse(id: number, input: CourseFormValues) {
-    const autoCode = "NEW-" + Math.random().toString(36).slice(2, 6).toUpperCase();
     setBatches((prev) => prev.map((b) => b.id === id ? {
       ...b,
       course: input.title || b.course,
@@ -297,7 +305,7 @@ export default function TrainerDashboardPage() {
     } : b));
     if (user) {
       const stored = loadLocal<any[]>(user.id, "courses", []);
-      saveLocal(user.id, "courses", stored.map((c) => c.id === id ? { ...c, ...input, code: c.code || autoCode } : c));
+      saveLocal(user.id, "courses", stored.map((c) => c.id === id ? { ...c, ...input, code: c.code || genCourseCode(input.title || c.code || '', stored) } : c));
     }
     addToast("Course updated");
   }
@@ -462,14 +470,14 @@ export default function TrainerDashboardPage() {
               )}
               {view === "feedback" && <FeedbackView feedback={feedback} searchQuery={searchQuery} onAdd={addFeedback} onSubmitDraft={submitFeedbackDraft} />}
               {view === "revenue" && <RevenueView enrollments={enrollments} payouts={payouts} batches={batches} searchQuery={searchQuery} addToast={addToast} />}
-              {["grading","mentees","content-library","reports","ratings","session-history"].includes(view) && (
+              {view === "ratings" && <StudentRatingsView searchQuery={searchQuery} />}
+              {["grading","mentees","content-library","reports","session-history"].includes(view) && (
                 <div className="flex items-center justify-center h-full">
                   <div className="font-mono text-[13px]" style={{ color: "var(--text3)" }}>
                     {view === "grading" ? "Grading Queue" :
                      view === "mentees" ? "Mentees" :
                      view === "content-library" ? "Content Library" :
                      view === "reports" ? "Reports" :
-                     view === "ratings" ? "Student Ratings" :
                      "Session History"} — coming soon
                   </div>
                 </div>

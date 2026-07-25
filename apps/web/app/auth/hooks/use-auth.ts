@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { authApi, type User } from '../lib/auth-api';
-import { saveToken, loadToken, clearToken, clearStaffToken } from '../lib/token-store';
+import { saveToken, loadToken, clearToken, loadStaffToken, saveStaffToken, clearStaffToken } from '../lib/token-store';
 import { showToast } from '@/lib/toast';
 
 // Decode JWT payload client-side — avoids a network round-trip on every page load.
@@ -41,8 +41,8 @@ let bootstrapped = false;
 
 // Sets the HttpOnly cookie so the BFF proxy can forward it as Authorization.
 // Marks COOKIE_SYNCED in sessionStorage so subsequent bootstraps in this tab skip the call.
-async function setSessionCookie(token: string) {
-  await fetch('/api/auth/set-token', {
+async function setSessionCookie(token: string, type: 'student' | 'staff' = 'student') {
+  await fetch(type === 'staff' ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ token }),
@@ -50,27 +50,29 @@ async function setSessionCookie(token: string) {
   sessionStorage.setItem(COOKIE_SYNCED, '1');
 }
 
-async function clearSessionCookie() {
-  await fetch('/api/auth/set-token', { method: 'DELETE' });
+async function clearSessionCookie(type: 'student' | 'staff' = 'student') {
+  await fetch(type === 'staff' ? '/api/auth/set-token-staff' : '/api/auth/set-token', { method: 'DELETE' });
   sessionStorage.removeItem(COOKIE_SYNCED);
 }
 
 async function bootstrap() {
   try {
-    const token = await loadToken();
+    const isOps = typeof window !== 'undefined' && window.location.pathname.startsWith('/ops');
+    const token = isOps ? await loadStaffToken() : await loadToken();
     if (!token) {
       emit({ user: null, isAuthenticated: false, isLoading: false });
       return;
     }
     const user = decodeJwt(token);
-    // Skip the cookie sync if already done in this tab session (survives F5, clears on tab close)
     if (!sessionStorage.getItem(COOKIE_SYNCED)) {
-      await setSessionCookie(token);
+      await setSessionCookie(token, isOps ? 'staff' : 'student');
     }
     emit({ user, isAuthenticated: true, isLoading: false });
   } catch (err) {
     await clearToken();
-    await clearSessionCookie();
+    await clearSessionCookie('student');
+    await clearStaffToken();
+    await clearSessionCookie('staff');
     emit({ user: null, isAuthenticated: false, isLoading: false });
     if (err instanceof Error && (err as Error & { isSessionExpired?: boolean }).isSessionExpired) {
       showToast('Your session has expired. Please sign in again.');
@@ -82,7 +84,9 @@ if (typeof window !== 'undefined') {
   window.addEventListener('fs:session-expired', async () => {
     if (!shared.isAuthenticated) return;
     await clearToken();
-    await clearSessionCookie();
+    await clearSessionCookie('student');
+    await clearStaffToken();
+    await clearSessionCookie('staff');
     bootstrapped = false;
     emit({ user: null, isAuthenticated: false, isLoading: false });
     showToast('Your session has expired. Please sign in again.');
@@ -110,25 +114,34 @@ export function useAuth() {
 
   const login = useCallback(async (email: string, password: string) => {
     const { accessToken, user } = await authApi.login(email, password);
-    await clearStaffToken();
-    await fetch('/api/auth/set-token-staff', { method: 'DELETE' });
-    await saveToken(user.id, accessToken);
+    const uid = decodeJwt(accessToken).id!;
+    await saveToken(uid, accessToken);
     await setSessionCookie(accessToken);
-    emit({ user, isAuthenticated: true, isLoading: false });
+    emit({ user: { ...user, id: uid }, isAuthenticated: true, isLoading: false });
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     const { accessToken, user } = await authApi.register(name, email, password);
-    await clearStaffToken();
-    await fetch('/api/auth/set-token-staff', { method: 'DELETE' });
-    await saveToken(user.id, accessToken);
+    const uid = decodeJwt(accessToken).id!;
+    await saveToken(uid, accessToken);
     await setSessionCookie(accessToken);
-    emit({ user, isAuthenticated: true, isLoading: false });
+    emit({ user: { ...user, id: uid }, isAuthenticated: true, isLoading: false });
   }, []);
 
   const logout = useCallback(async () => {
-    await clearToken();
-    await clearSessionCookie();
+    try {
+      await authApi.logout();
+    } catch {
+      // Backend logout is best-effort — always clear local state
+    }
+    const isOps = window.location.pathname.startsWith('/ops');
+    if (isOps) {
+      await clearStaffToken();
+      await clearSessionCookie('staff');
+    } else {
+      await clearToken();
+      await clearSessionCookie();
+    }
     bootstrapped = false;
     emit({ user: null, isAuthenticated: false, isLoading: false });
   }, []);

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { loadToken } from "@/app/auth/lib/token-store";
+import { StarRating } from "@/components/StarRating";
 import VdoCipherVideoPlayer from "./VdoCipherVideoPlayer";
 import { VideoProgressRing } from "@/components/ui/VideoProgressRing"; // Add this
 import useSWR, { mutate } from "swr";
@@ -97,6 +100,13 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
   const [certEarned, setCertEarned] = useState(false);
   const [showAchievement, setShowAchievement] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [myReview, setMyReview] = useState<any | null>(null);
+  const [myReviewLoading, setMyReviewLoading] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const { data: detail, isLoading } = useSWR<StudentCourseDetail>(
     `/api/student/courses/${courseId}`,
@@ -153,6 +163,54 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
       setTimeout(() => setShowAchievement(false), 6000);
     }
   }, [courseId]);
+
+  // Fetch my review
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    (async () => {
+      setMyReviewLoading(true);
+      const token = localStorage.getItem('fs_uid') ? await loadToken() : null;
+      if (!token) { setMyReviewLoading(false); return; }
+      const res = await fetch(`/api/courses/${courseId}/reviews/me`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (cancelled) return;
+      if (res.ok) {
+        const data = await res.json();
+        setMyReview(data);
+      } else {
+        setMyReview(null);
+      }
+      setMyReviewLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  const handleSubmitReview = async () => {
+    const token = await loadToken();
+    if (!token || !courseId) return;
+    setReviewSubmitting(true);
+    const isUpdate = !!myReview;
+    const url = isUpdate
+      ? `/api/courses/${courseId}/reviews/${myReview!.id}`
+      : `/api/courses/${courseId}/reviews`;
+    const res = await fetch(url, {
+      method: isUpdate ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ rating: reviewRating, comment: reviewComment }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setMyReview(data);
+      setShowReviewForm(false);
+      setReviewError(null);
+    } else {
+      const body = await res.json().catch(() => ({}));
+      setReviewError(body.message || 'Failed to submit review');
+    }
+    setReviewSubmitting(false);
+  };
 
   if (isLoading) {
     return (
@@ -317,7 +375,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                 {[
                   { num: instructor.yearsExperience != null ? `${instructor.yearsExperience}+` : '—', lbl: 'Years Exp.' },
                   { num: String(instructor.coursesTaughtCount), lbl: 'Courses' },
-                  { num: instructor.rating != null ? String(instructor.rating) : '—', lbl: 'Rating', star: true },
+                  { num: instructor.rating != null ? String(Math.floor(instructor.rating)) : '—', lbl: 'Rating', star: true },
                 ].map(stat => (
                   <div key={stat.lbl} className="text-center pt-[10px] pb-[9px] px-[6px] bg-[var(--surface)] rounded-[8px] border border-[var(--border)] relative overflow-hidden"
                     style={{ boxShadow: "var(--sh)" }}>
@@ -330,6 +388,64 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                   </div>
                 ))}
               </div>
+
+              {/* Review — under instructor */}
+              {myReview && !showReviewForm ? (
+                <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-[6px]">
+                      <span className="inline-flex items-center gap-[3px] text-[9px] font-bold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/40 px-[7px] py-[2px] rounded-[4px] border border-green-300 dark:border-green-700">✓ Reviewed</span>
+                      <StarRating value={myReview.rating} size={11} />
+                    </div>
+                    <button onClick={() => { setReviewRating(myReview.rating); setReviewComment(myReview.comment ?? ''); setShowReviewForm(true); }}
+                      className="text-[9px] font-semibold text-[var(--blue2)] bg-transparent border border-[var(--blue-dim)] rounded-[4px] px-[7px] py-[2px] cursor-pointer hover:bg-[var(--blue-dim)]/20 transition-all">Edit</button>
+                  </div>
+                  {myReview.comment && (
+                    <div className="text-[11px] text-[var(--text2)] leading-[1.6] mt-[2px]">{myReview.comment}</div>
+                  )}
+                </div>
+              ) : showReviewForm ? (
+                <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                  <div className="flex items-center gap-[5px] mb-2">
+                    <span className="text-[9px] font-bold text-[var(--text3)] uppercase tracking-[.04em]">Rate</span>
+                    <div className="flex items-center gap-[2px] ml-1">
+                      {[1,2,3,4,5].map(s => (
+                        <button key={s} type="button" onClick={() => setReviewRating(s)}
+                          className="w-[18px] h-[18px] border-none bg-transparent cursor-pointer p-0 transition-transform hover:scale-110">
+                          <svg viewBox="0 0 20 20" width="18" height="18">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" fill={s <= reviewRating ? "#F59E0B" : "#D1D5DB"}/>
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+                    <span className="text-[9px] font-bold text-[var(--text)] ml-[2px]">{reviewRating}/5</span>
+                  </div>
+                  <textarea
+                    value={reviewComment}
+                    onChange={e => setReviewComment(e.target.value)}
+                    placeholder="How was this course?"
+                    rows={2}
+                    maxLength={1000}
+                    className="w-full border border-[var(--border)] rounded-[8px] bg-[var(--card)] text-[11px] text-[var(--text)] p-[10px] outline-none resize-none focus:border-[var(--orange)]/50 focus:ring-1 focus:ring-[var(--orange)]/20 transition-all placeholder:text-[var(--text3)]"
+                  />
+                  <div className="flex items-center justify-between mt-[10px]">
+                    <span className="text-[8px] text-[var(--text3)]">{reviewComment.length}/1000</span>
+                    <div className="flex items-center gap-[6px]">
+                      <button onClick={() => setShowReviewForm(false)}
+                        className="px-[10px] py-[5px] rounded-[6px] border border-[var(--border)] bg-transparent text-[9px] font-semibold text-[var(--text3)] cursor-pointer hover:text-[var(--text)] hover:border-[var(--text3)] transition-all">Cancel</button>
+                      <button onClick={handleSubmitReview} disabled={reviewSubmitting}
+                        className="px-[14px] py-[5px] rounded-[6px] border-none bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[9px] font-bold cursor-pointer transition-all hover:shadow-[0_2px_10px_rgba(240,90,26,.3)] disabled:opacity-50 disabled:cursor-not-allowed">{reviewSubmitting ? '…' : myReview ? 'Update' : 'Submit'}</button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => { setReviewRating(5); setReviewComment(''); setShowReviewForm(true); }}
+                  className="mt-3 pt-3 border-t border-[var(--border)] w-full flex items-center justify-center gap-[5px] text-[10px] font-semibold text-[var(--blue2)] bg-transparent border-x-0 border-b-0 cursor-pointer hover:opacity-70 transition-all py-[6px] rounded-[6px] border-dashed border-[var(--blue-dim)]"
+                  style={{ borderStyle: "none dashed dashed dashed" }}>
+                  <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                  Write a Review
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -540,6 +656,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
           <div className={`flex-1 overflow-y-auto ${activeTab === "discussion" ? "flex flex-col" : "hidden"}`}>
             <DiscussionTab courseId={courseId} onCountChange={setDiscussionCount} />
           </div>
+
         </div>
       </div>
 
@@ -601,6 +718,26 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
       )}
 
       <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }`}</style>
+
+      {reviewError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,.45)" }}>
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-[14px] p-[24px_28px] max-w-[360px] w-full shadow-[0_12px_40px_rgba(0,0,0,.2)]" style={{ animation: "slideUp .25s ease both" }}>
+            <div className="w-[40px] h-[40px] rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center text-[18px] mb-[12px]">🔒</div>
+            <div className="font-['Syne',sans-serif] text-[15px] font-bold text-[var(--text)] mb-[6px]">Enrollment Required</div>
+            <div className="text-[11px] text-[var(--text2)] leading-[1.6] mb-[16px]">{reviewError}</div>
+            <div className="flex items-center gap-[8px]">
+              <Link href="/courses" onClick={() => setReviewError(null)}
+                className="flex-1 text-center px-[16px] py-[9px] rounded-[8px] text-[11px] font-bold text-white bg-gradient-to-r from-[#f05a1a] to-[#ff7a3c] no-underline shadow-[0_3px_10px_rgba(240,90,26,.25)] hover:shadow-[0_5px_16px_rgba(240,90,26,.35)] hover:-translate-y-[1px] transition-all">
+                Browse Courses
+              </Link>
+              <button onClick={() => setReviewError(null)}
+                className="px-[14px] py-[9px] rounded-[8px] text-[11px] font-semibold text-[var(--text3)] bg-transparent border border-[var(--border)] cursor-pointer hover:text-[var(--text)] hover:border-[var(--text3)] transition-all">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

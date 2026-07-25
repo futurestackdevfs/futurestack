@@ -5,9 +5,9 @@ import { TopNav } from "@/components/layout/marketing-top-nav";
 import Link from "next/link";
 
 const initialItems = [
-  { id: 1, emoji: "⚛️", thumbCls: "bg-[linear-gradient(135deg,#0d1f3c,#0a2a1a)]", cat: "Full Stack Development", name: "MERN Stack Development — Complete Bootcamp", rating: "★ 4.8", reviews: "2.4k", hours: "38 hrs", modules: "20 modules", price: 2999, oldPrice: 5999 },
-  { id: 2, emoji: "🐍", thumbCls: "bg-[linear-gradient(135deg,#1a1a0d,#0d1a2e)]", cat: "Programming", name: "Python Programming — From Zero to Pro", rating: "★ 4.7", reviews: "5.1k", hours: "52 hrs", modules: "20 modules", price: 1999, oldPrice: 3999 },
-  { id: 3, emoji: "📊", thumbCls: "bg-[linear-gradient(135deg,#0d0d2e,#1a0d2e)]", cat: "Data Science", name: "Data Science with Python & Pandas", rating: "★ 4.9", reviews: "1.2k", hours: "44 hrs", modules: "16 modules", price: 3499, oldPrice: 6999 },
+  { id: 1, emoji: "⚛️", thumbCls: "bg-[linear-gradient(135deg,#0d1f3c,#0a2a1a)]", cat: "Full Stack Development", name: "MERN Stack Development — Complete Bootcamp", rating: "★ 0.0", reviews: "0", hours: "38 hrs", modules: "20 modules", price: 2999, oldPrice: 5999 },
+  { id: 2, emoji: "🐍", thumbCls: "bg-[linear-gradient(135deg,#1a1a0d,#0d1a2e)]", cat: "Programming", name: "Python Programming — From Zero to Pro", rating: "★ 0.0", reviews: "0", hours: "52 hrs", modules: "20 modules", price: 1999, oldPrice: 3999 },
+  { id: 3, emoji: "📊", thumbCls: "bg-[linear-gradient(135deg,#0d0d2e,#1a0d2e)]", cat: "Data Science", name: "Data Science with Python & Pandas", rating: "★ 0.0", reviews: "0", hours: "44 hrs", modules: "16 modules", price: 3499, oldPrice: 6999 },
 ];
 
 const savedItems = [

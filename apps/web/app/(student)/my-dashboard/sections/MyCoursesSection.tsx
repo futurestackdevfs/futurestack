@@ -4,6 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import type { EnrolledCourse } from "../../hooks/student-dashboard";
 
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
 interface Props {
   enrolledCourses: EnrolledCourse[];
   isLoading: boolean;
@@ -256,7 +260,14 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
                       </div>
 
                       {/* FOOTER */}
-                      <div className="flex items-center justify-end pt-[9px] border-t border-[var(--border)] mt-auto">
+                      <div className="flex items-center justify-between pt-[9px] border-t border-[var(--border)] mt-auto">
+                        <Link
+                          href={`/courses/${slugify(course.title)}`}
+                          onClick={e => e.stopPropagation()}
+                          className="text-[9.5px] font-semibold text-[var(--muted)] no-underline hover:text-[var(--orange)] transition-colors"
+                        >
+                          ★ Write a Review
+                        </Link>
                         <button
                           onClick={e => { e.stopPropagation(); onCourseClick?.(course.courseId); }}
                           className="px-[11px] py-[4px] rounded-[6px] text-[10px] font-bold text-white whitespace-nowrap border-none flex items-center gap-[4px] transition-all no-underline cursor-pointer"

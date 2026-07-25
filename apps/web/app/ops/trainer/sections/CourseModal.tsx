@@ -52,7 +52,7 @@ const FIELDS: {
   { key: "techStack", label: "Technologies Covered (comma separated)", type: "text", required: true, full: true, placeholder: "MongoDB, Express.js, React.js, Node.js" },
   { key: "careerTitle", label: "Career Relevance — Headline", type: "text", required: true, full: true, placeholder: "e.g. High-demand skill — average salary ₹18L – ₹40L/yr" },
   { key: "careerBody", label: "Career Relevance — Body", type: "textarea", required: true, full: true, placeholder: "Companies that hire for this skill, salary context…" },
-  { key: "thumbnailUrl", label: "Thumbnail Image", type: "file", required: true, full: true, placeholder: "Upload image" },
+  { key: "thumbnailUrl", label: "Thumbnail Image", type: "file", required: false, full: true, placeholder: "Upload image" },
   { key: "status", label: "Status", type: "select", required: true, placeholder: "Select status", options: STATUSES },
   { key: "duration", label: "Duration", type: "duration", placeholder: "e.g. 16" },
   { key: "modules", label: "Total Modules", type: "number", placeholder: "e.g. 20" },
