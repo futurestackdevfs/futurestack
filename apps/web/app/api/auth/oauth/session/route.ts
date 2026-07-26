@@ -18,7 +18,11 @@ export async function GET(req: NextRequest) {
 
   const refresh = req.nextUrl.searchParams.get('refresh');
 
-  const response = NextResponse.redirect(new URL('/my-dashboard', req.url));
+  const redirectUrl = new URL('/auth/oauth/callback', req.url);
+  redirectUrl.searchParams.set('token', token);
+  if (refresh) redirectUrl.searchParams.set('refresh', refresh);
+
+  const response = NextResponse.redirect(redirectUrl);
   response.cookies.set('fs_token', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

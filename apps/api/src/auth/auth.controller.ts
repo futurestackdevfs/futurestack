@@ -137,10 +137,9 @@ export class AuthController {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
-    const redirectUrl = googleRedirect ?? `${frontendUrl}/api/auth/oauth/session`;
+    const redirectUrl = googleRedirect ?? `${frontendUrl}/auth/oauth/callback`;
 
-    // BFF reads the tokens off the query string server-side, sets HttpOnly cookies,
-    // and redirects to the dashboard — tokens never exposed to browser JS.
+    // Redirect to frontend OAuth callback page to initialize localStorage and auth state
     return res.redirect(`${redirectUrl}?token=${accessToken}&refresh=${rawRefreshToken}`);
   }
 
