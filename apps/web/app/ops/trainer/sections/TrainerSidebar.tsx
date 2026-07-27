@@ -35,6 +35,7 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Review & Support",
     items: [
       { icon: "📦", label: "Project Reviews", view: "reviews", badgeKey: "reviews", badgeColor: { color: "var(--red)", bg: "var(--red-d)" } },
+      { icon: "⭐", label: "Student Ratings", view: "ratings" },
       { icon: "❓", label: "Doubts", view: "doubts", badgeKey: "doubts", badgeColor: { color: "var(--blue)", bg: "var(--blue-d)" } },
     ],
   },

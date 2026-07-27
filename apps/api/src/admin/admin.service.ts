@@ -1,13 +1,16 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UploadVideoDto } from './dto/upload-video.dto';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
+import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly vdoCipherService: VdoCipherService,
@@ -262,22 +265,152 @@ export class AdminService {
     return video;
   }
 
-  async handleVdoCipherWebhook(payload: { id: string; event: string; duration?: number }) {
-    if (payload.event !== 'video:ready') return { received: true };
+  async handleVdoCipherWebhook(payload: VdoCipherWebhookPayload) {
+    this.logger.log(`Webhook received: ${payload.event} for video ${payload.payload.id}`);
 
+    switch (payload.event) {
+      case 'video:ready':
+        return this.handleVideoReady(payload);
+      case 'video:updated':
+        return this.handleVideoUpdated(payload);
+      case 'video:deleted':
+        return this.handleVideoDeleted(payload);
+      case 'video:error':
+        return this.handleVideoError(payload);
+      case 'caption:ready':
+        return this.handleCaptionReady(payload);
+      case 'caption:deleted':
+        return this.handleCaptionDeleted(payload);
+      case 'poster:ready':
+        return this.handlePosterReady(payload);
+      default:
+        this.logger.warn(`Unknown webhook event: ${payload.event}`);
+        return { received: true };
+    }
+  }
+
+  private async handleVideoReady(payload: VdoCipherWebhookPayload) {
     const video = await this.prisma.video.findFirst({
-      where: { vdoCipherId: payload.id },
+      where: { vdoCipherId: payload.payload.id },
     });
-
-    if (!video) return { received: true };
+    if (!video) {
+      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      return { received: true };
+    }
 
     await this.prisma.video.update({
       where: { id: video.id },
       data: {
         videoStatus: 'READY',
-        ...(payload.duration ? { durationSeconds: payload.duration } : {}),
+        ...(payload.payload.length ? { durationSeconds: payload.payload.length } : {}),
       },
     });
+
+    this.logger.log(`Video ${video.id} marked as READY`);
+    return { received: true };
+  }
+
+  private async handleVideoUpdated(payload: VdoCipherWebhookPayload) {
+    const video = await this.prisma.video.findFirst({
+      where: { vdoCipherId: payload.payload.id },
+    });
+    if (!video) {
+      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      return { received: true };
+    }
+
+    await this.prisma.video.update({
+      where: { id: video.id },
+      data: {
+        ...(payload.payload.title ? { title: payload.payload.title } : {}),
+        ...(payload.payload.length ? { durationSeconds: payload.payload.length } : {}),
+      },
+    });
+
+    this.logger.log(`Video ${video.id} metadata updated`);
+    return { received: true };
+  }
+
+  private async handleVideoDeleted(payload: VdoCipherWebhookPayload) {
+    const video = await this.prisma.video.findFirst({
+      where: { vdoCipherId: payload.payload.id },
+    });
+    if (!video) {
+      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      return { received: true };
+    }
+
+    await this.prisma.video.update({
+      where: { id: video.id },
+      data: { videoStatus: 'UPLOADING' },
+    });
+
+    this.logger.log(`Video ${video.id} reset to UPLOADING after deletion on VdoCipher`);
+    return { received: true };
+  }
+
+  private async handleVideoError(payload: VdoCipherWebhookPayload) {
+    const video = await this.prisma.video.findFirst({
+      where: { vdoCipherId: payload.payload.id },
+    });
+    if (!video) {
+      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      return { received: true };
+    }
+
+    await this.prisma.video.update({
+      where: { id: video.id },
+      data: { videoStatus: 'FAILED' },
+    });
+
+    this.logger.error(`Video ${video.id} failed: ${payload.payload.error ?? 'Unknown error'}`);
+    return { received: true };
+  }
+
+  private async handleCaptionReady(payload: VdoCipherWebhookPayload) {
+    const video = await this.prisma.video.findFirst({
+      where: { vdoCipherId: payload.payload.id },
+    });
+    if (!video) {
+      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      return { received: true };
+    }
+
+    this.logger.log(
+      `Caption ready for video ${video.id}: language=${payload.payload.language}, captionId=${payload.payload.captionId}`,
+    );
+
+    return { received: true };
+  }
+
+  private async handleCaptionDeleted(payload: VdoCipherWebhookPayload) {
+    const video = await this.prisma.video.findFirst({
+      where: { vdoCipherId: payload.payload.id },
+    });
+    if (!video) {
+      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      return { received: true };
+    }
+
+    this.logger.log(
+      `Caption deleted for video ${video.id}: language=${payload.payload.language}, captionId=${payload.payload.captionId}`,
+    );
+
+    return { received: true };
+  }
+
+  private async handlePosterReady(payload: VdoCipherWebhookPayload) {
+    const video = await this.prisma.video.findFirst({
+      where: { vdoCipherId: payload.payload.id },
+    });
+    if (!video) {
+      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      return { received: true };
+    }
+
+    this.logger.log(
+      `Poster ready for video ${video.id}: ${payload.payload.posterUrl ?? 'N/A'}`,
+    );
 
     return { received: true };
   }

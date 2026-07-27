@@ -6,6 +6,7 @@ import { AdminService } from './admin.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { RejectTrainerDto } from './dto/reject-trainer.dto';
 import { UploadVideoDto } from './dto/upload-video.dto';
+import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 
 @Controller('admin')
 export class AdminController {
@@ -80,7 +81,56 @@ export class AdminController {
   // Verified by checking the event payload and vdoCipherId existence instead
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('videos/vdocipher-webhook')
-  async handleVdoCipherWebhook(@Body() payload: any) {
+  async handleVdoCipherWebhook(@Body() payload: VdoCipherWebhookPayload) {
+    return this.adminService.handleVdoCipherWebhook(payload);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('videos/webhook/video-ready')
+  async handleVideoReady(@Body() payload: VdoCipherWebhookPayload) {
+    payload.event = 'video:ready';
+    return this.adminService.handleVdoCipherWebhook(payload);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('videos/webhook/video-updated')
+  async handleVideoUpdated(@Body() payload: VdoCipherWebhookPayload) {
+    payload.event = 'video:updated';
+    return this.adminService.handleVdoCipherWebhook(payload);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('videos/webhook/video-deleted')
+  async handleVideoDeleted(@Body() payload: VdoCipherWebhookPayload) {
+    payload.event = 'video:deleted';
+    return this.adminService.handleVdoCipherWebhook(payload);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('videos/webhook/video-error')
+  async handleVideoError(@Body() payload: VdoCipherWebhookPayload) {
+    payload.event = 'video:error';
+    return this.adminService.handleVdoCipherWebhook(payload);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('videos/webhook/caption-ready')
+  async handleCaptionReady(@Body() payload: VdoCipherWebhookPayload) {
+    payload.event = 'caption:ready';
+    return this.adminService.handleVdoCipherWebhook(payload);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('videos/webhook/caption-deleted')
+  async handleCaptionDeleted(@Body() payload: VdoCipherWebhookPayload) {
+    payload.event = 'caption:deleted';
+    return this.adminService.handleVdoCipherWebhook(payload);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Post('videos/webhook/poster-ready')
+  async handlePosterReady(@Body() payload: VdoCipherWebhookPayload) {
+    payload.event = 'poster:ready';
     return this.adminService.handleVdoCipherWebhook(payload);
   }
 }
