@@ -92,13 +92,13 @@ export function StaffLoginForm() {
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_560px] w-full min-h-full">
 
       {/* ── LEFT BRAND PANEL ── */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-[#0b1120] via-[#0d1a35] to-[#0a1228] flex flex-col text-white">
+      <div className="relative overflow-hidden bg-gradient-to-br from-[#0b1120] via-[#0d1a35] to-[#0a1228] flex-col text-white hidden lg:flex">
         <div className="absolute w-[400px] h-[400px] rounded-full bg-gradient-to-br from-[rgba(240,90,26,0.3)] to-transparent blur-[60px] -top-[120px] -right-[100px] pointer-events-none" />
         <div className="absolute w-[350px] h-[350px] rounded-full bg-gradient-to-br from-[rgba(59,130,246,0.25)] to-transparent blur-[60px] -bottom-[80px] -left-[80px] pointer-events-none" />
         <div className="absolute w-[250px] h-[250px] rounded-full bg-gradient-to-br from-[rgba(168,85,247,0.2)] to-transparent blur-[50px] top-1/3 left-1/4 pointer-events-none" />
         <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
-        <div className="flex flex-col min-h-full px-12 py-10 relative z-10">
+        <div className="flex flex-col flex-1 px-12 py-10 relative z-10">
           <div className="flex items-center gap-3 shrink-0">
             <img src="/images/logo.png" alt="FutureStack" className="h-[58px]" />
           </div>
@@ -149,40 +149,32 @@ export function StaffLoginForm() {
 
       {/* ── RIGHT LOGIN FORM ── */}
       <div className="bg-[var(--surface)] flex flex-col">
-        {/* <div className="flex items-center justify-end px-10 pt-0 pb-0 shrink-0">
-          <button className="relative w-[52px] h-7 bg-transparent border-none p-0 shrink-0 cursor-pointer" onClick={toggleTheme} aria-label="Toggle theme">
-            <div className="w-[52px] h-7 rounded-[99px] bg-[var(--border2)] border border-[var(--border)] relative flex items-center px-1 transition-[background] duration-300 dark:bg-[#2d3a56] dark:border-[#3b4f72]">
-              <div className="flex justify-between items-center w-full px-0.5 pointer-events-none">
-                <span className="text-[12px] leading-none">☀️</span>
-                <span className="text-[12px] leading-none">🌙</span>
-              </div>
-              <div className="size-5 rounded-full bg-[var(--surface)] shadow-[0_1px_4px_rgba(0,0,0,.2)] absolute left-1 transition-[transform,background] duration-300 dark:translate-x-6 dark:bg-[#3b82f6]" />
-            </div>
-          </button>
-        </div> */}
-
-        <div className="flex-1 flex flex-col justify-center px-10 lg:px-12">
+        <div className="flex-1 flex flex-col justify-center px-5 sm:px-8 lg:px-12 py-6 sm:py-8 lg:py-10">
           <div className="max-w-[400px] w-full mx-auto animate-[fadeUp_0.4s_ease_both]">
-            <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--orange)] mb-3">Staff Portal</div>
-            <h2 className="font-['Inter_Tight',sans-serif] text-[26px] font-extrabold text-[var(--text)] mb-1.5 tracking-[-0.01em]">{active.title}</h2>
+            <div className="flex items-center gap-3 mb-5 lg:hidden">
+              <img src="/images/logo.png" alt="FutureStack" className="h-[42px]" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--orange)]">Staff Portal</span>
+            </div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--orange)] mb-3 hidden lg:block">Staff Portal</div>
+            <h2 className="font-['Inter_Tight',sans-serif] text-[22px] sm:text-[26px] font-extrabold text-[var(--text)] mb-1.5 tracking-[-0.01em]">{active.title}</h2>
             <p className="text-[13px] text-[var(--muted)] mb-5 leading-[1.6]">{active.sub}</p>
 
             <div className="text-[11px] font-bold text-[var(--text2)] uppercase tracking-[0.06em] mb-3">I am logging in as</div>
-            <div className="grid grid-cols-5 gap-2 mb-5">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-5">
               {roles.map((r) => (
                 <button
                   key={r.id}
                   type="button"
                   onClick={() => setSelectedRole(r.id)}
-                  className={`flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl border-2 cursor-pointer transition-all ${
+                  className={`flex flex-col items-center gap-1.5 px-1 sm:px-2 py-3 rounded-xl border-2 cursor-pointer transition-all ${
                     selectedRole === r.id
                       ? 'border-[var(--rc)] bg-[var(--rc-pale)]'
                       : 'border-[var(--border)] bg-[var(--bg)] hover:border-[var(--border2)]'
                   }`}
                   style={{ '--rc': r.color, '--rc-pale': `${r.color}14` } as React.CSSProperties}
                 >
-                  <span className="text-xl">{r.icon}</span>
-                  <span className="text-[9px] font-bold text-center leading-tight" style={{ color: selectedRole === r.id ? r.color : 'var(--text2)' }}>{r.label}</span>
+                  <span className="text-lg sm:text-xl">{r.icon}</span>
+                  <span className="text-[8px] sm:text-[9px] font-bold text-center leading-tight" style={{ color: selectedRole === r.id ? r.color : 'var(--text2)' }}>{r.label}</span>
                 </button>
               ))}
             </div>
@@ -230,7 +222,7 @@ export function StaffLoginForm() {
                 </div>
               )}
 
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
                 <label className="flex items-center gap-2 text-[12px] text-[var(--text2)] cursor-pointer">
                   <input type="checkbox" className="w-[15px] h-[15px] accent-[var(--orange)] cursor-pointer rounded" />
                   Keep me signed in

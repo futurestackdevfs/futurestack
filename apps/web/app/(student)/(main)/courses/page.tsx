@@ -260,17 +260,17 @@ export default function CoursesPage() {
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === "Enter") router.push(`/courses/${course.slug}`); }}
                 >
-                  <div className={`relative overflow-hidden ${viewMode === "list" ? "md:w-[200px] md:h-full md:min-h-[120px]" : "h-[180px]"}`}>
+                  <div className={`relative overflow-hidden bg-[var(--bg2)] ${viewMode === "list" ? "md:w-[200px] md:h-full md:min-h-[120px]" : "aspect-[16/7]"}`}>
                     <img src={course.img} alt={course.title} className="w-full h-full object-cover transition-transform duration-[350ms] group-hover:scale-105" />
                     <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[rgba(13,31,92,.55)]"></div>
                     {course.badge && (
                       <span className={`absolute top-2.5 left-2.5 px-3 py-[4px] rounded-[20px] text-[10.5px] font-extrabold tracking-[.5px] uppercase text-white shadow-[0_2px_10px_rgba(0,0,0,.25)] ${course.badgeClass}`}>{course.badge}</span>
                     )}
                   </div>
-                  <div className="p-[12px_15px_8px] flex-1 flex flex-col gap-[2px]">
+                  <div className="px-[15px] py-[8px] flex-1 flex flex-col gap-[2px] min-h-[160px]">
                     <div className="text-[11px] font-semibold text-[var(--orange)] uppercase tracking-[.6px]">{course.category}</div>
                     <div className="font-['Syne',sans-serif] text-[14.5px] font-bold text-[var(--text)] leading-[1.35] line-clamp-2">{course.title}</div>
-                    <div className="text-[12px] text-[var(--muted)] leading-[1.55] line-clamp-2">{course.description}</div>
+                    <div className="text-[12px] text-[var(--muted)] leading-[1.55] line-clamp-3">{course.description}</div>
                     <div className="flex items-center gap-1">
                       <div className="flex items-center gap-[1px]">{renderStars(course.rating, course.id)}</div>
                       <span className="text-[11.5px] font-bold text-[var(--text)]">{Math.floor(course.rating)}</span>
