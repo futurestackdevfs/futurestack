@@ -906,7 +906,7 @@ export default function CourseDetailPage() {
               {related.map((rc) => (
                 <Link key={rc.id} href={`/courses/${rc.slug}`}
                   className="border border-gray-200 dark:border-[#1e2535] rounded-2xl overflow-hidden cursor-pointer transition-all hover:border-[#c7d2fe] dark:hover:border-[#2d3358] hover:shadow-sm hover:-translate-y-[3px] bg-white dark:bg-[#111520] no-underline">
-                  <div className="h-[100px] overflow-hidden">
+                  <div className="aspect-[16/7] overflow-hidden bg-[#f1f5f9] dark:bg-[#0b0e14]">
                     <img src={rc.img} alt={rc.title} className="w-full h-full object-cover transition-transform hover:scale-105" />
                   </div>
                   <div className="p-3">

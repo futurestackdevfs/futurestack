@@ -92,7 +92,7 @@ model Track {
 
 model Course {
   id           String        @id @default(uuid())
-  title        String
+  title        String     @unique
   description  String?
   thumbnailUrl String?
   price        Float
@@ -129,7 +129,7 @@ model CourseResource {
   id            String   @id @default(uuid())
   course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId      String
-  title         String                       // e.g. "MERN Stack Cheat Sheet"
+    title        String     @unique                       // e.g. "MERN Stack Cheat Sheet"
   fileType      String                       // "PDF" | "ZIP" | "FIGMA" | "PPT" — free text, frontend maps to icon
   fileUrl       String                       // S3 url, or external link (Figma/GitHub)
   fileSizeLabel String?                      // e.g. "4.2 MB" — display-only, not computed
@@ -149,7 +149,7 @@ model TrackCourse {
 
 model Section {
   id       String  @id @default(uuid())
-  title    String
+  title        String     @unique
   order    Int
   course   Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId String

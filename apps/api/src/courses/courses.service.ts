@@ -547,6 +547,8 @@ export class CoursesService {
 
   async createCourse(dto: CreateCourseDto) {
     if (dto.trainerId) await this.validateApprovedTrainer(dto.trainerId);
+    const existing = await this.prisma.course.findUnique({ where: { title: dto.title }, select: { id: true } });
+    if (existing) throw new ConflictException(`A course with the title "${dto.title}" already exists`);
     const code = dto.code ?? await this.generateCourseCode(dto.title);
     return this.prisma.course.create({ data: { ...dto, code } });
   }
@@ -776,6 +778,10 @@ export class CoursesService {
   async updateCourse(id: string, dto: UpdateCourseDto) {
     await this.findCourseOrFail(id);
     if (dto.trainerId !== undefined) await this.validateApprovedTrainer(dto.trainerId);
+    if (dto.title) {
+      const existing = await this.prisma.course.findUnique({ where: { title: dto.title }, select: { id: true } });
+      if (existing && existing.id !== id) throw new ConflictException(`A course with the title "${dto.title}" already exists`);
+    }
     return this.prisma.course.update({ where: { id }, data: dto });
   }
 
