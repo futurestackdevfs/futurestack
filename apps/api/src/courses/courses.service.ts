@@ -115,8 +115,8 @@ export class CoursesService {
         thumbnailUrl: normalizeThumbnail(rest.thumbnailUrl),
         totalVideos: stats.videoCount,
         durationHours: Math.round(stats.totalSeconds / 3600) || 1,
-        badge: isTrending ? '🔥 Trending' : isNew ? '✨ New' : null,
-        badgeClass: isTrending ? 'bg-orange-500' : 'bg-blue-500',
+        badge: null,
+        badgeClass: '',
       };
     });
   }
@@ -652,8 +652,8 @@ export class CoursesService {
 
       const isTrending = course._count.enrollments > 0 && course._count.enrollments >= trendingThreshold;
       const isNew = course.createdAt >= fourteenDaysAgo;
-      const badge = isTrending ? '🔥 Trending' : isNew ? '✨ New' : null;
-      const badgeClass = isTrending ? 'bg-orange-500' : 'bg-blue-500';
+      const badge = null;
+      const badgeClass = '';
       const category = course.category ?? course.techStack[0] ?? 'General';
       const level = SKILL_LEVEL_LABELS[course.skillLevel ?? 'INTERMEDIATE'];
       const durationLabel = totalHours > 50 ? '50+ hrs' : totalHours > 20 ? '20 – 50 hrs' : '5 – 20 hrs';
