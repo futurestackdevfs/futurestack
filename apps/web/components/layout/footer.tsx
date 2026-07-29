@@ -25,7 +25,7 @@ export function Footer() {
         .footer-grid {
           display: grid;
           grid-template-columns: 1fr;
-          gap: 32px;
+          gap: 40px;
         }
         @media (min-width: 640px) { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
         @media (min-width: 900px) { .footer-grid { grid-template-columns: 1.3fr repeat(3, 1fr) 1.3fr; } }
