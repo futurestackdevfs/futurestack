@@ -15,6 +15,7 @@ import { UpdateVideoDto } from './dto/update-video.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { CreateResourceDto } from './dto/create-resource.dto';
+import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
 import { FeatureDto } from './dto/feature.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
 
@@ -65,6 +66,45 @@ export class CoursesController {
   @Patch('tracks/:id/feature')
   featureTrack(@Param('id') id: string, @Body() dto: FeatureDto) {
     return this.coursesService.featureTrack(id, dto);
+  }
+
+  // ================================================================
+  // HERO SLIDES — created/managed inside Featured Manager
+  // ================================================================
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post('hero-slides')
+  createHeroSlide(@Body() dto: CreateHeroSlideDto) {
+    return this.coursesService.createHeroSlide(dto);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get('hero-slides')
+  listHeroSlides() {
+    return this.coursesService.listHeroSlides();
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Delete('hero-slides/:id')
+  deleteHeroSlide(@Param('id') id: string) {
+    return this.coursesService.deleteHeroSlide(id);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post('hero-slides/reorder-featured')
+  reorderHeroSlides(@Body() dto: ReorderItemsDto) {
+    return this.coursesService.reorderHeroSlides(dto);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Patch('hero-slides/:id/feature')
+  featureHeroSlide(@Param('id') id: string, @Body() dto: FeatureDto) {
+    return this.coursesService.featureHeroSlide(id, dto);
+  }
+
+  @Get('public/featured-hero-slides')
+  featuredHeroSlides() {
+    return this.coursesService.featuredHeroSlides();
   }
 
   // ================================================================

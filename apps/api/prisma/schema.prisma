@@ -56,8 +56,17 @@ model User {
   updatedAt            DateTime        @updatedAt
   lastLoginAt          DateTime?
 
-  // Trainer-only profile fields (nullable — only populated for TRAINER role)
+  // Extended profile fields (nullable — students + trainers both use these)
   bio                  String?
+  phone                String?
+  dob                  DateTime?
+  city                 String?
+  qualification        String?
+  experience           SkillLevel?
+  careerPath           String?
+  skills               String[]      @default([])
+
+  // Trainer-only profile fields (nullable — only populated for TRAINER role)
   yearsExperience      Int?
   rating               Float?
 
@@ -337,5 +346,16 @@ model Review {
   updatedAt DateTime @updatedAt
 
   @@unique([courseId, studentId])
+}
+
+model HeroSlide {
+  id           String   @id @default(uuid())
+  title        String
+  imageUrl     String
+  linkUrl      String?
+  isFeatured   Boolean  @default(false)
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 

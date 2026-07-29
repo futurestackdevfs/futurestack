@@ -157,3 +157,59 @@ export const authApi = {
     });
   },
 };
+
+// ─── Profile API ──────────────────────────────────────────────────────────────
+
+export type ProfileStats = {
+  enrollmentCount: number;
+  certificateCount: number;
+  courseCount?: number;
+};
+
+export type ProfileData = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  avatarUrl?: string | null;
+  emailVerified?: boolean;
+  createdAt: string;
+  bio?: string | null;
+  phone?: string | null;
+  dob?: string | null;
+  city?: string | null;
+  qualification?: string | null;
+  experience?: string | null;
+  careerPath?: string | null;
+  skills: string[];
+  stats: ProfileStats;
+};
+
+export type UpdateProfilePayload = {
+  bio?: string;
+  phone?: string;
+  dob?: string;
+  city?: string;
+  qualification?: string;
+  experience?: string;
+  careerPath?: string;
+  skills?: string[];
+};
+
+/** Returns '/student' or '/trainer' based on the logged-in user's role */
+function profileBase(role: string): string {
+  return role === 'TRAINER' ? '/trainer' : '/student';
+}
+
+export const userApi = {
+  getProfile(role: string): Promise<ProfileData> {
+    return request<ProfileData>(`${profileBase(role)}/profile`, { method: 'GET' });
+  },
+
+  updateProfile(role: string, data: UpdateProfilePayload): Promise<ProfileData> {
+    return request<ProfileData>(`${profileBase(role)}/profile`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+};

@@ -2,6 +2,10 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { PrismaService } from '../prisma/prisma.service';
 import { CertificatesService } from '../certificates/certificates.service';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
+import { S3Service } from '../upload/s3.service';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { extname, join } from 'path';
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
 
 export interface NextVideo {
   id: string;
@@ -51,6 +55,7 @@ export class StudentService {
     private readonly prisma: PrismaService,
     private readonly certificatesService: CertificatesService,
     private readonly vdoCipherService: VdoCipherService,
+    private readonly s3Service: S3Service,
   ) {}
 
   async getDashboard(
@@ -497,5 +502,103 @@ export class StudentService {
       durationSeconds: video.durationSeconds,
       initialPosition: progress?.lastPositionSec ?? 0,
     };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PROFILE — GET, PUT, AVATAR
+  // ─────────────────────────────────────────────────────────────
+
+  async getProfile(studentId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatarUrl: true,
+        emailVerified: true,
+        createdAt: true,
+        bio: true,
+        phone: true,
+        dob: true,
+        city: true,
+        qualification: true,
+        experience: true,
+        careerPath: true,
+        skills: true,
+        _count: {
+          select: {
+            enrollments: { where: { status: 'active' } },
+            certificates: true,
+          },
+        },
+      },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    const { _count, ...profile } = user;
+
+    return {
+      ...profile,
+      dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
+      stats: {
+        enrollmentCount: _count.enrollments,
+        certificateCount: _count.certificates,
+      },
+    };
+  }
+
+  async updateProfile(studentId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: studentId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const updated = await this.prisma.user.update({
+      where: { id: studentId },
+      data: {
+        bio: dto.bio,
+        phone: dto.phone,
+        dob: dto.dob ? new Date(dto.dob) : undefined,
+        city: dto.city,
+        qualification: dto.qualification,
+        experience: dto.experience,
+        careerPath: dto.careerPath,
+        skills: dto.skills,
+      },
+      select: {
+        id: true, name: true, email: true, role: true, avatarUrl: true,
+        bio: true, phone: true, dob: true, city: true, qualification: true,
+        experience: true, careerPath: true, skills: true,
+      },
+    });
+
+    return {
+      ...updated,
+      dob: updated.dob ? updated.dob.toISOString().split('T')[0] : null,
+    };
+  }
+
+  async updateAvatar(studentId: string, file: Express.Multer.File) {
+    const user = await this.prisma.user.findUnique({ where: { id: studentId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    let avatarUrl: string;
+    if (this.s3Service.isConfigured()) {
+      avatarUrl = await this.s3Service.uploadFile(file, 'avatars');
+      if (user.avatarUrl) {
+        await this.s3Service.deleteByUrl(user.avatarUrl);
+      }
+    } else {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const filename = uniqueSuffix + extname(file.originalname);
+      const dir = join(__dirname, '../../public/uploads/avatars');
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, filename), file.buffer);
+      avatarUrl = `/uploads/avatars/${filename}`;
+    }
+
+    await this.prisma.user.update({ where: { id: studentId }, data: { avatarUrl } });
+    return { avatarUrl };
   }
 }

@@ -1,9 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { S3Service } from '../upload/s3.service';
+import { UpdateProfileDto } from '../student/dto/update-profile.dto';
+import { extname, join } from 'path';
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
 
 @Injectable()
 export class TrainerService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3Service: S3Service,
+  ) {}
 
   async getDashboard(trainerId: string) {
     const [
@@ -264,5 +271,103 @@ export class TrainerService {
       studentAvatar: r.student.avatarUrl,
       courseTitle: r.course.title
     }));
+  }
+
+  // ────────────────────────────────────────────────
+  // PROFILE — GET, PUT, AVATAR
+  // ────────────────────────────────────────────────
+
+  async getProfile(trainerId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: trainerId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatarUrl: true,
+        emailVerified: true,
+        createdAt: true,
+        bio: true,
+        phone: true,
+        dob: true,
+        city: true,
+        qualification: true,
+        experience: true,
+        careerPath: true,
+        skills: true,
+        yearsExperience: true,
+        rating: true,
+        // Trainer stats
+        coursesTaught: { select: { id: true } },
+        certificates: { select: { id: true } },
+      },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    const courseCount = user.coursesTaught.length;
+    const certificateCount = user.certificates.length;
+
+    const { coursesTaught, certificates, ...profile } = user;
+
+    return {
+      ...profile,
+      dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
+      stats: { courseCount, certificateCount },
+    };
+  }
+
+  async updateProfile(trainerId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: trainerId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const updated = await this.prisma.user.update({
+      where: { id: trainerId },
+      data: {
+        bio: dto.bio,
+        phone: dto.phone,
+        dob: dto.dob ? new Date(dto.dob) : undefined,
+        city: dto.city,
+        qualification: dto.qualification,
+        experience: dto.experience,
+        careerPath: dto.careerPath,
+        skills: dto.skills,
+      },
+      select: {
+        id: true, name: true, email: true, role: true, avatarUrl: true,
+        bio: true, phone: true, dob: true, city: true, qualification: true,
+        experience: true, careerPath: true, skills: true,
+        yearsExperience: true, rating: true,
+      },
+    });
+
+    return {
+      ...updated,
+      dob: updated.dob ? updated.dob.toISOString().split('T')[0] : null,
+    };
+  }
+
+  async updateAvatar(trainerId: string, file: Express.Multer.File) {
+    const user = await this.prisma.user.findUnique({ where: { id: trainerId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    let avatarUrl: string;
+    if (this.s3Service.isConfigured()) {
+      avatarUrl = await this.s3Service.uploadFile(file, 'avatars');
+      if (user.avatarUrl) {
+        await this.s3Service.deleteByUrl(user.avatarUrl);
+      }
+    } else {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const filename = uniqueSuffix + extname(file.originalname);
+      const dir = join(__dirname, '../../public/uploads/avatars');
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, filename), file.buffer);
+      avatarUrl = `/uploads/avatars/${filename}`;
+    }
+
+    await this.prisma.user.update({ where: { id: trainerId }, data: { avatarUrl } });
+    return { avatarUrl };
   }
 }

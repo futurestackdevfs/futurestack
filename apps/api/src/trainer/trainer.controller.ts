@@ -1,7 +1,11 @@
-import { Controller, Get, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Req, Body, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { TrainerService } from './trainer.service';
+import { UpdateProfileDto } from '../student/dto/update-profile.dto';
 import { Request } from 'express';
 
 interface AuthenticatedRequest extends Request {
@@ -36,5 +40,44 @@ export class TrainerController {
   @Get('reviews')
   getReviews(@Req() req: AuthenticatedRequest) {
     return this.trainerService.getReviews(req.user.id);
+  }
+
+  // ────────────────────────────────────────────────
+  // PROFILE endpoints
+  // ────────────────────────────────────────────────
+
+  /** GET /trainer/profile */
+  @Get('profile')
+  getProfile(@Req() req: AuthenticatedRequest) {
+    return this.trainerService.getProfile(req.user.id);
+  }
+
+  /** PUT /trainer/profile */
+  @Put('profile')
+  updateProfile(@Req() req: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
+    return this.trainerService.updateProfile(req.user.id, dto);
+  }
+
+  /** POST /trainer/avatar */
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('avatar')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      fileFilter: (_req, file, cb) => {
+        if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(file.originalname)) {
+          return cb(new BadRequestException('Only image files are allowed'), false);
+        }
+        cb(null, true);
+      },
+      limits: { fileSize: 512 * 1024 },
+    }),
+  )
+  uploadAvatar(
+    @Req() req: AuthenticatedRequest,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return this.trainerService.updateAvatar(req.user.id, file);
   }
 }

@@ -21,6 +21,15 @@ export function TopNav() {
   const searchRef = useRef<HTMLInputElement>(null);
   const suggestRef = useRef<HTMLDivElement>(null);
 
+  const [coursesMegaOpen, setCoursesMegaOpen] = useState(false);
+  const [pathsMegaOpen, setPathsMegaOpen] = useState(false);
+  const [activeCourseCat, setActiveCourseCat] = useState("web-dev");
+  const [activePathCat, setActivePathCat] = useState("full-stack");
+  const coursesMegaRef = useRef<HTMLDivElement>(null);
+  const pathsMegaRef = useRef<HTMLDivElement>(null);
+  const coursesMegaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pathsMegaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     const v = sessionStorage.getItem("fs-nav-animated");
     if (!v) {
@@ -71,7 +80,7 @@ export function TopNav() {
           setSuggestOpen(true);
           setSuggestIdx(-1);
         }
-      } catch {}
+      } catch { }
     }, 250);
     return () => clearTimeout(timer);
   }, [searchQuery]);
@@ -79,13 +88,128 @@ export function TopNav() {
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (suggestRef.current && !suggestRef.current.contains(e.target as Node) &&
-          searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setSuggestOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
+
+  const [courseCatsData, setCourseCatsData] = useState<{ id: string; label: string; icon: string; count: number }[]>([]);
+  const [coursesByCat, setCoursesByCat] = useState<Record<string, { title: string; desc: string; level: string; duration: string; slug: string; icon: string }[]>>({});
+  const [coursesLoading, setCoursesLoading] = useState(false);
+
+  const [tracksData, setTracksData] = useState<{ id: string; title: string; description: string; courseCount: number }[]>([]);
+  const [tracksLoading, setTracksLoading] = useState(false);
+
+  const categoryIcons: Record<string, string> = {
+    'Web Development': '🌐', 'Data & AI': '🧠', 'Cloud & DevOps': '☁️', 'Emerging Tech': '⚡', 'Mobile Development': '📱', 'Cybersecurity': '🔒', 'General': '📚',
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchCourses() {
+      setCoursesLoading(true);
+      try {
+        const res = await fetch('/api/courses/public/cards?perPage=200');
+        if (!res.ok) throw new Error('Failed');
+        const json = await res.json();
+        const cards = json.data ?? [];
+        const groups: Record<string, { title: string; desc: string; level: string; duration: string; slug: string; icon: string }[]> = {};
+        const counts: Record<string, number> = {};
+        for (const c of cards) {
+          const cat = c.category || c.tech || 'General';
+          if (!groups[cat]) { groups[cat] = []; counts[cat] = 0; }
+          counts[cat]++;
+          if (groups[cat].length < 6) {
+            groups[cat].push({
+              title: c.title,
+              desc: c.description || '',
+              level: c.level || 'All Levels',
+              duration: c.duration || 'Self-Paced',
+              slug: c.slug || c.id,
+              icon: categoryIcons[cat] || '📖',
+            });
+          }
+        }
+        const cats = Object.entries(counts).map(([label, count]) => ({
+          id: label,
+          label,
+          icon: categoryIcons[label] || '📖',
+          count,
+        }));
+        if (!cancelled) { setCourseCatsData(cats); setCoursesByCat(groups); if (cats.length > 0) setActiveCourseCat(cats[0].id); }
+      } catch { /* use fallback */ }
+      if (!cancelled) setCoursesLoading(false);
+    }
+    fetchCourses();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchTracks() {
+      setTracksLoading(true);
+      try {
+        const res = await fetch('/api/courses/public/featured-tracks');
+        if (!res.ok) throw new Error('Failed');
+        const data = await res.json();
+        const tracks = (data.data ?? data ?? []).map((t: any) => ({
+          id: t.id || t.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          title: t.title,
+          description: t.description || '',
+          courseCount: t._count?.courses ?? t.courseCount ?? 0,
+        }));
+        if (!cancelled) setTracksData(tracks);
+      } catch { /* use fallback */ }
+      if (!cancelled) setTracksLoading(false);
+    }
+    fetchTracks();
+    return () => { cancelled = true; };
+  }, []);
+
+  function startCoursesTimer() {
+    if (coursesMegaTimer.current) clearTimeout(coursesMegaTimer.current);
+    coursesMegaTimer.current = setTimeout(() => setCoursesMegaOpen(false), 250);
+  }
+
+  function startPathsTimer() {
+    if (pathsMegaTimer.current) clearTimeout(pathsMegaTimer.current);
+    pathsMegaTimer.current = setTimeout(() => setPathsMegaOpen(false), 250);
+  }
+
+  function clearCoursesTimer() {
+    if (coursesMegaTimer.current) { clearTimeout(coursesMegaTimer.current); coursesMegaTimer.current = null; }
+  }
+
+  function clearPathsTimer() {
+    if (pathsMegaTimer.current) { clearTimeout(pathsMegaTimer.current); pathsMegaTimer.current = null; }
+  }
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setCoursesMegaOpen(false);
+        setPathsMegaOpen(false);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (coursesMegaOpen && coursesMegaRef.current && !coursesMegaRef.current.contains(e.target as Node)) {
+        setCoursesMegaOpen(false);
+      }
+      if (pathsMegaOpen && pathsMegaRef.current && !pathsMegaRef.current.contains(e.target as Node)) {
+        setPathsMegaOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [coursesMegaOpen, pathsMegaOpen]);
 
   function navigateToCourse(slug: string) {
     router.push(`/courses/${slug}`);
@@ -132,53 +256,84 @@ export function TopNav() {
     router.push("/");
   }, [logout, router]);
 
-  return (
-    <nav className={`flex items-center gap-3 md:gap-5 px-3 md:px-6 h-14 bg-[var(--surface)] border-b border-[var(--border)] fixed top-0 left-0 right-0 z-[999] shadow-[var(--shadow)] ${animate ? "[animation:slideDown_.4s_ease_both]" : ""}`}>
-      <Link href="/" className="flex items-center gap-2.5 shrink-0 no-underline">
-        <img src="/images/logo.png" alt="FutureStack" style={{ height: 28 }} className="max-md:!h-[22px]" />
+  return (<>
+    <nav className={`flex items-center gap-3 md:gap-5 px-3 md:px-6 h-14 bg-[var(--surface)]/80 backdrop-blur-lg border-b border-[var(--border)] fixed top-0 left-0 right-0 z-[999] shadow-[var(--shadow)] ${animate ? "[animation:slideDown_.4s_ease_both]" : ""}`}>
+      <Link href="/" className="flex items-center gap-2.5 shrink-0 no-underline group">
+        <img src="/images/logo.png" alt="FutureStack" style={{ height: 38 }} className="transition-transform duration-300 group-hover:scale-105" />
       </Link>
 
       <div className="hidden md:flex flex-1 max-w-[320px] relative">
-        <div className="flex-1 flex items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 gap-2 h-[34px] transition-[border-color,box-shadow] duration-200 focus-within:border-[var(--blue2)] focus-within:shadow-[0_0_0_3px_var(--blue-d)]">
+        <div className="flex-1 flex items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 gap-2 h-[34px] transition-all duration-300 focus-within:border-[var(--blue2)] focus-within:shadow-[0_0_0_3px_var(--blue-d),0_0_20px_rgba(59,130,246,.15)] hover:border-[var(--border2)]">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-          <input ref={searchRef} type="text" placeholder="Search courses, topics, or skills…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={handleSearchKey} className="bg-transparent border-none outline-none text-[var(--text)] text-[13px] w-full placeholder:text-[var(--muted)]" />
-          <span className="text-[10px] text-[var(--muted)] border border-[var(--border)] rounded px-[5px] py-[1px] shrink-0 hidden sm:inline">Ctrl+K</span>
+          <input ref={searchRef} type="text" placeholder="Search courses, topics, or skills…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={handleSearchKey} className="bg-transparent border-none outline-none text-[var(--text)] text-[14px] w-full placeholder:text-[var(--muted)]" />
+          <span className="text-[9.5px] text-[var(--text3)] border border-[var(--border)] rounded px-[5px] py-[1px] shrink-0 hidden sm:inline font-mono bg-[var(--bg)]">⌘K</span>
         </div>
-        {suggestOpen && suggestions.length > 0 && (
-          <div ref={suggestRef} className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)] border border-[var(--border)] rounded-lg shadow-[0_8px_24px_rgba(0,0,0,.12)] overflow-hidden z-50">
-            {suggestions.map((s, i) => (
-              <button key={s.slug} onClick={() => navigateToCourse(s.slug)}
-                onMouseEnter={() => setSuggestIdx(i)}
-                className={`w-full flex items-center gap-2 px-3 py-[9px] text-left border-none cursor-pointer transition-colors ${i === suggestIdx ? 'bg-[var(--bg)]' : 'bg-transparent'}`}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12px] font-semibold text-[var(--text)] truncate">{highlightMatch(s.title, searchQuery)}</div>
-                  <div className="text-[9px] text-[var(--text3)] truncate">{s.category}</div>
-                </div>
-                <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="shrink-0 text-[var(--muted)]"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-              </button>
-            ))}
-            <button onClick={() => { router.push(`/courses?search=${encodeURIComponent(searchQuery.trim())}`); setSearchQuery(""); setSuggestOpen(false); setMobileOpen(false); }}
-              className="w-full flex items-center justify-center gap-1 px-3 py-[8px] text-[10px] font-semibold text-[var(--blue2)] bg-transparent border-t border-[var(--border)] cursor-pointer hover:bg-[var(--bg)] transition-colors">
-              <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              See all results for "{searchQuery}"
-            </button>
+        {suggestOpen && (
+          <div ref={suggestRef} className="absolute top-full left-0 right-0 mt-1 bg-[var(--card)]/95 backdrop-blur-xl border border-[var(--border)] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,.15)] overflow-hidden z-50 [animation:slideUp_.2s_ease_both]">
+            {suggestions.length > 0 ? (
+              <>
+                {suggestions.map((s, i) => (
+                  <button key={s.slug} onClick={() => navigateToCourse(s.slug)}
+                    onMouseEnter={() => setSuggestIdx(i)}
+                    className={`w-full flex items-center gap-2 px-3 py-[9px] text-left border-none cursor-pointer transition-all duration-200 hover:bg-[var(--bg)] hover:pl-4 ${i === suggestIdx ? 'bg-[var(--bg)] pl-4' : 'bg-transparent'}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-[var(--text)] truncate">{highlightMatch(s.title, searchQuery)}</div>
+                      <div className="text-[9px] text-[var(--text3)] truncate">{s.category}</div>
+                    </div>
+                    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="shrink-0 text-[var(--muted)]"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  </button>
+                ))}
+                <button onClick={() => { router.push(`/courses?search=${encodeURIComponent(searchQuery.trim())}`); setSearchQuery(""); setSuggestOpen(false); setMobileOpen(false); }}
+                  className="w-full flex items-center justify-center gap-1 px-3 py-[10px] text-[11px] font-semibold text-[var(--blue2)] bg-transparent border-t border-[var(--border)] cursor-pointer hover:bg-[var(--bg)] hover:text-[var(--blue)] transition-all duration-200 group">
+                  <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="group-hover:translate-x-[2px] transition-transform duration-200"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                  See all results for "{searchQuery}"
+                </button>
+              </>
+            ) : (
+              <div className="px-3 py-[14px] text-center">
+                <div className="text-[13px] text-[var(--muted)]">No courses found for "{searchQuery}"</div>
+                <div className="text-[10px] text-[var(--text3)] mt-1">Try different keywords or browse all courses</div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Desktop nav links */}
       <ul className="hidden md:flex items-center gap-0.5 list-none">
+        <li className="relative" style={animate ? { animation: `fadeUp .35s .08s ease both` } : {}}>
+          <button
+            onMouseEnter={() => { clearCoursesTimer(); setCoursesMegaOpen(true); }}
+            onMouseLeave={startCoursesTimer}
+            className={`px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-200 cursor-pointer bg-transparent border-none ${coursesMegaOpen ? 'text-[var(--text)]' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}
+          >
+            Courses
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="transition-transform duration-200" style={{ transform: coursesMegaOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </li>
+        <li className="relative" style={animate ? { animation: `fadeUp .35s ${.08 + 1 * .05}s ease both` } : {}}>
+          <button
+            onMouseEnter={() => { clearPathsTimer(); setPathsMegaOpen(true); }}
+            onMouseLeave={startPathsTimer}
+            className={`px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-200 cursor-pointer bg-transparent border-none ${pathsMegaOpen ? 'text-[var(--text)]' : 'text-[var(--muted)] hover:text-[var(--text)]'}`}
+          >
+            Career Paths
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="transition-transform duration-200" style={{ transform: pathsMegaOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </li>
         {[
-          { href: "/courses", label: "Courses" },
-          { href: "/paths", label: "Career Paths" },
           { href: "/certificates", label: "Certifications" },
-          { href: "/live-classes", label: "Live Classes" },
-          { href: "/jobs", label: "Jobs" },
+          { href: "/live-projects", label: "Live Projects" },
+          { href: "/r-and-d", label: "R&D Services" },
           { href: "/my-dashboard", label: "My Dashboard", requiresAuth: true },
         ].map((link, i) => {
           const locked = link.requiresAuth && !isAuthenticated && !isLoading;
           return (
-            <li key={link.label} style={animate ? { animation: `fadeUp .35s ${.08 + i * .05}s ease both` } : {}}>
+            <li key={link.label} style={animate ? { animation: `fadeUp .35s ${.08 + (i + 2) * .05}s ease both` } : {}}>
               {locked ? (
                 <button
                   onClick={() => {
@@ -188,14 +343,17 @@ export function TopNav() {
                       router.push('/#student-login');
                     }
                   }}
-                  className="px-2.5 py-1.5 rounded-md text-[13px] font-medium flex items-center gap-1 transition-all duration-150 text-[var(--muted)] opacity-50 cursor-not-allowed select-none border-none bg-transparent"
+                  className="px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-150 text-[var(--muted)] opacity-50 cursor-not-allowed select-none border-none bg-transparent"
                   title="Sign in to view your dashboard"
                 >
                   {link.label}
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                 </button>
               ) : (
-                <Link href={link.href} className="px-2.5 py-1.5 rounded-md text-[13px] font-medium flex items-center gap-1 transition-all duration-150 text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)]">{link.label}</Link>
+                <Link href={link.href} className="relative px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-200 text-[var(--muted)] hover:text-[var(--text)] group">
+                  {link.label}
+                  <span className="absolute bottom-0 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-[var(--blue)] to-[var(--orange)] rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
+                </Link>
               )}
             </li>
           );
@@ -204,8 +362,8 @@ export function TopNav() {
 
       <div className="ml-auto flex items-center gap-2.5">
         {/* Theme toggle — desktop only */}
-        <button className="relative w-[52px] h-7 bg-transparent border-none p-0 shrink-0 hidden md:block" onClick={toggleTheme} title="Toggle theme" aria-label="Toggle dark/light mode">
-          <div className="w-[52px] h-7 rounded-[99px] bg-[var(--border2)] border border-[var(--border)] relative cursor-pointer flex items-center px-1 transition-[background] duration-300 dark:bg-[#2d3a56] dark:border-[#3b4f72]">
+        <button className="relative w-[52px] h-7 bg-transparent border-none p-0 shrink-0 hidden md:block hover:scale-110 active:scale-95 transition-transform duration-200" onClick={toggleTheme} title="Toggle theme" aria-label="Toggle dark/light mode">
+          <div className="w-[52px] h-7 rounded-[99px] bg-[var(--border2)] border border-[var(--border)] relative cursor-pointer flex items-center px-1 transition-all duration-300 dark:bg-[#2d3a56] dark:border-[#3b4f72] hover:shadow-[0_0_12px_rgba(59,130,246,.2)]">
             <div className="flex justify-between items-center w-full px-0.5 pointer-events-none">
               <span className="text-[12px] leading-none">☀️</span>
               <span className="text-[12px] leading-none">🌙</span>
@@ -215,7 +373,7 @@ export function TopNav() {
         </button>
 
         {/* Cart — desktop only */}
-        <Link href="/cart" className="bg-transparent border-none text-[var(--muted)] p-1.5 rounded-md flex relative cursor-pointer transition-all duration-150 hover:text-[var(--text)] hover:bg-[var(--bg)] hidden md:flex" title="Cart">
+        <Link href="/cart" className="bg-transparent border-none text-[var(--muted)] p-1.5 rounded-md flex relative cursor-pointer transition-all duration-200 hover:text-[var(--text)] hover:bg-[var(--bg)] hover:scale-110 active:scale-95 hidden md:flex" title="Cart">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
         </Link>
 
@@ -290,9 +448,7 @@ export function TopNav() {
           {profileOpen && (
             <div className="absolute right-0 top-[calc(100%+10px)] z-50">
               {isAuthenticated && user && (
-                /* ── Logged-in dropdown ── */
                 <div className="w-[260px] rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl overflow-hidden">
-                  {/* User header */}
                   <div className="p-4 border-b border-[var(--border)] bg-gradient-to-br from-blue-500/5 to-orange-500/5">
                     <div className="flex items-center gap-3">
                       {user.avatarUrl ? (
@@ -311,69 +467,29 @@ export function TopNav() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Menu links */}
                   <div className="py-1">
-                    <Link
-                      href="/my-dashboard"
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
-                        <rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
-                      </svg>
+                    <Link href="/my-dashboard" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
                       My Dashboard
                     </Link>
-                    <Link
-                      href="/courses"
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                      </svg>
+                    <Link href="/courses" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
                       My Courses
                     </Link>
-                    <Link
-                      href="/certificates"
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="8" r="6" />
-                        <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" />
-                      </svg>
+                    <Link href="/certificates" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="6" /><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11" /></svg>
                       Certificates
                     </Link>
                   </div>
-
-                  {/* Settings */}
                   <div className="border-t border-[var(--border)] py-1">
-                    <Link
-                      href="/profile"
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                      </svg>
+                    <Link href="/profile" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
                       Settings
                     </Link>
                   </div>
-
-                  {/* Sign out */}
                   <div className="border-t border-[var(--border)] py-1">
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                        <polyline points="16 17 21 12 16 7" />
-                        <line x1="21" y1="12" x2="9" y2="12" />
-                      </svg>
+                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-[12px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
                       Sign Out
                     </button>
                   </div>
@@ -457,17 +573,10 @@ export function TopNav() {
 
         {/* Cart + Theme */}
         <div className="px-3 py-1 flex flex-col gap-0.5">
-          <Link
-            href="/cart"
-            onClick={() => setMobileOpen(false)}
-            className="px-2.5 py-1.5 rounded-md text-[12.5px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors no-underline"
-          >
+          <Link href="/cart" onClick={() => setMobileOpen(false)} className="px-2.5 py-1.5 rounded-md text-[12.5px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors no-underline">
             Cart
           </Link>
-          <button
-            onClick={toggleTheme}
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[12.5px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors border-none bg-transparent cursor-pointer w-full"
-          >
+          <button onClick={toggleTheme} className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[12.5px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors border-none bg-transparent cursor-pointer w-full">
             <div className="relative w-[42px] h-[22px] rounded-[99px] bg-[var(--border2)] border border-[var(--border)] flex items-center px-0.5 transition-[background] duration-300 dark:bg-[#2d3a56] dark:border-[#3b4f72]">
               <div className="flex justify-between items-center w-full px-0.5 pointer-events-none text-[10px] leading-none">
                 <span>☀️</span>
@@ -510,7 +619,7 @@ export function TopNav() {
               Certificates
             </Link>
             <Link href="/profile" onClick={() => setMobileOpen(false)} className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors no-underline">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
               Settings
             </Link>
             <button onClick={() => { setMobileOpen(false); handleLogout(); }} className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors cursor-pointer border-none bg-transparent text-left">
@@ -541,5 +650,282 @@ export function TopNav() {
         )}
       </div>
     </nav>
-  );
+
+      {/* ── Courses Mega Menu ── */}
+      {coursesMegaOpen && (
+        <div
+          ref={coursesMegaRef}
+          onMouseEnter={clearCoursesTimer}
+          onMouseLeave={startCoursesTimer}
+          className="[animation:fadeIn_.2s_ease]"
+        >
+          <div className="fs-mega fixed top-14 left-0 right-0 z-[100]">
+            <div className="px-2 py-[20px]">
+              <div className="flex" style={{ height: '205px' }}>
+                {/* ── Left Rail ── */}
+                <div className="w-[200px] shrink-0 border-r border-white/80 dark:border-white/20 space-y-0.5 flex flex-col">
+                  <div className="text-[9px] font-bold uppercase tracking-[.15em] text-[var(--text3)] mb-2 px-3 shrink-0">Categories</div>
+                  {coursesLoading ? (
+                    <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">Loading...</div>
+                  ) : courseCatsData.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">No categories found</div>
+                  ) : (
+                    <div className="flex-1 overflow-y-auto overscroll-contain space-y-0.5 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-0"
+                      style={{ maskImage: 'linear-gradient(to bottom,transparent,black 8px,black calc(100% - 8px),transparent)', WebkitMaskImage: 'linear-gradient(to bottom,transparent,black 8px,black calc(100% - 8px),transparent)' }}>
+                      {courseCatsData.map((cat, idx) => {
+                        const rails = [
+                          { border: 'border-l-[var(--blue)]', bg: 'bg-[var(--blue-d)]', icon: '🌐' },
+                          { border: 'border-l-violet-500', bg: 'bg-violet-500/10', icon: '🧠' },
+                          { border: 'border-l-teal-500', bg: 'bg-teal-500/10', icon: '☁️' },
+                        ];
+                        const r = rails[idx % 3];
+                        return (
+                            <button
+                              key={cat.id}
+                              onMouseEnter={() => setActiveCourseCat(cat.id)}
+                              onClick={() => setActiveCourseCat(cat.id)}
+                              className={`w-full flex items-center gap-2.5 px-3 py-[7px] rounded-[8px] cursor-pointer text-left transition-all duration-200 border-l-[3px] ${
+                                activeCourseCat === cat.id ? `${r.bg} ${r.border} shadow-sm` : 'border-l-transparent hover:bg-[var(--bg)] hover:border-l-[var(--border)]'
+                              }`}
+                          >
+                            <span className="text-base shrink-0">{r.icon}</span>
+                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                              <span className={`text-[13px] font-semibold ${activeCourseCat === cat.id ? 'text-[var(--text)]' : 'text-[var(--muted)]'}`}>
+                                {cat.label}
+                              </span>
+                              <span className={`text-[10px] font-semibold shrink-0 px-1.5 py-0.5 rounded-md ${activeCourseCat === cat.id ? 'bg-white/60 dark:bg-white/[0.08] text-[var(--text)]' : 'text-[var(--text3)]'}`}>
+                                {cat.count}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Right Content ── */}
+                <div className="flex-1 pl-4 overflow-y-auto">
+                  {coursesLoading ? (
+                    <div className="flex items-center justify-center min-h-[200px]">
+                      <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : !coursesByCat[activeCourseCat] || coursesByCat[activeCourseCat].length === 0 ? (
+                    <div className="flex items-center justify-center min-h-[200px] text-[13px] text-[var(--text3)]">No courses in this category</div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-2 pb-[8px] border-b border-white/80 dark:border-white/20">
+                        <h3 className="text-sm font-bold text-[var(--text)]">{courseCatsData.find(c => c.id === activeCourseCat)?.label || ''}</h3>
+                        <span className="text-[9px] font-semibold text-[var(--muted)] bg-white/40 dark:bg-white/[0.04] px-2 py-0.5 rounded-full border border-white/80 dark:border-white/20">{courseCatsData.find(c => c.id === activeCourseCat)?.count || 0} courses</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5" key={activeCourseCat}>
+                        {coursesByCat[activeCourseCat]?.map((course) => (
+                          <button
+                            key={course.slug}
+                            onClick={() => { setCoursesMegaOpen(false); router.push(`/courses/${course.slug}`); }}
+                            className="fs-mega-card px-2.5 py-[8px] rounded-[10px] cursor-pointer text-left transition-all duration-200 hover:bg-white/80 dark:hover:bg-white/[.09] hover:shadow-[0_8px_24px_-8px_rgba(59,130,246,.15)] w-full group"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[12.5px] font-semibold text-[var(--text)] group-hover:text-[var(--blue)] leading-snug truncate">{course.title}</span>
+                                <span className="flex items-center gap-1.5 shrink-0 text-[10px] text-[var(--text3)] font-medium bg-white/60 dark:bg-white/[0.05] px-2 py-[3px] rounded-full border border-white/40 dark:border-white/[0.05] shadow-[inset_0_0.5px_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_0.5px_0_rgba(255,255,255,0.05)]">
+                                  <span className={`w-[6px] h-[6px] rounded-full ${course.level?.toLowerCase() === 'beginner' ? 'bg-green-500' : course.level?.toLowerCase() === 'intermediate' ? 'bg-orange-500' : course.level?.toLowerCase() === 'advanced' ? 'bg-red-500' : 'bg-[var(--text3)]'}`} />
+                                  <span className={`${course.level?.toLowerCase() === 'beginner' ? 'text-green-600 dark:text-green-400' : course.level?.toLowerCase() === 'intermediate' ? 'text-orange-500' : course.level?.toLowerCase() === 'advanced' ? 'text-red-500' : 'text-[var(--muted)]'}`}>{course.level}</span>
+                                  <span className="w-[3px] h-[3px] rounded-full bg-[var(--text3)] opacity-40" />
+                                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-50"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                                  <span className="text-[var(--muted)]">{course.duration}</span>
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Footer ── */}
+              <div className="fs-mega-footer-glass mt-3 pt-[16px] pb-[14px] px-4 flex items-center justify-between rounded-b-[14px]">
+                <span className="text-[13px] text-[var(--text3)] font-medium">{courseCatsData.reduce((s, c) => s + c.count, 0)}+ courses across {courseCatsData.length} domains</span>
+                <Link href="/courses" onClick={() => setCoursesMegaOpen(false)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-[var(--blue)] hover:text-blue-700 rounded-lg transition-all no-underline group">
+                  View All Courses
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:translate-x-0.5 transition-transform"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Paths Mega Menu ── */}
+      {pathsMegaOpen && (
+        <div
+          ref={pathsMegaRef}
+          onMouseEnter={clearPathsTimer}
+          onMouseLeave={startPathsTimer}
+          className="[animation:fadeIn_.2s_ease]"
+        >
+          <div className="fs-mega fixed top-14 left-0 right-0 z-[100]">
+            <div className="px-2 py-[20px]">
+              <div className="flex" style={{ height: '205px' }}>
+                {/* ── Left Rail ── */}
+                <div className="w-[200px] shrink-0 border-r border-white/80 dark:border-white/20 space-y-0.5 flex flex-col">
+                  <div className="text-[9px] font-bold uppercase tracking-[.15em] text-[var(--text3)] mb-2 px-3 shrink-0">Career Paths</div>
+                  {tracksLoading ? (
+                    <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">Loading...</div>
+                  ) : tracksData.length === 0 ? (
+                    <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">No paths available</div>
+                  ) : (
+                    <div className="flex-1 overflow-y-auto overscroll-contain space-y-0.5 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-0">
+                      {tracksData.map((track) => (
+                        <button
+                          key={track.id}
+                          onMouseEnter={() => setActivePathCat(track.id)}
+                          onClick={() => setActivePathCat(track.id)}
+                          className={`w-full flex items-center gap-2.5 px-3 py-[7px] rounded-[8px] cursor-pointer text-left transition-all duration-200 border-l-[3px] ${
+                            activePathCat === track.id ? 'bg-orange-500/10 border-l-orange-500 shadow-sm' : 'border-l-transparent hover:bg-[var(--bg)] hover:border-l-[var(--border)]'
+                          }`}
+                        >
+                          <span className={`text-base shrink-0 ${activePathCat === track.id ? 'text-orange-500' : 'text-[var(--muted)]'}`}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5" /></svg>
+                          </span>
+                          <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                            <span className={`text-[13px] font-semibold ${activePathCat === track.id ? 'text-[var(--text)]' : 'text-[var(--muted)]'}`}>
+                              {track.title}
+                            </span>
+                            <span className={`text-[10px] font-semibold shrink-0 px-1.5 py-0.5 rounded-md ${activePathCat === track.id ? 'bg-orange-500/10 text-orange-500' : 'text-[var(--text3)]'}`}>
+                              {track.courseCount}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Right Content ── */}
+                <div className="flex-1 pl-4 overflow-y-auto" key={activePathCat}>
+                  {(() => {
+                    const track = tracksData.find(t => t.id === activePathCat);
+                    if (!track) return null;
+                    return (
+                      <div className="flex gap-8">
+                        <div className="flex-1">
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-white/80 dark:border-white/20 mb-3">
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                            Career Path
+                          </div>
+                          <h3 className="text-base font-bold text-[var(--text)]">{track.title}</h3>
+                          <p className="text-[13px] text-[var(--muted)] mt-2 leading-relaxed">{track.description || 'A guided learning path to master this career track.'}</p>
+                          <div className="flex items-center gap-4 mt-4">
+                            <div className="flex items-center gap-2 text-[12px] text-[var(--muted)]">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                              <span className="font-semibold text-[var(--text)]">{track.courseCount} courses</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => { setPathsMegaOpen(false); router.push(`/paths/${track.id}`); }}
+                            className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-rose-500 hover:from-orange-600 hover:to-rose-600 active:scale-[0.98] transition-all duration-200 shadow-md hover:shadow-lg cursor-pointer border-none rounded-[10px]"
+                          >
+                            View Path
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                          </button>
+                        </div>
+                        <div className="fs-mega-card w-[210px] shrink-0 p-[18px] rounded-[14px] border border-white/[0.08] dark:border-white/20">
+                          <div className="text-[9px] font-bold uppercase tracking-wider text-[var(--text3)] mb-[18px]">Career Snapshot</div>
+                          <div className="space-y-[18px]">
+                            <div className="text-center">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto mb-2 text-orange-500"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                              <div className="text-2xl font-extrabold text-[var(--text)]">{track.courseCount}</div>
+                              <div className="text-[9px] text-[var(--text3)] uppercase tracking-[.5px] mt-0.5">Courses</div>
+                            </div>
+                            <div className="border-t border-white/80 dark:border-white/20 text-center pt-[18px]">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mx-auto mb-2 text-orange-500"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                              <div className="text-base font-extrabold text-[var(--text)]">Self-Paced</div>
+                              <div className="text-[9px] text-[var(--text3)] uppercase tracking-[.5px] mt-0.5">Learning Mode</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* ── Footer ── */}
+              <div className="fs-mega-footer-glass mt-3 pt-[16px] pb-[14px] px-4 flex items-center justify-between rounded-b-[14px]">
+                <span className="text-[13px] text-[var(--text3)] font-medium">{tracksData.length} guided career paths</span>
+                <Link href="/paths" onClick={() => setPathsMegaOpen(false)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-[var(--orange)] hover:text-orange-600 rounded-lg transition-all no-underline group">
+                  View All Paths
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:translate-x-0.5 transition-transform"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    <style>{`
+      .fs-mega {
+        background: rgba(255,255,255,0.68);
+        backdrop-filter: blur(32px) saturate(1.5);
+        -webkit-backdrop-filter: blur(32px) saturate(1.5);
+        border-bottom: 1px solid rgba(255,255,255,0.3);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.7),
+          0 24px 80px -12px rgba(0,0,0,.15);
+      }
+      [data-theme="dark"] .fs-mega {
+        background: rgba(10,15,28,0.75);
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        box-shadow:
+          inset 0 1px 0 rgba(255,255,255,0.06),
+          0 24px 80px -12px rgba(0,0,0,.45);
+      }
+      .fs-mega-footer-glass {
+        background: linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.35));
+        backdrop-filter: blur(24px) saturate(1.6);
+        -webkit-backdrop-filter: blur(24px) saturate(1.6);
+        border-top: 1px solid rgba(255,255,255,0.8);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+      }
+      [data-theme="dark"] .fs-mega-footer-glass {
+        background: linear-gradient(180deg,rgba(255,255,255,0.02),rgba(10,15,28,0.4));
+        backdrop-filter: blur(24px) saturate(1.6);
+        -webkit-backdrop-filter: blur(24px) saturate(1.6);
+        border-top: 1px solid rgba(255,255,255,0.1);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+      }
+      .fs-mega-card {
+        background: rgba(255,255,255,0.5);
+        backdrop-filter: blur(12px) saturate(1.4);
+        -webkit-backdrop-filter: blur(12px) saturate(1.4);
+        border: 1px solid rgba(255,255,255,0.35);
+        box-shadow:
+          inset 0 0.5px 0 rgba(255,255,255,0.6),
+          0 2px 8px rgba(0,0,0,.04);
+        transition: all .25s ease;
+      }
+      .fs-mega-card:hover {
+        background: rgba(255,255,255,0.65);
+        box-shadow:
+          inset 0 0.5px 0 rgba(255,255,255,0.6),
+          0 8px 24px -8px rgba(59,130,246,.1);
+        transform: translateY(-1px);
+      }
+      [data-theme="dark"] .fs-mega-card {
+        background: rgba(255,255,255,0.045);
+        border-color: rgba(255,255,255,0.05);
+        box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.045);
+      }
+      [data-theme="dark"] .fs-mega-card:hover {
+        background: rgba(255,255,255,0.065);
+        box-shadow:
+          inset 0 0.5px 0 rgba(255,255,255,0.05),
+          0 8px 24px -8px rgba(0,0,0,.25);
+      }
+    `}</style>
+  </>);
 }
