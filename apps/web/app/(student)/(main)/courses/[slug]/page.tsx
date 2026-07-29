@@ -806,11 +806,7 @@ export default function CourseDetailPage() {
           </main>
 
           {/* RIGHT */}
-<<<<<<< HEAD
-          <aside ref={pricingRef} className="sticky top-[72px]">
-=======
           <aside className="sticky top-[72px]">
->>>>>>> b4e5ca54d4ece6de2bdab5a0d1ac7e8cc204d8e0
             <div className="bg-white dark:bg-[#111520] border border-gray-200 dark:border-[#1e2535] rounded-2xl overflow-hidden shadow-sm">
               <div className="flex p-3 border-b border-gray-200 dark:border-[#1e2535] gap-2">
                 {(["monthly", "annual"] as const).map((p) => (
@@ -962,17 +958,10 @@ export default function CourseDetailPage() {
             <div className="font-['Syne',sans-serif] text-[15px] font-bold text-[#0f172a] dark:text-[#e8eaf0] mb-[6px]">Enrollment Required</div>
             <div className="text-[11px] text-[#475569] dark:text-[#b0bac9] leading-[1.6] mb-[16px]">{leftReviewError}</div>
             <div className="flex items-center gap-[8px]">
-<<<<<<< HEAD
-              <button onClick={scrollToPricing}
-                className="flex-1 px-[16px] py-[9px] rounded-[10px] text-[11px] font-bold text-white bg-gradient-to-r from-[#2563eb] to-[#1d4ed8] no-underline shadow-[0_3px_10px_rgba(37,99,235,.45)] hover:shadow-[0_5px_16px_rgba(37,99,235,.55)] hover:-translate-y-[1px] transition-all cursor-pointer border-none">
-                Enroll Now
-              </button>
-=======
               <Link href="/courses" onClick={() => setLeftReviewError(null)}
                 className="flex-1 text-center px-[16px] py-[9px] rounded-[10px] text-[11px] font-bold text-white bg-gradient-to-r from-[#0f1f3d] to-[#03050a] no-underline shadow-[0_3px_10px_rgba(10,10,20,.45)] hover:shadow-[0_5px_16px_rgba(37,99,235,.45)] hover:-translate-y-[1px] transition-all">
                 Browse Courses
               </Link>
->>>>>>> b4e5ca54d4ece6de2bdab5a0d1ac7e8cc204d8e0
               <button onClick={() => setLeftReviewError(null)}
                 className="px-[14px] py-[9px] rounded-[10px] text-[11px] font-semibold text-[#475569] dark:text-[#b0bac9] bg-gradient-to-b from-[#f8fafc] to-[#f1f5f9] dark:from-[#1e2535] dark:to-[#0b0e14] border border-gray-200 dark:border-[#1e2535] cursor-pointer hover:from-[#eef2ff] hover:to-[#e0e7ff] dark:hover:from-[#1a1f3a] dark:hover:to-[#141a30] hover:text-[#2563eb] dark:hover:text-[#60a5fa] transition-all shadow-sm">
                 Close

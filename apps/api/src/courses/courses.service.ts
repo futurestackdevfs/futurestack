@@ -148,6 +148,31 @@ export class CoursesService {
     return uniqueTracks;
   }
 
+  async trackCourses(id: string) {
+    const track = await this.prisma.track.findUnique({
+      where: { id },
+      include: {
+        courses: {
+          include: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                thumbnailUrl: true,
+                techStack: true,
+                price: true,
+              },
+            },
+          },
+          orderBy: { courseId: 'asc' },
+        },
+      },
+    });
+    if (!track) throw new NotFoundException('Track not found');
+    return track.courses.map((tc) => tc.course);
+  }
+
   async publicCourseBySlug(slug: string) {
     const courses = await this.prisma.course.findMany({
       where: { status: 'ACTIVE' },

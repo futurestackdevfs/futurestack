@@ -39,19 +39,7 @@ export default function VdoCipherVideoPlayer({
   const lastHeartbeatRef = useRef(0)
   const videoReadyRef = useRef(false)
 
-<<<<<<< HEAD
-  useEffect(() => {
-    loadToken().then(t => {
-      setToken(t)
-      if (!t) {
-        setError("Authentication required")
-        setLoading(false)
-      }
-    })
-  }, [])
-=======
   useEffect(() => { loadToken().then(setToken) }, [])
->>>>>>> b4e5ca54d4ece6de2bdab5a0d1ac7e8cc204d8e0
 
   const sendProgressHeartbeat = useCallback(async (positionSec: number) => {
     if (!token) return
@@ -116,11 +104,7 @@ export default function VdoCipherVideoPlayer({
     }
   }, [videoId, token])
 
-<<<<<<< HEAD
-  useEffect(() => { if (token) getVideoOtp() }, [token, getVideoOtp])
-=======
   useEffect(() => { getVideoOtp() }, [getVideoOtp])
->>>>>>> b4e5ca54d4ece6de2bdab5a0d1ac7e8cc204d8e0
 
   useEffect(() => {
     if (!playerData?.otp || !playerData?.playbackInfo) return

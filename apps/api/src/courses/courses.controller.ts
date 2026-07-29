@@ -191,6 +191,11 @@ export class CoursesController {
     return this.coursesService.featuredTracks();
   }
 
+  @Get('public/tracks/:id/courses')
+  trackCourses(@Param('id') id: string) {
+    return this.coursesService.trackCourses(id);
+  }
+
   @Get('public/cards')
   publicCards(
     @Query('page') page?: string,
