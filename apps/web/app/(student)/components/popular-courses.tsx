@@ -66,9 +66,9 @@ export function PopularCourses() {
                 </div>
                 <div className="p-3">
                   <div className="text-[13px] font-bold text-[var(--text)] mb-[3px] truncate">{c.title}</div>
-                  {c.techStack?.length > 1 && (
+                  {c.techStack?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-2">
-                      {c.techStack.slice(1, 4).map((t) => (
+                      {c.techStack.slice(0, 3).map((t) => (
                         <span key={t} className="text-[9px] font-semibold px-1.5 py-[2px] rounded bg-[var(--bg)] border border-[var(--border)] text-[var(--text2)]">{t}</span>
                       ))}
                     </div>

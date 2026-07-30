@@ -59,7 +59,7 @@ export function TrainerTopbar({ user, currentView, onSearch, onSignOut }: Traine
     >
       {/* Logo */}
       <div className="flex items-center gap-2 font-extrabold text-[13px] shrink-0 tracking-wide">
-        <Image src="/images/logo.png" alt="FutureStack" width={120} height={28} style={{ height: 22, width: "auto" }} />
+        <Image src="/images/logo.png" alt="FutureStack" width={120} height={28} style={{ height: 38, width: "auto" }} />
         <span style={{ color: "var(--border2)" }}>/</span>
         <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="uppercase">
           OPS CONSOLE

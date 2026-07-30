@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import SectionRenderer from "./sections/SectionRenderer";
 import { useStudentDashboard } from "../hooks/student-dashboard";
+import { userApi, type ProfileData } from "@/app/auth/lib/auth-api";
+import { useAuth } from "@/app/auth/hooks/use-auth";
 import { SECTION_CONFIG, SECTION_ORDER, resolveBadge } from "./section-config";
 import type { TabId, SectionContext } from "./section-config";
 
@@ -30,6 +33,73 @@ const activity = [
   { text: <>Earned <span className="font-semibold">7-Day Streak</span> badge 🔥</>, time: "2 days ago · +50 XP", c: "#eab308" },
 ];
 
+// ─── Profile Completion ────────────────────────────────────────────────────────
+
+const PROFILE_FIELDS: (keyof ProfileData)[] = [
+  'name', 'email', 'phone', 'dob', 'city', 'qualification', 'experience', 'careerPath', 'skills', 'bio',
+];
+
+function calcProfilePct(data: ProfileData): number {
+  let filled = 0;
+  for (const field of PROFILE_FIELDS) {
+    const val = data[field];
+    if (val === undefined || val === null) continue;
+    if (Array.isArray(val)) { if (val.length > 0) filled++; }
+    else if (typeof val === 'string') { if (val.trim() !== '') filled++; }
+    else filled++;
+  }
+  return Math.round((filled / PROFILE_FIELDS.length) * 100);
+}
+
+function useProfileCompletion() {
+  const [pct, setPct] = useState<number | null>(null);
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+
+  useEffect(() => {
+    if (!user || authLoading) return;
+    userApi.getProfile(user.role)
+      .then((data) => setPct(calcProfilePct(data)))
+      .catch(() => setPct(null));
+  }, [user, authLoading]);
+
+  return pct;
+}
+
+function ProfileCompletionRibbon({ pct, onDismiss }: { pct: number; onDismiss: () => void }) {
+  const router = useRouter();
+
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 120_000);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  return (
+    <div
+      className="shrink-0 flex items-center gap-2.5 px-4 py-1.5 text-white text-[11px] cursor-pointer transition-all bg-gradient-to-r from-red-600 via-blue-950 to-black"
+      onClick={() => router.push('/profile')}
+      role="button"
+      tabIndex={0}
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      </svg>
+      <span className="font-semibold shrink-0">Complete your profile</span>
+      <div className="h-1 rounded-full bg-white/25 overflow-hidden w-[100px]">
+        <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="font-mono text-[10px] tabular-nums tracking-tight">{pct}%</span>
+      <span className="underline decoration-dotted underline-offset-2 text-white/80 ml-auto">Complete Now →</span>
+      <button
+        onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+        className="shrink-0 flex items-center justify-center border-none cursor-pointer text-white/60 hover:text-white transition-colors p-0 bg-transparent"
+        aria-label="Dismiss"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+      </button>
+    </div>
+  );
+}
+
 export default function MyDashboardPage() {
   const [activeTab, setActiveTab] = useState<string>("overview");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
@@ -39,6 +109,12 @@ export default function MyDashboardPage() {
   const [doneSet, setDoneSet] = useState<Set<number>>(new Set([0, 3]));
   const [notifOpen, setNotifOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showRibbon, setShowRibbon] = useState(false);
+  const pct = useProfileCompletion();
+
+  useEffect(() => {
+    if (pct !== null && pct < 90) setShowRibbon(true);
+  }, [pct]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -131,6 +207,9 @@ export default function MyDashboardPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden bg-[#f4f6fa] dark:bg-[#0b0e14]">
+      {showRibbon && pct !== null && pct < 90 && (
+        <ProfileCompletionRibbon pct={pct} onDismiss={() => setShowRibbon(false)} />
+      )}
       {error && !isLoading && (
         <div className="shrink-0 px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-red-600 dark:text-red-400 font-['JetBrains_Mono',monospace] text-[10px]">
           ⚠ {error}

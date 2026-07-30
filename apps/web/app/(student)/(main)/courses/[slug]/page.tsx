@@ -188,9 +188,15 @@ export default function CourseDetailPage() {
   const [leftReviewSubmitting, setLeftReviewSubmitting] = useState(false);
   const [leftReviewError, setLeftReviewError] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  const pricingRef = useRef<HTMLDivElement>(null);
 
   const scrollToPreview = () => {
     previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const scrollToPricing = () => {
+    pricingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setLeftReviewError(null);
   };
 
   const { data: course, isLoading: isLoadingCourse } = useSWR<CourseDetail>(
@@ -264,6 +270,14 @@ export default function CourseDetailPage() {
       setLeftReviewError(e.message || 'Failed to submit review');
     } finally {
       setLeftReviewSubmitting(false);
+    }
+  };
+
+  const handleReviewFormSubmit = async (rating: number, comment: string) => {
+    try {
+      await handleSubmitReview(rating, comment);
+    } catch (e: any) {
+      setLeftReviewError(e.message || 'Failed to submit review');
     }
   };
 
@@ -722,7 +736,7 @@ export default function CourseDetailPage() {
                         initialRating={myReview?.rating ?? 5}
                         initialComment={myReview?.comment ?? ''}
                         isEditing={!!myReview}
-                        onSubmit={handleSubmitReview}
+                        onSubmit={handleReviewFormSubmit}
                         onCancel={() => setShowReviewForm(false)}
                       />
                     ) : (

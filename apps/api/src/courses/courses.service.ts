@@ -20,6 +20,7 @@ import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { CreateResourceDto } from './dto/create-resource.dto';
 import { FeatureDto } from './dto/feature.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
+import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
 
 const SKILL_LEVEL_LABELS: Record<string, string> = {
   BEGINNER: 'Beginner',
@@ -145,6 +146,31 @@ export class CoursesService {
       }
     }
     return uniqueTracks;
+  }
+
+  async trackCourses(id: string) {
+    const track = await this.prisma.track.findUnique({
+      where: { id },
+      include: {
+        courses: {
+          include: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+                description: true,
+                thumbnailUrl: true,
+                techStack: true,
+                price: true,
+              },
+            },
+          },
+          orderBy: { courseId: 'asc' },
+        },
+      },
+    });
+    if (!track) throw new NotFoundException('Track not found');
+    return track.courses.map((tc) => tc.course);
   }
 
   async publicCourseBySlug(slug: string) {
@@ -979,4 +1005,52 @@ export class CoursesService {
     // Return empty list until the feature is implemented.
     return [];
   }
+
+  // ==================== HERO SLIDES ====================
+
+  async featuredHeroSlides() {
+    const SLOT_COUNT = 3;
+    const slides = await this.prisma.heroSlide.findMany({
+      where: { isFeatured: true, displayOrder: { lt: SLOT_COUNT } },
+      orderBy: { displayOrder: 'asc' },
+      take: SLOT_COUNT,
+    });
+    const seen = new Set<number>();
+    return slides.filter((s) => {
+      if (seen.has(s.displayOrder)) return false;
+      seen.add(s.displayOrder);
+      return true;
+    });
+  }
+
+  async createHeroSlide(dto: CreateHeroSlideDto) {
+    return this.prisma.heroSlide.create({ data: dto });
+  }
+
+  async listHeroSlides() {
+    return this.prisma.heroSlide.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  async deleteHeroSlide(id: string) {
+    await this.prisma.heroSlide.delete({ where: { id } });
+    return { message: 'Hero slide deleted' };
+  }
+
+  async featureHeroSlide(id: string, dto: FeatureDto) {
+    await this.prisma.heroSlide.findUniqueOrThrow({ where: { id } });
+    return this.prisma.heroSlide.update({ where: { id }, data: dto });
+  }
+
+  async reorderHeroSlides(dto: ReorderItemsDto) {
+    await this.prisma.$transaction(
+      dto.items.map((item) =>
+        this.prisma.heroSlide.update({
+          where: { id: item.id },
+          data: { displayOrder: item.displayOrder },
+        }),
+      ),
+    );
+    return { message: 'Hero slides reordered' };
+  }
+
 }

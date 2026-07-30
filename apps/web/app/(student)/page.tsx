@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Hero } from "@/app/(student)/components/hero";
 import { PopularCourses } from "@/app/(student)/components/popular-courses";
 import { CareerPaths } from "@/app/(student)/components/career-paths";
@@ -38,6 +39,7 @@ type CtaCardProps = {
   stats: { num: string; lbl: string }[];
   btnLabel: string;
   btnClass: "btn-purple" | "btn-blue" | "btn-green";
+  link: string;
 };
 
 const ctaCards: CtaCardProps[] = [
@@ -50,6 +52,7 @@ const ctaCards: CtaCardProps[] = [
     stats: [{ num: "40+", lbl: "Certs Available" }, { num: "98%", lbl: "Pass Rate" }],
     btnLabel: "Explore Certificates",
     btnClass: "btn-purple",
+    link: "/certificates",
   },
   {
     type: "cta-proj",
@@ -60,6 +63,7 @@ const ctaCards: CtaCardProps[] = [
     stats: [{ num: "50+", lbl: "Live Projects" }, { num: "12", lbl: "Domains" }],
     btnLabel: "View Projects",
     btnClass: "btn-blue",
+    link: "/projects",
   },
   {
     type: "cta-jobs",
@@ -70,10 +74,13 @@ const ctaCards: CtaCardProps[] = [
     stats: [{ num: "2K+", lbl: "Hiring Partners" }, { num: "85%", lbl: "Placement Rate" }],
     btnLabel: "View Jobs",
     btnClass: "btn-green",
+    link: "/jobs",
   },
 ];
 
 export default function StudentPage() {
+  const router = useRouter();
+
   return (
     <div className="flex min-h-screen flex-col">
       <div className="shell-inner flex flex-col lg:flex-row gap-3 lg:gap-4 p-2 md:p-3 lg:p-3">
@@ -99,7 +106,6 @@ export default function StudentPage() {
                     {card.eyebrow}
                   </div>
                   <div className="font-extrabold text-[16px] text-[var(--text)] mb-[5px] tracking-[-.01em]">{card.title}</div>
-                  <div className="text-[11.5px] text-[var(--muted)] leading-[1.55] mb-3.5">{card.desc}</div>
                   <div className="mb-3.5 flex gap-3.5">
                     {card.stats.map((s) => (
                       <div key={s.lbl} className="flex flex-col">
@@ -108,7 +114,7 @@ export default function StudentPage() {
                       </div>
                     ))}
                   </div>
-                  <button className={`inline-flex items-center gap-1.5 px-[18px] py-[9px] rounded-[9px] text-[12px] font-bold border-none shadow-[0_4px_12px_rgba(0,0,0,.15)] hover:opacity-90 hover:-translate-y-0.5 hover:shadow-[0_8px_18px_rgba(0,0,0,.22)] ${btnColors[card.btnClass]}`}>
+                  <button onClick={() => router.push(card.link)} className={`inline-flex items-center gap-1.5 px-[18px] py-[9px] rounded-[9px] text-[12px] font-bold border-none shadow-[0_4px_12px_rgba(0,0,0,.15)] hover:opacity-90 hover:-translate-y-0.5 hover:shadow-[0_8px_18px_rgba(0,0,0,.22)] ${btnColors[card.btnClass]}`}>
                     {card.btnLabel}
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="size-[13px] transition-transform duration-200 group-hover:translate-x-0.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
                   </button>
@@ -130,7 +136,6 @@ export default function StudentPage() {
                 <div className="text-lg">{t.ico}</div>
                 <div>
                   <div className="text-[11px] font-semibold text-[var(--text)]">{t.name}</div>
-                  <div className="text-[10px] text-[var(--muted)]">{t.desc}</div>
                 </div>
               </div>
             ))}

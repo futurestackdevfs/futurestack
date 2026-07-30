@@ -256,6 +256,7 @@ export default function AdminMasterDataPage() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [stats, setStats] = useState<CourseStats | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [profileModal, setProfileModal] = useState<{ open: boolean; mode: "profile" | "settings" }>({ open: false, mode: "profile" });
   const [confirmState, setConfirmState] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
 
@@ -360,7 +361,7 @@ export default function AdminMasterDataPage() {
       setDb((prev) => ({ ...prev, instructors: mappedInstructors }));
     });
     return () => { cancelled = true; };
-  }, [token]);
+  }, [token, refreshKey]);
 
   function addToast(msg: string, type: "success" | "danger" = "success") {
     const id = Date.now();
@@ -1000,6 +1001,7 @@ export default function AdminMasterDataPage() {
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
             <FeaturedManager token={token || ""} />
           </main>
+
         ) : view === "master-data" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
             <div className="p-4 pb-7">
@@ -1013,6 +1015,12 @@ export default function AdminMasterDataPage() {
                   </span>
                 </div>
                 <div className="flex gap-1.5">
+                  <button onClick={() => setRefreshKey(k => k + 1)}
+                    className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
+                    style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
+                  >↻ Refresh</button>
                   <button onClick={exportCurrentEntity}
                     className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
                     style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
