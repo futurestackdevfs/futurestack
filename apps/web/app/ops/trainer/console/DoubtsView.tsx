@@ -568,6 +568,7 @@ export default function DoubtsView({ messages, searchQuery, user, onToggleAnswer
                     style={{ background: "var(--orange)" }}
                   >{posting ? "…" : "Post"}</button>
                 </div>
+                </div>
               </form>
             </>
           )}

@@ -538,6 +538,7 @@ export default function DiscussionTab({ courseId, onCountChange }: Props) {
             style={{ background: "var(--orange)" }}
           >{posting ? "…" : "Post"}</button>
         </div>
+        </div>
       </form>
 
       {/* Confirm modals */}
