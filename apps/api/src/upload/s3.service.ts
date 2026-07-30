@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { extname } from 'path';
 
-export type S3Folder = 'avatars' | 'uploads' | 'courses' | 'banners';
+export type S3Folder = 'avatars' | 'uploads' | 'courses' | 'banners' | 'discussions' | 'resources';
 
 @Injectable()
 export class S3Service implements OnModuleInit {
@@ -16,13 +16,13 @@ export class S3Service implements OnModuleInit {
   constructor(private config: ConfigService) {}
 
   onModuleInit() {
-    const region = this.config.get<string>('AWS_REGION');
-    const accessKey = this.config.get<string>('AWS_ACCESS_KEY_ID');
-    const secretKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY');
-    const bucket = this.config.get<string>('S3_BUCKET');
-    const endpoint = this.config.get<string>('S3_ENDPOINT');
+    const region = this.config.get<string>('AWS_REGION') || this.config.get<string>('SUPABASE_REGION') || 'ap-south-1';
+    const accessKey = this.config.get<string>('AWS_ACCESS_KEY_ID') || this.config.get<string>('SUPABASE_ACCESS_KEY');
+    const secretKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY') || this.config.get<string>('SUPABASE_SECRET_KEY');
+    const bucket = this.config.get<string>('S3_BUCKET') || this.config.get<string>('SUPABASE_BUCKET');
+    const endpoint = this.config.get<string>('S3_ENDPOINT') || this.config.get<string>('SUPABASE_URL');
 
-    if (!region || !accessKey || !secretKey || !bucket) {
+    if (!accessKey || !secretKey || !bucket) {
       this.logger.warn('S3 not configured — falling back to local disk storage');
       return;
     }
