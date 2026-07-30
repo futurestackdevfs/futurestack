@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { ViewHeader } from "../sections/ui";
+import { opsFetch } from "@/app/ops/lib/ops-fetch";
 
 /* ── Types ── */
 
@@ -34,7 +35,7 @@ interface DoubtsViewProps {
   onReply: (msgId: string, courseId: string, body: string) => Promise<any>;
   onDelete: (msgId: string, courseId: string) => void;
   onUpvote: (msgId: string, courseId: string, replyId?: string) => void;
-  onCreate: (courseId: string, body: string, tag: string) => Promise<any>;
+  onCreate: (courseId: string, body: string, tag: string, attachmentUrl?: string | null) => Promise<any>;
   onUpdate: (msgId: string, courseId: string, body: string) => Promise<any>;
   onDeleteReply: (replyId: string, courseId: string) => Promise<any>;
 }
@@ -133,6 +134,7 @@ export default function DoubtsView({ messages, searchQuery, user, onToggleAnswer
   const [savingEdit, setSavingEdit] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<{ msgId: string; courseId: string } | null>(null);
   const [confirmDeleteReply, setConfirmDeleteReply] = useState<{ replyId: string; courseId: string } | null>(null);
+  const [attachment, setAttachment] = useState<File | null>(null);
 
   const isUnread = (m: DiscussionMessage) => m.author.id !== user.id && !readIds.has(m.id);
 
@@ -233,11 +235,29 @@ export default function DoubtsView({ messages, searchQuery, user, onToggleAnswer
   /* Composer */
   async function submitComposer() {
     const body = composerBody.trim();
-    if (!body || posting || !selectedCourse) return;
+    if ((!body && !attachment) || posting || !selectedCourse) return;
     setPosting(true);
-    await onCreate(selectedCourse, body, composerTag);
+    let attachmentUrl = null;
+
+    if (attachment) {
+      const fd = new FormData();
+      fd.append("file", attachment);
+      try {
+        const uploadRes = await opsFetch("/api/upload/discussion", { method: "POST", body: fd });
+        if (uploadRes.ok) {
+          const data = await uploadRes.json();
+          attachmentUrl = data.url;
+        }
+      } catch (err) {
+        setPosting(false);
+        return;
+      }
+    }
+
+    await onCreate(selectedCourse, body, composerTag, attachmentUrl);
     setComposerBody("");
     setComposerTag("DOUBT");
+    setAttachment(null);
     setPosting(false);
   }
 
@@ -518,13 +538,24 @@ export default function DoubtsView({ messages, searchQuery, user, onToggleAnswer
                 })}
               </div>
               {/* Composer */}
-              <form onSubmit={(e) => { e.preventDefault(); submitComposer(); }} className="flex items-start gap-2 px-3 py-2.5" style={{ borderTop: "1px solid var(--border)", background: "var(--panel)" }}>
-                <textarea value={composerBody} onChange={(e) => setComposerBody(e.target.value)} placeholder="Write a message…" maxLength={2000} rows={1}
-                  className="flex-1 font-mono text-[9.5px] px-2 py-1.5 rounded outline-none resize-none"
-                  style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", minHeight: 32 }}
-                />
-                <div className="flex items-center gap-1 shrink-0">
-                  {(["DOUBT", "TIP", "ANNOUNCEMENT", "RESOURCE"] as const).map((t) => (
+              <form onSubmit={(e) => { e.preventDefault(); submitComposer(); }} className="flex flex-col px-3 py-2.5 gap-2" style={{ borderTop: "1px solid var(--border)", background: "var(--panel)" }}>
+                {attachment && (
+                  <div className="flex items-center gap-2 text-[10px] font-mono px-2 py-1 rounded w-max" style={{ background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" }}>
+                    📎 {attachment.name}
+                    <button type="button" onClick={() => setAttachment(null)} className="cursor-pointer font-bold text-red-500 hover:text-red-600 bg-transparent border-none p-0 ml-1">✕</button>
+                  </div>
+                )}
+                <div className="flex items-start gap-2 w-full">
+                  <textarea value={composerBody} onChange={(e) => setComposerBody(e.target.value)} placeholder="Write a message…" maxLength={2000} rows={1}
+                    className="flex-1 font-mono text-[9.5px] px-2 py-1.5 rounded outline-none resize-none"
+                    style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", minHeight: 32 }}
+                  />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <label className="cursor-pointer text-[12px] px-1 hover:opacity-70 transition-opacity flex items-center justify-center" title="Attach an image">
+                      📎
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && setAttachment(e.target.files[0])} />
+                    </label>
+                    {(["DOUBT", "TIP", "ANNOUNCEMENT", "RESOURCE"] as const).map((t) => (
                     <button key={t} type="button" onClick={() => setComposerTag(t)}
                       className="font-mono text-[7.5px] font-bold px-1.5 py-0.5 rounded cursor-pointer"
                       style={composerTag === t

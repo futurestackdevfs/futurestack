@@ -115,6 +115,7 @@ export default function DiscussionTab({ courseId, onCountChange }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmDeleteReply, setConfirmDeleteReply] = useState<{ replyId: string; msgId: string } | null>(null);
+  const [attachment, setAttachment] = useState<File | null>(null);
 
   const { data: messages, isLoading, mutate } = useSWR<DiscussionMessage[]>(
     `/api/discussion/${courseId}?page=1&limit=${limit}`,
@@ -163,18 +164,35 @@ export default function DiscussionTab({ courseId, onCountChange }: Props) {
 
   async function postMessage() {
     const body = postBody.trim();
-    if (!body || posting) return;
+    if ((!body && !attachment) || posting) return;
     setPosting(true);
+
+    let attachmentUrl = null;
+    if (attachment) {
+      const fd = new FormData();
+      fd.append("file", attachment);
+      const uploadRes = await fetch("/api/upload/discussion", { method: "POST", body: fd });
+      if (uploadRes.ok) {
+        const data = await uploadRes.json();
+        attachmentUrl = data.url;
+      } else {
+        setError("Failed to upload image");
+        setPosting(false);
+        return;
+      }
+    }
+
     const ok = await withErrorToast(() =>
       fetch(`/api/discussion/${courseId}`, {
         method: "POST", credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body, tag: postTag }),
+        body: JSON.stringify({ body, tag: postTag, attachmentUrl }),
       }),
     );
     if (ok) {
       setPostBody("");
       setPostTag("DOUBT");
+      setAttachment(null);
       await mutate();
     }
     setPosting(false);
@@ -490,13 +508,24 @@ export default function DiscussionTab({ courseId, onCountChange }: Props) {
       </div>
 
       {/* Composer - bottom bar */}
-      <form onSubmit={(e) => { e.preventDefault(); postMessage(); }} className="flex items-start gap-2 px-3 py-2.5" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
-        <textarea value={postBody} onChange={(e) => setPostBody(e.target.value)} placeholder="Ask a question or share your progress…" maxLength={2000} rows={1}
-          className="flex-1 font-mono text-[9.5px] px-2 py-1.5 rounded outline-none resize-none"
-          style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", minHeight: 32 }}
-        />
-        <div className="flex items-center gap-1 shrink-0">
-          {(["DOUBT", "TIP", "RESOURCE", ...(isStaff ? (["ANNOUNCEMENT"] as const) : [])] as DiscussionMessage["tag"][]).map((tag) => (
+      <form onSubmit={(e) => { e.preventDefault(); postMessage(); }} className="flex flex-col px-3 py-2.5 gap-2" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
+        {attachment && (
+          <div className="flex items-center gap-2 text-[10px] font-mono px-2 py-1 rounded w-max" style={{ background: "var(--panel)", color: "var(--text)" }}>
+            📎 {attachment.name}
+            <button type="button" onClick={() => setAttachment(null)} className="cursor-pointer font-bold text-red-500 hover:text-red-600 bg-transparent border-none p-0 ml-1">✕</button>
+          </div>
+        )}
+        <div className="flex items-start gap-2 w-full">
+          <textarea value={postBody} onChange={(e) => setPostBody(e.target.value)} placeholder="Ask a question or share your progress…" maxLength={2000} rows={1}
+            className="flex-1 font-mono text-[9.5px] px-2 py-1.5 rounded outline-none resize-none"
+            style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)", minHeight: 32 }}
+          />
+          <div className="flex items-center gap-1 shrink-0">
+            <label className="cursor-pointer text-[12px] px-1 hover:opacity-70 transition-opacity flex items-center justify-center" title="Attach an image">
+              📎
+              <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && setAttachment(e.target.files[0])} />
+            </label>
+            {(["DOUBT", "TIP", "RESOURCE", ...(isStaff ? (["ANNOUNCEMENT"] as const) : [])] as DiscussionMessage["tag"][]).map((tag) => (
             <button key={tag} type="button" onClick={() => setPostTag(tag)}
               className="font-mono text-[7.5px] font-bold px-1.5 py-0.5 rounded cursor-pointer"
               style={postTag === tag
