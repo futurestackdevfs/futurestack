@@ -13,6 +13,7 @@ import { EntityTable, StatusBadge, YesNoBadge, type ColumnDef } from "./sections
 import { MasterDataModal, type FieldDef } from "./sections/MasterDataModal";
 import { ConfirmDialog, type ConfirmOptions } from "./sections/ConfirmDialog";
 import { CurriculumBuilder } from "./sections/CurriculumBuilder";
+import { ResourceManagerModal } from "./sections/ResourceManagerModal";
 import { ProfileModal } from "./sections/ProfileModal";
 import FeaturedManager from "./sections/FeaturedManager";
 import AdminDashboardContent from "./console/AdminDashboardContent";
@@ -246,6 +247,8 @@ export default function AdminMasterDataPage() {
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [cbOpen, setCbOpen] = useState(false);
   const [cbCourse, setCbCourse] = useState<{ code: string; name: string; id: string } | null>(null);
+  const [rmOpen, setRmOpen] = useState(false);
+  const [rmCourse, setRmCourse] = useState<{ code: string; name: string; id: string } | null>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<string | number | null>(null);
   const [expandedCurriculums, setExpandedCurriculums] = useState<Record<string|number, any[]>>({});
   const [searchQuery, setSearchQuery] = useState("");
@@ -674,6 +677,11 @@ export default function AdminMasterDataPage() {
     setCbOpen(true);
   }
 
+  function openResourceManager(course: any) {
+    setRmCourse({ code: course.code, name: course.name, id: course.id });
+    setRmOpen(true);
+  }
+
   function saveCurriculum() {
     addToast(`Curriculum saved`);
     if (cbCourse) {
@@ -1055,6 +1063,7 @@ export default function AdminMasterDataPage() {
                     columns={COLUMNS[currentEntity]} data={filteredData}
                     onEdit={openEditModal} onDelete={deleteRecord}
                     onManageCurriculum={currentEntity === "courses" ? openCurriculumBuilder : undefined}
+                    onManageResources={currentEntity === "courses" ? openResourceManager : undefined}
                     emptyMessage={`No ${ENTITY_NAMES[currentEntity].toLowerCase()}s found.`}
                     expandedId={currentEntity === "courses" ? expandedCourseId : undefined}
                     onToggleExpand={currentEntity === "courses" ? handleToggleExpand : undefined}
@@ -1114,6 +1123,18 @@ export default function AdminMasterDataPage() {
         token={token || ""}
         onSave={saveCurriculum}
         onClose={closeCurriculumBuilder}
+      />
+
+      {/* Resource Manager Modal */}
+      <ResourceManagerModal
+        open={rmOpen}
+        courseId={rmCourse?.id || ""}
+        courseName={rmCourse?.name || ""}
+        token={token || ""}
+        onClose={() => {
+          setRmOpen(false);
+          setRmCourse(null);
+        }}
       />
 
       {/* Profile Modal */}

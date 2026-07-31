@@ -69,7 +69,7 @@ export function MasterDataModal({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/upload", {
+      const res = await fetch("/api/upload/resource?folder=courses", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: fd,

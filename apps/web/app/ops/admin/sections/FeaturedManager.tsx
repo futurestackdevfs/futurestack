@@ -242,12 +242,12 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
   async function uploadHeroSlideImage(index: number, file: File) {
     setUploadingIndex(index);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch(`/api/upload`, {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`/api/upload/resource?folder=banners`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-        body: form,
+        body: fd,
       });
       if (!res.ok) throw new Error("Upload failed");
       const data = await res.json();

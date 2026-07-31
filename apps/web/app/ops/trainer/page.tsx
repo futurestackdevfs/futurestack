@@ -361,8 +361,8 @@ export default function TrainerDashboardPage() {
     }
   }
 
-  async function handleCreateMessage(courseId: string, body: string, tag: string) {
-    const res = await apiAction<DiscussionMessage>(`/api/discussion/${courseId}`, { method: "POST", body: JSON.stringify({ body, tag }) });
+  async function handleCreateMessage(courseId: string, body: string, tag: string, attachmentUrl?: string | null) {
+    const res = await apiAction<DiscussionMessage>(`/api/discussion/${courseId}`, { method: "POST", body: JSON.stringify({ body, tag, attachmentUrl }) });
     if (res) {
       setDoubts((prev) => [{ ...res, courseId, replies: [] }, ...prev]);
       addToast("Message posted");

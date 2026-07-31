@@ -16,6 +16,7 @@ interface EntityTableProps {
   onEdit?: (row: any) => void;
   onDelete?: (row: any) => void;
   onManageCurriculum?: (row: any) => void;
+  onManageResources?: (row: any) => void;
   emptyMessage?: string;
   expandedId?: string | number | null;
   onToggleExpand?: (id: string | number) => void;
@@ -30,6 +31,7 @@ export function EntityTable({
   onEdit,
   onDelete,
   onManageCurriculum,
+  onManageResources,
   emptyMessage,
   expandedId,
   onToggleExpand,
@@ -193,6 +195,28 @@ export function EntityTable({
                         }}
                       >
                         📋
+                      </button>
+                    )}
+                    {onManageResources && (
+                      <button
+                        onClick={() => onManageResources(row)}
+                        className="flex items-center justify-center w-[22px] h-[22px] rounded text-[11px] cursor-pointer"
+                        style={{
+                          color: "var(--text3)",
+                          border: "1px solid var(--border)",
+                          background: "var(--surface)",
+                        }}
+                        title="Manage Resources"
+                        onMouseEnter={(e) => {
+                          (e.currentTarget as HTMLElement).style.color = "var(--green)";
+                          (e.currentTarget as HTMLElement).style.borderColor = "var(--green)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.currentTarget as HTMLElement).style.color = "var(--text3)";
+                          (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+                        }}
+                      >
+                        📎
                       </button>
                     )}
                     {onEdit && (
