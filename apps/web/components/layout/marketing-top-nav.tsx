@@ -733,7 +733,7 @@ export function TopNav() {
                           >
                             <span className="text-base shrink-0">{r.icon}</span>
                             <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                              <span className={`text-[13px] font-semibold ${activeCourseCat === cat.id ? 'text-[var(--text)]' : 'text-[var(--muted)]'}`}>
+                              <span className={`text-[13px] font-semibold text-[var(--text)]`}>
                                 {cat.label}
                               </span>
                               <span className={`text-[10px] font-semibold shrink-0 px-1.5 py-0.5 rounded-md ${activeCourseCat === cat.id ? 'bg-white/60 dark:bg-white/[0.08] text-[var(--text)]' : 'text-[var(--text3)]'}`}>
@@ -832,7 +832,7 @@ export function TopNav() {
                             activePathCat === p.id ? 'bg-[var(--surface)] border-l-[var(--orange)] shadow-sm' : 'border-l-transparent hover:bg-[var(--bg)] hover:border-l-[var(--border)]'
                           }`}
                         >
-                          <span className={`flex items-center gap-2.5 text-[13px] font-semibold ${activePathCat === p.id ? 'text-[var(--text)]' : 'text-[var(--muted)]'}`}>
+                          <span className="flex items-center gap-2.5 text-[13px] font-semibold text-[var(--text)]">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className={`shrink-0 ${activePathCat === p.id ? 'text-[var(--orange)]' : 'text-[var(--muted)]'}`}><path d="M12 2l10 6v8l-10 6L2 16V8z" /></svg>
                             {p.title}
                           </span>
