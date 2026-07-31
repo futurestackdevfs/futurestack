@@ -93,9 +93,9 @@ button {
   --pink: #db2777;
   --pink-d: rgba(219, 39, 119, .1);
   --text: #111827;
-  --text2: #374151;
-  --muted: #6b7280;
-  --text3: #6b7280;
+  --text2: #000000;
+  --muted: #000000;
+  --text3: #000000;
   --bg2: #eef0f5;
   --shadow: 0 2px 12px rgba(0, 0, 0, .08);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, .12);

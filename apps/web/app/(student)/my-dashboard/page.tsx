@@ -235,8 +235,8 @@ export default function MyDashboardPage() {
                 key={tab.id}
                 onClick={() => { setActiveTab(tab.id); if (tab.id !== "courses") setSelectedCourseId(null); }}
                 className={`flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] w-full text-left text-[10.5px] cursor-pointer transition-all no-underline border-none ${activeTab === tab.id
-                  ? "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a] font-semibold"
-                  : "text-[#374151] dark:text-[#b0bac9] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0]"
+                  ? "bg-[#f05a1a] dark:bg-[#ff6a1a] text-white font-semibold"
+                  : "text-[#000000] dark:text-[#b0bac9] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0]"
                   }`}
               >
                 <span className="text-[12px] shrink-0 w-4 text-center">{tab.icon}</span>
@@ -251,45 +251,45 @@ export default function MyDashboardPage() {
           {/* Level Progress */}
           <div className="px-2.5 py-1.5 border-t border-[#e2e6ef] dark:border-[#1e2535] mx-2.5">
             <div className="bg-[#f0f2f7] dark:bg-[#10141e] rounded-[6px] p-[5px_7px]">
-              <div className="flex justify-between items-center font-['JetBrains_Mono',monospace] text-[7.5px] text-[#374151] dark:text-[#b0bac9] mb-0.5">
-                <span className="font-semibold text-[#111827] dark:text-[#e8eaf0]">Intermediate</span>
+              <div className="flex justify-between items-center font-['JetBrains_Mono',monospace] text-[7.5px] text-[#000000] dark:text-[#b0bac9] mb-0.5">
+                <span className="font-semibold text-[#000000] dark:text-[#e8eaf0]">Intermediate</span>
                 <span>1,240 / 2,000 XP</span>
               </div>
               <div className="h-[3px] bg-[#e2e6ef] dark:bg-[#1e2535] rounded-full overflow-hidden mb-0.5">
                 <div className="h-full w-[62%] rounded-full bg-gradient-to-r from-[#f05a1a] to-[#ff7a3c]"></div>
               </div>
-              <div className="font-['JetBrains_Mono',monospace] text-[7px] text-[#6b7280] dark:text-[#7a859a]">762 XP to Senior</div>
+              <div className="font-['JetBrains_Mono',monospace] text-[7px] text-[#000000] dark:text-[#7a859a]">762 XP to Senior</div>
             </div>
           </div>
 
           {/* Explore */}
           <div className="px-2.5 py-0.5">
-            <div className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#6b7280] dark:text-[#7a859a] mb-0.5 px-2">Explore</div>
-            <Link href="/courses?category=ai-ml" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🧠</span><span className="flex-1">AI / ML</span></Link>
-            <Link href="/courses?category=full-stack" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🌐</span><span className="flex-1">Full Stack</span></Link>
-            <Link href="/courses?category=devops" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🔧</span><span className="flex-1">DevOps</span></Link>
-            <Link href="/courses?category=data-science" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">📊</span><span className="flex-1">Data Science</span></Link>
+            <div className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-0.5 px-2">Explore</div>
+            <Link href="/courses?category=ai-ml" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🧠</span><span className="flex-1">AI / ML</span></Link>
+            <Link href="/courses?category=full-stack" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🌐</span><span className="flex-1">Full Stack</span></Link>
+            <Link href="/courses?category=devops" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🔧</span><span className="flex-1">DevOps</span></Link>
+            <Link href="/courses?category=data-science" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">📊</span><span className="flex-1">Data Science</span></Link>
           </div>
 
           {/* Community */}
           <div className="px-2.5 py-0.5">
-            <div className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#6b7280] dark:text-[#7a859a] mb-0.5 px-2">Community</div>
-            <button onClick={() => { setActiveTab("discussion"); setDiscussionCourseId(null); }} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[11px] shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[7px] font-semibold px-[3px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
-            <Link href="/skill-tests" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></Link>
-            <Link href="/leaderboard" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></Link>
-            <Link href="/study-groups" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></Link>
+            <div className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-0.5 px-2">Community</div>
+            <button onClick={() => { setActiveTab("discussion"); setDiscussionCourseId(null); }} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[11px] shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[7px] font-semibold px-[3px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
+            <Link href="/skill-tests" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></Link>
+            <Link href="/leaderboard" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></Link>
+            <Link href="/study-groups" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></Link>
           </div>
 
           {/* Account */}
           <div className="px-2.5 py-0.5">
-            <div className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#6b7280] dark:text-[#7a859a] mb-0.5 px-2">Account</div>
-            <Link href="/settings" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
-            <Link href="/help" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
+            <div className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-0.5 px-2">Account</div>
+            <Link href="/settings" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
+            <Link href="/help" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
           </div>
 
           {/* Sidebar Footer */}
           <div className="mt-auto px-2.5 py-1.5 border-t border-[#e2e6ef] dark:border-[#1e2535] mx-2.5">
-            <div className="font-['JetBrains_Mono',monospace] text-[7px] text-[#6b7280] dark:text-[#7a859a]">v1.0.0 · <span className="font-semibold text-[#111827] dark:text-[#e8eaf0]">FutureStack</span></div>
+            <div className="font-['JetBrains_Mono',monospace] text-[7px] text-[#000000] dark:text-[#7a859a]">v1.0.0 · <span className="font-semibold text-[#000000] dark:text-[#e8eaf0]">FutureStack</span></div>
           </div>
         </aside>
 
@@ -374,8 +374,8 @@ export default function MyDashboardPage() {
           <div className="flex-1" style={{ background: "rgba(0,0,0,.35)" }} onClick={() => setSidebarOpen(false)} />
           <div className="bg-white dark:bg-[#111520] rounded-t-2xl max-h-[75vh] overflow-y-auto px-3 pt-4 pb-8 shadow-[0_-8px_30px_rgba(0,0,0,.12)]">
             <div className="flex items-center justify-between mb-3 px-2.5">
-              <span className="font-['Syne',sans-serif] text-[14px] font-bold text-[#111827] dark:text-[#e8eaf0]">Navigation</span>
-              <button onClick={() => setSidebarOpen(false)} className="w-[30px] h-[30px] rounded-full flex items-center justify-center bg-[#f4f6fa] dark:bg-[#0b0e14] border-none cursor-pointer text-[#6b7280] dark:text-[#7a859a] hover:text-[#111827] dark:hover:text-[#e8eaf0]">
+              <span className="font-['Syne',sans-serif] text-[14px] font-bold text-[#000000] dark:text-[#e8eaf0]">Navigation</span>
+              <button onClick={() => setSidebarOpen(false)} className="w-[30px] h-[30px] rounded-full flex items-center justify-center bg-[#f4f6fa] dark:bg-[#0b0e14] border-none cursor-pointer text-[#000000] dark:text-[#7a859a] hover:text-[#000000] dark:hover:text-[#e8eaf0]">
                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
@@ -386,8 +386,8 @@ export default function MyDashboardPage() {
                   key={tab.id}
                   onClick={() => { setActiveTab(tab.id); if (tab.id !== "courses") setSelectedCourseId(null); setSidebarOpen(false); }}
                   className={`flex items-center gap-2.5 px-2.5 py-[7px] rounded-[6px] w-full text-left text-[11.5px] cursor-pointer transition-all no-underline border-none ${activeTab === tab.id
-                    ? "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a] font-semibold"
-                    : "text-[#374151] dark:text-[#b0bac9] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0]"
+                    ? "bg-[#f05a1a] dark:bg-[#ff6a1a] text-white font-semibold"
+                    : "text-[#000000] dark:text-[#b0bac9] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0]"
                     }`}
                 >
                   <span className="text-sm shrink-0 w-4 text-center">{tab.icon}</span>
@@ -401,41 +401,41 @@ export default function MyDashboardPage() {
             {/* Level Progress */}
             <div className="px-2.5 py-1.5 border-t border-[#e2e6ef] dark:border-[#1e2535] mx-2.5">
               <div className="bg-[#f0f2f7] dark:bg-[#10141e] rounded-[6px] p-2">
-                <div className="flex justify-between items-center font-['JetBrains_Mono',monospace] text-[8.5px] text-[#374151] dark:text-[#b0bac9] mb-1">
-                  <span className="font-semibold text-[#111827] dark:text-[#e8eaf0]">Intermediate</span>
+                <div className="flex justify-between items-center font-['JetBrains_Mono',monospace] text-[8.5px] text-[#000000] dark:text-[#b0bac9] mb-1">
+                  <span className="font-semibold text-[#000000] dark:text-[#e8eaf0]">Intermediate</span>
                   <span>1,240 / 2,000 XP</span>
                 </div>
                 <div className="h-[4px] bg-[#e2e6ef] dark:bg-[#1e2535] rounded-full overflow-hidden mb-1">
                   <div className="h-full w-[62%] rounded-full bg-gradient-to-r from-[#f05a1a] to-[#ff7a3c]"></div>
                 </div>
-                <div className="font-['JetBrains_Mono',monospace] text-[7.5px] text-[#6b7280] dark:text-[#7a859a]">762 XP to Senior</div>
+                <div className="font-['JetBrains_Mono',monospace] text-[7.5px] text-[#000000] dark:text-[#7a859a]">762 XP to Senior</div>
               </div>
             </div>
             {/* Explore */}
             <div className="px-2.5 py-1">
-              <div className="text-[9px] font-semibold uppercase tracking-[.1em] text-[#6b7280] dark:text-[#7a859a] mb-1 px-2">Explore</div>
-              <Link href="/courses?category=ai-ml" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🧠</span><span className="flex-1">AI / ML</span></Link>
-              <Link href="/courses?category=full-stack" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🌐</span><span className="flex-1">Full Stack</span></Link>
-              <Link href="/courses?category=devops" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🔧</span><span className="flex-1">DevOps</span></Link>
-              <Link href="/courses?category=data-science" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">📊</span><span className="flex-1">Data Science</span></Link>
+              <div className="text-[9px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-1 px-2">Explore</div>
+              <Link href="/courses?category=ai-ml" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🧠</span><span className="flex-1">AI / ML</span></Link>
+              <Link href="/courses?category=full-stack" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🌐</span><span className="flex-1">Full Stack</span></Link>
+              <Link href="/courses?category=devops" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🔧</span><span className="flex-1">DevOps</span></Link>
+              <Link href="/courses?category=data-science" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">📊</span><span className="flex-1">Data Science</span></Link>
             </div>
             {/* Community */}
             <div className="px-2.5 py-1">
-              <div className="text-[9px] font-semibold uppercase tracking-[.1em] text-[#6b7280] dark:text-[#7a859a] mb-1 px-2">Community</div>
-              <button onClick={() => { setActiveTab("discussion"); setDiscussionCourseId(null); setSidebarOpen(false); }} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-xs shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[7.5px] font-semibold px-[4px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
-              <Link href="/skill-tests" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></Link>
-              <Link href="/leaderboard" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></Link>
-              <Link href="/study-groups" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></Link>
+              <div className="text-[9px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-1 px-2">Community</div>
+              <button onClick={() => { setActiveTab("discussion"); setDiscussionCourseId(null); setSidebarOpen(false); }} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-xs shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[7.5px] font-semibold px-[4px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
+              <Link href="/skill-tests" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></Link>
+              <Link href="/leaderboard" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></Link>
+              <Link href="/study-groups" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></Link>
             </div>
             {/* Account */}
             <div className="px-2.5 py-1">
-              <div className="text-[9px] font-semibold uppercase tracking-[.1em] text-[#6b7280] dark:text-[#7a859a] mb-1 px-2">Account</div>
-              <Link href="/settings" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
-              <Link href="/help" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#374151] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#111827] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
+              <div className="text-[9px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-1 px-2">Account</div>
+              <Link href="/settings" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
+              <Link href="/help" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
             </div>
             {/* Footer */}
             <div className="mt-3 px-2.5 py-1.5 border-t border-[#e2e6ef] dark:border-[#1e2535] mx-2.5">
-              <div className="font-['JetBrains_Mono',monospace] text-[8px] text-[#6b7280] dark:text-[#7a859a]">v1.0.0 · <span className="font-semibold text-[#111827] dark:text-[#e8eaf0]">FutureStack</span></div>
+              <div className="font-['JetBrains_Mono',monospace] text-[8px] text-[#000000] dark:text-[#7a859a]">v1.0.0 · <span className="font-semibold text-[#000000] dark:text-[#e8eaf0]">FutureStack</span></div>
             </div>
           </div>
         </div>

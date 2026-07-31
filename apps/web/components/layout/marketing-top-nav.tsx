@@ -105,6 +105,7 @@ export function TopNav() {
   const [tracksLoading, setTracksLoading] = useState(false);
   const [trackCourses, setTrackCourses] = useState<{ id: string; title: string }[]>([]);
   const [trackCoursesLoading, setTrackCoursesLoading] = useState(false);
+  const [allCards, setAllCards] = useState<{ title: string; level: string; duration: string; slug: string; category: string }[]>([]);
 
   const categoryIcons: Record<string, string> = {
     'Web Development': '🌐', 'Data & AI': '🧠', 'Cloud & DevOps': '☁️', 'Emerging Tech': '⚡', 'Mobile Development': '📱', 'Cybersecurity': '🔒', 'General': '📚',
@@ -142,7 +143,7 @@ export function TopNav() {
           icon: categoryIcons[label] || '📖',
           count,
         }));
-        if (!cancelled) { setCourseCatsData(cats); setCoursesByCat(groups); if (cats.length > 0) setActiveCourseCat(cats[0].id); }
+        if (!cancelled) { setCourseCatsData(cats); setCoursesByCat(groups); setAllCards(cards.map((c: any) => ({ title: c.title, level: c.level || 'All Levels', duration: c.duration || 'Self-Paced', slug: c.slug || c.id, category: c.category || c.tech || 'General' }))); if (cats.length > 0) setActiveCourseCat(cats[0].id); }
       } catch { /* use fallback */ }
       if (!cancelled) setCoursesLoading(false);
     }
@@ -223,14 +224,31 @@ export function TopNav() {
         const res = await fetch(`/api/courses/public/tracks/${activePathCat}/courses`);
         if (res.ok) {
           const data = await res.json();
-          if (!cancelled) setTrackCourses(Array.isArray(data) ? data.map((c: any) => ({ id: c.id, title: c.title })) : []);
+          const courses = (data.data ?? data.courses ?? data ?? []).slice(0, 12).map((c: any) => ({ id: c.slug ?? c.id, title: c.title }));
+          if (!cancelled) { setTrackCourses(courses); setTrackCoursesLoading(false); return; }
         }
       } catch {}
+      const track = tracksData.find((t) => t.id === activePathCat);
+      if (track && allCards.length > 0) {
+        const trackCatMap: Record<string, string> = {
+          'Full Stack Developer': 'Web Development',
+          'Frontend Developer': 'Web Development',
+          'Data Scientist': 'Data & AI',
+          'AI/ML Engineer': 'Data & AI',
+          'DevOps Engineer': 'Cloud & DevOps',
+          'Cloud Architect': 'Cloud & DevOps',
+          'Mobile Developer': 'Mobile Development',
+          'Cybersecurity Analyst': 'Cybersecurity',
+        };
+        const cat = trackCatMap[track.title];
+        const filtered = cat ? allCards.filter((c) => c.category === cat).slice(0, 12).map((c) => ({ id: c.slug, title: c.title })) : allCards.slice(0, 6).map((c) => ({ id: c.slug, title: c.title }));
+        if (!cancelled) setTrackCourses(filtered);
+      }
       if (!cancelled) setTrackCoursesLoading(false);
     }
     loadTrackCourses();
     return () => { cancelled = true; };
-  }, [activePathCat, tracksData]);
+  }, [activePathCat, tracksData, allCards]);
 
   useEffect(() => { setShowAllPathCourses(false); }, [activePathCat]);
 
@@ -775,7 +793,7 @@ export function TopNav() {
                 <span className="text-[13px] text-[var(--text3)] font-medium">{courseCatsData.reduce((s, c) => s + c.count, 0)}+ courses across {courseCatsData.length} domains</span>
                 <Link href="/courses" onClick={() => setCoursesMegaOpen(false)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-white rounded-lg transition-all no-underline group"
-                  style={{ background: "#1e293b" }}>
+                  style={{ background: "#1e293b", color: "#fff" }}>
                   View All Courses
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:translate-x-0.5 transition-transform"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 </Link>
@@ -885,7 +903,7 @@ export function TopNav() {
                 <span className="text-[13px] text-[var(--text3)] font-medium">{tracksData.length} guided career paths</span>
                 <Link href="/paths" onClick={() => setPathsMegaOpen(false)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-white rounded-lg transition-all no-underline group"
-                  style={{ background: "#1e293b" }}>
+                  style={{ background: "#1e293b", color: "#fff" }}>
                   View All Paths
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:translate-x-0.5 transition-transform"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 </Link>
