@@ -253,6 +253,15 @@ export default function DoubtsView({ messages, searchQuery, user, onToggleAnswer
         if (uploadRes.ok) {
           const data = await uploadRes.json();
           attachmentUrl = data.url;
+        } else {
+          let errMsg = "Failed to upload file";
+          try {
+            const errBody = await uploadRes.json();
+            errMsg = errBody.message || errBody.error || errMsg;
+          } catch {
+            errMsg = `Failed to upload file (HTTP ${uploadRes.status})`;
+          }
+          throw new Error(errMsg);
         }
       } catch (err) {
         setPosting(false);

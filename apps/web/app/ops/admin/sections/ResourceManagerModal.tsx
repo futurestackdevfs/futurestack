@@ -77,7 +77,14 @@ export function ResourceManagerModal({ open, courseId, courseName, token, onClos
       });
 
       if (!uploadRes.ok) {
-        throw new Error("Failed to upload file to S3");
+        let errMsg = "Failed to upload file to S3";
+        try {
+          const errBody = await uploadRes.json();
+          errMsg = errBody.message || errBody.error || errMsg;
+        } catch {
+          errMsg = `Failed to upload file to S3 (HTTP ${uploadRes.status})`;
+        }
+        throw new Error(errMsg);
       }
 
       setUploadProgress(60);
