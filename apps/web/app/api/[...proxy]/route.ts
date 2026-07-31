@@ -28,7 +28,7 @@ async function proxy(req: NextRequest) {
   if (cookieHeader) headers.set('cookie', cookieHeader);
 
   const body = req.method !== 'GET' && req.method !== 'HEAD'
-    ? await req.arrayBuffer()
+    ? req.body
     : undefined;
 
   let backendRes: Response;
@@ -36,9 +36,11 @@ async function proxy(req: NextRequest) {
     backendRes = await fetch(url, {
       method: req.method,
       headers,
-      body: body ? Buffer.from(body) : undefined,
+      body,
+      // Node.js fetch requires duplex: 'half' when passing a ReadableStream
+      ...((body && typeof (body as any).getReader === 'function') ? { duplex: 'half' } : {}),
       cache: 'no-store',
-    });
+    } as RequestInit);
   } catch (err) {
     // Backend unreachable (ECONNREFUSED, timeout, DNS failure, etc.)
     return NextResponse.json(
