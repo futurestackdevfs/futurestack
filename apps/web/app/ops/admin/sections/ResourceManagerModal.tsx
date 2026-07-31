@@ -70,7 +70,7 @@ export function ResourceManagerModal({ open, courseId, courseName, token, onClos
       formData.append("file", file);
       
       // We pass ?folder=courses as an additional hint, though the endpoint might hardcode resources/
-      const uploadRes = await opsFetch("/api/upload/resource?folder=courses", {
+      const uploadRes = await fetch("/api/upload/resource?folder=courses", {
         method: "POST",
         body: formData,
         headers: { Authorization: `Bearer ${token}` }

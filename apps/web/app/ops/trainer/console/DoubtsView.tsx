@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { ViewHeader } from "../sections/ui";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
+import { loadStaffToken } from "@/app/auth/lib/token-store";
 
 /* ── Types ── */
 
@@ -243,7 +244,12 @@ export default function DoubtsView({ messages, searchQuery, user, onToggleAnswer
       const fd = new FormData();
       fd.append("file", attachment);
       try {
-        const uploadRes = await opsFetch("/api/upload/discussion", { method: "POST", body: fd });
+        const token = await loadStaffToken().catch(() => null);
+        const uploadRes = await fetch("/api/upload/discussion", { 
+          method: "POST", 
+          body: fd,
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
         if (uploadRes.ok) {
           const data = await uploadRes.json();
           attachmentUrl = data.url;
