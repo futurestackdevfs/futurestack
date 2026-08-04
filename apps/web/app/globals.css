@@ -106,6 +106,9 @@ button {
   --invert-icon: 0;
   --mono: 'DM Sans', system-ui, sans-serif;
   --overlay: rgba(20, 24, 32, .45);
+  --btn-bg: #111827;
+  --btn-bg-hover: #000000;
+  --btn-text: #ffffff;
 }
 
 [data-theme="dark"] {

@@ -28,6 +28,9 @@ export class StudentController {
     return this.studentService.getCourseDetail(user.id, courseId);
   }
 
+  // Heartbeats are ~6/min per client; allow bursts of forced flushes without
+  // allowing position spam to become an abuse vector.
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @Auth(Role.STUDENT)
   @Post('videos/:videoId/progress')
   async updateVideoProgress(

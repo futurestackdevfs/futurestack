@@ -81,9 +81,9 @@ export function ProfileModal({ open, mode, user, onSave, onClose }: ProfileModal
           <button
             onClick={onClose}
             className="w-6 h-6 flex items-center justify-center rounded text-[13px] cursor-pointer"
-            style={{ color: "var(--text3)", border: "1px solid var(--border)", background: "var(--bg)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text3)"; }}
+            style={{ color: "var(--btn-text, var(--text3))", border: "1px solid var(--border)", background: "var(--btn-bg, var(--bg))" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text))"; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--bg))"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))"; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, var(--bg))"; }}
           >
             ✕
           </button>
@@ -140,13 +140,13 @@ export function ProfileModal({ open, mode, user, onSave, onClose }: ProfileModal
         >
           <button onClick={onClose}
             className="font-mono text-[10.5px] font-semibold px-3 py-1.5 rounded cursor-pointer"
-            style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
+            style={{ border: "1px solid var(--border)", color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, var(--surface))" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
           >Cancel</button>
           <button onClick={handleSave}
             className="font-mono text-[10.5px] font-semibold px-3 py-1.5 rounded cursor-pointer"
-            style={{ background: "var(--blue)", color: "#fff", border: "none" }}
+            style={{ background: "var(--btn-bg, var(--blue))", color: "var(--btn-text, #fff)", border: "none" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
           >Save Changes</button>

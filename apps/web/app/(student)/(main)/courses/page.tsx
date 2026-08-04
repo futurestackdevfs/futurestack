@@ -344,9 +344,9 @@ export default function CoursesPage() {
               <div className="px-[13px] text-[13px] font-bold text-[var(--text2)] tracking-[.3px]">Filters</div>
               <div className="flex items-center gap-2">
                 {selectedFilters.size > 0 && (
-                  <button className="text-[12px] text-[var(--orange)] font-semibold bg-transparent border-none cursor-pointer hover:opacity-75" onClick={clearAllFilters}>Clear All</button>
+                  <button className="text-[12px] font-semibold border-none cursor-pointer hover:opacity-75 text-[var(--btn-text,#fff)] bg-[var(--btn-bg,transparent)]" onClick={clearAllFilters}>Clear All</button>
                 )}
-                <button onClick={() => setMobileFilterOpen(false)} className="w-[30px] h-[30px] rounded-full flex items-center justify-center bg-[var(--bg)] border-none cursor-pointer text-[var(--muted)] hover:text-[var(--text)]">
+                <button onClick={() => setMobileFilterOpen(false)} className="w-[30px] h-[30px] rounded-full flex items-center justify-center border-none cursor-pointer text-[var(--btn-text,var(--muted))] bg-[var(--btn-bg,var(--bg))] hover:text-[var(--btn-text,var(--text))]">
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
               </div>
@@ -380,7 +380,7 @@ export default function CoursesPage() {
                 </div>
               );
             })}
-            <button onClick={() => setMobileFilterOpen(false)} className="w-full mt-3 py-[11px] rounded-[10px] border-none text-[13px] font-bold text-white cursor-pointer transition-opacity hover:opacity-90" style={{ background: "linear-gradient(135deg, var(--orange), var(--orange2))" }}>Apply Filters</button>
+            <button onClick={() => setMobileFilterOpen(false)} className="w-full mt-3 py-[11px] rounded-[10px] border-none text-[13px] font-bold cursor-pointer transition-opacity hover:opacity-90 text-[var(--btn-text,#fff)]" style={{ background: "var(--btn-bg, linear-gradient(135deg, var(--orange), var(--orange2)))" }}>Apply Filters</button>
           </div>
         </div>
       )}

@@ -959,11 +959,13 @@ export default function CourseDetailPage() {
             <div className="text-[11px] text-[#475569] dark:text-[#b0bac9] leading-[1.6] mb-[16px]">{leftReviewError}</div>
             <div className="flex items-center gap-[8px]">
               <Link href="/courses" onClick={() => setLeftReviewError(null)}
-                className="flex-1 text-center px-[16px] py-[9px] rounded-[10px] text-[11px] font-bold text-white bg-gradient-to-r from-[#0f1f3d] to-[#03050a] no-underline shadow-[0_3px_10px_rgba(10,10,20,.45)] hover:shadow-[0_5px_16px_rgba(37,99,235,.45)] hover:-translate-y-[1px] transition-all">
+                className="flex-1 text-center px-[16px] py-[9px] rounded-[10px] text-[11px] font-bold no-underline shadow-[0_3px_10px_rgba(10,10,20,.45)] hover:shadow-[0_5px_16px_rgba(37,99,235,.45)] hover:-translate-y-[1px] transition-all"
+                style={{ background: "var(--btn-bg, linear-gradient(to right, #0f1f3d, #03050a))", color: "var(--btn-text, #fff)" }}>
                 Browse Courses
               </Link>
               <button onClick={() => setLeftReviewError(null)}
-                className="px-[14px] py-[9px] rounded-[10px] text-[11px] font-semibold text-[#475569] dark:text-[#b0bac9] bg-gradient-to-b from-[#f8fafc] to-[#f1f5f9] dark:from-[#1e2535] dark:to-[#0b0e14] border border-gray-200 dark:border-[#1e2535] cursor-pointer hover:from-[#eef2ff] hover:to-[#e0e7ff] dark:hover:from-[#1a1f3a] dark:hover:to-[#141a30] hover:text-[#2563eb] dark:hover:text-[#60a5fa] transition-all shadow-sm">
+                className="px-[14px] py-[9px] rounded-[10px] text-[11px] font-semibold border cursor-pointer hover:-translate-y-[1px] transition-all shadow-sm"
+                style={{ background: "var(--btn-bg, linear-gradient(to bottom, #1e2535, #0b0e14))", color: "var(--btn-text, #b0bac9)", borderColor: "var(--btn-bg, #1e2535)" }}>
                 Close
               </button>
             </div>

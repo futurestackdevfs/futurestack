@@ -68,13 +68,16 @@ function CantEditPopup({ onClose }: { onClose: () => void }) {
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg text-xs font-semibold text-[var(--text)] bg-[var(--bg)] border border-[var(--border)] hover:bg-[var(--surface)] transition-all duration-200 cursor-pointer"
+            className="flex-1 px-4 py-2 rounded-lg text-xs font-semibold text-[var(--btn-text,#fff)] bg-[var(--btn-bg,#111827)] border border-[var(--border)] hover:bg-[var(--btn-bg-hover,#000)] transition-all duration-200 cursor-pointer"
           >
             Got it
           </button>
           <a
             href="mailto:support@futurestack.com"
-            className="flex-1 px-4 py-2 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-orange-500 hover:from-blue-600 hover:to-orange-600 transition-all duration-200 text-center no-underline"
+            className="flex-1 px-4 py-2 rounded-lg text-xs font-bold text-center no-underline transition-all duration-200 cursor-pointer"
+            style={{ background: "var(--btn-bg, linear-gradient(to right, #3b82f6, #f97316))", color: "var(--btn-text, #ffffff)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, linear-gradient(to right, #2563eb, #f97316))"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, linear-gradient(to right, #3b82f6, #f97316))"; }}
           >
             Contact Support
           </a>
