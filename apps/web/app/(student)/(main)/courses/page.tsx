@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import useSWR from "swr";
+import { useAuth } from "@/app/auth/hooks/use-auth";
+import { loadToken } from "@/app/auth/lib/token-store";
+import { showToast } from "@/lib/toast";
 
 interface CourseCard {
   id: string;
@@ -82,7 +85,8 @@ export default function CoursesPage() {
   );
   const [sort, setSort] = useState("Most Popular");
   const [currentPage, setCurrentPage] = useState(1);
-  const [enrolled, setEnrolled] = useState<Set<string>>(new Set());
+  const [inCart, setInCart] = useState<Set<string>>(new Set());
+  const [cartAction, setCartAction] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const perPage = 12;
@@ -144,16 +148,62 @@ export default function CoursesPage() {
 
   const totalPages = Math.ceil(total / perPage);
 
-  const handleEnroll = (id: string) => {
-    setEnrolled((prev) => new Set(prev).add(id));
-    setTimeout(() => {
-      setEnrolled((prev) => {
+  const { isAuthenticated } = useAuth();
+
+  // Load which courses are already in the student's cart so the Enroll button
+  // shows a state-aware "In Cart" label on first paint for signed-in users.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      const token = await loadToken();
+      if (!token || cancelled) return;
+      const res = await fetch("/api/cart", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (cancelled) return;
+      if (!res.ok) return;
+      const data = await res.json();
+      setInCart(new Set((data?.items ?? []).map((i: { courseId: string }) => i.courseId)));
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthenticated]);
+
+  const handleEnroll = useCallback(async (id: string) => {
+    const token = await loadToken();
+    if (!token || !isAuthenticated) {
+      showToast("Please sign in to enroll");
+      return;
+    }
+    const alreadyInCart = inCart.has(id);
+    setCartAction(id);
+    try {
+      const { authFetch } = await import("@/app/auth/lib/auth-fetch");
+      const res = await authFetch(alreadyInCart ? `/api/cart/items/${id}` : "/api/cart/items", {
+        method: alreadyInCart ? "DELETE" : "POST",
+        body: alreadyInCart ? undefined : JSON.stringify({ courseId: id }),
+      });
+      if (res.status === 401) {
+        showToast("Please sign in to enroll");
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        showToast(body.message || "Could not update cart");
+        return;
+      }
+      setInCart((prev) => {
         const next = new Set(prev);
-        next.delete(id);
+        if (alreadyInCart) next.delete(id); else next.add(id);
         return next;
       });
-    }, 1800);
-  };
+      showToast(alreadyInCart ? "Removed from cart" : "Added to cart");
+    } catch {
+      showToast("Could not update cart");
+    } finally {
+      setCartAction(null);
+    }
+  }, [inCart, isAuthenticated]);
 
   const renderStars = (rating: number, courseId: string) => {
     const full = Math.floor(rating);
@@ -313,8 +363,8 @@ export default function CoursesPage() {
                       <div className={`w-[26px] h-[26px] rounded-full text-[10px] font-bold text-white flex items-center justify-center shrink-0 bg-gradient-to-br ${course.mentorColor}`}>{course.mentor}</div>
                       <span className="text-[12px] text-[var(--text2)] font-medium truncate">{course.mentorName}</span>
                     </div>
-                    <button className="px-[14px] py-[6px] rounded-[6px] border-none text-[11px] font-bold text-white shadow-[0_2px_6px_rgba(240,78,0,.2)] cursor-pointer transition-[opacity,transform] duration-[180ms] hover:opacity-[.88] active:scale-[.97] whitespace-nowrap" style={{ background: enrolled.has(course.id) ? "linear-gradient(135deg,#22C55E,#16A34A)" : "linear-gradient(135deg,var(--orange),var(--orange2))" }} onClick={(e) => { e.stopPropagation(); handleEnroll(course.id); }}>
-                      {enrolled.has(course.id) ? "✓ Added!" : "Enroll →"}
+                    <button className="px-[14px] py-[6px] rounded-[6px] border-none text-[11px] font-bold text-white shadow-[0_2px_6px_rgba(240,78,0,.2)] cursor-pointer transition-[opacity,transform] duration-[180ms] hover:opacity-[.88] active:scale-[.97] whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed" style={{ background: inCart.has(course.id) ? "linear-gradient(135deg,#22C55E,#16A34A)" : "linear-gradient(135deg,var(--orange),var(--orange2))" }} disabled={cartAction === course.id} onClick={(e) => { e.stopPropagation(); handleEnroll(course.id); }}>
+                      {cartAction === course.id ? "…" : inCart.has(course.id) ? "✓ In Cart" : "Enroll →"}
                     </button>
                   </div>
                 </article>

@@ -1,4 +1,10 @@
-import { Controller, Post, UploadedFile, UseInterceptors, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { extname, join } from 'path';
@@ -35,7 +41,12 @@ export class UploadController {
       storage: memoryStorage(),
       fileFilter: (_req, file, cb) => {
         if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(file.originalname)) {
-          return cb(new BadRequestException('Only image files are allowed for discussions'), false);
+          return cb(
+            new BadRequestException(
+              'Only image files are allowed for discussions',
+            ),
+            false,
+          );
         }
         cb(null, true);
       },
@@ -54,8 +65,15 @@ export class UploadController {
     FileInterceptor('file', {
       storage: memoryStorage(),
       fileFilter: (_req, file, cb) => {
-        if (!/\.(jpg|jpeg|png|webp|gif|pdf|doc|docx|xls|xlsx|ppt|pptx|csv|txt|zip|rar|mp4|mov)$/i.test(file.originalname)) {
-          return cb(new BadRequestException('File type not allowed for resources'), false);
+        if (
+          !/\.(jpg|jpeg|png|webp|gif|pdf|doc|docx|xls|xlsx|ppt|pptx|csv|txt|zip|rar|mp4|mov)$/i.test(
+            file.originalname,
+          )
+        ) {
+          return cb(
+            new BadRequestException('File type not allowed for resources'),
+            false,
+          );
         }
         cb(null, true);
       },
@@ -67,4 +85,3 @@ export class UploadController {
     return this.processUpload(file, 'resources');
   }
 }
-

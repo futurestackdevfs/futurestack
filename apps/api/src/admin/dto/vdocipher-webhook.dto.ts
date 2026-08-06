@@ -10,7 +10,15 @@ export class VdoCipherWebhookPayload {
   time?: number;
 
   @IsString()
-  @IsIn(['video:ready', 'video:updated', 'video:deleted', 'video:error', 'caption:ready', 'caption:deleted', 'poster:ready'])
+  @IsIn([
+    'video:ready',
+    'video:updated',
+    'video:deleted',
+    'video:error',
+    'caption:ready',
+    'caption:deleted',
+    'poster:ready',
+  ])
   event: string;
 
   @IsOptional()

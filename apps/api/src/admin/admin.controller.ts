@@ -10,7 +10,7 @@ import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) { }
+  constructor(private readonly adminService: AdminService) {}
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Get('stats')

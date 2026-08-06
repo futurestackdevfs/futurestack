@@ -64,9 +64,14 @@ export function SessionExpiredModal() {
     router.push('/');
   }, [dismiss, router]);
 
-  // Listen for the session-expired event
+  // Listen for the session-expired event (role carried so staff sessions
+  // refresh with the right cookie and don't fail their redirect).
   useEffect(() => {
-    const handler = () => {
+    const handler = (e: Event) => {
+      const role = (e as CustomEvent<{ role?: string }>)?.detail?.role;
+      if (role) {
+        try { sessionStorage.setItem('fs_last_role', role); } catch {}
+      }
       setVisible(true);
       setCountdown(10);
     };

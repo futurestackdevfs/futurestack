@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Put, Req, Body, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Req,
+  Body,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Throttle } from '@nestjs/throttler';
@@ -54,7 +64,10 @@ export class TrainerController {
 
   /** PUT /trainer/profile */
   @Put('profile')
-  updateProfile(@Req() req: AuthenticatedRequest, @Body() dto: UpdateProfileDto) {
+  updateProfile(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: UpdateProfileDto,
+  ) {
     return this.trainerService.updateProfile(req.user.id, dto);
   }
 
@@ -66,7 +79,10 @@ export class TrainerController {
       storage: memoryStorage(),
       fileFilter: (_req, file, cb) => {
         if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(file.originalname)) {
-          return cb(new BadRequestException('Only image files are allowed'), false);
+          return cb(
+            new BadRequestException('Only image files are allowed'),
+            false,
+          );
         }
         cb(null, true);
       },

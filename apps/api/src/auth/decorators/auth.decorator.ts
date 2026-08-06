@@ -13,8 +13,5 @@ import { Roles } from './roles.decorator';
  *   @Auth(Role.ADMIN, Role.COORDINATOR)  → either role
  */
 export function Auth(...roles: Role[]) {
-  return applyDecorators(
-    UseGuards(JwtAuthGuard, RolesGuard),
-    Roles(...roles),
-  );
+  return applyDecorators(UseGuards(JwtAuthGuard, RolesGuard), Roles(...roles));
 }

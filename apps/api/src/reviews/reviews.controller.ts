@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Body, Param, Req, Query, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Body,
+  Param,
+  Req,
+  Query,
+  ParseIntPipe,
+  DefaultValuePipe,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
@@ -42,10 +53,7 @@ export class ReviewsController {
 
   @Auth(Role.STUDENT)
   @Get('me')
-  async getMyReview(
-    @Req() req: Request,
-    @Param('courseId') courseId: string,
-  ) {
+  async getMyReview(@Req() req: Request, @Param('courseId') courseId: string) {
     const user = req.user as { id: string };
     return this.reviewsService.getStudentReview(user.id, courseId);
   }

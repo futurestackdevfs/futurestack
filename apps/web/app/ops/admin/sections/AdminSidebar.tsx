@@ -41,6 +41,7 @@ const adminNav: NavItem[] = [
 const configNav: NavItem[] = [
   { icon: "🗄", label: "Master Data", badge: { text: "6", color: "var(--orange)", bg: "var(--orange-d)" }, view: "master-data" },
   { icon: "⭐", label: "Featured Content", view: "featured" },
+  { icon: "⚙", label: "Payment Settings", view: "payment-settings" },
 ];
 
 const reportNav: NavItem[] = [

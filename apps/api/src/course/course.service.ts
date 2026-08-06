@@ -30,13 +30,20 @@ export class CourseService {
 
     const totalHours = Math.round(
       course.sections.reduce(
-        (sum, s) => sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0),
+        (sum, s) =>
+          sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0),
         0,
       ) / 3600,
     );
 
-    const totalVideos = course.sections.reduce((sum, s) => sum + s.videos.length, 0);
-    const totalQuizzes = course.sections.reduce((sum, s) => sum + s.quizzes.length, 0);
+    const totalVideos = course.sections.reduce(
+      (sum, s) => sum + s.videos.length,
+      0,
+    );
+    const totalQuizzes = course.sections.reduce(
+      (sum, s) => sum + s.quizzes.length,
+      0,
+    );
     const totalLessons = totalVideos + totalQuizzes;
 
     return {
@@ -54,7 +61,12 @@ export class CourseService {
       level: 'Intermediate',
       rating: course.trainer?.rating ?? 4.7,
       students: course._count.enrollments,
-      mentorInitials: (course.trainer?.name ?? 'TM').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+      mentorInitials: (course.trainer?.name ?? 'TM')
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase(),
       mentorName: course.trainer?.name ?? 'Team',
       mentorAvatar: course.trainer?.avatarUrl,
       mentorBio: course.trainer?.bio,
@@ -107,7 +119,8 @@ export class CourseService {
     return courses.map((course) => {
       const totalHours = Math.round(
         course.sections.reduce(
-          (sum, s) => sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0),
+          (sum, s) =>
+            sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0),
           0,
         ) / 3600,
       );
@@ -124,14 +137,24 @@ export class CourseService {
         reviews: `${course._count.enrollments}`,
         badge: 'NEW',
         badgeClass: 'bg-green-500',
-        mentor: (course.trainer?.name ?? 'TM').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+        mentor: (course.trainer?.name ?? 'TM')
+          .split(' ')
+          .map((n: string) => n[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase(),
         mentorName: course.trainer?.name ?? 'Team',
         mentorColor: 'from-blue-500 to-blue-600',
         img: course.thumbnailUrl ?? '/images/C1.png',
         mode: 'Self-Paced',
         goal: 'Upskill',
         tech: course.techStack[0] ?? 'General',
-        duration: totalHours > 50 ? '50+ hrs' : totalHours > 20 ? '20 – 50 hrs' : '5 – 20 hrs',
+        duration:
+          totalHours > 50
+            ? '50+ hrs'
+            : totalHours > 20
+              ? '20 – 50 hrs'
+              : '5 – 20 hrs',
       };
     });
   }

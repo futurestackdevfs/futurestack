@@ -40,6 +40,29 @@ enum Role {
   CONTENT_MANAGER
 }
 
+enum Currency {
+  INR
+  USD
+}
+
+enum OrderStatus {
+  CREATED
+  PAID
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum GatewayType {
+  DOMESTIC
+  INTERNATIONAL
+}
+
+enum DiscountType {
+  PERCENT
+  FLAT
+}
+
 model User {
   id                   String          @id @default(uuid())
   email                String          @unique
@@ -86,6 +109,10 @@ model User {
   refreshTokens       RefreshToken[]
 
   reviewsGiven        Review[]        @relation("StudentReviews")
+
+  cart               Cart?
+  wishlist           Wishlist?
+  orders             Order[]
 }
 
 model Track {
@@ -132,6 +159,11 @@ model Course {
   
   averageRating Float @default(0)
   reviewCount   Int   @default(0)
+
+  coursePrices    CoursePrice[]
+  cartItems       CartItem[]
+  wishlistItems   WishlistItem[]
+  orderItems      OrderItem[]
 }
 
 model CourseResource {
@@ -215,6 +247,8 @@ model Enrollment {
   status     String   @default("active")
   
   revenueLedger RevenueLedger?
+  orderId       String?
+  order         Order?    @relation(fields: [orderId], references: [id])
 
   @@unique([studentId, courseId])
 }
@@ -357,5 +391,126 @@ model HeroSlide {
   displayOrder Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model CoursePrice {
+  id       String   @id @default(uuid())
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String
+  currency Currency
+  amount   Float
+
+  @@unique([courseId, currency])
+}
+
+model Cart {
+  id        String     @id @default(uuid())
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String     @unique
+  items     CartItem[]
+  couponId  String?
+  coupon    Coupon?    @relation(fields: [couponId], references: [id])
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id       String   @id @default(uuid())
+  cart     Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cartId   String
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String
+  addedAt  DateTime @default(now())
+
+  @@unique([cartId, courseId])
+}
+
+model Wishlist {
+  id     String         @id @default(uuid())
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String         @unique
+  items  WishlistItem[]
+}
+
+model WishlistItem {
+  id         String   @id @default(uuid())
+  wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+  wishlistId String
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId   String
+  addedAt    DateTime @default(now())
+
+  @@unique([wishlistId, courseId])
+}
+
+model Coupon {
+  id                   String       @id @default(uuid())
+  code                 String       @unique
+  discountType         DiscountType
+  value                Float
+  currency             Currency?
+  applicableCourseIds  String[]     @default([])
+  minOrderAmount       Float?
+  maxUses              Int?
+  usedCount            Int          @default(0)
+  perUserLimit         Int          @default(1)
+  isActive             Boolean      @default(true)
+  validFrom            DateTime?
+  validUntil           DateTime?
+  createdByAdminId     String
+  createdAt            DateTime     @default(now())
+
+  redemptions          CouponRedemption[]
+  carts                Cart[]
+}
+
+model CouponRedemption {
+  id        String   @id @default(uuid())
+  coupon    Coupon   @relation(fields: [couponId], references: [id])
+  couponId  String
+  userId    String
+  orderId   String   @unique
+  createdAt DateTime @default(now())
+
+  @@unique([couponId, userId])
+}
+
+model Order {
+  id                String      @id @default(uuid())
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  currency          Currency
+  gatewayType       GatewayType
+  subtotal          Float
+  discountAmount    Float       @default(0)
+  couponId          String?
+  totalAmount       Float
+  status            OrderStatus @default(CREATED)
+  razorpayOrderId   String      @unique
+  razorpayPaymentId String?
+  razorpaySignature String?
+  items             OrderItem[]
+  enrollments       Enrollment[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+model OrderItem {
+  id              String   @id @default(uuid())
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId         String
+  course          Course   @relation(fields: [courseId], references: [id])
+  courseId        String
+  priceAtPurchase Float
+  currency        Currency
+}
+
+/// Singleton — controls which payment gateways/currencies are available at
+/// checkout. Admin toggles via PATCH /admin/payment-settings. The frontend
+/// reads the public projection to hide/disable disabled currencies.
+model PaymentSettings {
+  id                   String   @id @default(uuid())
+  domesticEnabled      Boolean  @default(true)   // INR (domestic gateway)
+  internationalEnabled Boolean  @default(false)  // USD (international gateway)
+  updatedAt            DateTime @updatedAt
 }
 

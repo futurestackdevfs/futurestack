@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsUUID, IsInt, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsUUID,
+  IsInt,
+  IsOptional,
+} from 'class-validator';
 
 export class UploadVideoDto {
   @IsString()

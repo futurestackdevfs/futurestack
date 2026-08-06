@@ -1,4 +1,11 @@
-import { Controller, Get, Post, Param, Req, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Req,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
@@ -27,7 +34,7 @@ function getRelativeTime(date: Date): string {
 export class CertificatesController {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly certificatesService: CertificatesService
+    private readonly certificatesService: CertificatesService,
   ) {}
 
   @Get('my')
@@ -43,18 +50,19 @@ export class CertificatesController {
         course: {
           include: {
             trainer: true,
-            sections: { include: { videos: true } }
-          }
-        }
-      }
+            sections: { include: { videos: true } },
+          },
+        },
+      },
     });
 
-    const earned = certificates.map(cert => {
+    const earned = certificates.map((cert) => {
       const course = cert.course;
       const totalSections = course.sections.length;
       const totalDurationSecs = course.sections.reduce(
-        (sum, section) => sum + section.videos.reduce((s, v) => s + v.durationSeconds, 0),
-        0
+        (sum, section) =>
+          sum + section.videos.reduce((s, v) => s + v.durationSeconds, 0),
+        0,
       );
       const totalHours = Math.round((totalDurationSecs / 3600) * 10) / 10;
 
@@ -71,7 +79,7 @@ export class CertificatesController {
         rank: cert.rank,
         totalSections,
         totalHours,
-        issuedAt: cert.issuedAt
+        issuedAt: cert.issuedAt,
       };
     });
 
@@ -82,53 +90,60 @@ export class CertificatesController {
         status: 'active',
         course: {
           certificates: {
-            none: { studentId }
-          }
-        }
+            none: { studentId },
+          },
+        },
       },
       include: {
         course: {
           include: {
             sections: {
-              include: { videos: true, quizzes: true }
-            }
-          }
-        }
-      }
+              include: { videos: true, quizzes: true },
+            },
+          },
+        },
+      },
     });
 
-    const inProgressVideoIds = enrollments.flatMap(e => e.course.sections.flatMap(s => s.videos.map(v => v.id)));
-    const inProgressQuizIds = enrollments.flatMap(e => e.course.sections.flatMap(s => s.quizzes.map(q => q.id)));
+    const inProgressVideoIds = enrollments.flatMap((e) =>
+      e.course.sections.flatMap((s) => s.videos.map((v) => v.id)),
+    );
+    const inProgressQuizIds = enrollments.flatMap((e) =>
+      e.course.sections.flatMap((s) => s.quizzes.map((q) => q.id)),
+    );
 
     const [videoProgressRows, quizAttemptRows] = await Promise.all([
       this.prisma.videoProgress.findMany({
-        where: { studentId, videoId: { in: inProgressVideoIds } }
+        where: { studentId, videoId: { in: inProgressVideoIds } },
       }),
       this.prisma.quizAttempt.findMany({
-        where: { studentId, quizId: { in: inProgressQuizIds } }
-      })
+        where: { studentId, quizId: { in: inProgressQuizIds } },
+      }),
     ]);
 
-    const videoProgressById = new Map(videoProgressRows.map(p => [p.videoId, p]));
-    const quizAttemptById = new Map(quizAttemptRows.map(a => [a.quizId, a]));
+    const videoProgressById = new Map(
+      videoProgressRows.map((p) => [p.videoId, p]),
+    );
+    const quizAttemptById = new Map(quizAttemptRows.map((a) => [a.quizId, a]));
 
-    const inProgress = enrollments.map(enrollment => {
+    const inProgress = enrollments.map((enrollment) => {
       const course = enrollment.course;
       let totalItems = 0;
       let completedItems = 0;
 
-      course.sections.forEach(section => {
-        section.videos.forEach(v => {
+      course.sections.forEach((section) => {
+        section.videos.forEach((v) => {
           totalItems++;
           if (videoProgressById.get(v.id)?.isCompleted) completedItems++;
         });
-        section.quizzes.forEach(q => {
+        section.quizzes.forEach((q) => {
           totalItems++;
           if (quizAttemptById.get(q.id)?.isCompleted) completedItems++;
         });
       });
 
-      const progressPercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+      const progressPercent =
+        totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
       return {
         courseId: course.id,
@@ -136,7 +151,7 @@ export class CertificatesController {
         category: course.category,
         progressPercent,
         completedItems,
-        totalItems
+        totalItems,
       };
     });
 
@@ -145,18 +160,18 @@ export class CertificatesController {
       where: {
         status: 'ACTIVE',
         enrollments: {
-          none: { studentId }
-        }
+          none: { studentId },
+        },
       },
       orderBy: { displayOrder: 'asc' },
-      take: 10
+      take: 10,
     });
 
-    const locked = lockedCourses.map(course => ({
+    const locked = lockedCourses.map((course) => ({
       courseId: course.id,
       courseTitle: course.title,
       category: course.category,
-      price: course.price
+      price: course.price,
     }));
 
     return { earned, inProgress, locked };
@@ -175,7 +190,13 @@ export class CertificatesController {
 
     const seenCourses = new Set<string>();
     const seenStudents = new Set<string>();
-    const result: { initial: string; name: string; action: string; time: string; gradient: string }[] = [];
+    const result: {
+      initial: string;
+      name: string;
+      action: string;
+      time: string;
+      gradient: string;
+    }[] = [];
 
     for (const c of certs) {
       if (seenCourses.has(c.course.title)) continue;
@@ -199,10 +220,13 @@ export class CertificatesController {
   @Auth(Role.STUDENT)
   async claimCertificate(
     @Req() req: Request,
-    @Param('courseId') courseId: string
+    @Param('courseId') courseId: string,
   ) {
     const user = req.user as { id: string };
-    const result = await this.certificatesService.checkAndIssueCertificate(user.id, courseId);
+    const result = await this.certificatesService.checkAndIssueCertificate(
+      user.id,
+      courseId,
+    );
     return result;
   }
 
@@ -210,7 +234,7 @@ export class CertificatesController {
   @Auth(Role.STUDENT)
   async getCertificateForCourse(
     @Req() req: Request,
-    @Param('courseId') courseId: string
+    @Param('courseId') courseId: string,
   ) {
     const user = req.user as { id: string };
     const studentId = user.id;
@@ -221,10 +245,10 @@ export class CertificatesController {
         course: {
           include: {
             trainer: true,
-            sections: { include: { videos: true } }
-          }
-        }
-      }
+            sections: { include: { videos: true } },
+          },
+        },
+      },
     });
 
     if (!cert) {
@@ -234,8 +258,9 @@ export class CertificatesController {
     const course = cert.course;
     const totalSections = course.sections.length;
     const totalDurationSecs = course.sections.reduce(
-      (sum, section) => sum + section.videos.reduce((s, v) => s + v.durationSeconds, 0),
-      0
+      (sum, section) =>
+        sum + section.videos.reduce((s, v) => s + v.durationSeconds, 0),
+      0,
     );
     const totalHours = Math.round((totalDurationSecs / 3600) * 10) / 10;
 
@@ -252,7 +277,7 @@ export class CertificatesController {
       rank: cert.rank,
       totalSections,
       totalHours,
-      issuedAt: cert.issuedAt
+      issuedAt: cert.issuedAt,
     };
   }
 }

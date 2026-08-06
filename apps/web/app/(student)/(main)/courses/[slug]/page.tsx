@@ -8,6 +8,7 @@ import { useAuth } from "@/app/auth/hooks/use-auth";
 import { loadToken } from "@/app/auth/lib/token-store";
 import { StarRating } from "@/components/StarRating";
 import { ReviewForm } from "@/components/ReviewForm";
+import { showToast } from "@/lib/toast";
 
 const API = '/api';
 const fetcher = async (url: string) => {
@@ -207,7 +208,10 @@ export default function CourseDetailPage() {
   const related = (allCards?.data ?? []).filter((c) => c.id !== course?.id).slice(0, 3);
   const isLoading = isLoadingCourse;
 
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated } = useAuth();
+
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Fetch reviews
   const courseId = course?.id;
@@ -237,6 +241,57 @@ export default function CourseDetailPage() {
     })();
     return () => { cancelled = true; };
   }, [courseId, isAuthenticated]);
+
+  // Fetch whether this course is already in the student's saved list so the
+  // Unlock button shows a state-aware "Saved" label on first paint.
+  useEffect(() => {
+    if (!courseId || !isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      const token = await loadToken();
+      if (!token || cancelled) return;
+      const res = await fetch(`${API}/wishlist`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (cancelled) return;
+      if (!res.ok) return;
+      const data = await res.json();
+      setSaved((data?.items ?? []).some((i: { courseId: string }) => i.courseId === courseId));
+    })();
+    return () => { cancelled = true; };
+  }, [courseId, isAuthenticated]);
+
+  const handleToggleSaved = async () => {
+    const token = await loadToken();
+    if (!token || !isAuthenticated) {
+      showToast("Please sign in to save this course");
+      return;
+    }
+    if (!courseId) return;
+    setSaving(true);
+    try {
+      const { authFetch } = await import("@/app/auth/lib/auth-fetch");
+      const res = await authFetch(saved ? `${API}/wishlist/items/${courseId}` : `${API}/wishlist/items`, {
+        method: saved ? "DELETE" : "POST",
+        body: saved ? undefined : JSON.stringify({ courseId }),
+      });
+      if (res.status === 401) {
+        showToast("Please sign in to save this course");
+        return;
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        showToast(body.message || "Could not update saved list");
+        return;
+      }
+      setSaved((prev) => !prev);
+      showToast(saved ? "Removed from saved list" : "Course saved");
+    } catch {
+      showToast("Could not update saved list");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleSubmitReview = async (rating: number, comment: string) => {
     const token = await loadToken();
@@ -860,7 +915,7 @@ export default function CourseDetailPage() {
               </div>
 
               <div className="p-4">
-                <button className="w-full py-3.5 rounded-[12px] bg-gradient-to-r from-[#0f1f3d] to-[#03050a] text-white text-[15px] font-extrabold shadow-[0_4px_20px_rgba(10,10,20,.45)] hover:shadow-[0_6px_28px_rgba(37,99,235,.45)] hover:-translate-y-0.5 transition-all mb-2.5">🔓 Unlock Full Course</button>
+                <button onClick={handleToggleSaved} disabled={saving} className="w-full py-3.5 rounded-[12px] bg-gradient-to-r from-[#0f1f3d] to-[#03050a] text-white text-[15px] font-extrabold shadow-[0_4px_20px_rgba(10,10,20,.45)] hover:shadow-[0_6px_28px_rgba(37,99,235,.45)] hover:-translate-y-0.5 transition-all mb-2.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none">{saving ? "…" : saved ? "✓ Saved" : "🔓 Unlock Full Course"}</button>
                 <button
                   onClick={scrollToPreview}
                   className="w-full py-2.5 rounded-[12px] bg-gradient-to-b from-[#f8fafc] to-[#f1f5f9] dark:from-[#1e2535] dark:to-[#0b0e14] border border-gray-200 dark:border-[#1e2535] text-[#475569] dark:text-[#b0bac9] text-[13.5px] font-bold hover:from-[#eef2ff] hover:to-[#e0e7ff] dark:hover:from-[#1a1f3a] dark:hover:to-[#141a30] hover:text-[#2563eb] dark:hover:text-[#60a5fa] hover:border-[#c7d2fe] dark:hover:border-[#2d3358] transition-all shadow-sm"

@@ -1,3 +1,5 @@
+import { reportSessionExpired } from '@/app/auth/lib/session-events';
+
 // Shared SWR fetcher — handles 401 session expiry and error responses
 function decodeJwt(t?: string): { sub?: string; role?: string } | null {
   if (!t) return null;
@@ -56,7 +58,7 @@ export async function fetcher<T = unknown>(url: string): Promise<T> {
 
   if (res.status === 401) {
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('fs:session-expired'));
+      reportSessionExpired(decodeJwt(token ?? '')?.role);
     }
     throw new Error('Session expired');
   }

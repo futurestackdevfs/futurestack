@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,19 +25,33 @@ export class AdminService {
     const trainers = await this.prisma.user.findMany({
       where: { role: Role.TRAINER },
       select: {
-        id: true, name: true, email: true, bio: true,
-        yearsExperience: true, rating: true, avatarUrl: true,
-        approvalStatus: true, isActive: true, createdAt: true,
+        id: true,
+        name: true,
+        email: true,
+        bio: true,
+        yearsExperience: true,
+        rating: true,
+        avatarUrl: true,
+        approvalStatus: true,
+        isActive: true,
+        createdAt: true,
         _count: { select: { coursesTaught: true, enrollments: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
     return trainers.map((t) => ({
-      id: t.id, name: t.name, email: t.email, bio: t.bio,
-      yearsExperience: t.yearsExperience, rating: t.rating,
-      avatarUrl: t.avatarUrl, approvalStatus: t.approvalStatus ?? 'PENDING',
-      isActive: t.isActive, createdAt: t.createdAt,
-      coursesTaught: t._count.coursesTaught, totalStudents: t._count.enrollments,
+      id: t.id,
+      name: t.name,
+      email: t.email,
+      bio: t.bio,
+      yearsExperience: t.yearsExperience,
+      rating: t.rating,
+      avatarUrl: t.avatarUrl,
+      approvalStatus: t.approvalStatus ?? 'PENDING',
+      isActive: t.isActive,
+      createdAt: t.createdAt,
+      coursesTaught: t._count.coursesTaught,
+      totalStudents: t._count.enrollments,
     }));
   }
 
@@ -85,13 +104,18 @@ export class AdminService {
   }
 
   private async findPendingTrainer(trainerId: string) {
-    const trainer = await this.prisma.user.findUnique({ where: { id: trainerId } });
+    const trainer = await this.prisma.user.findUnique({
+      where: { id: trainerId },
+    });
 
     if (!trainer || trainer.role !== Role.TRAINER) {
       throw new NotFoundException('Trainer not found');
     }
 
-    if (trainer.approvalStatus === 'APPROVED' || trainer.approvalStatus === 'REJECTED') {
+    if (
+      trainer.approvalStatus === 'APPROVED' ||
+      trainer.approvalStatus === 'REJECTED'
+    ) {
       throw new ConflictException(
         `This trainer's application has already been ${trainer.approvalStatus.toLowerCase()}`,
       );
@@ -134,8 +158,12 @@ export class AdminService {
       this.prisma.course.count({ where: { status: 'ACTIVE' } }),
       this.prisma.course.count({ where: { status: 'DRAFT' } }),
       this.prisma.track.count(),
-      this.prisma.user.count({ where: { role: Role.TRAINER, approvalStatus: 'APPROVED' } }),
-      this.prisma.user.count({ where: { role: Role.TRAINER, approvalStatus: 'PENDING' } }),
+      this.prisma.user.count({
+        where: { role: Role.TRAINER, approvalStatus: 'APPROVED' },
+      }),
+      this.prisma.user.count({
+        where: { role: Role.TRAINER, approvalStatus: 'PENDING' },
+      }),
       this.prisma.user.count({ where: { role: Role.STUDENT } }),
       this.prisma.enrollment.count(),
       this.prisma.enrollment.count({ where: { status: 'active' } }),
@@ -179,7 +207,9 @@ export class AdminService {
    * the admin has already vetted the person by choosing to create it.
    */
   async createStaffAccount(dto: CreateStaffDto) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
 
     if (existing) {
       throw new ConflictException('An account with this email already exists');
@@ -192,7 +222,7 @@ export class AdminService {
         email: dto.email,
         name: dto.name,
         password: hashedPassword,
-        role: dto.role as Role,
+        role: dto.role,
         // Admin-created trainers are pre-approved — no pending review needed
         ...(dto.role === 'TRAINER' && { approvalStatus: 'APPROVED' }),
       },
@@ -258,7 +288,13 @@ export class AdminService {
   async getVideoStatus(videoId: string) {
     const video = await this.prisma.video.findUnique({
       where: { id: videoId },
-      select: { id: true, title: true, videoStatus: true, durationSeconds: true, vdoCipherId: true },
+      select: {
+        id: true,
+        title: true,
+        videoStatus: true,
+        durationSeconds: true,
+        vdoCipherId: true,
+      },
     });
 
     if (!video) throw new NotFoundException('Video not found');
@@ -266,7 +302,9 @@ export class AdminService {
   }
 
   async handleVdoCipherWebhook(payload: VdoCipherWebhookPayload) {
-    this.logger.log(`Webhook received: ${payload.event} for video ${payload.payload.id}`);
+    this.logger.log(
+      `Webhook received: ${payload.event} for video ${payload.payload.id}`,
+    );
 
     switch (payload.event) {
       case 'video:ready':
@@ -294,7 +332,9 @@ export class AdminService {
       where: { vdoCipherId: payload.payload.id },
     });
     if (!video) {
-      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      this.logger.warn(
+        `Video not found for vdoCipherId: ${payload.payload.id}`,
+      );
       return { received: true };
     }
 
@@ -302,7 +342,9 @@ export class AdminService {
       where: { id: video.id },
       data: {
         videoStatus: 'READY',
-        ...(payload.payload.length ? { durationSeconds: payload.payload.length } : {}),
+        ...(payload.payload.length
+          ? { durationSeconds: payload.payload.length }
+          : {}),
       },
     });
 
@@ -315,7 +357,9 @@ export class AdminService {
       where: { vdoCipherId: payload.payload.id },
     });
     if (!video) {
-      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      this.logger.warn(
+        `Video not found for vdoCipherId: ${payload.payload.id}`,
+      );
       return { received: true };
     }
 
@@ -323,7 +367,9 @@ export class AdminService {
       where: { id: video.id },
       data: {
         ...(payload.payload.title ? { title: payload.payload.title } : {}),
-        ...(payload.payload.length ? { durationSeconds: payload.payload.length } : {}),
+        ...(payload.payload.length
+          ? { durationSeconds: payload.payload.length }
+          : {}),
       },
     });
 
@@ -336,7 +382,9 @@ export class AdminService {
       where: { vdoCipherId: payload.payload.id },
     });
     if (!video) {
-      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      this.logger.warn(
+        `Video not found for vdoCipherId: ${payload.payload.id}`,
+      );
       return { received: true };
     }
 
@@ -345,7 +393,9 @@ export class AdminService {
       data: { videoStatus: 'UPLOADING' },
     });
 
-    this.logger.log(`Video ${video.id} reset to UPLOADING after deletion on VdoCipher`);
+    this.logger.log(
+      `Video ${video.id} reset to UPLOADING after deletion on VdoCipher`,
+    );
     return { received: true };
   }
 
@@ -354,7 +404,9 @@ export class AdminService {
       where: { vdoCipherId: payload.payload.id },
     });
     if (!video) {
-      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      this.logger.warn(
+        `Video not found for vdoCipherId: ${payload.payload.id}`,
+      );
       return { received: true };
     }
 
@@ -363,7 +415,9 @@ export class AdminService {
       data: { videoStatus: 'FAILED' },
     });
 
-    this.logger.error(`Video ${video.id} failed: ${payload.payload.error ?? 'Unknown error'}`);
+    this.logger.error(
+      `Video ${video.id} failed: ${payload.payload.error ?? 'Unknown error'}`,
+    );
     return { received: true };
   }
 
@@ -372,7 +426,9 @@ export class AdminService {
       where: { vdoCipherId: payload.payload.id },
     });
     if (!video) {
-      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      this.logger.warn(
+        `Video not found for vdoCipherId: ${payload.payload.id}`,
+      );
       return { received: true };
     }
 
@@ -388,7 +444,9 @@ export class AdminService {
       where: { vdoCipherId: payload.payload.id },
     });
     if (!video) {
-      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      this.logger.warn(
+        `Video not found for vdoCipherId: ${payload.payload.id}`,
+      );
       return { received: true };
     }
 
@@ -404,7 +462,9 @@ export class AdminService {
       where: { vdoCipherId: payload.payload.id },
     });
     if (!video) {
-      this.logger.warn(`Video not found for vdoCipherId: ${payload.payload.id}`);
+      this.logger.warn(
+        `Video not found for vdoCipherId: ${payload.payload.id}`,
+      );
       return { received: true };
     }
 

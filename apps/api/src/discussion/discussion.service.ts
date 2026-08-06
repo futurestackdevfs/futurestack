@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
@@ -13,7 +18,11 @@ export class DiscussionService {
     return role !== Role.STUDENT;
   }
 
-  private async checkCourseAccess(courseId: string, userId: string, role: Role) {
+  private async checkCourseAccess(
+    courseId: string,
+    userId: string,
+    role: Role,
+  ) {
     if (this.isStaff(role)) return;
 
     const enrollment = await this.prisma.enrollment.findUnique({
@@ -27,17 +36,20 @@ export class DiscussionService {
     }
   }
 
-  async listMessages(courseId: string, userId: string, role: Role, page: number = 1, limit: number = 20) {
+  async listMessages(
+    courseId: string,
+    userId: string,
+    role: Role,
+    page: number = 1,
+    limit: number = 20,
+  ) {
     await this.checkCourseAccess(courseId, userId, role);
 
     const skip = (page - 1) * limit;
 
     const messages = await this.prisma.courseDiscussion.findMany({
       where: { courseId },
-      orderBy: [
-        { isPinned: 'desc' },
-        { createdAt: 'desc' },
-      ],
+      orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
       skip,
       take: limit,
       include: {
@@ -69,15 +81,20 @@ export class DiscussionService {
       },
     });
 
-    return messages.map(msg => {
+    return messages.map((msg) => {
       const { authorId: _a, upvotes: _u, _count: _c, replies, ...rest } = msg;
       return {
         ...rest,
         userHasUpvoted: msg.upvotes.length > 0,
         upvoteCount: msg._count.upvotes,
         replyCount: msg._count.replies,
-        replies: msg.replies.map(reply => {
-          const { authorId: _ra, upvotes: _ru, _count: _rc, ...replyRest } = reply;
+        replies: msg.replies.map((reply) => {
+          const {
+            authorId: _ra,
+            upvotes: _ru,
+            _count: _rc,
+            ...replyRest
+          } = reply;
           return {
             ...replyRest,
             userHasUpvoted: reply.upvotes.length > 0,
@@ -88,10 +105,18 @@ export class DiscussionService {
     });
   }
 
-  async createMessage(courseId: string, authorId: string, role: Role, dto: CreateMessageDto) {
+  async createMessage(
+    courseId: string,
+    authorId: string,
+    role: Role,
+    dto: CreateMessageDto,
+  ) {
     await this.checkCourseAccess(courseId, authorId, role);
 
-    if (dto.tag === MessageTag.ANNOUNCEMENT && !['TRAINER', 'ADMIN', 'CONTENT_MANAGER'].includes(role)) {
+    if (
+      dto.tag === MessageTag.ANNOUNCEMENT &&
+      !['TRAINER', 'ADMIN', 'CONTENT_MANAGER'].includes(role)
+    ) {
       throw new ForbiddenException('Only staff can post announcements.');
     }
 
@@ -113,8 +138,15 @@ export class DiscussionService {
     return message;
   }
 
-  async updateMessage(messageId: string, userId: string, role: Role, dto: UpdateMessageDto) {
-    const message = await this.prisma.courseDiscussion.findUnique({ where: { id: messageId } });
+  async updateMessage(
+    messageId: string,
+    userId: string,
+    role: Role,
+    dto: UpdateMessageDto,
+  ) {
+    const message = await this.prisma.courseDiscussion.findUnique({
+      where: { id: messageId },
+    });
     if (!message) throw new NotFoundException('Message not found');
 
     const isAuthor = message.authorId === userId;
@@ -124,7 +156,10 @@ export class DiscussionService {
       throw new ForbiddenException('You can only edit your own messages.');
     }
 
-    if (dto.tag === MessageTag.ANNOUNCEMENT && !['TRAINER', 'ADMIN', 'CONTENT_MANAGER'].includes(role)) {
+    if (
+      dto.tag === MessageTag.ANNOUNCEMENT &&
+      !['TRAINER', 'ADMIN', 'CONTENT_MANAGER'].includes(role)
+    ) {
       throw new ForbiddenException('Only staff can post announcements.');
     }
 
@@ -139,14 +174,18 @@ export class DiscussionService {
   }
 
   async deleteMessage(messageId: string, userId: string, role: Role) {
-    const message = await this.prisma.courseDiscussion.findUnique({ where: { id: messageId } });
+    const message = await this.prisma.courseDiscussion.findUnique({
+      where: { id: messageId },
+    });
     if (!message) throw new NotFoundException('Message not found');
 
     const isAuthor = message.authorId === userId;
     const isAdminOrManager = ['ADMIN', 'CONTENT_MANAGER'].includes(role);
 
     if (!isAuthor && !isAdminOrManager) {
-      throw new ForbiddenException('You do not have permission to delete this message.');
+      throw new ForbiddenException(
+        'You do not have permission to delete this message.',
+      );
     }
 
     return this.prisma.courseDiscussion.delete({
@@ -159,7 +198,9 @@ export class DiscussionService {
       throw new ForbiddenException('Only staff can pin messages.');
     }
 
-    const message = await this.prisma.courseDiscussion.findUnique({ where: { id: messageId } });
+    const message = await this.prisma.courseDiscussion.findUnique({
+      where: { id: messageId },
+    });
     if (!message) throw new NotFoundException('Message not found');
 
     return this.prisma.courseDiscussion.update({
@@ -173,7 +214,9 @@ export class DiscussionService {
       throw new ForbiddenException('Only staff can mark messages as answered.');
     }
 
-    const message = await this.prisma.courseDiscussion.findUnique({ where: { id: messageId } });
+    const message = await this.prisma.courseDiscussion.findUnique({
+      where: { id: messageId },
+    });
     if (!message) throw new NotFoundException('Message not found');
 
     return this.prisma.courseDiscussion.update({
@@ -182,8 +225,15 @@ export class DiscussionService {
     });
   }
 
-  async createReply(messageId: string, authorId: string, role: Role, dto: CreateReplyDto) {
-    const message = await this.prisma.courseDiscussion.findUnique({ where: { id: messageId } });
+  async createReply(
+    messageId: string,
+    authorId: string,
+    role: Role,
+    dto: CreateReplyDto,
+  ) {
+    const message = await this.prisma.courseDiscussion.findUnique({
+      where: { id: messageId },
+    });
     if (!message) throw new NotFoundException('Message not found');
 
     await this.checkCourseAccess(message.courseId, authorId, role);
@@ -203,14 +253,18 @@ export class DiscussionService {
   }
 
   async deleteReply(replyId: string, userId: string, role: Role) {
-    const reply = await this.prisma.courseDiscussionReply.findUnique({ where: { id: replyId } });
+    const reply = await this.prisma.courseDiscussionReply.findUnique({
+      where: { id: replyId },
+    });
     if (!reply) throw new NotFoundException('Reply not found');
 
     const isAuthor = reply.authorId === userId;
     const isAdminOrManager = ['ADMIN', 'CONTENT_MANAGER'].includes(role);
 
     if (!isAuthor && !isAdminOrManager) {
-      throw new ForbiddenException('You do not have permission to delete this reply.');
+      throw new ForbiddenException(
+        'You do not have permission to delete this reply.',
+      );
     }
 
     return this.prisma.courseDiscussionReply.delete({
@@ -220,7 +274,9 @@ export class DiscussionService {
 
   async toggleUpvote(userId: string, messageId?: string, replyId?: string) {
     if ((messageId && replyId) || (!messageId && !replyId)) {
-      throw new BadRequestException('Provide exactly one of messageId or replyId');
+      throw new BadRequestException(
+        'Provide exactly one of messageId or replyId',
+      );
     }
 
     const existingUpvote = await this.prisma.discussionUpvote.findFirst({

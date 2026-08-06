@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Put, Param, Body, Req, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Param,
+  Body,
+  Req,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { Throttle } from '@nestjs/throttler';
@@ -17,13 +28,21 @@ export class StudentController {
   @Auth(Role.STUDENT)
   @Get('dashboard')
   async getDashboard(@Req() req: Request) {
-    const user = req.user as { id: string; email: string; name: string; role: string };
+    const user = req.user as {
+      id: string;
+      email: string;
+      name: string;
+      role: string;
+    };
     return this.studentService.getDashboard(user.id, user);
   }
 
   @Auth(Role.STUDENT)
   @Get('courses/:courseId')
-  async getCourseDetail(@Req() req: Request, @Param('courseId') courseId: string) {
+  async getCourseDetail(
+    @Req() req: Request,
+    @Param('courseId') courseId: string,
+  ) {
     const user = req.user as { id: string };
     return this.studentService.getCourseDetail(user.id, courseId);
   }
@@ -39,7 +58,11 @@ export class StudentController {
     @Body() dto: UpdateVideoProgressDto,
   ) {
     const user = req.user as { id: string };
-    return this.studentService.updateVideoProgress(user.id, videoId, dto.positionSec);
+    return this.studentService.updateVideoProgress(
+      user.id,
+      videoId,
+      dto.positionSec,
+    );
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -56,10 +79,7 @@ export class StudentController {
 
   @Auth(Role.STUDENT)
   @Get('videos/:videoId/otp')
-  async getVideoOtp(
-    @Param('videoId') videoId: string,
-    @Req() req: Request,
-  ) {
+  async getVideoOtp(@Param('videoId') videoId: string, @Req() req: Request) {
     const user = req.user as { id: string };
     return this.studentService.getVideoOtp(user.id, videoId);
   }
@@ -93,7 +113,10 @@ export class StudentController {
       storage: memoryStorage(),
       fileFilter: (_req, file, cb) => {
         if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(file.originalname)) {
-          return cb(new BadRequestException('Only image files are allowed'), false);
+          return cb(
+            new BadRequestException('Only image files are allowed'),
+            false,
+          );
         }
         cb(null, true);
       },

@@ -1,4 +1,11 @@
-import { IsEnum, IsOptional, IsString, IsUrl, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { MessageTag } from '@prisma/client';
 
 export class UpdateMessageDto {

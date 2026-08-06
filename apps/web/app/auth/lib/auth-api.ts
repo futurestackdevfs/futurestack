@@ -1,5 +1,6 @@
 // Calls go to /api/* (Next.js BFF proxy) — backend URL never exposed to browser
 const API = '/api';
+import { reportSessionExpired } from './session-events';
 
 export type User = {
   id?: string;
@@ -92,9 +93,7 @@ async function request<T>(
     if (res.status === 401 && (token || isAuthenticated())) {
       // Authenticated request rejected — token expired or revoked
       (err as Error & { isSessionExpired: boolean }).isSessionExpired = true;
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('fs:session-expired'));
-      }
+      reportSessionExpired(decodeJwtRole(token));
     }
     throw err;
   }

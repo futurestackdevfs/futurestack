@@ -1,4 +1,11 @@
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { CourseStatus, SkillLevel } from '@prisma/client';
 
 export class UpdateCourseDto {
