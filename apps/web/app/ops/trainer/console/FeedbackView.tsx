@@ -98,7 +98,7 @@ export default function FeedbackView({ feedback, searchQuery, onAdd, onSubmitDra
           <div className="rounded-lg p-5 w-full max-w-md" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
             <div className="flex items-center justify-between mb-4">
               <span className="font-extrabold text-[13px]" style={{ color: "var(--text)" }}>New Curriculum Feedback</span>
-              <button onClick={() => setFormOpen(false)} className="font-mono text-[12px] cursor-pointer border-none bg-transparent" style={{ color: "var(--text3)" }}>✕</button>
+              <button onClick={() => setFormOpen(false)} className="font-mono text-[12px] cursor-pointer border-none" style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }}>✕</button>
             </div>
             <form onSubmit={submit} className="flex flex-col gap-3">
               <div>
@@ -146,11 +146,11 @@ export default function FeedbackView({ feedback, searchQuery, onAdd, onSubmitDra
               <div className="flex gap-2 mt-1">
                 <button type="button" onClick={() => setFormOpen(false)}
                   className="flex-1 font-mono text-[10.5px] font-semibold py-1.5 rounded cursor-pointer"
-                  style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--panel)" }}
+                  style={{ border: "1px solid var(--border)", color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, var(--panel))" }}
                 >Cancel</button>
                 <button type="submit"
                   className="flex-1 font-mono text-[10.5px] font-semibold py-1.5 rounded cursor-pointer"
-                  style={{ background: "var(--orange)", color: "#fff", border: "none" }}
+                  style={{ background: "var(--btn-bg, var(--orange))", color: "var(--btn-text, #fff)", border: "none" }}
                 >Save as Draft</button>
               </div>
             </form>

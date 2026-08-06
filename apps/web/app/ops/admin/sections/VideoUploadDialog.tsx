@@ -194,16 +194,16 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
           <button
             onClick={handleClose}
             className="flex items-center justify-center w-8 h-8 rounded-full transition-colors"
-            style={{ color: 'var(--text3)' }}
+            style={{ color: 'var(--btn-text, var(--text3))', backgroundColor: 'var(--btn-bg, transparent)' }}
             onMouseEnter={(e) => {
               const target = e.target as HTMLElement
-              target.style.backgroundColor = 'var(--panel)'
-              target.style.color = 'var(--text)'
+              target.style.backgroundColor = 'var(--btn-bg-hover, var(--panel))'
+              target.style.color = 'var(--btn-text, var(--text))'
             }}
             onMouseLeave={(e) => {
               const target = e.target as HTMLElement
-              target.style.backgroundColor = 'transparent'
-              target.style.color = 'var(--text3)'
+              target.style.backgroundColor = 'var(--btn-bg, transparent)'
+              target.style.color = 'var(--btn-text, var(--text3))'
             }}
           >
             ✕
@@ -228,14 +228,14 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="px-6 py-3 rounded-lg font-medium transition-all duration-200"
-                style={{ backgroundColor: 'var(--orange)', color: 'white' }}
+                style={{ backgroundColor: 'var(--btn-bg, var(--orange))', color: 'var(--btn-text, white)' }}
                 onMouseEnter={(e) => {
                   const target = e.target as HTMLElement
-                  target.style.backgroundColor = 'var(--orange2)'
+                  target.style.backgroundColor = 'var(--btn-bg-hover, var(--orange2))'
                 }}
                 onMouseLeave={(e) => {
                   const target = e.target as HTMLElement
-                  target.style.backgroundColor = 'var(--orange)'
+                  target.style.backgroundColor = 'var(--btn-bg, var(--orange))'
                 }}
               >
                 Choose Video File
@@ -288,7 +288,7 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
                 <button
                   onClick={() => setStep('idle')}
                   className="flex-1 px-4 py-3 rounded-lg font-medium transition-colors"
-                  style={{ border: '1px solid var(--border)', color: 'var(--text2)' }}
+                  style={{ border: '1px solid var(--border)', color: 'var(--btn-text, var(--text2))', backgroundColor: 'var(--btn-bg, transparent)' }}
                 >
                   Cancel
                 </button>
@@ -296,7 +296,7 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
                   onClick={uploadFile}
                   disabled={!formData.title.trim()}
                   className="flex-1 px-4 py-3 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: 'var(--orange)', color: 'white' }}
+                  style={{ backgroundColor: 'var(--btn-bg, var(--orange))', color: 'var(--btn-text, white)' }}
                 >
                   Upload & Process
                 </button>

@@ -113,7 +113,7 @@ export default function ReviewsView({ submissions, searchQuery, onReview }: Revi
           <div className="rounded-lg p-5 w-full max-w-md" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
             <div className="flex items-center justify-between mb-1">
               <span className="font-extrabold text-[13px]" style={{ color: "var(--text)" }}>Review Submission</span>
-              <button onClick={() => setReviewing(null)} className="font-mono text-[12px] cursor-pointer border-none bg-transparent" style={{ color: "var(--text3)" }}>✕</button>
+              <button onClick={() => setReviewing(null)} className="font-mono text-[12px] cursor-pointer border-none" style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }}>✕</button>
             </div>
             <div className="font-mono text-[10px] mb-3" style={{ color: "var(--text3)" }}>
               {reviewing.student} · {reviewing.project} · {reviewing.batchCode}
@@ -132,16 +132,16 @@ export default function ReviewsView({ submissions, searchQuery, onReview }: Revi
             <div className="flex gap-2 mt-3">
               <button onClick={() => setReviewing(null)}
                 className="flex-1 font-mono text-[10.5px] font-semibold py-1.5 rounded cursor-pointer"
-                style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--panel)" }}
+                style={{ border: "1px solid var(--border)", color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, var(--panel))" }}
               >Cancel</button>
               <button onClick={() => submitReview("Revision Requested")}
                 disabled={!feedbackText.trim()}
                 className="flex-1 font-mono text-[10.5px] font-semibold py-1.5 rounded cursor-pointer"
-                style={{ background: "var(--red)", color: "#fff", border: "none", opacity: feedbackText.trim() ? 1 : 0.5 }}
+                style={{ background: "var(--btn-bg, var(--red))", color: "var(--btn-text, #fff)", border: "none", opacity: feedbackText.trim() ? 1 : 0.5 }}
               >↩ Request Revision</button>
               <button onClick={() => submitReview("Approved")}
                 className="flex-1 font-mono text-[10.5px] font-semibold py-1.5 rounded cursor-pointer"
-                style={{ background: "var(--green)", color: "#fff", border: "none" }}
+                style={{ background: "var(--btn-bg, var(--green))", color: "var(--btn-text, #fff)", border: "none" }}
               >✓ Approve</button>
             </div>
           </div>

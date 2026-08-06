@@ -486,7 +486,7 @@ export function CurriculumBuilder({
           </div>
           <button onClick={handleClose}
             className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
-            style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
+            style={{ border: "1px solid var(--border)", color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, var(--surface))" }}
           >Close</button>
         </div>
       </div>
@@ -524,9 +524,9 @@ export function CurriculumBuilder({
           <button
             onClick={handleClose}
             className="flex items-center justify-center w-6 h-6 rounded text-[14px] cursor-pointer"
-            style={{ color: "var(--text3)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--panel)"; (e.currentTarget as HTMLElement).style.color = "var(--text)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent";                             (e.currentTarget as HTMLElement).style.color = "var(--text3)" }}
+            style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--panel))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text))"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, transparent)";                             (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))" }}
           >✕</button>
         </div>
 
@@ -539,7 +539,7 @@ export function CurriculumBuilder({
               <div className="font-mono text-[11px]" style={{ color: "var(--red)" }}>✕ {fetchError}</div>
               <button onClick={() => { if (!token) { setFetchError("Session expired — please re-login"); return; } setLoading(true); setFetchError(null); apiCall(token, `/courses/${courseId}`).then((data) => { if (!data || typeof data !== "object") { setFetchError("Invalid response"); return; } const secs = (data.sections || []).map((s: any) => ({ id: s.id, title: s.title || "", order: s.order ?? 0, videos: (s.videos || []).map((v: any) => ({ id: v.id, title: v.title || "", vdoCipherId: v.vdoCipherId || "", durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0 })), quizzes: (s.quizzes || []).map((q: any) => ({ id: q.id, title: q.title || "", order: q.order ?? 0, totalQuestions: q.totalQuestions ?? 0, passingScore: q.passingScore })) })); setSections(secs); setDisplaySections(mergeLessons(secs)); }).catch((e) => setFetchError(e.message || "Failed to load")).finally(() => setLoading(false)); }}
                 className="font-mono text-[10px] font-semibold px-2.5 py-1 rounded cursor-pointer"
-                style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
+                style={{ border: "1px solid var(--border)", color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, var(--surface))" }}
               >↻ Retry</button>
             </div>
           ) : (
@@ -580,9 +580,9 @@ export function CurriculumBuilder({
                       <div className="flex gap-1 shrink-0">
                         <button disabled={acting} onClick={() => removeSection(section.id)}
                           className="flex items-center justify-center w-[20px] h-[20px] rounded text-[10px] cursor-pointer disabled:opacity-40"
-                          style={{ color: "var(--text3)" }} title="Remove Section"
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--red)"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text3)"; }}>🗑</button>
+                          style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }} title="Remove Section"
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--red))"; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, transparent)"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))"; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, transparent)"; }}>🗑</button>
                       </div>
                     </div>
 
@@ -652,9 +652,9 @@ export function CurriculumBuilder({
                                   setUploadDialogOpen(true);
                                 }}
                                 className="font-mono text-[9px] font-semibold px-2.5 py-1 rounded cursor-pointer whitespace-nowrap"
-                                style={{ background: "var(--orange-d)", color: "var(--orange)", border: "1px solid rgba(240,90,26,.2)" }}
-                                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--orange)"; (e.currentTarget as HTMLElement).style.color = "#fff"; }}
-                                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--orange-d)"; (e.currentTarget as HTMLElement).style.color = "var(--orange)"; }}
+                                style={{ background: "var(--btn-bg, var(--orange-d))", color: "var(--btn-text, var(--orange))", border: "1px solid var(--btn-bg, rgba(240,90,26,.2))" }}
+                                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--orange))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, #fff)"; }}
+                                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, var(--orange-d))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--orange))"; }}
                               >📤 Upload</button>
                             ) : (
                               <input defaultValue={lesson.totalQuestions || 5} type="number" min="1"
@@ -667,9 +667,9 @@ export function CurriculumBuilder({
                             )}
                             <button disabled={acting} onClick={() => removeLesson(section.id, lesson)}
                               className="flex items-center justify-center text-[10px] cursor-pointer disabled:opacity-40"
-                              style={{ color: "var(--text3)" }}
-                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--red)"; }}
-                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text3)"; }}
+                              style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--red))"; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, transparent)"; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))"; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, transparent)"; }}
                               title="Remove Lesson">🗑</button>
                           </div>
                         ))
@@ -677,12 +677,12 @@ export function CurriculumBuilder({
                       <div className="flex gap-2 mt-1.5">
                         <button disabled={acting} onClick={() => addLesson(section.id, "video")}
                           className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 cursor-pointer disabled:opacity-40"
-                          style={{ color: "var(--green)" }}
+                          style={{ color: "var(--btn-text, var(--green))", background: "var(--btn-bg, transparent)" }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
                           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>+ Add Video</button>
                         <button disabled={acting} onClick={() => addLesson(section.id, "quiz")}
                           className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 cursor-pointer disabled:opacity-40"
-                          style={{ color: "var(--blue)" }}
+                          style={{ color: "var(--btn-text, var(--blue))", background: "var(--btn-bg, transparent)" }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
                           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>+ Add Quiz</button>
                       </div>
@@ -694,9 +694,9 @@ export function CurriculumBuilder({
               {/* Add Section */}
               <button disabled={acting} onClick={addSection}
                 className="w-full py-2.5 rounded font-mono text-[11px] font-semibold text-center cursor-pointer disabled:opacity-40"
-                style={{ border: "1.5px dashed var(--border2)", color: "var(--text3)", background: "var(--panel)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--orange)"; (e.currentTarget as HTMLElement).style.color = "var(--orange)"; (e.currentTarget as HTMLElement).style.background = "var(--orange-d)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)"; (e.currentTarget as HTMLElement).style.color = "var(--text3)"; (e.currentTarget as HTMLElement).style.background = "var(--panel)"; }}
+                style={{ border: "1.5px dashed var(--btn-bg, var(--border2))", color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, var(--panel))" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--btn-bg-hover, var(--orange))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--orange))"; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--orange-d))"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--btn-bg, var(--border2))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))"; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, var(--panel))"; }}
               >+ Add Section / Module</button>
             </>
           )}
@@ -706,13 +706,13 @@ export function CurriculumBuilder({
         <div className="flex justify-end gap-2 px-4 py-3 shrink-0" style={{ borderTop: "1px solid var(--border)", background: "var(--panel)" }}>
           <button onClick={handleClose}
             className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
-            style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
+            style={{ border: "1px solid var(--border)", color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, var(--surface))" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
           >Close</button>
           <button disabled={loading || acting} onClick={handleSave}
             className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer disabled:opacity-40"
-            style={{ background: "var(--orange)", color: "#fff", border: "1px solid var(--orange)" }}
+            style={{ background: "var(--btn-bg, var(--orange))", color: "var(--btn-text, #fff)", border: "1px solid var(--btn-bg, var(--orange))" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
           >💾 Save Curriculum</button>

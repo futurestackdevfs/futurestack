@@ -264,6 +264,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
           <div className="shrink-0">
             {currentItem?.type === 'video' ? (
               <VdoCipherVideoPlayer
+                key={currentItem.id}
                 videoId={currentItem.id}
                 title={currentItem.title}
                 durationSeconds={currentItem.durationSeconds ?? 0}
@@ -667,7 +668,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
           <div className="bg-[var(--card)] rounded-t-2xl px-4 pt-4 pb-5 shadow-[0_-8px_30px_rgba(0,0,0,.12)]">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[12px] font-bold text-[var(--text)]">💬 Discussion Info</span>
-              <button onClick={() => setShowInfo(false)} className="w-[22px] h-[22px] rounded-full flex items-center justify-center bg-[var(--bg)] border-none cursor-pointer text-[var(--muted)] hover:text-[var(--text)]">
+              <button onClick={() => setShowInfo(false)} className="w-[22px] h-[22px] rounded-full flex items-center justify-center border-none cursor-pointer text-[var(--btn-text,var(--muted))] hover:text-[var(--btn-text,var(--text))] bg-[var(--btn-bg,var(--bg))]">
                 <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>
@@ -704,13 +705,15 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
               <div className="text-[11px] text-[var(--text3)]">Congratulations on completing <strong className="text-[var(--text2)]">{course.title}</strong></div>
               <button
                 onClick={() => { setShowAchievement(false); onViewCertificate?.() }}
-                className="mt-3 px-4 py-1.5 rounded-[8px] text-[10px] font-bold bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white border-none cursor-pointer hover:opacity-90 transition-all"
+                className="mt-3 px-4 py-1.5 rounded-[8px] text-[10px] font-bold border-none cursor-pointer hover:opacity-90 transition-all"
+                style={{ background: "var(--btn-bg, linear-gradient(to right, var(--orange), var(--orange2)))", color: "var(--btn-text, #fff)" }}
               >
                 View Certificate →
               </button>
             </div>
             <button onClick={() => setShowAchievement(false)}
-              className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[var(--surface)] border border-[var(--border)] flex items-center justify-center text-[10px] text-[var(--text3)] cursor-pointer hover:text-[var(--text)] transition-all">
+              className="absolute -top-2 -right-2 w-6 h-6 rounded-full border border-[var(--border)] flex items-center justify-center text-[10px] cursor-pointer transition-all"
+              style={{ background: "var(--btn-bg, var(--surface))", color: "var(--btn-text, var(--text3))" }}>
               ✕
             </button>
           </div>
@@ -727,11 +730,13 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
             <div className="text-[11px] text-[var(--text2)] leading-[1.6] mb-[16px]">{reviewError}</div>
             <div className="flex items-center gap-[8px]">
               <Link href="/courses" onClick={() => setReviewError(null)}
-                className="flex-1 text-center px-[16px] py-[9px] rounded-[8px] text-[11px] font-bold text-white bg-gradient-to-r from-[#f05a1a] to-[#ff7a3c] no-underline shadow-[0_3px_10px_rgba(240,90,26,.25)] hover:shadow-[0_5px_16px_rgba(240,90,26,.35)] hover:-translate-y-[1px] transition-all">
+                className="flex-1 text-center px-[16px] py-[9px] rounded-[8px] text-[11px] font-bold no-underline shadow-[0_3px_10px_rgba(240,90,26,.25)] hover:shadow-[0_5px_16px_rgba(240,90,26,.35)] hover:-translate-y-[1px] transition-all"
+                style={{ background: "var(--btn-bg, linear-gradient(to right, #f05a1a, #ff7a3c))", color: "var(--btn-text, #fff)" }}>
                 Browse Courses
               </Link>
               <button onClick={() => setReviewError(null)}
-                className="px-[14px] py-[9px] rounded-[8px] text-[11px] font-semibold text-[var(--text3)] bg-transparent border border-[var(--border)] cursor-pointer hover:text-[var(--text)] hover:border-[var(--text3)] transition-all">
+                className="px-[14px] py-[9px] rounded-[8px] text-[11px] font-semibold border cursor-pointer transition-all"
+                style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)", borderColor: "var(--btn-bg, var(--border))" }}>
                 Close
               </button>
             </div>

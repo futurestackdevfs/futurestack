@@ -174,19 +174,19 @@ export function ProgressBarPopup({
               onClick={onClose}
               className="w-full py-2.5 px-4 rounded-md font-medium text-xs transition-all duration-200"
               style={{
-                background: status === "ready" ? "var(--green-d)" : "var(--red-d)",
-                color: status === "ready" ? "var(--green)" : "var(--red)",
-                border: `1px solid ${status === "ready" ? "var(--green)" : "var(--red)"}`,
+                background: `var(--btn-bg, ${status === "ready" ? "var(--green-d)" : "var(--red-d)"})`,
+                color: `var(--btn-text, ${status === "ready" ? "var(--green)" : "var(--red)"})`,
+                border: `1px solid var(--btn-bg, ${status === "ready" ? "var(--green)" : "var(--red)"})`,
               }}
               onMouseEnter={(e) => {
                 const target = e.currentTarget as HTMLElement;
-                target.style.background = status === "ready" ? "var(--green)" : "var(--red)";
-                target.style.color = "white";
+                target.style.background = `var(--btn-bg-hover, ${status === "ready" ? "var(--green)" : "var(--red)"})`;
+                target.style.color = "var(--btn-text, white)";
               }}
               onMouseLeave={(e) => {
                 const target = e.currentTarget as HTMLElement;
-                target.style.background = status === "ready" ? "var(--green-d)" : "var(--red-d)";
-                target.style.color = status === "ready" ? "var(--green)" : "var(--red)";
+                target.style.background = `var(--btn-bg, ${status === "ready" ? "var(--green-d)" : "var(--red-d)"})`;
+                target.style.color = `var(--btn-text, ${status === "ready" ? "var(--green)" : "var(--red)"})`;
               }}
             >
               {status === "ready" ? "Continue to Course" : "Retry Upload"}

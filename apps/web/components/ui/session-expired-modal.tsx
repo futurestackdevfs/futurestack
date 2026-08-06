@@ -160,12 +160,16 @@ export function SessionExpiredModal() {
             <button
               onClick={dismiss}
               className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+              style={{ background: "var(--btn-bg, transparent)", color: "var(--btn-text, #9ca3af)", borderColor: "var(--btn-bg, rgb(55 65 81))" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, rgb(31 41 55))"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, transparent)"; }}
             >
               Dismiss
             </button>
             <button
               onClick={signIn}
-              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-blue-600 text-white text-xs font-bold shadow-md hover:opacity-90 transition-opacity cursor-pointer"
+              className="flex-1 py-2.5 rounded-xl text-white text-xs font-bold shadow-md hover:opacity-90 transition-opacity cursor-pointer"
+              style={{ background: "var(--btn-bg, linear-gradient(to right, #f97316, #2563eb))", color: "var(--btn-text, #fff)" }}
             >
               Sign In Again
             </button>

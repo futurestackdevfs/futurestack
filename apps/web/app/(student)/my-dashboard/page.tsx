@@ -375,7 +375,7 @@ export default function MyDashboardPage() {
           <div className="bg-white dark:bg-[#111520] rounded-t-2xl max-h-[75vh] overflow-y-auto px-3 pt-4 pb-8 shadow-[0_-8px_30px_rgba(0,0,0,.12)]">
             <div className="flex items-center justify-between mb-3 px-2.5">
               <span className="font-['Syne',sans-serif] text-[14px] font-bold text-[#000000] dark:text-[#e8eaf0]">Navigation</span>
-              <button onClick={() => setSidebarOpen(false)} className="w-[30px] h-[30px] rounded-full flex items-center justify-center bg-[#f4f6fa] dark:bg-[#0b0e14] border-none cursor-pointer text-[#000000] dark:text-[#7a859a] hover:text-[#000000] dark:hover:text-[#e8eaf0]">
+              <button onClick={() => setSidebarOpen(false)} className="w-[30px] h-[30px] rounded-full flex items-center justify-center border-none cursor-pointer hover:text-[#000000] dark:hover:text-[#e8eaf0] bg-[var(--btn-bg,#0b0e14)]" style={{ color: "var(--btn-text, #7a859a)" }}>
                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             </div>

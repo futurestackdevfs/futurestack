@@ -123,11 +123,8 @@ export class CoursesService {
   }
 
   async featuredTracks() {
-    const SLOT_COUNT = 10;
     const tracks = await this.prisma.track.findMany({
-      where: { isFeatured: true, displayOrder: { lt: SLOT_COUNT } },
       orderBy: { displayOrder: 'asc' },
-      take: SLOT_COUNT,
       select: {
         id: true,
         title: true,

@@ -80,8 +80,8 @@ export function ConfirmDialog({
             className="font-mono text-[10.5px] font-semibold px-3 py-1.5 rounded cursor-pointer"
             style={{
               border: "1px solid var(--border)",
-              color: "var(--text2)",
-              background: "var(--surface)",
+              color: "var(--btn-text, var(--text2))",
+              background: "var(--btn-bg, var(--surface))",
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)";
@@ -95,7 +95,7 @@ export function ConfirmDialog({
           <button
             onClick={onConfirm}
             className="font-mono text-[10.5px] font-semibold px-3 py-1.5 rounded cursor-pointer"
-            style={{ background: accent, color: "#fff", border: `1px solid ${accent}` }}
+            style={{ background: `var(--btn-bg, ${accent})`, color: "var(--btn-text, #fff)", border: `1px solid var(--btn-bg, ${accent})` }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.opacity = "0.9";
             }}

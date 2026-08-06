@@ -110,8 +110,8 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--surface)", borderRadius: 8, padding: "24px 28px", minWidth: 300, border: "1px solid var(--border)", boxShadow: "0 12px 32px rgba(0,0,0,.25)" }}>
         <p className="font-mono text-[11px] mb-4" style={{ color: "var(--text2)", lineHeight: 1.5 }}>{message}</p>
         <div className="flex justify-end gap-2">
-          <button onClick={onCancel} className="font-mono text-[10px] px-3 py-1.5 rounded cursor-pointer" style={{ border: "1px solid var(--border)", background: "transparent", color: "var(--text3)" }}>Cancel</button>
-          <button onClick={onConfirm} className="font-mono text-[10px] px-3 py-1.5 rounded cursor-pointer text-white" style={{ background: "var(--red, #e53e3e)", border: "none" }}>Delete</button>
+          <button onClick={onCancel} className="font-mono text-[10px] px-3 py-1.5 rounded cursor-pointer" style={{ border: "1px solid var(--border)", background: "var(--btn-bg, transparent)", color: "var(--btn-text, var(--text3))" }}>Cancel</button>
+          <button onClick={onConfirm} className="font-mono text-[10px] px-3 py-1.5 rounded cursor-pointer text-white" style={{ background: "var(--btn-bg, var(--red, #e53e3e))", color: "var(--btn-text, #ffffff)", border: "none" }}>Delete</button>
         </div>
       </div>
     </div>

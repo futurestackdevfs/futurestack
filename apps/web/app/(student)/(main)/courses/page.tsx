@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import useSWR from "swr";
 
 interface CourseCard {
@@ -69,11 +69,17 @@ function buildFilters(selectedFilters: Set<string>) {
   return filters;
 }
 
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
 export default function CoursesPage() {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set());
   const router = useRouter();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(
+    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("search") ?? "" : "")
+  );
   const [sort, setSort] = useState("Most Popular");
   const [currentPage, setCurrentPage] = useState(1);
   const [enrolled, setEnrolled] = useState<Set<string>>(new Set());
@@ -81,10 +87,7 @@ export default function CoursesPage() {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const perPage = 12;
 
-  useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get('search');
-    if (q) setSearch(q);
-  }, []);
+  const categorySeeded = useRef(false);
 
   const params = useMemo(() => {
     const p = new URLSearchParams();
@@ -97,7 +100,30 @@ export default function CoursesPage() {
     return p.toString();
   }, [currentPage, search, sort, selectedFilters]);
 
-  const { data, isLoading } = useSWR<CardsResponse>(`/api/courses/public/cards?${params}`, { keepPreviousData: true });
+  const { data, isLoading } = useSWR<CardsResponse>(
+    `/api/courses/public/cards?${params}`,
+    {
+      keepPreviousData: true,
+      // When arriving from the dashboard "Explore" links (/courses?category=ai-ml),
+      // pre-select that category so only its courses show in the All Courses list.
+      onSuccess: (d) => {
+        if (categorySeeded.current) return;
+        const cat = new URLSearchParams(window.location.search).get("category");
+        if (!cat) return;
+        const catFacet = d?.facets.find((f) => f.key === "category");
+        const match = catFacet?.options.find((o) => {
+          const a = slugify(o.value);
+          const b = slugify(cat);
+          return a === b || a.includes(b) || b.includes(a);
+        });
+        if (match) {
+          setSelectedFilters((prev) => new Set(prev).add(`category-${match.value}`));
+          setCurrentPage(1);
+          categorySeeded.current = true;
+        }
+      },
+    }
+  );
   const allCourses: CourseCard[] = data?.data ?? [];
   const total = data?.total ?? 0;
   const facets: Facet[] = data?.facets ?? [];
@@ -344,9 +370,9 @@ export default function CoursesPage() {
               <div className="px-[13px] text-[13px] font-bold text-[var(--text2)] tracking-[.3px]">Filters</div>
               <div className="flex items-center gap-2">
                 {selectedFilters.size > 0 && (
-                  <button className="text-[12px] text-[var(--orange)] font-semibold bg-transparent border-none cursor-pointer hover:opacity-75" onClick={clearAllFilters}>Clear All</button>
+                  <button className="text-[12px] font-semibold border-none cursor-pointer hover:opacity-75 text-[var(--btn-text,#fff)] bg-[var(--btn-bg,transparent)]" onClick={clearAllFilters}>Clear All</button>
                 )}
-                <button onClick={() => setMobileFilterOpen(false)} className="w-[30px] h-[30px] rounded-full flex items-center justify-center bg-[var(--bg)] border-none cursor-pointer text-[var(--muted)] hover:text-[var(--text)]">
+                <button onClick={() => setMobileFilterOpen(false)} className="w-[30px] h-[30px] rounded-full flex items-center justify-center border-none cursor-pointer text-[var(--btn-text,var(--muted))] bg-[var(--btn-bg,var(--bg))] hover:text-[var(--btn-text,var(--text))]">
                   <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                 </button>
               </div>
@@ -380,7 +406,7 @@ export default function CoursesPage() {
                 </div>
               );
             })}
-            <button onClick={() => setMobileFilterOpen(false)} className="w-full mt-3 py-[11px] rounded-[10px] border-none text-[13px] font-bold text-white cursor-pointer transition-opacity hover:opacity-90" style={{ background: "linear-gradient(135deg, var(--orange), var(--orange2))" }}>Apply Filters</button>
+            <button onClick={() => setMobileFilterOpen(false)} className="w-full mt-3 py-[11px] rounded-[10px] border-none text-[13px] font-bold cursor-pointer transition-opacity hover:opacity-90 text-[var(--btn-text,#fff)]" style={{ background: "var(--btn-bg, linear-gradient(135deg, var(--orange), var(--orange2)))" }}>Apply Filters</button>
           </div>
         </div>
       )}

@@ -166,14 +166,14 @@ export function MasterDataModal({
           <button
             onClick={onClose}
             className="flex items-center justify-center w-6 h-6 rounded text-[14px] cursor-pointer"
-            style={{ color: "var(--text3)" }}
+            style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--panel)";
-              (e.currentTarget as HTMLElement).style.color = "var(--text)";
+              (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--panel))";
+              (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text))";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "transparent";
-              (e.currentTarget as HTMLElement).style.color = "var(--text3)";
+              (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, transparent)";
+              (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))";
             }}
           >
             ✕
@@ -320,12 +320,12 @@ export function MasterDataModal({
                       className="font-mono text-[10px] font-bold px-2 py-1.5 rounded cursor-pointer shrink-0"
                       style={{
                         border: "1px solid var(--border)",
-                        background: "var(--panel)",
-                        color: "var(--orange)",
+                        background: "var(--btn-bg, var(--panel))",
+                        color: "var(--btn-text, var(--orange))",
                         minWidth: 36,
                       }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--orange-d)"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--panel)"; }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--orange-d))"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, var(--panel))"; }}
                     >
                       {units[field.key] || "hr"}
                     </button>
@@ -421,8 +421,8 @@ export function MasterDataModal({
             className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
             style={{
               border: "1px solid var(--border)",
-              color: "var(--text2)",
-              background: "var(--surface)",
+              color: "var(--btn-text, var(--text2))",
+              background: "var(--btn-bg, var(--surface))",
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)";
@@ -437,9 +437,9 @@ export function MasterDataModal({
             onClick={handleSubmit}
             className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
             style={{
-              background: "var(--orange)",
-              color: "#fff",
-              border: "1px solid var(--orange)",
+              background: "var(--btn-bg, var(--orange))",
+              color: "var(--btn-text, #fff)",
+              border: "1px solid var(--btn-bg, var(--orange))",
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLElement).style.opacity = "0.9";
