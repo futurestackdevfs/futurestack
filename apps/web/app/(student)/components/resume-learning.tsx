@@ -43,7 +43,7 @@ export function ResumeLearning() {
             href={`/my-dashboard?courseId=${course.courseId}`}
             className="mb-2 flex cursor-pointer items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 shadow-[var(--shadow)] hover:border-[var(--orange)] no-underline"
           >
-            <div className="flex h-11 w-[52px] flex-shrink-0 items-center justify-center rounded text-xl" style={{ background: "linear-gradient(135deg,#0d1f3c,#0a2a1a)" }}>
+            <div className="flex h-11 w-[52px] flex-shrink-0 items-center justify-center rounded text-xl text-white" style={{ background: "linear-gradient(135deg,#0d1f3c,#0a2a1a)" }}>
               {course.title.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">

@@ -6,6 +6,10 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { showToast } from "@/lib/toast";
 
+function slugify(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 export function TopNav() {
   const { isAuthenticated, isLoading, user, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -103,9 +107,9 @@ export function TopNav() {
 
   const [tracksData, setTracksData] = useState<{ id: string; title: string; description: string; courseCount: number }[]>([]);
   const [tracksLoading, setTracksLoading] = useState(false);
-  const [trackCourses, setTrackCourses] = useState<{ id: string; title: string }[]>([]);
+  const [trackCourses, setTrackCourses] = useState<{ id: string; title: string; techStack?: string[]; hours?: number }[]>([]);
   const [trackCoursesLoading, setTrackCoursesLoading] = useState(false);
-  const [allCards, setAllCards] = useState<{ title: string; level: string; duration: string; slug: string; category: string }[]>([]);
+  const [allCards, setAllCards] = useState<{ title: string; level: string; duration: string; slug: string; category: string; techStack?: string[]; hours?: number }[]>([]);
 
   const categoryIcons: Record<string, string> = {
     'Web Development': '🌐', 'Data & AI': '🧠', 'Cloud & DevOps': '☁️', 'Emerging Tech': '⚡', 'Mobile Development': '📱', 'Cybersecurity': '🔒', 'General': '📚',
@@ -143,7 +147,7 @@ export function TopNav() {
           icon: categoryIcons[label] || '📖',
           count,
         }));
-        if (!cancelled) { setCourseCatsData(cats); setCoursesByCat(groups); setAllCards(cards.map((c: any) => ({ title: c.title, level: c.level || 'All Levels', duration: c.duration || 'Self-Paced', slug: c.slug || c.id, category: c.category || c.tech || 'General' }))); if (cats.length > 0) setActiveCourseCat(cats[0].id); }
+        if (!cancelled) { setCourseCatsData(cats); setCoursesByCat(groups); setAllCards(cards.map((c: any) => ({ title: c.title, level: c.level || 'All Levels', duration: c.duration || 'Self-Paced', slug: c.slug || c.id, category: c.category || c.tech || 'General', techStack: c.techStack ?? [], hours: c.hours ?? 0 }))); if (cats.length > 0) setActiveCourseCat(cats[0].id); }
       } catch { /* use fallback */ }
       if (!cancelled) setCoursesLoading(false);
     }
@@ -224,10 +228,10 @@ export function TopNav() {
         const res = await fetch(`/api/courses/public/tracks/${activePathCat}/courses`);
         if (res.ok) {
           const data = await res.json();
-          const courses = (data.data ?? data.courses ?? data ?? []).slice(0, 12).map((c: any) => ({ id: c.slug ?? c.id, title: c.title }));
+          const courses = (data.data ?? data.courses ?? data ?? []).slice(0, 12).map((c: any) => ({ id: c.slug ?? c.id, title: c.title, techStack: c.techStack ?? [], hours: (c.hours ?? allCards.find((a) => a.slug === (c.slug ?? c.id))?.hours) ?? 0 }));
           if (!cancelled) { setTrackCourses(courses); setTrackCoursesLoading(false); return; }
         }
-      } catch {}
+      } catch { }
       const track = tracksData.find((t) => t.id === activePathCat);
       if (track && allCards.length > 0) {
         const trackCatMap: Record<string, string> = {
@@ -241,7 +245,7 @@ export function TopNav() {
           'Cybersecurity Analyst': 'Cybersecurity',
         };
         const cat = trackCatMap[track.title];
-        const filtered = cat ? allCards.filter((c) => c.category === cat).slice(0, 12).map((c) => ({ id: c.slug, title: c.title })) : allCards.slice(0, 6).map((c) => ({ id: c.slug, title: c.title }));
+        const filtered = cat ? allCards.filter((c) => c.category === cat).slice(0, 12).map((c) => ({ id: c.slug, title: c.title, techStack: c.techStack, hours: c.hours })) : allCards.slice(0, 6).map((c) => ({ id: c.slug, title: c.title, techStack: c.techStack, hours: c.hours }));
         if (!cancelled) setTrackCourses(filtered);
       }
       if (!cancelled) setTrackCoursesLoading(false);
@@ -694,279 +698,242 @@ export function TopNav() {
       </div>
     </nav>
 
-      {/* ── Courses Mega Menu ── */}
-      {coursesMegaOpen && (
-        <div
-          ref={coursesMegaRef}
-          onMouseEnter={clearCoursesTimer}
-          onMouseLeave={startCoursesTimer}
-          className="[animation:fadeIn_.2s_ease]"
-        >
-          <div className="fs-mega fixed top-14 left-0 right-0 z-[100]">
-            <div className="px-2 py-[10px]">
-              <div className="flex" style={{ height: '260px' }}>
-                {/* ── Left Rail ── */}
-                <div className="w-[264px] shrink-0 border-r border-white/80 dark:border-white/20 flex flex-col">
-                  <div className="text-[9px] font-bold uppercase tracking-[.15em] text-[var(--text3)] px-3 py-2 shrink-0">Categories</div>
-                  {coursesLoading ? (
-                    <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">Loading...</div>
-                  ) : courseCatsData.length === 0 ? (
-                    <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">No categories found</div>
-                  ) : (
-                    <div className="flex-1 overflow-y-auto overscroll-contain space-y-0.5 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-0"
-                      style={{ maskImage: 'linear-gradient(to bottom,transparent,black 8px,black calc(100% - 8px),transparent)', WebkitMaskImage: 'linear-gradient(to bottom,transparent,black 8px,black calc(100% - 8px),transparent)' }}>
-                      {courseCatsData.map((cat, idx) => {
-                        const rails = [
-                          { border: 'border-l-[var(--blue)]', bg: 'bg-[var(--blue-d)]', icon: '🌐' },
-                          { border: 'border-l-violet-500', bg: 'bg-violet-500/10', icon: '🧠' },
-                          { border: 'border-l-teal-500', bg: 'bg-teal-500/10', icon: '☁️' },
-                        ];
-                        const r = rails[idx % 3];
-                        return (
-                            <button
-                              key={cat.id}
-                              onMouseEnter={() => setActiveCourseCat(cat.id)}
-                              onClick={() => setActiveCourseCat(cat.id)}
-                              className={`w-full flex items-center gap-2.5 px-3 py-[7px] rounded-[8px] cursor-pointer text-left transition-all duration-200 border-l-[3px] ${
-                                activeCourseCat === cat.id ? `${r.bg} ${r.border} shadow-sm` : 'border-l-transparent hover:bg-[var(--bg)] hover:border-l-[var(--border)]'
-                              }`}
-                          >
-                            <span className="text-base shrink-0">{r.icon}</span>
-                            <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                              <span className={`text-[13px] font-semibold text-[var(--text)]`}>
-                                {cat.label}
-                              </span>
-                              <span className={`text-[10px] font-semibold shrink-0 px-1.5 py-0.5 rounded-md ${activeCourseCat === cat.id ? 'bg-white/60 dark:bg-white/[0.08] text-[var(--text)]' : 'text-[var(--text3)]'}`}>
-                                {cat.count}
-                              </span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+    {/* ── Courses Mega Menu ── */}
+    {coursesMegaOpen && (
+      <div
+        ref={coursesMegaRef}
+        onMouseEnter={clearCoursesTimer}
+        onMouseLeave={startCoursesTimer}
+        className="[animation:fadeIn_.2s_ease]"
+      >
+        <div id="coursesMega" className="fixed top-14 left-0 right-0 z-[100] bg-[var(--surface)] border-t border-b border-[var(--border2)] shadow-[var(--shadow-lg)] overflow-hidden">
+          <div className="flex w-full" style={{ height: '380px' }}>
+            {/* ── Left Rail ── */}
+            <div className="w-[240px] shrink-0 bg-black/[0.02] dark:bg-white/[0.03] border-r border-[var(--border2)] p-2.5 overflow-hidden">
+              <div className="flex items-center gap-2 px-3 pb-3 mb-1 text-[11.5px] font-bold uppercase tracking-[.04em] text-[var(--text3)]">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+                Domains
+              </div>
+              {coursesLoading ? (
+                <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">Loading...</div>
+              ) : courseCatsData.length === 0 ? (
+                <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">No categories found</div>
+              ) : (
+                courseCatsData.map((cat, idx) => {
+                  const colors = ['#6366f1', '#8b5cf6', '#0d9488', '#db2777', '#0284c7', '#d97706'];
+                  const catColor = colors[idx % colors.length];
+                  const active = activeCourseCat === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      data-cat={cat.id}
+                      onMouseEnter={() => setActiveCourseCat(cat.id)}
+                      onClick={() => setActiveCourseCat(cat.id)}
+                      className="w-full flex items-center gap-2.5 px-3 py-1.5 mb-0.5 rounded-lg text-left border-l-4 border-l-transparent cursor-pointer transition-all duration-200 hover:bg-[var(--surface)]"
+                      style={active ? { background: 'var(--surface)', borderLeftColor: catColor, boxShadow: 'var(--shadow)', outline: '1px solid var(--border2)', outlineOffset: '-1px' } : undefined}
+                    >
+                      {cat.label}
+                      <span className="ml-auto text-[15px] leading-none text-[var(--muted)]" style={active ? { color: catColor } : undefined}>›</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
 
-                {/* ── Right Content ── */}
-                <div className="flex-1 overflow-y-auto px-3 py-2">
-                  {coursesLoading ? (
-                    <div className="flex items-center justify-center min-h-[200px]">
-                      <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            {/* ── Right Content ── */}
+            <div className="flex-1 px-5 py-3 overflow-hidden flex flex-col">
+              {coursesLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : !coursesByCat[activeCourseCat] || coursesByCat[activeCourseCat].length === 0 ? (
+                <div className="flex items-center justify-center h-full text-[13px] text-[var(--text3)]">No courses in this category</div>
+              ) : (
+                <>
+                  <div className="flex items-baseline justify-between mb-3.5 pb-3 border-b border-[var(--border2)]">
+                    <h4 className="text-sm font-bold text-[var(--text)]">{courseCatsData.find(c => c.id === activeCourseCat)?.label || ''}</h4>
+                    <a href="#" onClick={(e) => { e.preventDefault(); router.push('/courses'); }} className="flex items-center gap-1 text-[12.5px] font-bold text-[var(--orange)] hover:underline">
+                      <span>{courseCatsData.find(c => c.id === activeCourseCat)?.count || 0} courses</span>
+                      <span className="text-[15px] leading-none">›</span>
+                    </a>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-1 flex-1 content-start" key={activeCourseCat}>
+                    {coursesByCat[activeCourseCat]?.map((course) => {
+                      const idx = courseCatsData.findIndex(c => c.id === activeCourseCat);
+                      const colors = ['#6366f1', '#8b5cf6', '#0d9488', '#db2777', '#0284c7', '#d97706'];
+                      const catColor = colors[idx % colors.length];
+                      return (
+                        <a
+                          key={course.slug}
+                          href="#"
+                          onClick={(e) => { e.preventDefault(); setCoursesMegaOpen(false); router.push(`/courses/${course.slug}`); }}
+                          className="flex items-center justify-between gap-2.5 px-2.5 py-[6px] rounded-lg text-[13px] font-semibold text-[var(--text)] border border-transparent cursor-pointer transition-all duration-200 hover:bg-[var(--bg)] hover:border-[var(--border2)]"
+                        >
+                          <span className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0 opacity-55" style={{ background: catColor }}></span>
+                            {course.title}
+                          </span>
+                          <span className="text-[10.5px] font-semibold text-[var(--muted)] shrink-0">{course.duration}</span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── Footer ── */}
+          <div className="flex items-center justify-between px-7 py-3 text-[11.5px] text-[var(--muted)] border-t border-[var(--border2)] bg-black/[0.02] dark:bg-white/[0.025]">
+            <span>{courseCatsData.reduce((s, c) => s + c.count, 0)}+ courses across {courseCatsData.length} domains</span>
+            <Link href="/courses" onClick={() => setCoursesMegaOpen(false)} className="flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--blue)] hover:text-[var(--orange)]">
+              View All Courses
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Paths Mega Menu ── */}
+    {pathsMegaOpen && (
+      <div
+        ref={pathsMegaRef}
+        onMouseEnter={clearPathsTimer}
+        onMouseLeave={startPathsTimer}
+        className="[animation:fadeIn_.2s_ease]"
+      >
+        <div id="pathsMega" className="fixed top-14 left-0 right-0 z-[100] bg-[var(--surface)] border-t border-b border-[var(--border2)] shadow-[var(--shadow-lg)] overflow-hidden">
+          <div className="flex w-full" style={{ height: '380px' }}>
+            {/* ── Left Rail ── */}
+            <div className="w-[280px] shrink-0 bg-black/[0.02] dark:bg-white/[0.03] border-r border-[var(--border2)] p-2.5 overflow-y-auto">
+              <div className="flex items-center gap-2 px-3 pb-3 mb-1 text-[11.5px] font-bold uppercase tracking-[.04em] text-[var(--text3)]">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path d="M3 3v18h18" /><path d="M18 17V9M13 17V5M8 17v-4" /></svg>
+                Career Paths
+              </div>
+              {tracksLoading ? (
+                <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">Loading...</div>
+              ) : tracksData.length === 0 ? (
+                <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">No paths available</div>
+              ) : (
+                tracksData.map((p, idx) => {
+                  const colors = ['#6366f1', '#8b5cf6', '#0d9488', '#db2777', '#0284c7', '#d97706'];
+                  const catColor = colors[idx % colors.length];
+                  const active = activePathCat === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      data-path={p.id}
+                      onMouseEnter={() => setActivePathCat(p.id)}
+                      onClick={() => setActivePathCat(p.id)}
+                      className="w-full flex flex-col items-start gap-0.5 px-3 py-1.5 mb-0.5 rounded-lg text-left border-l-4 border-l-transparent cursor-pointer transition-all duration-200 hover:bg-[var(--surface)]"
+                      style={active ? { background: 'var(--surface)', borderLeftColor: catColor, boxShadow: 'var(--shadow)', outline: '1px solid var(--border2)', outlineOffset: '-1px' } : undefined}
+                    >
+                      <span className="flex items-center gap-2.5 w-full text-[13px] font-semibold text-[var(--text)]">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: active ? catColor : 'var(--muted)' }} className="w-[18px] h-[18px] shrink-0"><path d="M12 2l10 6v8l-10 6L2 16V8z" /></svg>
+                        {p.title}
+                      </span>
+                      <span className="text-[10.5px] text-[var(--muted)] pl-7">{p.courseCount} Courses</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* ── Right Content ── */}
+            <div className="flex-1 px-5 py-3 overflow-hidden" key={activePathCat}>
+              {(() => {
+                const track = tracksData.find((t) => t.id === activePathCat);
+                if (!track) return (
+                  <div className="flex items-center justify-center h-full text-[13px] text-[var(--text3)]">Select a path</div>
+                );
+                const title = track.title;
+                const desc = track.description || 'A guided learning path to master this career track.';
+                const level = track.courseCount >= 8 ? "Advanced" : track.courseCount >= 5 ? "Intermediate" : "Beginner Friendly";
+                const idx = tracksData.findIndex((t) => t.id === activePathCat);
+                const colors = ['#6366f1', '#8b5cf6', '#0d9488', '#db2777', '#0284c7', '#d97706'];
+                const catColor = colors[idx % colors.length];
+                return (
+                  <div className="min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="text-[15px] font-bold text-[var(--text)]">{title}</h4>
+                      <span className="text-[10px] font-bold uppercase tracking-[.04em] px-2.5 py-[3px] rounded-full text-[#4f46e5] bg-[rgba(99,102,241,.12)] dark:bg-[rgba(129,140,248,.18)] dark:text-[#a5b4fc]">{level}</span>
                     </div>
-                  ) : !coursesByCat[activeCourseCat] || coursesByCat[activeCourseCat].length === 0 ? (
-                    <div className="flex items-center justify-center min-h-[200px] text-[13px] text-[var(--text3)]">No courses in this category</div>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2 mb-2 pb-[8px] border-b border-white/80 dark:border-white/20">
-                        <h3 className="text-sm font-bold text-[var(--text)]">{courseCatsData.find(c => c.id === activeCourseCat)?.label || ''}</h3>
-                        <span className="text-[9px] font-semibold text-[var(--muted)] bg-white/40 dark:bg-white/[0.04] px-2 py-0.5 rounded-full border border-white/80 dark:border-white/20">{courseCatsData.find(c => c.id === activeCourseCat)?.count || 0} courses</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-1.5" key={activeCourseCat}>
-                        {coursesByCat[activeCourseCat]?.map((course) => (
-                          <button
-                            key={course.slug}
-                            onClick={() => { setCoursesMegaOpen(false); router.push(`/courses/${course.slug}`); }}
-                            className="fs-mega-card px-2.5 py-[8px] rounded-[10px] cursor-pointer text-left transition-all duration-200 hover:bg-white/80 dark:hover:bg-white/[.09] hover:shadow-[0_8px_24px_-8px_rgba(59,130,246,.15)] w-full group"
-                          >
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[12.5px] font-semibold text-[var(--text)] group-hover:text-[var(--blue)] leading-snug truncate">{course.title}</span>
-                                <span className="flex items-center gap-1.5 shrink-0 text-[10px] text-[var(--text3)] font-medium bg-white/60 dark:bg-white/[0.05] px-2 py-[3px] rounded-full border border-white/40 dark:border-white/[0.05] shadow-[inset_0_0.5px_0_rgba(255,255,255,0.6)] dark:shadow-[inset_0_0.5px_0_rgba(255,255,255,0.05)]">
-                                  <span className={`w-[6px] h-[6px] rounded-full ${course.level?.toLowerCase() === 'beginner' ? 'bg-green-500' : course.level?.toLowerCase() === 'intermediate' ? 'bg-orange-500' : course.level?.toLowerCase() === 'advanced' ? 'bg-red-500' : 'bg-[var(--text3)]'}`} />
-                                  <span className={`${course.level?.toLowerCase() === 'beginner' ? 'text-green-600 dark:text-green-400' : course.level?.toLowerCase() === 'intermediate' ? 'text-orange-500' : course.level?.toLowerCase() === 'advanced' ? 'text-red-500' : 'text-[var(--muted)]'}`}>{course.level}</span>
-                                  <span className="w-[3px] h-[3px] rounded-full bg-[var(--text3)] opacity-40" />
-                                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="opacity-50"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                                  <span className="text-[var(--muted)]">{course.duration}</span>
-                                </span>
-                              </div>
-                            </div>
-                          </button>
+                    <div className="text-[11.5px] text-[var(--muted)] mb-3.5">{track.courseCount} Courses · {(() => { const total = trackCourses.reduce((s, c) => s + (c.hours ?? 0), 0); return total > 0 ? `${total}+ hrs` : 'Self-Paced'; })()} · Certificate on completion</div>
+                    <p className="text-[12.5px] leading-[1.55] text-[var(--text2)] mb-2.5 line-clamp-2">{desc}</p>
+                    {trackCourses[0]?.techStack?.length ? (
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {trackCourses[0].techStack.slice(0, 5).map((t) => (
+                          <span key={t} className="text-[10.5px] font-semibold px-2.5 py-[3px] rounded-full text-[var(--muted)] bg-[var(--bg)] border border-[var(--border2)]">{t}</span>
                         ))}
                       </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* ── Footer ── */}
-              <div className="fs-mega-footer-glass px-4 pt-[10px] flex items-center justify-between rounded-b-[14px]">
-                <span className="text-[13px] text-[var(--text3)] font-medium">{courseCatsData.reduce((s, c) => s + c.count, 0)}+ courses across {courseCatsData.length} domains</span>
-                <Link href="/courses" onClick={() => setCoursesMegaOpen(false)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-white rounded-lg transition-all no-underline group"
-                  style={{ background: "#1e293b", color: "#fff" }}>
-                  View All Courses
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:translate-x-0.5 transition-transform"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Paths Mega Menu ── */}
-      {pathsMegaOpen && (
-        <div
-          ref={pathsMegaRef}
-          onMouseEnter={clearPathsTimer}
-          onMouseLeave={startPathsTimer}
-          className="[animation:fadeIn_.2s_ease]"
-        >
-          <div className="fs-mega fixed top-14 left-0 right-0 z-[100]">
-            <div className="px-2 py-[10px]">
-              <div className="flex gap-3" style={{ height: '260px' }}>
-                {/* ── Left Rail ── */}
-                <div className="w-[276px] shrink-0 border-r border-white/80 dark:border-white/20 flex flex-col">
-                  <div className="text-[9px] font-bold uppercase tracking-[.15em] text-[var(--text3)] px-3 py-2 shrink-0">Career Paths</div>
-                  {tracksLoading ? (
-                    <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">Loading...</div>
-                  ) : tracksData.length === 0 ? (
-                    <div className="px-3 py-6 text-center text-[12px] text-[var(--text3)]">No paths available</div>
-                  ) : (
-                    <div className="flex-1 overflow-y-auto overscroll-contain space-y-1 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-0">
-                      {tracksData.map((p) => (
-                        <button
-                          key={p.id}
-                          onMouseEnter={() => setActivePathCat(p.id)}
-                          onClick={() => setActivePathCat(p.id)}
-                          className={`w-full flex flex-col items-start gap-0.5 px-3 py-[9px] rounded-[8px] cursor-pointer text-left transition-all duration-200 border-l-[3px] ${
-                            activePathCat === p.id ? 'bg-[var(--surface)] border-l-[var(--orange)] shadow-sm' : 'border-l-transparent hover:bg-[var(--bg)] hover:border-l-[var(--border)]'
-                          }`}
-                        >
-                          <span className="flex items-center gap-2.5 text-[13px] font-semibold text-[var(--text)]">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" className={`shrink-0 ${activePathCat === p.id ? 'text-[var(--orange)]' : 'text-[var(--muted)]'}`}><path d="M12 2l10 6v8l-10 6L2 16V8z" /></svg>
-                            {p.title}
-                          </span>
-                          <span className="text-[10px] text-[var(--text3)] pl-[26px]">{p.courseCount} Courses</span>
-                        </button>
-                      ))}
+                    ) : null}
+                    <div className="border-t border-[var(--border2)] pt-3 pb-3">
+                      <h6 className="text-[10.5px] uppercase tracking-[.05em] font-bold text-[var(--muted)] mb-4">Courses in this Path</h6>
+                      {trackCoursesLoading ? (
+                        <div className="text-[11px] text-[var(--text3)]">Loading...</div>
+                      ) : trackCourses.length === 0 ? (
+                        <div className="text-[11px] text-[var(--muted)]">{track.courseCount} courses</div>
+                      ) : (
+                        <div className="flex gap-x-8 h-[112px] overflow-hidden">
+                          {(() => {
+                            const shown = showAllPathCourses ? trackCourses : trackCourses.slice(0, 5);
+                            const remaining = trackCourses.length - shown.length;
+                            const canMore = !showAllPathCourses && remaining > 0;
+                            const col1 = shown.slice(0, 3);
+                            const col2 = shown.slice(3);
+                            const renderRow = (c: { id: string; title: string }) => (
+                              <button
+                                key={c.id}
+                                onClick={() => { setPathsMegaOpen(false); router.push(`/courses/${slugify(c.title)}`); }}
+                                className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-lg text-[13px] font-semibold text-left text-[var(--text)] border border-transparent cursor-pointer transition-all duration-200 hover:bg-[var(--bg)] hover:border-[var(--border2)]"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full shrink-0 opacity-55" style={{ background: catColor }}></span>
+                                <span className="truncate">{c.title}</span>
+                              </button>
+                            );
+                            return (
+                              <>
+                                <div className="flex-1 flex flex-col gap-y-1">
+                                  {col1.map((c) => renderRow(c))}
+                                </div>
+                                <div className="flex-1 flex flex-col gap-y-1">
+                                  {col2.map((c) => renderRow(c))}
+                                  {canMore && (
+                                    <button
+                                      onClick={() => setShowAllPathCourses(true)}
+                                      className="flex items-center gap-2 px-2.5 py-[6px] rounded-lg text-[13px] font-bold text-left text-[var(--orange)] border border-dashed border-[var(--border2)] cursor-pointer transition-all duration-200 hover:bg-[var(--bg)] hover:border-[var(--orange)]/50"
+                                    >
+                                      +{remaining} more
+                                    </button>
+                                  )}
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-
-                {/* ── Right Content ── */}
-                <div className="flex-1 overflow-y-auto px-4 py-3" key={activePathCat}>
-                  {(() => {
-                    const track = tracksData.find((t) => t.id === activePathCat);
-                    if (!track) return null;
-                    const title = track.title;
-                    const desc = track.description || 'A guided learning path to master this career track.';
-                    return (
-                      <div className="flex gap-6 items-start">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <h4 className="text-[15px] font-bold text-[var(--text)]">{title}</h4>
-                            <span className="text-[9px] font-bold uppercase tracking-[.04em] px-2.5 py-1 rounded-full" style={{ color: "var(--orange)", background: "rgba(249,115,22,.1)" }}>
-                              {track.courseCount >= 8 ? "Advanced" : track.courseCount >= 5 ? "Intermediate" : "Beginner Friendly"}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-[var(--muted)] mb-3">
-                            {track.courseCount} Courses · Certificate on completion
-                          </div>
-                          <p className="text-[12px] leading-relaxed text-[var(--text2)] mb-3">{desc}</p>
-                          <button
-                            onClick={() => setShowAllPathCourses((p) => !p)}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[11px] font-bold text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-[0.98] cursor-pointer border-none"
-                            style={{ background: "linear-gradient(135deg, #f97316, #db2777)" }}
-                          >
-                            {showAllPathCourses ? "Show Less" : `View All ${track.courseCount} Courses`}
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: showAllPathCourses ? "rotate(180deg)" : "rotate(0deg)", transition: "transform .2s" }}><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                          </button>
-                        </div>
-                        <div className="w-[230px] shrink-0 rounded-xl p-4" style={{ background: "var(--bg)", border: "1px solid var(--border2)" }}>
-                          <div className="text-[9px] font-bold uppercase tracking-[.04em] text-[var(--text3)] mb-3">Courses in this Path</div>
-                          {trackCoursesLoading ? (
-                            <div className="text-[11px] text-[var(--text3)] text-center py-4">Loading...</div>
-                          ) : trackCourses.length === 0 ? (
-                            <div className="text-[11px] text-[var(--text3)] text-center py-4">{track.courseCount} courses</div>
-                          ) : (
-                            <div className="space-y-[3px] max-h-[160px] overflow-y-auto pr-0.5" style={{ scrollbarWidth: "thin" }}>
-                              {(showAllPathCourses ? trackCourses : trackCourses.slice(0, 3)).map((c, i) => (
-                                <button key={c.id} onClick={() => { setPathsMegaOpen(false); router.push(`/courses/${c.id}`); }}
-                                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left cursor-pointer transition-all border-none hover:bg-[var(--surface)]"
-                                  style={{ background: "transparent" }}
-                                >
-                                  <span className="size-5 rounded flex items-center justify-center text-[9px] font-bold shrink-0" style={{ background: "var(--border2)", color: "var(--text3)" }}>{i + 1}</span>
-                                  <span className="text-[11px] font-semibold leading-tight truncate" style={{ color: "var(--text)" }}>{c.title}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* ── Footer ── */}
-              <div className="fs-mega-footer-glass px-4 pt-[10px] flex items-center justify-between rounded-b-[14px]">
-                <span className="text-[13px] text-[var(--text3)] font-medium">{tracksData.length} guided career paths</span>
-                <Link href="/paths" onClick={() => setPathsMegaOpen(false)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold text-white rounded-lg transition-all no-underline group"
-                  style={{ background: "#1e293b", color: "#fff" }}>
-                  View All Paths
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:translate-x-0.5 transition-transform"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                </Link>
-              </div>
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setPathsMegaOpen(false);
+                        router.push('/paths');
+                      }}
+                      className="group w-full flex items-center justify-start gap-2 mt-1 text-[12.5px] font-bold text-white px-4 py-2 rounded-lg cursor-pointer shadow-[0_4px_16px_rgba(240,90,26,.3)] transition-all duration-200 hover:shadow-[0_6px_20px_rgba(240,90,26,.4)] hover:-translate-y-[1px] active:translate-y-0"
+                      style={{ background: catColor }}
+                    >
+                      View Path Details
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-[13px] h-[13px] transition-transform duration-200 group-hover:translate-x-[2px]"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                    </a>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
-      )}
-    <style>{`
-      .fs-mega {
-        background: rgba(255,255,255,0.18);
-        backdrop-filter: blur(48px) saturate(1.8);
-        -webkit-backdrop-filter: blur(48px) saturate(1.8);
-        border-bottom: 1px solid rgba(255,255,255,0.25);
-        box-shadow:
-          inset 0 1px 0 rgba(255,255,255,0.5),
-          0 24px 80px -12px rgba(0,0,0,.12);
-      }
-      [data-theme="dark"] .fs-mega {
-        background: rgba(10,15,28,0.25);
-        border-bottom: 1px solid rgba(255,255,255,0.04);
-        box-shadow:
-          inset 0 1px 0 rgba(255,255,255,0.04),
-          0 24px 80px -12px rgba(0,0,0,.35);
-      }
-      .fs-mega-footer-glass {
-        background: transparent;
-        border-top: 1px solid rgba(255,255,255,0.5);
-        box-shadow: none;
-      }
-      [data-theme="dark"] .fs-mega-footer-glass {
-        background: transparent;
-        border-top: 1px solid rgba(255,255,255,0.06);
-        box-shadow: none;
-      }
-      .fs-mega-card {
-        background: rgba(255,255,255,0.5);
-        backdrop-filter: blur(12px) saturate(1.4);
-        -webkit-backdrop-filter: blur(12px) saturate(1.4);
-        border: 1px solid rgba(255,255,255,0.35);
-        box-shadow:
-          inset 0 0.5px 0 rgba(255,255,255,0.6),
-          0 2px 8px rgba(0,0,0,.04);
-        transition: all .25s ease;
-      }
-      .fs-mega-card:hover {
-        background: rgba(255,255,255,0.65);
-        box-shadow:
-          inset 0 0.5px 0 rgba(255,255,255,0.6),
-          0 8px 24px -8px rgba(59,130,246,.1);
-        transform: translateY(-1px);
-      }
-      [data-theme="dark"] .fs-mega-card {
-        background: rgba(255,255,255,0.045);
-        border-color: rgba(255,255,255,0.05);
-        box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.045);
-      }
-      [data-theme="dark"] .fs-mega-card:hover {
-        background: rgba(255,255,255,0.065);
-        box-shadow:
-          inset 0 0.5px 0 rgba(255,255,255,0.05),
-          0 8px 24px -8px rgba(0,0,0,.25);
-      }
-    `}</style>
+      </div>
+    )}
   </>);
 }

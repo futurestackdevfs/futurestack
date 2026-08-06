@@ -1,13 +1,15 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { clearStaffToken } from "@/app/auth/lib/token-store";
 
 export function OpsLogoutButton() {
   const router = useRouter();
 
   async function handleLogout() {
-    await fetch('/api/auth/set-token', { method: 'DELETE' });
-    router.push('/auth/staff-login');
+    await clearStaffToken();
+    await fetch("/api/auth/set-token-staff", { method: "DELETE" });
+    router.push("/auth/staff-login");
   }
 
   return (
