@@ -488,6 +488,13 @@ model Order {
   razorpayOrderId   String      @unique
   razorpayPaymentId String?
   razorpaySignature String?
+  billingFullName   String?
+  billingEmail      String?
+  billingPhone      String?
+  billingAddress    String?
+  billingCity       String?
+  billingState      String?
+  billingPincode    String?
   items             OrderItem[]
   enrollments       Enrollment[]
   createdAt         DateTime    @default(now())

@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CouponService } from '../coupon/coupon.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 import { RazorpayClientService } from './razorpay-client.service';
+import { CreateOrderDto } from './dto/create-order.dto';
 
 interface FinalizeMeta {
   razorpayPaymentId: string;
@@ -43,7 +44,9 @@ export class CheckoutService {
       const rec = e as Record<string, unknown>;
       const inner = rec.error as Record<string, unknown> | undefined;
       const desc =
-        (typeof inner?.description === 'string' ? inner.description : undefined) ??
+        (typeof inner?.description === 'string'
+          ? inner.description
+          : undefined) ??
         (typeof inner?.code === 'string' ? inner.code : undefined) ??
         (typeof rec.description === 'string' ? rec.description : undefined) ??
         (typeof rec.code === 'string' ? rec.code : undefined);
@@ -57,7 +60,17 @@ export class CheckoutService {
     return String(e);
   }
 
-  async createOrder(userId: string, currency: Currency) {
+  async createOrder(userId: string, dto: CreateOrderDto) {
+    const { currency } = dto;
+    const billing = {
+      billingFullName: dto.fullName,
+      billingEmail: dto.email,
+      billingPhone: dto.phone,
+      billingAddress: dto.address,
+      billingCity: dto.city,
+      billingState: dto.state,
+      billingPincode: dto.pincode,
+    };
     // Gate on the admin-controlled PaymentSettings toggle so a disabled
     // currency can never reach Razorpay even if the frontend sends it.
     const settings = await this.paymentSettings.getSettings();
@@ -209,6 +222,7 @@ export class CheckoutService {
           couponId,
           totalAmount,
           razorpayOrderId: orderId,
+          ...billing,
         },
       });
       await tx.orderItem.createMany({

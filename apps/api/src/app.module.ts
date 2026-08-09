@@ -20,6 +20,7 @@ import { CouponModule } from './coupon/coupon.module';
 import { CartModule } from './cart/cart.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { PaymentSettingsModule } from './payment-settings/payment-settings.module';
+import { AdminPaymentsModule } from './admin-payments/admin-payments.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { PaymentSettingsModule } from './payment-settings/payment-settings.modul
     CartModule,
     CheckoutModule,
     PaymentSettingsModule,
+    AdminPaymentsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -17,6 +17,7 @@ import { ResourceManagerModal } from "./sections/ResourceManagerModal";
 import { ProfileModal } from "./sections/ProfileModal";
 import FeaturedManager from "./sections/FeaturedManager";
 import PaymentSettingsManager from "./sections/PaymentSettingsManager";
+import PaymentsManager from "./sections/PaymentsManager";
 import AdminDashboardContent from "./console/AdminDashboardContent";
 import SalesDashboardContent from "./console/SalesDashboardContent";
 import TrainerDashboardContent from "./console/TrainerDashboardContent";
@@ -1014,6 +1015,11 @@ export default function AdminMasterDataPage() {
         ) : view === "payment-settings" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
             <PaymentSettingsManager token={token || ""} />
+          </main>
+
+        ) : view === "payments" ? (
+          <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
+            <PaymentsManager token={token || ""} />
           </main>
 
         ) : view === "master-data" ? (

@@ -81,6 +81,32 @@ interface PayNotice {
   body: string;
 }
 
+interface SuccessData {
+  amount: number;
+  currency: Currency;
+  items: { courseId: string; title: string; price: number }[];
+}
+
+interface BillingDetails {
+  fullName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
+const emptyBilling: BillingDetails = {
+  fullName: "",
+  email: "",
+  phone: "",
+  address: "",
+  city: "",
+  state: "",
+  pincode: "",
+};
+
 declare global {
   interface Window {
     Razorpay?: new (opts: RazorpayOptions) => RazorpayInstance;
@@ -155,6 +181,56 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
+const fieldBaseCls =
+  "w-full h-11 rounded-lg bg-[var(--bg2)] border border-[var(--border)] px-3 text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--orange)] transition-colors duration-150";
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+  textarea = false,
+  maxLength,
+  inputMode,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  type?: string;
+  textarea?: boolean;
+  maxLength?: number;
+  inputMode?: "text" | "numeric" | "email" | "tel";
+  className?: string;
+}) {
+  return (
+    <label className={`flex flex-col gap-1.5 ${className}`}>
+      <span className="text-[11px] font-bold uppercase tracking-[.06em] text-[var(--text2)]">{label}</span>
+      {textarea ? (
+        <textarea
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={2}
+          className={`${fieldBaseCls} h-auto py-2.5 resize-none`}
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          inputMode={inputMode}
+          className={fieldBaseCls}
+        />
+      )}
+    </label>
+  );
+}
+
 function CurrencySelector({
   currency,
   enabledCurrencies,
@@ -202,7 +278,10 @@ export default function CartPage() {
   const [processing, setProcessing] = useState(false);
   const [payError, setPayError] = useState("");
   const [payNotice, setPayNotice] = useState<PayNotice | null>(null);
+  const [success, setSuccess] = useState<SuccessData | null>(null);
   const [currency, setCurrency] = useState<Currency>("INR");
+  const [billing, setBilling] = useState<BillingDetails>(emptyBilling);
+  const [billingError, setBillingError] = useState("");
 
   // Which currencies are enabled at checkout — driven by the admin's
   // PaymentSettings toggle. A disabled currency is not even rendered, so a
@@ -235,6 +314,12 @@ export default function CartPage() {
   const subtotal = cart?.subtotal ?? 0;
   const discountAmount = cart?.discountAmount ?? 0;
   const coupon = cart?.coupon ?? null;
+
+  // Snapshotted on payment success — survives cart revalidation clearing the
+  // server cart after finalization.
+  const successItems = success?.items ?? items;
+  const successAmount = success?.amount ?? total;
+  const successCurrency = success?.currency ?? activeCurrency;
 
   async function removeItem(courseId: string) {
     const res = await authFetch(`/api/cart/items/${courseId}`, { method: "DELETE" });
@@ -296,16 +381,51 @@ export default function CartPage() {
     window.setTimeout(() => setPayNotice(null), 5000);
   }
 
+  function setBillingField<K extends keyof BillingDetails>(key: K, value: string) {
+    setBilling(b => ({ ...b, [key]: value }));
+  }
+
+  function validateBilling(): string {
+    if (!billing.fullName.trim()) return "Please enter your full name";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billing.email.trim()))
+      return "Please enter a valid email address";
+    if (!/^[0-9]{10,15}$/.test(billing.phone.trim()))
+      return "Please enter a valid phone number (10-15 digits)";
+    if (!billing.address.trim()) return "Please enter your address";
+    if (!billing.city.trim()) return "Please enter your city";
+    if (!billing.state.trim()) return "Please enter your state";
+    if (!/^[0-9]{5,6}$/.test(billing.pincode.trim()))
+      return "Please enter a valid pincode (5-6 digits)";
+    return "";
+  }
+
   async function processPayment() {
     if (processing || items.length === 0) return;
+    const billingE = validateBilling();
+    if (billingE) {
+      setProcessing(false);
+      setPayError("");
+      setBillingError(billingE);
+      return;
+    }
     setProcessing(true);
     setPayError("");
+    setBillingError("");
 
-    let orderData: { keyId: string; razorpayOrderId: string; amount: number };
+    let orderData: { keyId: string; razorpayOrderId: string; amount: number; currency: Currency };
     try {
       const orderRes = await authFetch("/api/checkout/create-order", {
         method: "POST",
-        body: JSON.stringify({ currency: activeCurrency }),
+        body: JSON.stringify({
+          currency: activeCurrency,
+          fullName: billing.fullName.trim(),
+          email: billing.email.trim(),
+          phone: billing.phone.trim(),
+          address: billing.address.trim(),
+          city: billing.city.trim(),
+          state: billing.state.trim(),
+          pincode: billing.pincode.trim(),
+        }),
       });
       const body = (await orderRes.json().catch(() => ({}))) as { message?: string };
       if (!orderRes.ok) throw new Error(body.message || "Could not start checkout");
@@ -338,6 +458,11 @@ export default function CartPage() {
         name: "FutureStack",
         description: `${totalCount} course${totalCount === 1 ? "" : "s"} enrollment`,
         order_id: orderData.razorpayOrderId,
+        prefill: {
+          name: billing.fullName.trim(),
+          email: billing.email.trim(),
+          contact: billing.phone.trim(),
+        },
         theme: { color: "#f05a1a" },
         handler: async (res) => {
           try {
@@ -351,6 +476,11 @@ export default function CartPage() {
             });
             const vbody = (await verifyRes.json().catch(() => ({}))) as { message?: string };
             if (!verifyRes.ok) throw new Error(vbody.message || "Payment could not be verified");
+            setSuccess({
+              amount: orderData.amount,
+              currency: orderData.currency,
+              items: items.map(i => ({ courseId: i.courseId, title: i.title, price: i.price })),
+            });
           } catch (e) {
             setProcessing(false);
             setPayError(e instanceof Error ? e.message : "Payment could not be verified");
@@ -363,12 +493,12 @@ export default function CartPage() {
       // If the student dismisses the modal, release the spinner without acting.
       rzp.on("payment.failed", () => {
         setProcessing(false);
-        goToStep(1);
+        goToStep(2);
         showNotice("Payment failed", "The payment didn't go through. Please try again.");
       });
       rzp.on("modal.close", () => {
         setProcessing(false);
-        goToStep(1);
+        goToStep(2);
         // Re-sync cart from the server — a cancelled/failed payment never clears
         // it, so any 401-stale empty cache is corrected back to the real items.
         mutate();
@@ -381,7 +511,7 @@ export default function CartPage() {
     }
   }
 
-  const steps = ["Cart", "Confirmation"];
+  const steps = ["Cart", "Billing", "Confirmation"];
 
   return (
     <>
@@ -556,9 +686,9 @@ export default function CartPage() {
                     <span className="font-['Inter_Tight',sans-serif] text-[28px] font-extrabold text-[var(--text)] tracking-[-.01em]">{formatPrice(total, activeCurrency)}</span>
                   </div>
 
-                  <button className={primaryBtnCls} onClick={processPayment} disabled={processing}>
-                    {processing ? "⏳ Opening payment…" : "Proceed to Checkout"}
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+                  <button className={primaryBtnCls} onClick={() => goToStep(2)} disabled={processing}>
+                    Proceed to Checkout
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" transform="rotate(180)"><path d="M6 12h12" /><path d="M13 5l7 7-7 7" /></svg>
                   </button>
                   <div className="flex items-center justify-center gap-1.5 text-[11px] text-[var(--muted)] mt-2">🔒 Secure checkout · 256-bit SSL encrypted</div>
                   {payError && <div className="text-[11px] text-[var(--red)] text-center mt-2">{payError}</div>}
@@ -628,6 +758,62 @@ export default function CartPage() {
           </>
         )}
 
+        {/* Step 2: Billing details */}
+        {step === 2 && (
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,720px)_360px] gap-5 items-start justify-center">
+            <Card className="p-5 sm:p-6">
+              <div className="flex flex-col gap-1 mb-5">
+                <h1 className="font-['Inter_Tight',sans-serif] text-xl sm:text-2xl font-extrabold text-[var(--text)] tracking-[-.01em]">Billing Details</h1>
+                <p className="text-[12px] text-[var(--muted)]">Enter your details for the invoice. This will only take a minute.</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Full Name" value={billing.fullName} onChange={v => setBillingField("fullName", v)} placeholder="e.g. Rahul Sharma" className="sm:col-span-1" />
+                <Field label="Email" value={billing.email} onChange={v => setBillingField("email", v)} placeholder="you@example.com" className="sm:col-span-1" type="email" />
+                <Field label="Phone Number" value={billing.phone} onChange={v => setBillingField("phone", v)} placeholder="e.g. 9876543210" className="sm:col-span-2" type="tel" maxLength={15} />
+                <Field label="Address" value={billing.address} onChange={v => setBillingField("address", v)} placeholder="House no, street, area" className="sm:col-span-2" textarea />
+                <Field label="City" value={billing.city} onChange={v => setBillingField("city", v)} placeholder="e.g. Mumbai" className="sm:col-span-1" />
+                <Field label="State" value={billing.state} onChange={v => setBillingField("state", v)} placeholder="e.g. Maharashtra" className="sm:col-span-1" />
+                <Field label="Pincode" value={billing.pincode} onChange={v => setBillingField("pincode", v)} placeholder="e.g. 400001" className="sm:col-span-2" maxLength={6} inputMode="numeric" />
+              </div>
+            </Card>
+
+            <Card className="p-5 lg:sticky lg:top-[76px]">
+              <div className="font-['Inter_Tight',sans-serif] text-base font-extrabold text-[var(--text)] mb-3.5">Order Summary</div>
+              <div className="flex flex-col gap-2 text-[13px]">
+                <div className="flex justify-between"><span className="text-[var(--text2)]">Subtotal ({totalCount} items)</span><span className="text-[var(--text)] font-semibold">{formatPrice(subtotal, activeCurrency)}</span></div>
+                {coupon && (
+                  <div className="flex justify-between">
+                    <span className="text-[var(--text2)]">Promo ({coupon.code})</span>
+                    <span className="text-[var(--green)] font-semibold">−{formatPrice(discountAmount, activeCurrency)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="h-px bg-[var(--border)] my-3.5" />
+              <div className="flex justify-between items-baseline mb-4">
+                <span className="font-['Inter_Tight',sans-serif] text-[15px] font-bold text-[var(--text)]">Total</span>
+                <span className="font-['Inter_Tight',sans-serif] text-[28px] font-extrabold text-[var(--text)] tracking-[-.01em]">{formatPrice(total, activeCurrency)}</span>
+              </div>
+
+              <button className={primaryBtnCls} onClick={processPayment} disabled={processing}>
+                {processing ? "⏳ Opening payment…" : `Pay ${formatPrice(total, activeCurrency)}`}
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" /></svg>
+              </button>
+              <div className="flex items-center justify-center gap-1.5 text-[11px] text-[var(--muted)] mt-2">🔒 Secure checkout · 256-bit SSL encrypted</div>
+              {billingError && <div className="text-[11px] text-[var(--red)] text-center mt-2">{billingError}</div>}
+              {payError && <div className="text-[11px] text-[var(--red)] text-center mt-2">{payError}</div>}
+
+              <button
+                onClick={() => goToStep(1)}
+                disabled={processing}
+                className="w-full mt-4 h-10 rounded-xl text-[12.5px] font-bold bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)] cursor-pointer transition-all duration-150 hover:text-[var(--text)] hover:border-[var(--border)] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ← Back to Cart
+              </button>
+            </Card>
+          </div>
+        )}
+
         {/* Step 3: Success */}
         {step === 3 && (
           <div className="flex flex-col items-center text-center py-8 sm:py-12 px-4">
@@ -643,7 +829,7 @@ export default function CartPage() {
             </p>
 
             <div className="flex flex-col gap-3 w-full max-w-[420px] mb-7">
-              {items.map((item, i) => (
+              {successItems.map((item, i) => (
                 <div key={item.courseId} className="animate-[fadeUp_.45s_ease_both]"
                   style={{ animationDelay: `${0.3 + i * 0.14}s` }}>
                   <Card className="flex items-center gap-4 px-4 py-3.5 text-left">
@@ -657,15 +843,15 @@ export default function CartPage() {
                       <div className="text-[13px] sm:text-[14px] font-bold text-[var(--text)] leading-snug line-clamp-2">{item.title}</div>
                       <div className="mt-1 text-[11px] font-semibold text-[var(--green)] flex items-center gap-1">✓ Enrolled</div>
                     </div>
-                    <span className="shrink-0 font-['Inter_Tight',sans-serif] text-[13px] font-extrabold text-[var(--text)]">{formatPrice(item.price, activeCurrency)}</span>
+                    <span className="shrink-0 font-['Inter_Tight',sans-serif] text-[13px] font-extrabold text-[var(--text)]">{formatPrice(item.price, successCurrency)}</span>
                   </Card>
                 </div>
               ))}
             </div>
 
             <Card className="px-6 py-4 w-full max-w-[420px] mb-6 text-left animate-[fadeUp_.45s_ease_both_.3s]">
-              <div className="flex justify-between text-[12px] py-1.5"><span className="text-[var(--muted)]">Amount Paid</span><span className="text-[var(--text)] font-bold">{formatPrice(total, activeCurrency)}</span></div>
-              <div className="flex justify-between text-[12px] py-1.5"><span className="text-[var(--muted)]">Courses Enrolled</span><span className="text-[var(--text)] font-bold">{totalCount}</span></div>
+              <div className="flex justify-between text-[12px] py-1.5"><span className="text-[var(--muted)]">Amount Paid</span><span className="text-[var(--text)] font-bold">{formatPrice(successAmount, successCurrency)}</span></div>
+              <div className="flex justify-between text-[12px] py-1.5"><span className="text-[var(--muted)]">Courses Enrolled</span><span className="text-[var(--text)] font-bold">{successItems.length}</span></div>
             </Card>
 
             <div className="flex flex-col sm:flex-row gap-3 w-full max-w-[420px] animate-[fadeUp_.45s_ease_both_.45s]">

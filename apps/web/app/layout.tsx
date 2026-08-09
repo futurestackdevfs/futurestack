@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FutureStack – Think Ahead. Code Beyond.",
+  title: "FutureStack – Think . Create. Conquer",
   description: "Your personalized learning platform. Build skills, earn certificates, and advance your career.",
 };
 

@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/auth/hooks/use-auth";
+import { authFetch } from "@/app/auth/lib/auth-fetch";
 import { showToast } from "@/lib/toast";
 
 function slugify(str: string): string {
@@ -17,6 +19,18 @@ export function TopNav() {
   const profileRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
+
+  // Live cart count for the cart icon badge — only when signed in. Shares the
+  // SWR cache with the cart page key so removing/adding items keeps it in sync.
+  const { data: cartData } = useSWR(
+    isAuthenticated ? "/api/cart?currency=INR" : null,
+    async (url: string) => {
+      const res = await authFetch(url);
+      if (res.status === 401 || !res.ok) return { items: [] };
+      return res.json();
+    }
+  );
+  const cartCount = Array.isArray(cartData?.items) ? cartData.items.length : 0;
   const [animate, setAnimate] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<{ slug: string; title: string; category: string }[]>([]);
@@ -422,6 +436,14 @@ export function TopNav() {
         {/* Cart — desktop only */}
         <Link href="/cart" className="bg-transparent border-none text-[var(--muted)] p-1.5 rounded-md flex relative cursor-pointer transition-all duration-200 hover:text-[var(--text)] hover:bg-[var(--bg)] hover:scale-110 active:scale-95 hidden md:flex" title="Cart">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" /></svg>
+          {cartCount > 0 && (
+            <span
+              className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 rounded-full text-[9.5px] font-extrabold flex items-center justify-center"
+              style={{ background: "var(--orange)", color: "#fff", boxShadow: "0 1px 4px rgba(0,0,0,.25)" }}
+            >
+              {cartCount > 99 ? "99+" : cartCount}
+            </span>
+          )}
         </Link>
 
         {/* Profile tab */}

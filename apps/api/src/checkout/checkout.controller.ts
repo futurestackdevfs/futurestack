@@ -16,7 +16,7 @@ export class CheckoutController {
   @Post('create-order')
   createOrder(@Req() req: Request, @Body() dto: CreateOrderDto) {
     const user = req.user as { id: string };
-    return this.checkoutService.createOrder(user.id, dto.currency);
+    return this.checkoutService.createOrder(user.id, dto);
   }
 
   @Auth(Role.STUDENT)
