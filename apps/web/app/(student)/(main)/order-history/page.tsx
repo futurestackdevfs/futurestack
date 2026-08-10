@@ -507,7 +507,7 @@ export default function OrderHistoryPage() {
                       </button>
                       {order.items.length > 0 && (
                         <button
-                          onClick={() => goToCourse(order.items[0].course.id)}
+                          onClick={() => router.push("/my-dashboard")}
                           className="px-4 py-2 rounded-lg text-xs font-semibold text-[var(--text2)] bg-[var(--bg)] border border-[var(--border2)] hover:border-[var(--blue)] hover:text-[var(--blue)] transition-all duration-200 cursor-pointer"
                         >
                           Go to Course

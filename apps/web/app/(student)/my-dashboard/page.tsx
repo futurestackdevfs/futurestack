@@ -199,7 +199,7 @@ export default function MyDashboardPage() {
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-[9px] bg-[#f05a1a] text-white text-[13px] font-semibold shadow-[0_4px_12px_rgba(240,90,26,.35)] hover:bg-[#d94e14] hover:shadow-[0_6px_18px_rgba(240,90,26,.4)] transition-all duration-200 no-underline"
         >
           Sign In
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="size-[13px]"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="size-[13px]"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </Link>
       </div>
     );
