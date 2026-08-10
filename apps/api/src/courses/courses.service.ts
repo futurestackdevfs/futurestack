@@ -29,15 +29,26 @@ const SKILL_LEVEL_LABELS: Record<string, string> = {
 };
 
 function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 // DB values are sometimes stored as bare relative paths (e.g. "images/foo.png")
 // which the browser resolves against the current page URL instead of the site
 // root, causing 404s. Normalize to an absolute path/URL.
-function normalizeThumbnail(url: string | null | undefined, fallback: string | null = null): string | null {
+function normalizeThumbnail(
+  url: string | null | undefined,
+  fallback: string | null = null,
+): string | null {
   if (!url) return fallback;
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/')) return url;
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('/')
+  )
+    return url;
   return `/${url}`;
 }
 
@@ -46,23 +57,31 @@ export class CoursesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly vdoCipherService: VdoCipherService,
-  ) { }
+  ) {}
 
   // ==================== PUBLIC ====================
 
-  private async getVideoStats(courseIds: string[]): Promise<Map<string, { totalSeconds: number; videoCount: number }>> {
+  private async getVideoStats(
+    courseIds: string[],
+  ): Promise<Map<string, { totalSeconds: number; videoCount: number }>> {
     if (courseIds.length === 0) return new Map();
-    const rows: { courseId: string; totalSeconds: number | null; videoCount: number | null }[] =
-      await this.prisma.$queryRawUnsafe(
-        `SELECT s."courseId", COALESCE(SUM(v."durationSeconds"), 0) as "totalSeconds", COUNT(v.id) as "videoCount"
+    const rows: {
+      courseId: string;
+      totalSeconds: number | null;
+      videoCount: number | null;
+    }[] = await this.prisma.$queryRawUnsafe(
+      `SELECT s."courseId", COALESCE(SUM(v."durationSeconds"), 0) as "totalSeconds", COUNT(v.id) as "videoCount"
          FROM "Section" s LEFT JOIN "Video" v ON v."sectionId" = s."id"
          WHERE s."courseId" = ANY($1)
          GROUP BY s."courseId"`,
-        courseIds,
-      );
+      courseIds,
+    );
     const map = new Map<string, { totalSeconds: number; videoCount: number }>();
     for (const row of rows) {
-      map.set(row.courseId, { totalSeconds: Number(row.totalSeconds ?? 0), videoCount: Number(row.videoCount ?? 0) });
+      map.set(row.courseId, {
+        totalSeconds: Number(row.totalSeconds ?? 0),
+        videoCount: Number(row.videoCount ?? 0),
+      });
     }
     return map;
   }
@@ -70,7 +89,11 @@ export class CoursesService {
   async featuredCourses() {
     const SLOT_COUNT = 10;
     const courses = await this.prisma.course.findMany({
-      where: { isFeatured: true, status: 'ACTIVE', displayOrder: { lt: SLOT_COUNT } },
+      where: {
+        isFeatured: true,
+        status: 'ACTIVE',
+        displayOrder: { lt: SLOT_COUNT },
+      },
       orderBy: { displayOrder: 'asc' },
       take: SLOT_COUNT,
       select: {
@@ -102,13 +125,21 @@ export class CoursesService {
 
     const videoStats = await this.getVideoStats(uniqueCourses.map((c) => c.id));
 
-    const enrollmentCounts = uniqueCourses.map((c) => c._count.enrollments).sort((a, b) => b - a);
-    const trendingThreshold = enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
+    const enrollmentCounts = uniqueCourses
+      .map((c) => c._count.enrollments)
+      .sort((a, b) => b - a);
+    const trendingThreshold =
+      enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
     return uniqueCourses.map(({ createdAt, ...rest }) => {
-      const stats = videoStats.get(rest.id) ?? { totalSeconds: 0, videoCount: 0 };
-      const isTrending = rest._count.enrollments > 0 && rest._count.enrollments >= trendingThreshold;
+      const stats = videoStats.get(rest.id) ?? {
+        totalSeconds: 0,
+        videoCount: 0,
+      };
+      const isTrending =
+        rest._count.enrollments > 0 &&
+        rest._count.enrollments >= trendingThreshold;
       const isNew = createdAt >= fourteenDaysAgo;
 
       return {
@@ -185,7 +216,15 @@ export class CoursesService {
       where: { id, status: 'ACTIVE' },
       include: {
         trainer: {
-          select: { id: true, name: true, avatarUrl: true, bio: true, yearsExperience: true, rating: true, coursesTaught: { select: { id: true } } },
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+            bio: true,
+            yearsExperience: true,
+            rating: true,
+            coursesTaught: { select: { id: true } },
+          },
         },
         resources: { orderBy: { createdAt: 'asc' } },
         sections: {
@@ -193,11 +232,22 @@ export class CoursesService {
           include: {
             videos: {
               orderBy: { order: 'asc' },
-              select: { id: true, title: true, durationSeconds: true, order: true, isPreview: true },
+              select: {
+                id: true,
+                title: true,
+                durationSeconds: true,
+                order: true,
+                isPreview: true,
+              },
             },
             quizzes: {
               orderBy: { order: 'asc' },
-              select: { id: true, title: true, order: true, totalQuestions: true },
+              select: {
+                id: true,
+                title: true,
+                order: true,
+                totalQuestions: true,
+              },
             },
           },
         },
@@ -206,8 +256,14 @@ export class CoursesService {
     });
     if (!course) throw new NotFoundException('Course not found');
 
-    const totalVideos = course.sections.reduce((sum, s) => sum + s.videos.length, 0);
-    const totalQuizzes = course.sections.reduce((sum, s) => sum + s.quizzes.length, 0);
+    const totalVideos = course.sections.reduce(
+      (sum, s) => sum + s.videos.length,
+      0,
+    );
+    const totalQuizzes = course.sections.reduce(
+      (sum, s) => sum + s.quizzes.length,
+      0,
+    );
 
     return {
       id: course.id,
@@ -221,13 +277,23 @@ export class CoursesService {
       careerTitle: course.careerTitle,
       careerBody: course.careerBody,
       category: course.category ?? course.techStack[0] ?? 'General',
-      hours: Math.round(
-        course.sections.reduce((sum, s) => sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0), 0) / 3600,
-      ) || 1,
+      hours:
+        Math.round(
+          course.sections.reduce(
+            (sum, s) =>
+              sum + s.videos.reduce((vSum, v) => vSum + v.durationSeconds, 0),
+            0,
+          ) / 3600,
+        ) || 1,
       level: SKILL_LEVEL_LABELS[course.skillLevel ?? 'INTERMEDIATE'],
       rating: course.trainer?.rating ?? 4.7,
       students: course._count.enrollments,
-      mentorInitials: (course.trainer?.name ?? 'TM').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+      mentorInitials: (course.trainer?.name ?? 'TM')
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase(),
       mentorName: course.trainer?.name ?? 'Team',
       mentorAvatar: course.trainer?.avatarUrl ?? null,
       mentorBio: course.trainer?.bio ?? null,
@@ -237,18 +303,18 @@ export class CoursesService {
       totalLessons: totalVideos + totalQuizzes,
       totalVideos,
       totalQuizzes,
-      sections: course.sections.map(s => ({
+      sections: course.sections.map((s) => ({
         id: s.id,
         title: s.title,
         order: s.order,
-        videos: s.videos.map(v => ({
+        videos: s.videos.map((v) => ({
           id: v.id,
           title: v.title,
           durationSeconds: v.durationSeconds,
           order: v.order,
           isPreview: v.isPreview,
         })),
-        quizzes: s.quizzes.map(q => ({
+        quizzes: s.quizzes.map((q) => ({
           id: null,
           title: q.title,
           order: q.order,
@@ -271,8 +337,8 @@ export class CoursesService {
             bio: true,
             yearsExperience: true,
             rating: true,
-            _count: { select: { coursesTaught: true } }
-          }
+            _count: { select: { coursesTaught: true } },
+          },
         },
         sections: {
           orderBy: { order: 'asc' },
@@ -284,39 +350,51 @@ export class CoursesService {
                 title: true,
                 durationSeconds: true,
                 order: true,
-                isPreview: true,   // only preview videos are playable without enrollment
-              }
+                isPreview: true, // only preview videos are playable without enrollment
+              },
             },
             quizzes: {
               orderBy: { order: 'asc' },
-              select: { id: true, title: true, order: true, totalQuestions: true }
-            }
-          }
+              select: {
+                id: true,
+                title: true,
+                order: true,
+                totalQuestions: true,
+              },
+            },
+          },
         },
-        _count: { select: { enrollments: true } }
-      }
+        _count: { select: { enrollments: true } },
+      },
     });
 
     if (!course) throw new NotFoundException('Course not found');
 
     // Compute totals
-    const totalVideos = course.sections.reduce((sum, s) => sum + s.videos.length, 0);
-    const totalQuizzes = course.sections.reduce((sum, s) => sum + s.quizzes.length, 0);
+    const totalVideos = course.sections.reduce(
+      (sum, s) => sum + s.videos.length,
+      0,
+    );
+    const totalQuizzes = course.sections.reduce(
+      (sum, s) => sum + s.quizzes.length,
+      0,
+    );
     const totalDurationSecs = course.sections.reduce(
-      (sum, s) => sum + s.videos.reduce((vs, v) => vs + v.durationSeconds, 0), 0
+      (sum, s) => sum + s.videos.reduce((vs, v) => vs + v.durationSeconds, 0),
+      0,
     );
     const totalHours = Math.round((totalDurationSecs / 3600) * 10) / 10;
 
     // Build curriculum — merge videos and quizzes per section by order
-    // Videos that are NOT isPreview should have their id omitted — 
+    // Videos that are NOT isPreview should have their id omitted —
     // visitors shouldn't be able to guess video IDs for OTP requests
-    const curriculum = course.sections.map(section => ({
+    const curriculum = course.sections.map((section) => ({
       id: section.id,
       title: section.title,
       order: section.order,
       totalItems: section.videos.length + section.quizzes.length,
       items: [
-        ...section.videos.map(v => ({
+        ...section.videos.map((v) => ({
           type: 'video' as const,
           id: v.id,
           title: v.title,
@@ -325,16 +403,16 @@ export class CoursesService {
           isPreview: v.isPreview,
           isLocked: !v.isPreview,
         })),
-        ...section.quizzes.map(q => ({
+        ...section.quizzes.map((q) => ({
           type: 'quiz' as const,
-          id: null,                          // quiz IDs never exposed to unenrolled users
+          id: null, // quiz IDs never exposed to unenrolled users
           title: q.title,
           totalQuestions: q.totalQuestions,
           order: q.order,
           isPreview: false,
           isLocked: true,
-        }))
-      ].sort((a, b) => a.order - b.order)
+        })),
+      ].sort((a, b) => a.order - b.order),
     }));
 
     return {
@@ -354,15 +432,17 @@ export class CoursesService {
       totalHours,
       totalSections: course.sections.length,
       enrollmentCount: course._count.enrollments,
-      instructor: course.trainer ? {
-        id: course.trainer.id,
-        name: course.trainer.name,
-        avatarUrl: course.trainer.avatarUrl,
-        bio: course.trainer.bio,
-        yearsExperience: course.trainer.yearsExperience,
-        rating: course.trainer.rating,
-        coursesTaughtCount: course.trainer._count.coursesTaught,
-      } : null,
+      instructor: course.trainer
+        ? {
+            id: course.trainer.id,
+            name: course.trainer.name,
+            avatarUrl: course.trainer.avatarUrl,
+            bio: course.trainer.bio,
+            yearsExperience: course.trainer.yearsExperience,
+            rating: course.trainer.rating,
+            coursesTaughtCount: course.trainer._count.coursesTaught,
+          }
+        : null,
       curriculum,
     };
   }
@@ -386,22 +466,26 @@ export class CoursesService {
     });
 
     if (!video) throw new NotFoundException('Video not available for preview');
-    if (video.videoStatus !== 'READY') throw new BadRequestException('Video not ready');
-    if (video.section.course.status !== 'ACTIVE') throw new NotFoundException('Video not available');
+    if (video.videoStatus !== 'READY')
+      throw new BadRequestException('Video not ready');
+    if (video.section.course.status !== 'ACTIVE')
+      throw new NotFoundException('Video not available');
 
     const firstSection = await this.prisma.section.findFirst({
       where: { courseId: video.section.courseId },
       orderBy: { order: 'asc' },
       select: { id: true },
     });
-    if (video.section.id !== firstSection?.id) throw new NotFoundException('Video not available for preview');
+    if (video.section.id !== firstSection?.id)
+      throw new NotFoundException('Video not available for preview');
 
     const firstVideo = await this.prisma.video.findFirst({
       where: { sectionId: video.section.id },
       orderBy: { order: 'asc' },
       select: { id: true },
     });
-    if (video.id !== firstVideo?.id) throw new NotFoundException('Video not available for preview');
+    if (video.id !== firstVideo?.id)
+      throw new NotFoundException('Video not available for preview');
 
     return this.vdoCipherService.getPlaybackOtp(video.vdoCipherId, {
       name: 'Preview User',
@@ -427,17 +511,14 @@ export class CoursesService {
           { description: { contains: query.q, mode: 'insensitive' } },
           { category: { contains: query.q, mode: 'insensitive' } },
           { techStack: { has: query.q } },
-        ]
-      })
+        ],
+      }),
     };
 
     const courses = await this.prisma.course.findMany({
       where,
       take: limit,
-      orderBy: [
-        { isFeatured: 'desc' },
-        { displayOrder: 'asc' },
-      ],
+      orderBy: [{ isFeatured: 'desc' }, { displayOrder: 'asc' }],
       select: {
         id: true,
         title: true,
@@ -453,16 +534,16 @@ export class CoursesService {
         trainer: { select: { id: true, name: true, avatarUrl: true } },
         sections: {
           select: {
-            _count: { select: { videos: true } }
-          }
-        }
-      }
+            _count: { select: { videos: true } },
+          },
+        },
+      },
     });
 
     return {
       query: query.q ?? null,
       total: courses.length,
-      results: courses.map(c => ({
+      results: courses.map((c) => ({
         id: c.id,
         title: c.title,
         code: c.code,
@@ -476,7 +557,7 @@ export class CoursesService {
         enrollmentCount: c._count.enrollments,
         totalVideos: c.sections.reduce((sum, s) => sum + s._count.videos, 0),
         trainer: c.trainer ?? null,
-      }))
+      })),
     };
   }
 
@@ -558,28 +639,47 @@ export class CoursesService {
   // ==================== COURSES ====================
 
   private async generateCourseCode(title: string): Promise<string> {
-    const prefix = title.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 3) || 'CRS';
+    const prefix =
+      title
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toUpperCase()
+        .slice(0, 3) || 'CRS';
     const last = await this.prisma.course.findFirst({
       where: { code: { startsWith: `CRS-${prefix}-` } },
       orderBy: { code: 'desc' },
       select: { code: true },
     });
-    const next = last?.code ? parseInt(last.code.split('-').pop() ?? '0', 10) + 1 : 1;
+    const next = last?.code
+      ? parseInt(last.code.split('-').pop() ?? '0', 10) + 1
+      : 1;
     return `CRS-${prefix}-${String(next).padStart(3, '0')}`;
   }
 
   async createCourse(dto: CreateCourseDto) {
     if (dto.trainerId) await this.validateApprovedTrainer(dto.trainerId);
-    const existing = await this.prisma.course.findUnique({ where: { title: dto.title }, select: { id: true } });
-    if (existing) throw new ConflictException(`A course with the title "${dto.title}" already exists`);
-    const code = dto.code ?? await this.generateCourseCode(dto.title);
-    return this.prisma.course.create({ data: { ...dto, code } });
+    const existing = await this.prisma.course.findUnique({
+      where: { title: dto.title },
+      select: { id: true },
+    });
+    if (existing)
+      throw new ConflictException(
+        `A course with the title "${dto.title}" already exists`,
+      );
+    const code = dto.code ?? (await this.generateCourseCode(dto.title));
+    const course = await this.prisma.course.create({ data: { ...dto, code } });
+    await this.syncBasePrice(course.id, course.price ?? 0);
+    return course;
   }
 
   async listCourses() {
     const courses = await this.prisma.course.findMany({
       include: {
-        trainer: { select: { id: true, name: true, email: true, rating: true } },
+        trainer: {
+          select: { id: true, name: true, email: true, rating: true },
+        },
+        tracks: {
+          include: { track: { select: { id: true, title: true } } },
+        },
         _count: { select: { enrollments: true, sections: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -591,18 +691,24 @@ export class CoursesService {
     ]);
 
     return courses.map((course) => {
-      const stats = videoStats.get(course.id) ?? { totalSeconds: 0, videoCount: 0 };
+      const stats = videoStats.get(course.id) ?? {
+        totalSeconds: 0,
+        videoCount: 0,
+      };
       const totalHours = Math.round(stats.totalSeconds / 3600);
       return {
         ...course,
         totalLessons: stats.videoCount + (quizCounts.get(course.id) ?? 0),
         totalHours,
-        durationWeeks: totalHours > 0 ? Math.max(1, Math.round(totalHours / 10)) : 0,
+        durationWeeks:
+          totalHours > 0 ? Math.max(1, Math.round(totalHours / 10)) : 0,
       };
     });
   }
 
-  private async getQuizCounts(courseIds: string[]): Promise<Map<string, number>> {
+  private async getQuizCounts(
+    courseIds: string[],
+  ): Promise<Map<string, number>> {
     if (courseIds.length === 0) return new Map();
     const rows: { courseId: string; quizCount: number | null }[] =
       await this.prisma.$queryRawUnsafe(
@@ -615,7 +721,13 @@ export class CoursesService {
     return new Map(rows.map((r) => [r.courseId, Number(r.quizCount ?? 0)]));
   }
 
-  async findAllCards(opts: { page: number; perPage: number; search?: string; sort?: string; filters?: Record<string, string[]> }) {
+  async findAllCards(opts: {
+    page: number;
+    perPage: number;
+    search?: string;
+    sort?: string;
+    filters?: Record<string, string[]>;
+  }) {
     const where: any = { status: 'ACTIVE' };
 
     if (opts.search?.trim()) {
@@ -639,9 +751,12 @@ export class CoursesService {
     }
 
     let orderBy: any = { createdAt: 'desc' };
-    if (opts.sort === 'Highest Rated') orderBy = { trainer: { rating: 'desc' } };
-    else if (opts.sort === 'Lowest Rated') orderBy = { trainer: { rating: 'asc' } };
-    else if (opts.sort === 'Most Popular') orderBy = { enrollments: { _count: 'desc' } };
+    if (opts.sort === 'Highest Rated')
+      orderBy = { trainer: { rating: 'desc' } };
+    else if (opts.sort === 'Lowest Rated')
+      orderBy = { trainer: { rating: 'asc' } };
+    else if (opts.sort === 'Most Popular')
+      orderBy = { enrollments: { _count: 'desc' } };
 
     const courses = await this.prisma.course.findMany({
       where,
@@ -659,6 +774,9 @@ export class CoursesService {
         skillLevel: true,
         createdAt: true,
         trainer: { select: { name: true, rating: true } },
+        tracks: {
+          select: { track: { select: { id: true, title: true } } },
+        },
         _count: { select: { enrollments: true } },
       },
       orderBy,
@@ -667,26 +785,40 @@ export class CoursesService {
     const videoStats = await this.getVideoStats(courses.map((c) => c.id));
 
     // Build computed card data
-    const enrollmentCounts = courses.map((c) => c._count.enrollments).sort((a, b) => b - a);
-    const trendingThreshold = enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
+    const enrollmentCounts = courses
+      .map((c) => c._count.enrollments)
+      .sort((a, b) => b - a);
+    const trendingThreshold =
+      enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
     let data = courses.map((course) => {
-      const stats = videoStats.get(course.id) ?? { totalSeconds: 0, videoCount: 0 };
+      const stats = videoStats.get(course.id) ?? {
+        totalSeconds: 0,
+        videoCount: 0,
+      };
       const totalHours = Math.round(stats.totalSeconds / 3600);
 
-      const isTrending = course._count.enrollments > 0 && course._count.enrollments >= trendingThreshold;
+      const isTrending =
+        course._count.enrollments > 0 &&
+        course._count.enrollments >= trendingThreshold;
       const isNew = course.createdAt >= fourteenDaysAgo;
       const badge = null;
       const badgeClass = '';
       const category = course.category ?? course.techStack[0] ?? 'General';
       const level = SKILL_LEVEL_LABELS[course.skillLevel ?? 'INTERMEDIATE'];
-      const durationLabel = totalHours > 50 ? '50+ hrs' : totalHours > 20 ? '20 – 50 hrs' : '5 – 20 hrs';
+      const durationLabel =
+        totalHours > 50
+          ? '50+ hrs'
+          : totalHours > 20
+            ? '20 – 50 hrs'
+            : '5 – 20 hrs';
 
       return {
         id: course.id,
         slug: slugify(course.title),
         category,
+        trackNames: course.tracks.map((tc) => tc.track.title),
         title: course.title,
         description: course.description ?? '',
         hours: totalHours || 20,
@@ -696,7 +828,12 @@ export class CoursesService {
         reviews: `${course._count.enrollments}`,
         badge,
         badgeClass,
-        mentor: (course.trainer?.name ?? 'TM').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase(),
+        mentor: (course.trainer?.name ?? 'TM')
+          .split(' ')
+          .map((n: string) => n[0])
+          .join('')
+          .slice(0, 2)
+          .toUpperCase(),
         mentorName: course.trainer?.name ?? 'Team',
         mentorColor: 'from-blue-500 to-blue-600',
         img: normalizeThumbnail(course.thumbnailUrl, '/images/C1.png'),
@@ -728,17 +865,48 @@ export class CoursesService {
     // Fixed option lists shown even when no course matches them (count 0).
     // level/mode/goal are not DB fields yet — every card carries the defaults,
     // so most of these stay at 0 until real columns exist.
-    const fixedOptions = (items: string[], getValue: (c: (typeof data)[number]) => string) =>
-      items.map((value) => ({ value, count: data.filter((c) => getValue(c) === value).length }));
+    const fixedOptions = (
+      items: string[],
+      getValue: (c: (typeof data)[number]) => string,
+    ) =>
+      items.map((value) => ({
+        value,
+        count: data.filter((c) => getValue(c) === value).length,
+      }));
 
     const DURATION_ORDER = ['5 – 20 hrs', '20 – 50 hrs', '50+ hrs'];
+    // Career Track facet is computed from the DB (all tracks) so it is always
+    // available in the sidebar — even at count 0 or when a search yields nothing.
+    const trackRows = await this.prisma.track.findMany({
+      select: {
+        title: true,
+        courses: {
+          where: { course: { status: 'ACTIVE' } },
+          select: { id: true },
+        },
+      },
+    });
     const facets = [
+      {
+        key: 'track',
+        title: 'Career Track',
+        options: trackRows
+          .map((t) => ({ value: t.title, count: t.courses.length }))
+          .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
+      },
       {
         key: 'level',
         title: 'Skill Level',
-        options: fixedOptions(Object.values(SKILL_LEVEL_LABELS), (c) => c.level),
+        options: fixedOptions(
+          Object.values(SKILL_LEVEL_LABELS),
+          (c) => c.level,
+        ),
       },
-      { key: 'category', title: 'Category', options: countBy((c) => [c.category]) },
+      {
+        key: 'category',
+        title: 'Category',
+        options: countBy((c) => [c.category]),
+      },
       {
         key: 'duration',
         title: 'Duration',
@@ -747,21 +915,38 @@ export class CoursesService {
       {
         key: 'mode',
         title: 'Learning Mode',
-        options: fixedOptions(['Self-Paced', 'Live Cohort', 'Mentor-Led', 'Bootcamp'], (c) => c.mode),
+        options: fixedOptions(
+          ['Self-Paced', 'Live Cohort', 'Mentor-Led', 'Bootcamp'],
+          (c) => c.mode,
+        ),
       },
       {
         key: 'goal',
         title: 'Career Goal',
-        options: fixedOptions(['Get Hired', 'Upskill', 'Freelance', 'Start-up Ready'], (c) => c.goal),
+        options: fixedOptions(
+          ['Get Hired', 'Upskill', 'Freelance', 'Start-up Ready'],
+          (c) => c.goal,
+        ),
       },
-      { key: 'tech', title: 'Technology Stack', options: countBy((c) => c.techStack) },
+      {
+        key: 'tech',
+        title: 'Technology Stack',
+        options: countBy((c) => c.techStack),
+      },
     ];
 
-    // Apply filters (tech matches any chip in the stack; others match the computed field)
+    // Apply filters (tech matches any chip in the stack; track matches any linked
+    // track name; others match the computed field)
     for (const { field, values } of activeFilters) {
       if (field === 'tech') {
         data = data.filter((c) => c.techStack.some((t) => values.includes(t)));
-      } else if (['duration', 'category', 'level', 'mode', 'goal'].includes(field)) {
+      } else if (field === 'track') {
+        data = data.filter((c) =>
+          c.trackNames?.some((n: string) => values.includes(n)),
+        );
+      } else if (
+        ['duration', 'category', 'level', 'mode', 'goal'].includes(field)
+      ) {
         data = data.filter((c) => values.includes(String((c as any)[field])));
       }
     }
@@ -781,7 +966,9 @@ export class CoursesService {
     const course = await this.prisma.course.findUnique({
       where: { id },
       include: {
-        trainer: { select: { id: true, name: true, email: true, avatarUrl: true } },
+        trainer: {
+          select: { id: true, name: true, email: true, avatarUrl: true },
+        },
         resources: { orderBy: { createdAt: 'asc' } },
         tracks: { include: { track: { select: { id: true, title: true } } } },
         sections: {
@@ -800,12 +987,37 @@ export class CoursesService {
 
   async updateCourse(id: string, dto: UpdateCourseDto) {
     await this.findCourseOrFail(id);
-    if (dto.trainerId !== undefined) await this.validateApprovedTrainer(dto.trainerId);
+    if (dto.trainerId !== undefined)
+      await this.validateApprovedTrainer(dto.trainerId);
     if (dto.title) {
-      const existing = await this.prisma.course.findUnique({ where: { title: dto.title }, select: { id: true } });
-      if (existing && existing.id !== id) throw new ConflictException(`A course with the title "${dto.title}" already exists`);
+      const existing = await this.prisma.course.findUnique({
+        where: { title: dto.title },
+        select: { id: true },
+      });
+      if (existing && existing.id !== id)
+        throw new ConflictException(
+          `A course with the title "${dto.title}" already exists`,
+        );
     }
-    return this.prisma.course.update({ where: { id }, data: dto });
+    const { price, ...rest } = dto;
+    const course = await this.prisma.course.update({
+      where: { id },
+      data: rest,
+    });
+    await this.syncBasePrice(id, price ?? course.price);
+    return course;
+  }
+
+  /**
+   * Keeps the base INR CoursePrice row in sync with the course's main price so
+   * cart/checkout can always find a price for a course.
+   */
+  private async syncBasePrice(courseId: string, amount: number) {
+    await this.prisma.coursePrice.upsert({
+      where: { courseId_currency: { courseId, currency: 'INR' } },
+      create: { courseId, currency: 'INR', amount },
+      update: { amount },
+    });
   }
 
   async deleteCourse(id: string) {
@@ -826,10 +1038,14 @@ export class CoursesService {
     await this.findCourseOrFail(courseId);
     await this.findTrackOrFail(trackId);
     try {
-      return await this.prisma.trackCourse.create({ data: { courseId, trackId } });
+      return await this.prisma.trackCourse.create({
+        data: { courseId, trackId },
+      });
     } catch (e: any) {
       if (e?.code === 'P2002') {
-        throw new ConflictException('This course is already linked to that track');
+        throw new ConflictException(
+          'This course is already linked to that track',
+        );
       }
       throw e;
     }
@@ -849,6 +1065,38 @@ export class CoursesService {
     return { message: 'Course unlinked from track' };
   }
 
+  async setCourseCareerPath(courseId: string, title?: string) {
+    await this.findCourseOrFail(courseId);
+    await this.prisma.trackCourse.deleteMany({ where: { courseId } });
+
+    const value = title?.trim();
+    if (!value) return { message: 'Course career path cleared' };
+
+    let track = await this.prisma.track.findFirst({
+      where: { title: { equals: value, mode: 'insensitive' } },
+    });
+    if (!track) {
+      // Give auto-created tracks a unique displayOrder so none get collapsed
+      // by featuredTracks()'s displayOrder de-duplication on the /paths page.
+      const maxOrder = await this.prisma.track.aggregate({
+        _max: { displayOrder: true },
+      });
+      track = await this.prisma.track.create({
+        data: {
+          title: value,
+          displayOrder: (maxOrder._max.displayOrder ?? 0) + 1,
+        },
+      });
+    }
+
+    await this.prisma.trackCourse.upsert({
+      where: { trackId_courseId: { trackId: track.id, courseId } },
+      create: { trackId: track.id, courseId },
+      update: {},
+    });
+    return { track, message: 'Course career path updated' };
+  }
+
   private async findCourseOrFail(id: string) {
     const course = await this.prisma.course.findUnique({ where: { id } });
     if (!course) throw new NotFoundException('Course not found');
@@ -858,11 +1106,11 @@ export class CoursesService {
   // Rejects if the user is not an APPROVED TRAINER. Called on create and
   // on update whenever trainerId is explicitly included in the request body.
   private async validateApprovedTrainer(trainerId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: trainerId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: trainerId },
+    });
     if (!user || user.role !== Role.TRAINER) {
-      throw new BadRequestException(
-        `User ${trainerId} is not a trainer`,
-      );
+      throw new BadRequestException(`User ${trainerId} is not a trainer`);
     }
     if (user.approvalStatus !== 'APPROVED') {
       throw new BadRequestException(
@@ -952,7 +1200,9 @@ export class CoursesService {
   }
 
   async deleteResource(id: string) {
-    const resource = await this.prisma.courseResource.findUnique({ where: { id } });
+    const resource = await this.prisma.courseResource.findUnique({
+      where: { id },
+    });
     if (!resource) throw new NotFoundException('Resource not found');
     await this.prisma.courseResource.delete({ where: { id } });
     return { message: 'Resource deleted' };
@@ -966,7 +1216,7 @@ export class CoursesService {
       select: { id: true, title: true, price: true, code: true },
     });
 
-    const courseIds = courses.map(c => c.id);
+    const courseIds = courses.map((c) => c.id);
     const enrollments = await this.prisma.enrollment.findMany({
       where: { courseId: { in: courseIds }, status: 'active' },
       include: {
@@ -976,12 +1226,13 @@ export class CoursesService {
       orderBy: { enrolledAt: 'desc' },
     });
 
-    const list = enrollments.map(e => {
-      const paymentMode = e.amountPaid >= e.course.price
-        ? 'Full'
-        : e.amountPaid > 0
-          ? 'EMI'
-          : 'Pending';
+    const list = enrollments.map((e) => {
+      const paymentMode =
+        e.amountPaid >= e.course.price
+          ? 'Full'
+          : e.amountPaid > 0
+            ? 'EMI'
+            : 'Pending';
 
       return {
         id: e.id,
@@ -1049,5 +1300,4 @@ export class CoursesService {
     );
     return { message: 'Hero slides reordered' };
   }
-
 }

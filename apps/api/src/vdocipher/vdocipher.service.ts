@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -41,9 +45,11 @@ export class VdoCipherService {
     }
 
     const data = await response.json();
-    
+
     // Log the raw response so we can verify the exact field name for uploadLink vs uploadUrl
-    this.logger.log(`VdoCipher credentials obtained for video: ${data.videoId}`);
+    this.logger.log(
+      `VdoCipher credentials obtained for video: ${data.videoId}`,
+    );
 
     return {
       vdoCipherId: data.videoId,
@@ -58,8 +64,10 @@ export class VdoCipherService {
         'x-amz-credential': data.clientPayload['x-amz-credential'],
         // VdoCipher's policy still requires these fields even when their API
         // no longer returns them in clientPayload. Defaults keep S3 happy.
-        success_action_status: data.clientPayload.success_action_status ?? '201',
-        success_action_redirect: data.clientPayload.success_action_redirect ?? '',
+        success_action_status:
+          data.clientPayload.success_action_status ?? '201',
+        success_action_redirect:
+          data.clientPayload.success_action_redirect ?? '',
       },
     };
   }
@@ -70,14 +78,17 @@ export class VdoCipherService {
    * Pass the student's name and email to embed as a visible watermark.
    */
   async deleteVideo(vdoCipherId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/videos?videos=${vdoCipherId}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Apisecret ${this.apiKey}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      `${this.baseUrl}/videos?videos=${vdoCipherId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Apisecret ${this.apiKey}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
       },
-    });
+    );
 
     if (response.ok || response.status === 404) return;
     const body = await response.text().catch(() => '');
@@ -90,32 +101,29 @@ export class VdoCipherService {
     vdoCipherId: string,
     watermark: { name: string; email: string },
   ): Promise<{ otp: string; playbackInfo: string }> {
-    const response = await fetch(
-      `${this.baseUrl}/videos/${vdoCipherId}/otp`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Apisecret ${this.apiKey}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify({
-          annotate: JSON.stringify([
-            {
-              type: 'text',
-              text: `${watermark.name} · ${watermark.email}`,
-              alpha: '0.6',
-              color: '0xFF0000',
-              size: '14',
-              interval: '5000',
-              x: '10',    // ADD THIS — x position (percentage from left)
-              y: '10',    // ADD THIS — y position (percentage from top)
-            },
-          ]),
-          ttl: 300,
-        }),
+    const response = await fetch(`${this.baseUrl}/videos/${vdoCipherId}/otp`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Apisecret ${this.apiKey}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
       },
-    );
+      body: JSON.stringify({
+        annotate: JSON.stringify([
+          {
+            type: 'text',
+            text: `${watermark.name} · ${watermark.email}`,
+            alpha: '0.6',
+            color: '0xFF0000',
+            size: '14',
+            interval: '5000',
+            x: '10', // ADD THIS — x position (percentage from left)
+            y: '10', // ADD THIS — y position (percentage from top)
+          },
+        ]),
+        ttl: 300,
+      }),
+    });
 
     if (!response.ok) {
       const errorBody = await response.text();

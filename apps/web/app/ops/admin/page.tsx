@@ -16,6 +16,8 @@ import { CurriculumBuilder } from "./sections/CurriculumBuilder";
 import { ResourceManagerModal } from "./sections/ResourceManagerModal";
 import { ProfileModal } from "./sections/ProfileModal";
 import FeaturedManager from "./sections/FeaturedManager";
+import PaymentSettingsManager from "./sections/PaymentSettingsManager";
+import PaymentsManager from "./sections/PaymentsManager";
 import AdminDashboardContent from "./console/AdminDashboardContent";
 import SalesDashboardContent from "./console/SalesDashboardContent";
 import TrainerDashboardContent from "./console/TrainerDashboardContent";
@@ -89,6 +91,21 @@ const SKILL_LEVEL_ENUM: Record<string, string> = Object.fromEntries(
   Object.entries(SKILL_LEVEL_LABELS).map(([k, v]) => [v, k]),
 );
 
+// Same curated career paths as the student profile — shown in the course form's
+// Career Path dropdown (with an "Others…" option for brand-new domains). The
+// picked value is saved into the Track table (find-or-create + link).
+const CAREER_PATHS = [
+  "Full Stack Developer",
+  "Frontend Developer",
+  "Backend Developer",
+  "Data Scientist",
+  "DevOps Engineer",
+  "AI / ML Engineer",
+  "Cybersecurity Specialist",
+  "Mobile Developer",
+  "Cloud Architect",
+];
+
 const ENTITY_NAMES: Record<string, string> = {
   courses: "Course", batches: "Batch", instructors: "Instructor", feeplans: "Fee Plan", certs: "Certification Template", departments: "Department",
 };
@@ -101,6 +118,7 @@ const SCHEMAS: Record<string, FieldDef[]> = {
     // are read-only here — editing them in the form has no effect.
     { key: "title", label: "Course Name", type: "text", required: true, placeholder: "e.g. MERN Stack Development", full: true },
     { key: "category", label: "Category", type: "select", required: true, options: ["Full Stack", "Data Science", "AI / ML", "DevOps", "Cybersecurity", "Programming", "Cloud"], allowCustom: true, full: true },
+    { key: "careerPath", label: "Career Path", type: "select", options: CAREER_PATHS, allowCustom: true, full: true, defaultEmpty: true, placeholder: "Select career path (saved to Tracks)" },
     { key: "level", label: "Level", type: "select", required: true, options: ["Beginner", "Intermediate", "Advanced"] },
     { key: "price", label: "Price (₹)", type: "number", required: true, placeholder: "e.g. 45000" },
     { key: "description", label: "About This Course", type: "textarea", required: true, full: true, placeholder: "Long-form description shown on the course detail page…" },
@@ -346,6 +364,7 @@ export default function AdminMasterDataPage() {
         whatYoullLearn: Array.isArray(c.whatYoullLearn) ? c.whatYoullLearn : [],
         careerTitle: c.careerTitle || "",
         careerBody: c.careerBody || "",
+        careerPath: c.tracks?.[0]?.track.title ?? "",
         enrollments: c._count?.enrollments ?? 0,
       }));
       setDb((prev) => ({ ...prev, courses: mappedCourses }));
@@ -416,7 +435,7 @@ export default function AdminMasterDataPage() {
   function getDefaultForm(entity: string): Record<string, any> {
     const defaults: Record<string, any> = {};
     for (const field of SCHEMAS[entity]) {
-      if (field.type === "select" && field.options) {
+      if (field.type === "select" && field.options && !field.defaultEmpty) {
         defaults[field.key] = field.options[0];
       } else {
         defaults[field.key] = "";
@@ -461,6 +480,7 @@ export default function AdminMasterDataPage() {
         techStack: Array.isArray(record.techStack) ? record.techStack.join(", ") : (record.techStack || ""),
         careerTitle: record.careerTitle || "",
         careerBody: record.careerBody || "",
+        careerPath: record.careerPath || "",
         thumbnailUrl: record.thumbnailUrl || "",
         status: record.status || "DRAFT",
         category: record.category || "",
@@ -514,6 +534,19 @@ export default function AdminMasterDataPage() {
       try {
         const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
+        // Persist the career path into the Track table (find-or-create by title
+        // + link). Runs after the course create/update so it always has an id.
+        const persistCareerPath = async (courseId: string) => {
+          if (formData.careerPath === undefined) return;
+          try {
+            await fetch(`/api/courses/${courseId}/career-path`, {
+              method: "PUT",
+              headers,
+              body: JSON.stringify({ title: formData.careerPath || null }),
+            });
+          } catch {}
+        };
+
         let whatYoullLearn: string[] | undefined;
         if (typeof formData.whatYoullLearn === "string") {
           whatYoullLearn = formData.whatYoullLearn.split("\n").filter(Boolean);
@@ -555,6 +588,7 @@ export default function AdminMasterDataPage() {
           });
           if (res.ok) {
             const updated = await res.json();
+            await persistCareerPath(formData.id);
             setDb((prev) => ({
               ...prev,
               courses: prev.courses.map((r: any) =>
@@ -564,6 +598,7 @@ export default function AdminMasterDataPage() {
                       ...body,
                       name: body.title || r.name,
                       level: body.skillLevel ? SKILL_LEVEL_LABELS[body.skillLevel] : r.level,
+                      careerPath: formData.careerPath ?? r.careerPath,
                     }
                   : r
               ),
@@ -579,6 +614,7 @@ export default function AdminMasterDataPage() {
           });
           if (res.ok) {
             const created = await res.json();
+            await persistCareerPath(created.id);
             const newCourse = {
               id: created.id, _backendId: created.id,
               name: created.title || body.title,
@@ -592,7 +628,9 @@ export default function AdminMasterDataPage() {
               level: SKILL_LEVEL_LABELS[created.skillLevel || body.skillLevel] || "",
               duration: 0, totalLessons: 0, totalHours: 0,
               techStack: [], whatYoullLearn: [],
-              careerTitle: "", careerBody: "", enrollments: 0,
+              careerTitle: "", careerBody: "",
+              careerPath: formData.careerPath || "",
+              enrollments: 0,
             };
             setDb((prev) => ({
               ...prev,
@@ -1008,6 +1046,16 @@ export default function AdminMasterDataPage() {
         ) : view === "featured" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
             <FeaturedManager token={token || ""} />
+          </main>
+
+        ) : view === "payment-settings" ? (
+          <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
+            <PaymentSettingsManager token={token || ""} />
+          </main>
+
+        ) : view === "payments" ? (
+          <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
+            <PaymentsManager token={token || ""} />
           </main>
 
         ) : view === "master-data" ? (

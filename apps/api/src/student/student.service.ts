@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CertificatesService } from '../certificates/certificates.service';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
@@ -31,8 +36,8 @@ export interface CurriculumItem {
   id: string;
   title: string;
   order: number;
-  durationSeconds?: number;   // videos only
-  totalQuestions?: number;    // quizzes only
+  durationSeconds?: number; // videos only
+  totalQuestions?: number; // quizzes only
   passingScore?: number | null; // quizzes only
   score: number | null;
   isCompleted: boolean;
@@ -78,7 +83,12 @@ export class StudentService {
                   title: true,
                   videos: {
                     orderBy: { order: 'asc' },
-                    select: { id: true, title: true, durationSeconds: true, order: true },
+                    select: {
+                      id: true,
+                      title: true,
+                      durationSeconds: true,
+                      order: true,
+                    },
                   },
                   quizzes: {
                     orderBy: { order: 'asc' },
@@ -111,13 +121,22 @@ export class StudentService {
       // under the strictly-sequential rule.
       const orderedItems = course.sections.flatMap((section) => {
         const items = [
-          ...section.videos.map((v) => ({ ...v, type: 'video' as const, sectionTitle: section.title })),
-          ...section.quizzes.map((q) => ({ ...q, type: 'quiz' as const, durationSeconds: 0, sectionTitle: section.title })),
+          ...section.videos.map((v) => ({
+            ...v,
+            type: 'video' as const,
+            sectionTitle: section.title,
+          })),
+          ...section.quizzes.map((q) => ({
+            ...q,
+            type: 'quiz' as const,
+            durationSeconds: 0,
+            sectionTitle: section.title,
+          })),
         ];
         return items.sort((a, b) => a.order - b.order);
       });
 
-      // We continue to return "totalVideos" and "completedVideos" in the payload 
+      // We continue to return "totalVideos" and "completedVideos" in the payload
       // so we don't break frontend types, but they actually represent "totalItems".
       const totalVideos = orderedItems.length;
 
@@ -127,7 +146,7 @@ export class StudentService {
 
       for (const item of orderedItems) {
         let isCompleted = false;
-        
+
         if (item.type === 'video') {
           isCompleted = progressByVideoId.get(item.id)?.isCompleted ?? false;
           if (!isCompleted) secondsRemaining += item.durationSeconds;
@@ -219,7 +238,9 @@ export class StudentService {
       }),
     ]);
 
-    const videoProgressById = new Map(videoProgressRows.map((p) => [p.videoId, p]));
+    const videoProgressById = new Map(
+      videoProgressRows.map((p) => [p.videoId, p]),
+    );
     const quizAttemptById = new Map(quizAttemptRows.map((a) => [a.quizId, a]));
 
     // Build one flat, ordered list of items per section (video + quiz
@@ -366,13 +387,19 @@ export class StudentService {
     // Clamp defensively — a stray client-side bug sending a negative
     // number or something past the video's actual length shouldn't
     // corrupt stored progress.
-    const clampedPosition = Math.max(0, Math.min(positionSec, video.durationSeconds));
+    const clampedPosition = Math.max(
+      0,
+      Math.min(positionSec, video.durationSeconds),
+    );
 
     const existing = await this.prisma.videoProgress.findUnique({
       where: { studentId_videoId: { studentId, videoId } },
     });
 
-    const newUniqueSecsWatched = Math.max(existing?.uniqueSecsWatched ?? 0, clampedPosition);
+    const newUniqueSecsWatched = Math.max(
+      existing?.uniqueSecsWatched ?? 0,
+      clampedPosition,
+    );
     const wasCompleted = existing?.isCompleted ?? false;
     const isNowCompleted = newUniqueSecsWatched >= video.durationSeconds;
     const justCompleted = isNowCompleted && !wasCompleted;
@@ -398,7 +425,10 @@ export class StudentService {
     });
 
     if (isNowCompleted || wasCompleted) {
-      await this.certificatesService.checkAndIssueCertificate(studentId, courseId);
+      await this.certificatesService.checkAndIssueCertificate(
+        studentId,
+        courseId,
+      );
     }
 
     return {
@@ -416,15 +446,17 @@ export class StudentService {
       where: { id: quizId },
       include: { section: { include: { course: true } } },
     });
-    
+
     if (!quiz) {
       throw new NotFoundException('Quiz not found');
     }
 
     const enrollment = await this.prisma.enrollment.findUnique({
-      where: { studentId_courseId: { studentId, courseId: quiz.section.courseId } },
+      where: {
+        studentId_courseId: { studentId, courseId: quiz.section.courseId },
+      },
     });
-    
+
     if (!enrollment || enrollment.status !== 'active') {
       throw new ForbiddenException('You are not enrolled in this course');
     }
@@ -444,7 +476,10 @@ export class StudentService {
       },
     });
 
-    await this.certificatesService.checkAndIssueCertificate(studentId, quiz.section.courseId);
+    await this.certificatesService.checkAndIssueCertificate(
+      studentId,
+      quiz.section.courseId,
+    );
 
     return {
       quizId: attempt.quizId,
@@ -466,7 +501,9 @@ export class StudentService {
 
     // Must be actively enrolled
     const enrollment = await this.prisma.enrollment.findUnique({
-      where: { studentId_courseId: { studentId, courseId: video.section.courseId } },
+      where: {
+        studentId_courseId: { studentId, courseId: video.section.courseId },
+      },
     });
     if (!enrollment || enrollment.status !== 'active') {
       throw new ForbiddenException('You are not enrolled in this course');
@@ -474,7 +511,9 @@ export class StudentService {
 
     // Video must be ready — not still processing
     if (video.videoStatus !== 'READY') {
-      throw new BadRequestException('This video is not yet available for playback');
+      throw new BadRequestException(
+        'This video is not yet available for playback',
+      );
     }
 
     // Fetch saved progress position for resume
@@ -502,6 +541,45 @@ export class StudentService {
       durationSeconds: video.durationSeconds,
       initialPosition: progress?.lastPositionSec ?? 0,
     };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // ORDERS
+  // ─────────────────────────────────────────────────────────────
+
+  async getOrders(studentId: string) {
+    const orders = await this.prisma.order.findMany({
+      where: { userId: studentId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        currency: true,
+        gatewayType: true,
+        subtotal: true,
+        discountAmount: true,
+        couponId: true,
+        totalAmount: true,
+        status: true,
+        razorpayOrderId: true,
+        razorpayPaymentId: true,
+        billingFullName: true,
+        billingEmail: true,
+        billingPhone: true,
+        billingAddress: true,
+        billingCity: true,
+        billingState: true,
+        billingPincode: true,
+        createdAt: true,
+        items: {
+          select: {
+            priceAtPurchase: true,
+            currency: true,
+            course: { select: { id: true, title: true, thumbnailUrl: true } },
+          },
+        },
+      },
+    });
+    return orders;
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -551,7 +629,9 @@ export class StudentService {
   }
 
   async updateProfile(studentId: string, dto: UpdateProfileDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: studentId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: studentId },
+    });
     if (!user) throw new NotFoundException('User not found');
 
     const updated = await this.prisma.user.update({
@@ -567,9 +647,19 @@ export class StudentService {
         skills: dto.skills,
       },
       select: {
-        id: true, name: true, email: true, role: true, avatarUrl: true,
-        bio: true, phone: true, dob: true, city: true, qualification: true,
-        experience: true, careerPath: true, skills: true,
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatarUrl: true,
+        bio: true,
+        phone: true,
+        dob: true,
+        city: true,
+        qualification: true,
+        experience: true,
+        careerPath: true,
+        skills: true,
       },
     });
 
@@ -580,7 +670,9 @@ export class StudentService {
   }
 
   async updateAvatar(studentId: string, file: Express.Multer.File) {
-    const user = await this.prisma.user.findUnique({ where: { id: studentId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: studentId },
+    });
     if (!user) throw new NotFoundException('User not found');
 
     let avatarUrl: string;
@@ -598,7 +690,10 @@ export class StudentService {
       avatarUrl = `/uploads/avatars/${filename}`;
     }
 
-    await this.prisma.user.update({ where: { id: studentId }, data: { avatarUrl } });
+    await this.prisma.user.update({
+      where: { id: studentId },
+      data: { avatarUrl },
+    });
     return { avatarUrl };
   }
 }

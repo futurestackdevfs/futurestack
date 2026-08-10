@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -82,8 +87,17 @@ export class AuthService {
       throw new UnauthorizedException('Account is suspended');
     }
 
-    // Token rotation — invalidate old, issue new
-    await this.prisma.refreshToken.delete({ where: { tokenHash: hash } });
+    // Token rotation — atomically consume the old token. If it's already gone,
+    // the same token was replayed (parallel request / stolen), so revoke the
+    // whole token family for this user and reject rather than crashing with P2025.
+    const consumed = await this.prisma.refreshToken.deleteMany({
+      where: { tokenHash: hash },
+    });
+    if (consumed.count === 0) {
+      await this.revokeAllUserTokens(stored.userId);
+      throw new UnauthorizedException('Refresh token has already been used');
+    }
+
     const newRawRefreshToken = await this.createRefreshToken(stored.userId);
 
     const safeUser = this.stripPassword(stored.user);
@@ -96,6 +110,11 @@ export class AuthService {
     if (!rawToken) return;
     const hash = this.hashToken(rawToken);
     await this.prisma.refreshToken.deleteMany({ where: { tokenHash: hash } });
+  }
+
+  /** Invalidates every active refresh token for a user (replay/theft protection). */
+  private async revokeAllUserTokens(userId: string): Promise<void> {
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
   }
 
   private signToken(user: SafeUser) {
@@ -136,9 +155,22 @@ export class AuthService {
     const rawRefreshToken = await this.createRefreshToken(user.id);
 
     return {
-      accessToken: this.signToken({ id: user.id, email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl, emailVerified: user.emailVerified } as SafeUser),
+      accessToken: this.signToken({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+      } as SafeUser),
       rawRefreshToken,
-      user: { email: user.email, name: user.name, role: user.role, avatarUrl: user.avatarUrl, emailVerified: user.emailVerified },
+      user: {
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+      },
     };
   }
 
@@ -181,7 +213,10 @@ export class AuthService {
    * Used by LocalStrategy. Returns null on any failure so the strategy
    * can throw a generic UnauthorizedException (don't leak which part failed).
    */
-  async validateUser(email: string, password: string): Promise<SafeUser | null> {
+  async validateUser(
+    email: string,
+    password: string,
+  ): Promise<SafeUser | null> {
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user || !user.password) {
@@ -200,9 +235,13 @@ export class AuthService {
 
     if (user.role === Role.TRAINER && user.approvalStatus !== 'APPROVED') {
       if (user.approvalStatus === 'REJECTED') {
-        throw new UnauthorizedException('Your trainer application was not approved');
+        throw new UnauthorizedException(
+          'Your trainer application was not approved',
+        );
       }
-      throw new UnauthorizedException('Your trainer account is pending admin approval');
+      throw new UnauthorizedException(
+        'Your trainer account is pending admin approval',
+      );
     }
 
     return this.stripPassword(user);
@@ -282,7 +321,8 @@ export class AuthService {
    */
   async forgotPassword(email: string): Promise<{ message: string }> {
     const genericResponse = {
-      message: 'If an account with that email exists, a reset link has been sent.',
+      message:
+        'If an account with that email exists, a reset link has been sent.',
     };
 
     const user = await this.prisma.user.findUnique({ where: { email } });
@@ -293,7 +333,10 @@ export class AuthService {
     }
 
     const rawToken = crypto.randomBytes(32).toString('hex');
-    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
     const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await this.prisma.user.update({
@@ -312,7 +355,10 @@ export class AuthService {
     return genericResponse;
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
 
     const user = await this.prisma.user.findFirst({

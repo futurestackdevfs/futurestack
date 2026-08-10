@@ -78,10 +78,14 @@ async function bootstrap() {
 }
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('fs:session-expired', async () => {
+  window.addEventListener('fs:session-expired', async (ev: Event) => {
     if (!shared.isAuthenticated) return;
+    // Role resolves from the event (staff/admin) so the modal can refresh with
+    // the right cookie even when it didn't go through useAuth (e.g. admin panel).
+    const evRole = (ev as CustomEvent<{ role?: string }>)?.detail?.role;
+    const role = evRole || shared.user?.role || 'STUDENT';
     // Save the last known role before clearing so session-expired-modal can try silent refresh with the right cookie
-    try { sessionStorage.setItem('fs_last_role', shared.user?.role ?? 'STUDENT'); } catch {}
+    try { sessionStorage.setItem('fs_last_role', role); } catch {}
     try { await clearToken(); } catch {}
     try { await clearSessionCookie('student'); } catch {}
     try { await clearStaffToken(); } catch {}

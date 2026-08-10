@@ -281,8 +281,8 @@ function StaticCertificates({ studentName }: { studentName: string }) {
             <Link href={`/courses`} className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-[var(--orange)] text-white shadow-[0_3px_12px_rgba(240,90,26,.3)] border-none hover:bg-[var(--orange2)] hover:-translate-y-[1px] no-underline">
               Enroll Now →
             </Link>
-            <Link href={`/paths`} className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)] hover:border-[var(--blue)] hover:text-[var(--blue)] no-underline">
-              View Learning Path
+            <Link href={`/courses`} className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)] hover:border-[var(--blue)] hover:text-[var(--blue)] no-underline">
+              View All Courses
             </Link>
           </div>
         )}

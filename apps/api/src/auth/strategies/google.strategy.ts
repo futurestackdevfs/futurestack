@@ -19,11 +19,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     });
   }
 
-  async validate(
-    accessToken: string,
-    refreshToken: string,
-    profile: Profile
-  ) {
+  async validate(accessToken: string, refreshToken: string, profile: Profile) {
     const email = profile.emails?.[0]?.value;
     const name = profile.displayName;
     const googleId = profile.id;
@@ -37,14 +33,14 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     }
 
     if (!emailVerified) {
-      throw new UnauthorizedException('Google account email is not verified')
+      throw new UnauthorizedException('Google account email is not verified');
     }
 
     const user = await this.authService.validateOAuthUser({
       email,
       name,
       googleId,
-      avatarUrl
+      avatarUrl,
     });
 
     return user;

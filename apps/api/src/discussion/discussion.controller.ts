@@ -52,7 +52,12 @@ export class DiscussionController {
     @Req() req: Request,
   ) {
     const user = req.user as RequestUser;
-    return this.discussionService.createMessage(courseId, user.id, user.role, dto);
+    return this.discussionService.createMessage(
+      courseId,
+      user.id,
+      user.role,
+      dto,
+    );
   }
 
   @Auth()
@@ -63,7 +68,12 @@ export class DiscussionController {
     @Req() req: Request,
   ) {
     const user = req.user as RequestUser;
-    return this.discussionService.updateMessage(messageId, user.id, user.role, dto);
+    return this.discussionService.updateMessage(
+      messageId,
+      user.id,
+      user.role,
+      dto,
+    );
   }
 
   @Auth()
@@ -78,10 +88,7 @@ export class DiscussionController {
 
   @Auth()
   @Patch(':courseId/messages/:messageId/pin')
-  async pinMessage(
-    @Param('messageId') messageId: string,
-    @Req() req: Request,
-  ) {
+  async pinMessage(@Param('messageId') messageId: string, @Req() req: Request) {
     const user = req.user as RequestUser;
     return this.discussionService.pinMessage(messageId, user.role);
   }
@@ -104,15 +111,17 @@ export class DiscussionController {
     @Req() req: Request,
   ) {
     const user = req.user as RequestUser;
-    return this.discussionService.createReply(messageId, user.id, user.role, dto);
+    return this.discussionService.createReply(
+      messageId,
+      user.id,
+      user.role,
+      dto,
+    );
   }
 
   @Auth()
   @Delete(':courseId/replies/:replyId')
-  async deleteReply(
-    @Param('replyId') replyId: string,
-    @Req() req: Request,
-  ) {
+  async deleteReply(@Param('replyId') replyId: string, @Req() req: Request) {
     const user = req.user as RequestUser;
     return this.discussionService.deleteReply(replyId, user.id, user.role);
   }

@@ -5,6 +5,7 @@ import { useState, useRef, useMemo } from "react";
 export interface CourseFormValues {
   title: string;
   category: string;
+  careerPath: string;
   level: string;
   price: string;
   description: string;
@@ -30,6 +31,7 @@ interface CourseModalProps {
 }
 
 const CATEGORIES = ["Full Stack", "Data Science", "AI / ML", "DevOps", "Cybersecurity", "Programming", "Cloud"];
+const CAREER_PATHS = ["Full Stack Developer", "Frontend Developer", "Backend Developer", "Data Scientist", "DevOps Engineer", "AI / ML Engineer", "Cybersecurity Specialist", "Mobile Developer", "Cloud Architect"];
 const LEVELS = ["Beginner", "Intermediate", "Advanced"];
 const STATUSES = ["DRAFT", "ACTIVE", "ARCHIVED"];
 
@@ -45,6 +47,7 @@ const FIELDS: {
 }[] = [
   { key: "title", label: "Course Name", type: "text", required: true, placeholder: "e.g. MERN Stack Development", full: true },
   { key: "category", label: "Category", type: "select", required: true, placeholder: "Select category", options: CATEGORIES, allowCustom: true, full: true },
+  { key: "careerPath", label: "Career Path", type: "select", placeholder: "Select career path", options: CAREER_PATHS, allowCustom: true, full: true },
   { key: "level", label: "Level", type: "select", required: true, placeholder: "Select level", options: LEVELS },
   { key: "price", label: "Price (₹)", type: "number", required: true, placeholder: "e.g. 45000" },
   { key: "description", label: "About This Course", type: "textarea", required: true, full: true, placeholder: "Long-form description shown on the course detail page…" },
@@ -64,6 +67,7 @@ function buildInitial(data?: Partial<CourseFormValues>): CourseFormValues {
   return {
     title: data?.title ?? "",
     category: data?.category ?? "",
+    careerPath: data?.careerPath ?? "",
     level: data?.level ?? "",
     price: data?.price ?? "",
     description: data?.description ?? "",
@@ -85,7 +89,10 @@ function CourseForm({ editing, data, onSave, onClose }: Omit<CourseModalProps, "
   const [form, setForm] = useState<CourseFormValues>(() => buildInitial(data));
   const [errors, setErrors] = useState<Partial<Record<keyof CourseFormValues, string>>>({});
   const [customMode, setCustomMode] = useState<Record<string, boolean>>(
-    () => ({ category: !!data?.category && !CATEGORIES.includes(data.category) }),
+    () => ({
+      category: !!data?.category && !CATEGORIES.includes(data.category),
+      careerPath: !!data?.careerPath && !CAREER_PATHS.includes(data.careerPath),
+    }),
   );
   const [units, setUnits] = useState<Record<string, "hr" | "min">>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);

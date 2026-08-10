@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
@@ -16,6 +27,7 @@ import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { CreateResourceDto } from './dto/create-resource.dto';
 import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
+import { SetCourseCareerPathDto } from './dto/set-course-career-path.dto';
 import { FeatureDto } from './dto/feature.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
 
@@ -129,7 +141,10 @@ export class CoursesController {
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Post('sections/:sectionId/videos')
-  createVideo(@Param('sectionId') sectionId: string, @Body() dto: CreateVideoDto) {
+  createVideo(
+    @Param('sectionId') sectionId: string,
+    @Body() dto: CreateVideoDto,
+  ) {
     return this.coursesService.createVideo(sectionId, dto);
   }
 
@@ -151,7 +166,10 @@ export class CoursesController {
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Post('sections/:sectionId/quizzes')
-  createQuiz(@Param('sectionId') sectionId: string, @Body() dto: CreateQuizDto) {
+  createQuiz(
+    @Param('sectionId') sectionId: string,
+    @Body() dto: CreateQuizDto,
+  ) {
     return this.coursesService.createQuiz(sectionId, dto);
   }
 
@@ -206,7 +224,13 @@ export class CoursesController {
   ) {
     const p = page ? parseInt(page, 10) : 1;
     const pp = perPage ? parseInt(perPage, 10) : 12;
-    return this.coursesService.findAllCards({ page: p, perPage: pp, search, sort, filters: filters ? JSON.parse(filters) : undefined });
+    return this.coursesService.findAllCards({
+      page: p,
+      perPage: pp,
+      search,
+      sort,
+      filters: filters ? JSON.parse(filters) : undefined,
+    });
   }
 
   @Get('public/slug/:slug')
@@ -318,25 +342,46 @@ export class CoursesController {
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Post(':id/tracks/:trackId')
-  linkCourseToTrack(@Param('id') id: string, @Param('trackId') trackId: string) {
+  linkCourseToTrack(
+    @Param('id') id: string,
+    @Param('trackId') trackId: string,
+  ) {
     return this.coursesService.linkCourseToTrack(id, trackId);
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Delete(':id/tracks/:trackId')
-  unlinkCourseFromTrack(@Param('id') id: string, @Param('trackId') trackId: string) {
+  unlinkCourseFromTrack(
+    @Param('id') id: string,
+    @Param('trackId') trackId: string,
+  ) {
     return this.coursesService.unlinkCourseFromTrack(id, trackId);
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Put(':id/career-path')
+  setCourseCareerPath(
+    @Param('id') id: string,
+    @Body() dto: SetCourseCareerPathDto,
+  ) {
+    return this.coursesService.setCourseCareerPath(id, dto.title);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Post(':courseId/sections')
-  createSection(@Param('courseId') courseId: string, @Body() dto: CreateSectionDto) {
+  createSection(
+    @Param('courseId') courseId: string,
+    @Body() dto: CreateSectionDto,
+  ) {
     return this.coursesService.createSection(courseId, dto);
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Post(':courseId/resources')
-  createResource(@Param('courseId') courseId: string, @Body() dto: CreateResourceDto) {
+  createResource(
+    @Param('courseId') courseId: string,
+    @Body() dto: CreateResourceDto,
+  ) {
     return this.coursesService.createResource(courseId, dto);
   }
 }

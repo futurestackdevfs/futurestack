@@ -1,9 +1,19 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { extname } from 'path';
 
-export type S3Folder = 'avatars' | 'uploads' | 'courses' | 'banners' | 'discussions' | 'resources';
+export type S3Folder =
+  | 'avatars'
+  | 'uploads'
+  | 'courses'
+  | 'banners'
+  | 'discussions'
+  | 'resources';
 
 @Injectable()
 export class S3Service implements OnModuleInit {
@@ -16,14 +26,27 @@ export class S3Service implements OnModuleInit {
   constructor(private config: ConfigService) {}
 
   onModuleInit() {
-    const region = this.config.get<string>('AWS_REGION') || this.config.get<string>('SUPABASE_REGION') || 'ap-south-1';
-    const accessKey = this.config.get<string>('AWS_ACCESS_KEY_ID') || this.config.get<string>('SUPABASE_ACCESS_KEY');
-    const secretKey = this.config.get<string>('AWS_SECRET_ACCESS_KEY') || this.config.get<string>('SUPABASE_SECRET_KEY');
-    const bucket = this.config.get<string>('S3_BUCKET') || this.config.get<string>('SUPABASE_BUCKET');
-    const endpoint = this.config.get<string>('S3_ENDPOINT') || this.config.get<string>('SUPABASE_URL');
+    const region =
+      this.config.get<string>('AWS_REGION') ||
+      this.config.get<string>('SUPABASE_REGION') ||
+      'ap-south-1';
+    const accessKey =
+      this.config.get<string>('AWS_ACCESS_KEY_ID') ||
+      this.config.get<string>('SUPABASE_ACCESS_KEY');
+    const secretKey =
+      this.config.get<string>('AWS_SECRET_ACCESS_KEY') ||
+      this.config.get<string>('SUPABASE_SECRET_KEY');
+    const bucket =
+      this.config.get<string>('S3_BUCKET') ||
+      this.config.get<string>('SUPABASE_BUCKET');
+    const endpoint =
+      this.config.get<string>('S3_ENDPOINT') ||
+      this.config.get<string>('SUPABASE_URL');
 
     if (!accessKey || !secretKey || !bucket) {
-      this.logger.warn('S3 not configured — falling back to local disk storage');
+      this.logger.warn(
+        'S3 not configured — falling back to local disk storage',
+      );
       return;
     }
 
@@ -34,14 +57,18 @@ export class S3Service implements OnModuleInit {
     });
 
     this.bucket = bucket;
-    this.publicUrl = this.config.get<string>('S3_PUBLIC_URL') ?? `https://${bucket}.s3.${region}.amazonaws.com`;
+    this.publicUrl =
+      this.config.get<string>('S3_PUBLIC_URL') ??
+      `https://${bucket}.s3.${region}.amazonaws.com`;
     this.configured = true;
     this.logger.log(`S3 initialised — bucket: ${bucket}, region: ${region}`);
   }
 
   private ensureConfigured(): void {
     if (!this.configured || !this.client) {
-      throw new Error('S3 is not configured. Set AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and S3_BUCKET.');
+      throw new Error(
+        'S3 is not configured. Set AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and S3_BUCKET.',
+      );
     }
   }
 
@@ -59,7 +86,9 @@ export class S3Service implements OnModuleInit {
       const u = new URL(url);
       const path = u.pathname.replace(/^\//, '');
       // Handle Supabase URLs: storage/v1/object/public/{bucket}/{key} → {key}
-      const supabaseMatch = path.match(/^storage\/v1\/object\/public\/[^/]+\/(.+)/);
+      const supabaseMatch = path.match(
+        /^storage\/v1\/object\/public\/[^/]+\/(.+)/,
+      );
       if (supabaseMatch) return supabaseMatch[1];
       return path;
     } catch {
@@ -82,12 +111,14 @@ export class S3Service implements OnModuleInit {
     const key = this.generateKey(folder, originalname);
     const start = performance.now();
 
-    await this.client!.send(new PutObjectCommand({
-      Bucket: this.bucket,
-      Key: key,
-      Body: buffer,
-      ContentType: mimetype,
-    }));
+    await this.client!.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: mimetype,
+      }),
+    );
 
     const elapsed = Math.round(performance.now() - start);
     this.logger.log(`Uploaded to S3: ${key} +${elapsed}ms`);
@@ -119,10 +150,12 @@ export class S3Service implements OnModuleInit {
   async delete(key: string): Promise<void> {
     this.ensureConfigured();
     try {
-      await this.client!.send(new DeleteObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-      }));
+      await this.client!.send(
+        new DeleteObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
+      );
       this.logger.log(`Deleted from S3: ${key}`);
     } catch (err) {
       this.logger.warn(`Failed to delete ${key} from S3: ${err}`);

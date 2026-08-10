@@ -1,5 +1,6 @@
 // Calls go to /api/* (Next.js BFF proxy) — backend URL never exposed to browser
 const API = '/api';
+import { reportSessionExpired } from './session-events';
 
 export type User = {
   id?: string;
@@ -92,9 +93,7 @@ async function request<T>(
     if (res.status === 401 && (token || isAuthenticated())) {
       // Authenticated request rejected — token expired or revoked
       (err as Error & { isSessionExpired: boolean }).isSessionExpired = true;
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('fs:session-expired'));
-      }
+      reportSessionExpired(decodeJwtRole(token));
     }
     throw err;
   }
@@ -201,6 +200,32 @@ function profileBase(role: string): string {
   return role === 'TRAINER' ? '/trainer' : '/student';
 }
 
+export type OrderHistoryItem = {
+  id: string;
+  currency: 'INR' | 'USD';
+  gatewayType: 'DOMESTIC' | 'INTERNATIONAL';
+  subtotal: number;
+  discountAmount: number;
+  couponId: string | null;
+  totalAmount: number;
+  status: 'CREATED' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+  razorpayOrderId: string;
+  razorpayPaymentId: string | null;
+  billingFullName: string | null;
+  billingEmail: string | null;
+  billingPhone: string | null;
+  billingAddress: string | null;
+  billingCity: string | null;
+  billingState: string | null;
+  billingPincode: string | null;
+  createdAt: string;
+  items: {
+    priceAtPurchase: number;
+    currency: 'INR' | 'USD';
+    course: { id: string; title: string; thumbnailUrl: string | null };
+  }[];
+};
+
 export const userApi = {
   getProfile(role: string): Promise<ProfileData> {
     return request<ProfileData>(`${profileBase(role)}/profile`, { method: 'GET' });
@@ -211,5 +236,9 @@ export const userApi = {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+  },
+
+  getOrders(role: string): Promise<OrderHistoryItem[]> {
+    return request<OrderHistoryItem[]>(`${profileBase(role)}/orders`, { method: 'GET' });
   },
 };

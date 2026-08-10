@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 
@@ -6,7 +10,11 @@ import { CreateReviewDto } from './dto/create-review.dto';
 export class ReviewsService {
   constructor(private prisma: PrismaService) {}
 
-  async createReview(studentId: string, courseId: string, dto: CreateReviewDto) {
+  async createReview(
+    studentId: string,
+    courseId: string,
+    dto: CreateReviewDto,
+  ) {
     // Check if enrolled
     const enrollment = await this.prisma.enrollment.findUnique({
       where: {
@@ -15,7 +23,9 @@ export class ReviewsService {
     });
 
     if (!enrollment) {
-      throw new BadRequestException('You must be enrolled in the course to leave a review.');
+      throw new BadRequestException(
+        'You must be enrolled in the course to leave a review.',
+      );
     }
 
     // Check if already reviewed
@@ -26,7 +36,9 @@ export class ReviewsService {
     });
 
     if (existing) {
-      throw new BadRequestException('You have already reviewed this course. Please update your existing review instead.');
+      throw new BadRequestException(
+        'You have already reviewed this course. Please update your existing review instead.',
+      );
     }
 
     const review = await this.prisma.review.create({
@@ -41,10 +53,17 @@ export class ReviewsService {
     return review;
   }
 
-  async updateReview(studentId: string, reviewId: string, dto: CreateReviewDto) {
-    const review = await this.prisma.review.findUnique({ where: { id: reviewId } });
+  async updateReview(
+    studentId: string,
+    reviewId: string,
+    dto: CreateReviewDto,
+  ) {
+    const review = await this.prisma.review.findUnique({
+      where: { id: reviewId },
+    });
     if (!review) throw new NotFoundException('Review not found');
-    if (review.studentId !== studentId) throw new BadRequestException('Not your review');
+    if (review.studentId !== studentId)
+      throw new BadRequestException('Not your review');
 
     const updated = await this.prisma.review.update({
       where: { id: reviewId },
@@ -58,9 +77,13 @@ export class ReviewsService {
     return updated;
   }
 
-  async getCourseReviews(courseId: string, page: number = 1, limit: number = 10) {
+  async getCourseReviews(
+    courseId: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
     const skip = (page - 1) * limit;
-    
+
     const [data, total] = await Promise.all([
       this.prisma.review.findMany({
         where: { courseId },
@@ -70,10 +93,10 @@ export class ReviewsService {
         include: {
           student: {
             select: { id: true, name: true, avatarUrl: true },
-          }
-        }
+          },
+        },
       }),
-      this.prisma.review.count({ where: { courseId } })
+      this.prisma.review.count({ where: { courseId } }),
     ]);
 
     return { data, total, page, limit };
@@ -85,7 +108,7 @@ export class ReviewsService {
         courseId_studentId: { courseId, studentId },
       },
     });
-    
+
     if (!review) throw new NotFoundException('Review not found');
     return review;
   }
@@ -107,7 +130,7 @@ export class ReviewsService {
         averageRating,
         reviewCount,
       },
-      select: { trainerId: true }
+      select: { trainerId: true },
     });
 
     // Update Trainer

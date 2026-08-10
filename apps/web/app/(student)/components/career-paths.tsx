@@ -29,7 +29,7 @@ export function CareerPaths() {
     <section className="[animation:fadeUp_.5s_.18s_ease_both]">
       <div className="flex items-center justify-between mb-2.5">
         <h2 className="font-['Syne'] text-[17px] font-bold text-[var(--text)]">Career Paths</h2>
-        <a className="text-[12px] font-semibold text-[var(--blue)] hover:text-[var(--orange)]" href="/paths">View All</a>
+        <a className="text-[12px] font-semibold text-[var(--blue)] hover:text-[var(--orange)]" href="/courses">View All</a>
       </div>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {isLoading

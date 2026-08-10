@@ -18,32 +18,32 @@ export class TrainerService {
       totalStudentsData,
       revenueData,
       pendingPayouts,
-      doubtsCount
+      doubtsCount,
     ] = await this.prisma.$transaction([
       this.prisma.course.findMany({
         where: { trainerId },
         include: {
           _count: { select: { enrollments: true } },
           enrollments: {
-            include: { revenueLedger: true }
-          }
-        }
+            include: { revenueLedger: true },
+          },
+        },
       }),
       this.prisma.enrollment.findMany({
         where: { course: { trainerId } },
         distinct: ['studentId'],
-        select: { studentId: true }
+        select: { studentId: true },
       }),
       this.prisma.revenueLedger.aggregate({
         where: { trainerId },
-        _sum: { trainerShare: true }
+        _sum: { trainerShare: true },
       }),
       this.prisma.payout.aggregate({
         where: { trainerId, status: 'PAID' },
-        _sum: { amount: true }
+        _sum: { amount: true },
       }),
       this.prisma.courseDiscussion.count({
-        where: { course: { trainerId }, tag: 'DOUBT', isAnswered: false }
+        where: { course: { trainerId }, tag: 'DOUBT', isAnswered: false },
       }),
     ]);
 
@@ -58,25 +58,28 @@ export class TrainerService {
       include: {
         student: true,
         course: true,
-        revenueLedger: true
-      }
+        revenueLedger: true,
+      },
     });
 
-    const recentEnrollments = recentEnrollmentsRaw.map(e => ({
+    const recentEnrollments = recentEnrollmentsRaw.map((e) => ({
       studentName: e.student.name,
       courseTitle: e.course.title,
       amountPaid: e.amountPaid,
       trainerShare: e.revenueLedger?.trainerShare || 0,
-      enrolledAt: e.enrolledAt
+      enrolledAt: e.enrolledAt,
     }));
 
-    const coursesSummary = courses.map(c => {
-      const revenue = c.enrollments.reduce((sum, e) => sum + (e.revenueLedger?.trainerShare || 0), 0);
+    const coursesSummary = courses.map((c) => {
+      const revenue = c.enrollments.reduce(
+        (sum, e) => sum + (e.revenueLedger?.trainerShare || 0),
+        0,
+      );
       return {
         courseId: c.id,
         courseTitle: c.title,
         enrollmentCount: c._count.enrollments,
-        revenue
+        revenue,
       };
     });
 
@@ -86,37 +89,42 @@ export class TrainerService {
       pendingPayout,
       unresolvedDoubts: doubtsCount,
       recentEnrollments,
-      courses: coursesSummary
+      courses: coursesSummary,
     };
   }
 
   async getRevenue(trainerId: string) {
-    const [
-      revenueLedger,
-      payouts,
-      enrollments
-    ] = await this.prisma.$transaction([
-      this.prisma.revenueLedger.findMany({
-        where: { trainerId }
-      }),
-      this.prisma.payout.findMany({
-        where: { trainerId },
-        orderBy: { createdAt: 'desc' }
-      }),
-      this.prisma.enrollment.findMany({
-        where: { course: { trainerId } },
-        include: {
-          student: true,
-          course: true,
-          revenueLedger: true
-        }
-      })
-    ]);
+    const [revenueLedger, payouts, enrollments] =
+      await this.prisma.$transaction([
+        this.prisma.revenueLedger.findMany({
+          where: { trainerId },
+        }),
+        this.prisma.payout.findMany({
+          where: { trainerId },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.enrollment.findMany({
+          where: { course: { trainerId } },
+          include: {
+            student: true,
+            course: true,
+            revenueLedger: true,
+          },
+        }),
+      ]);
 
     const totalGross = revenueLedger.reduce((sum, r) => sum + r.gross, 0);
-    const totalPlatformCut = revenueLedger.reduce((sum, r) => sum + r.platformCut, 0);
-    const totalTrainerShare = revenueLedger.reduce((sum, r) => sum + r.trainerShare, 0);
-    const paidOut = payouts.filter(p => p.status === 'PAID').reduce((sum, p) => sum + p.amount, 0);
+    const totalPlatformCut = revenueLedger.reduce(
+      (sum, r) => sum + r.platformCut,
+      0,
+    );
+    const totalTrainerShare = revenueLedger.reduce(
+      (sum, r) => sum + r.trainerShare,
+      0,
+    );
+    const paidOut = payouts
+      .filter((p) => p.status === 'PAID')
+      .reduce((sum, p) => sum + p.amount, 0);
     const pendingPayout = totalTrainerShare - paidOut;
 
     const courseBreakdownMap = new Map<string, any>();
@@ -129,7 +137,7 @@ export class TrainerService {
           totalFees: 0,
           collectedSoFar: 0,
           collectionPct: 100,
-          trainerShare: 0
+          trainerShare: 0,
         });
       }
       const cb = courseBreakdownMap.get(e.courseId);
@@ -139,13 +147,13 @@ export class TrainerService {
       cb.trainerShare += e.revenueLedger?.trainerShare || 0;
     }
 
-    const studentRegistrations = enrollments.map(e => ({
+    const studentRegistrations = enrollments.map((e) => ({
       studentName: e.student.name,
       courseTitle: e.course.title,
       courseFee: e.amountPaid,
       paidSoFar: e.amountPaid,
       enrolledOn: e.enrolledAt,
-      trainerShare: e.revenueLedger?.trainerShare || 0
+      trainerShare: e.revenueLedger?.trainerShare || 0,
     }));
 
     return {
@@ -154,17 +162,17 @@ export class TrainerService {
         totalPlatformCut,
         totalTrainerShare,
         paidOut,
-        pendingPayout
+        pendingPayout,
       },
       courseBreakdown: Array.from(courseBreakdownMap.values()),
       studentRegistrations,
-      payoutHistory: payouts.map(p => ({
+      payoutHistory: payouts.map((p) => ({
         id: p.id,
         period: p.period,
         amount: p.amount,
         status: p.status,
-        createdAt: p.createdAt
-      }))
+        createdAt: p.createdAt,
+      })),
     };
   }
 
@@ -177,52 +185,58 @@ export class TrainerService {
           include: {
             sections: {
               include: {
-                _count: { select: { videos: true } }
-              }
-            }
-          }
-        }
-      }
+                _count: { select: { videos: true } },
+              },
+            },
+          },
+        },
+      },
     });
 
-    const studentIds = enrollments.map(e => e.studentId);
-    const courseIds = enrollments.map(e => e.courseId);
+    const studentIds = enrollments.map((e) => e.studentId);
+    const courseIds = enrollments.map((e) => e.courseId);
 
     const [videoProgress, certificates] = await Promise.all([
       this.prisma.videoProgress.findMany({
         where: {
           studentId: { in: studentIds },
           video: { section: { courseId: { in: courseIds } } },
-          isCompleted: true
+          isCompleted: true,
         },
-        include: { video: { include: { section: true } } }
+        include: { video: { include: { section: true } } },
       }),
       this.prisma.certificate.findMany({
-        where: { studentId: { in: studentIds }, courseId: { in: courseIds } }
-      })
+        where: { studentId: { in: studentIds }, courseId: { in: courseIds } },
+      }),
     ]);
 
     const completedMap = new Map<string, number>();
     for (const p of videoProgress) {
-       const key = `${p.studentId}_${p.video.section.courseId}`;
-       completedMap.set(key, (completedMap.get(key) || 0) + 1);
+      const key = `${p.studentId}_${p.video.section.courseId}`;
+      completedMap.set(key, (completedMap.get(key) || 0) + 1);
     }
 
-    const certMap = new Set(certificates.map(c => `${c.studentId}_${c.courseId}`));
+    const certMap = new Set(
+      certificates.map((c) => `${c.studentId}_${c.courseId}`),
+    );
 
-    return enrollments.map(e => {
-       const totalVideos = e.course.sections.reduce((sum, s) => sum + s._count.videos, 0);
-       const key = `${e.studentId}_${e.courseId}`;
-       const completedVideos = completedMap.get(key) || 0;
-       const progressPercent = totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
+    return enrollments.map((e) => {
+      const totalVideos = e.course.sections.reduce(
+        (sum, s) => sum + s._count.videos,
+        0,
+      );
+      const key = `${e.studentId}_${e.courseId}`;
+      const completedVideos = completedMap.get(key) || 0;
+      const progressPercent =
+        totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
 
-       return {
-         studentName: e.student.name,
-         courseTitle: e.course.title,
-         enrolledAt: e.enrolledAt,
-         progressPercent,
-         hasCertificate: certMap.has(key)
-       };
+      return {
+        studentName: e.student.name,
+        courseTitle: e.course.title,
+        enrolledAt: e.enrolledAt,
+        progressPercent,
+        hasCertificate: certMap.has(key),
+      };
     });
   }
 
@@ -231,24 +245,24 @@ export class TrainerService {
       where: {
         course: { trainerId },
         tag: 'DOUBT',
-        isAnswered: false
+        isAnswered: false,
       },
       include: {
         course: true,
         author: true,
-        _count: { select: { replies: true } }
+        _count: { select: { replies: true } },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
-    return doubts.map(d => ({
+    return doubts.map((d) => ({
       messageId: d.id,
       courseTitle: d.course.title,
       studentName: d.author.name,
       body: d.body,
       tag: d.tag,
       createdAt: d.createdAt,
-      replyCount: d._count.replies
+      replyCount: d._count.replies,
     }));
   }
 
@@ -257,19 +271,19 @@ export class TrainerService {
       where: { course: { trainerId } },
       include: {
         student: { select: { name: true, avatarUrl: true } },
-        course: { select: { title: true } }
+        course: { select: { title: true } },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
 
-    return reviews.map(r => ({
+    return reviews.map((r) => ({
       id: r.id,
       rating: r.rating,
       comment: r.comment,
       createdAt: r.createdAt,
       studentName: r.student.name,
       studentAvatar: r.student.avatarUrl,
-      courseTitle: r.course.title
+      courseTitle: r.course.title,
     }));
   }
 
@@ -319,7 +333,9 @@ export class TrainerService {
   }
 
   async updateProfile(trainerId: string, dto: UpdateProfileDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: trainerId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: trainerId },
+    });
     if (!user) throw new NotFoundException('User not found');
 
     const updated = await this.prisma.user.update({
@@ -335,10 +351,21 @@ export class TrainerService {
         skills: dto.skills,
       },
       select: {
-        id: true, name: true, email: true, role: true, avatarUrl: true,
-        bio: true, phone: true, dob: true, city: true, qualification: true,
-        experience: true, careerPath: true, skills: true,
-        yearsExperience: true, rating: true,
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        avatarUrl: true,
+        bio: true,
+        phone: true,
+        dob: true,
+        city: true,
+        qualification: true,
+        experience: true,
+        careerPath: true,
+        skills: true,
+        yearsExperience: true,
+        rating: true,
       },
     });
 
@@ -349,7 +376,9 @@ export class TrainerService {
   }
 
   async updateAvatar(trainerId: string, file: Express.Multer.File) {
-    const user = await this.prisma.user.findUnique({ where: { id: trainerId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: trainerId },
+    });
     if (!user) throw new NotFoundException('User not found');
 
     let avatarUrl: string;
@@ -367,7 +396,10 @@ export class TrainerService {
       avatarUrl = `/uploads/avatars/${filename}`;
     }
 
-    await this.prisma.user.update({ where: { id: trainerId }, data: { avatarUrl } });
+    await this.prisma.user.update({
+      where: { id: trainerId },
+      data: { avatarUrl },
+    });
     return { avatarUrl };
   }
 }

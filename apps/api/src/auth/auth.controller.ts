@@ -6,7 +6,7 @@ import {
   Req,
   Res,
   UseGuards,
-  Query
+  Query,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
@@ -23,7 +23,6 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterTrainerDto } from './dto/register-trainer.dto';
 
-
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -33,12 +32,12 @@ export class AuthController {
 
   private getCookieName(role: Role): string {
     const map: Record<Role, string> = {
-      [Role.STUDENT]:         'fs_student_refresh',
-      [Role.ADMIN]:           'fs_admin_refresh',
-      [Role.TRAINER]:         'fs_trainer_refresh',
+      [Role.STUDENT]: 'fs_student_refresh',
+      [Role.ADMIN]: 'fs_admin_refresh',
+      [Role.TRAINER]: 'fs_trainer_refresh',
       [Role.CONTENT_MANAGER]: 'fs_cm_refresh',
-      [Role.COORDINATOR]:     'fs_coordinator_refresh',
-      [Role.SUPPORT]:         'fs_support_refresh',
+      [Role.COORDINATOR]: 'fs_coordinator_refresh',
+      [Role.SUPPORT]: 'fs_support_refresh',
     };
     return map[role] ?? 'fs_ops_refresh';
   }
@@ -63,7 +62,8 @@ export class AuthController {
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { accessToken, rawRefreshToken, user } = await this.authService.register(dto);
+    const { accessToken, rawRefreshToken, user } =
+      await this.authService.register(dto);
     this.setRefreshTokenCookie(res, rawRefreshToken, Role.STUDENT);
     return { accessToken, user };
   }
@@ -87,21 +87,28 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const user = req.user as { role: Role };
-  
+
     // Credentials are already verified at this point (LocalAuthGuard ran
     // first) — this only gates WHICH portal a verified account is allowed
     // to log in through. Omit `portal` from the request and this check
     // is skipped entirely (backward-compatible).
     if (dto.portal === 'student' && user.role !== Role.STUDENT) {
-      throw new UnauthorizedException('Please use the staff login page for this account');
+      throw new UnauthorizedException(
+        'Please use the staff login page for this account',
+      );
     }
-  
+
     if (dto.portal === 'ops' && user.role === Role.STUDENT) {
-      throw new UnauthorizedException('Please use the student login page for this account');
+      throw new UnauthorizedException(
+        'Please use the student login page for this account',
+      );
     }
-  
-    const { accessToken, rawRefreshToken, user: safeUser } =
-      await this.authService.login(req.user as any);
+
+    const {
+      accessToken,
+      rawRefreshToken,
+      user: safeUser,
+    } = await this.authService.login(req.user as any);
 
     // Set role-scoped HttpOnly cookie — each role gets its own cookie name
     // so multiple personas can be active simultaneously in the same browser
@@ -127,20 +134,24 @@ export class AuthController {
   @UseGuards(GoogleAuthGuard)
   @Get('google/callback')
   async googleCallback(@Req() req: Request, @Res() res: Response) {
-    const { accessToken, rawRefreshToken } =
-      await this.authService.login(req.user as any);
+    const { accessToken, rawRefreshToken } = await this.authService.login(
+      req.user as any,
+    );
 
     this.setRefreshTokenCookie(res, rawRefreshToken, Role.STUDENT);
 
-    const googleRedirect =
-      this.configService.get<string>('GOOGLE_REDIRECT_URL');
+    const googleRedirect = this.configService.get<string>(
+      'GOOGLE_REDIRECT_URL',
+    );
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
 
     const redirectUrl = googleRedirect ?? `${frontendUrl}/auth/oauth/callback`;
 
     // Redirect to frontend OAuth callback page to initialize localStorage and auth state
-    return res.redirect(`${redirectUrl}?token=${accessToken}&refresh=${rawRefreshToken}`);
+    return res.redirect(
+      `${redirectUrl}?token=${accessToken}&refresh=${rawRefreshToken}`,
+    );
   }
 
   @Post('refresh')
@@ -156,22 +167,22 @@ export class AuthController {
       throw new UnauthorizedException('No refresh token found');
     }
 
-    const { accessToken, newRawRefreshToken, user: safeUser } =
-      await this.authService.refreshTokens(rawToken);
+    const {
+      accessToken,
+      newRawRefreshToken,
+      user: safeUser,
+    } = await this.authService.refreshTokens(rawToken);
 
     // Use role from DB (safeUser.role), not the query param —
     // prevents a client from lying about their role to get the wrong cookie
-    this.setRefreshTokenCookie(res, newRawRefreshToken, safeUser.role as Role);
+    this.setRefreshTokenCookie(res, newRawRefreshToken, safeUser.role);
 
     return { accessToken, user: safeUser };
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('logout')
-  async logout(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const user = req.user as { id: string; role: Role };
     const cookieName = this.getCookieName(user.role);
     const rawToken = req.cookies?.[cookieName];
@@ -193,6 +204,4 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.newPassword);
   }
-
-
 }

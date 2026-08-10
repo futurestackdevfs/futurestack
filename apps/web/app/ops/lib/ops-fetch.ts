@@ -1,4 +1,5 @@
 import { loadStaffToken, saveStaffToken } from "@/app/auth/lib/token-store";
+import { reportSessionExpired } from "@/app/auth/lib/session-events";
 
 function decodeJwtRole(t: string): string | undefined {
   try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role; } catch { return undefined; }
@@ -19,7 +20,7 @@ function decodeJwtRole(t: string): string | undefined {
  * Automatically refreshes the access token on 401 before giving up.
  */
 export async function opsFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  let token = await loadStaffToken().catch(() => null);
+  const token = await loadStaffToken().catch(() => null);
   if (!token) {
     if (typeof window !== "undefined") {
       window.location.href = "/auth/staff-login";
@@ -38,8 +39,8 @@ export async function opsFetch(input: string, init: RequestInit = {}): Promise<R
 
   let res = await doFetch(token);
   if (res.status === 401) {
+    const role = decodeJwtRole(token);
     try {
-      const role = decodeJwtRole(token);
       const qs = role && role !== 'STUDENT' ? `?role=${role}` : '';
       const refreshRes = await fetch(`/api/auth/refresh${qs}`, { method: 'POST' });
       if (refreshRes.ok) {
@@ -58,6 +59,8 @@ export async function opsFetch(input: string, init: RequestInit = {}): Promise<R
     } catch {
       // refresh failed — return original 401
     }
+    // Refresh failed (or no new token) — surface the session expiry popup.
+    if (res.status === 401) reportSessionExpired(role);
   }
 
   return res;
