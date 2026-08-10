@@ -855,7 +855,10 @@ export function TopNav() {
                       key={p.id}
                       data-path={p.id}
                       onMouseEnter={() => setActivePathCat(p.id)}
-                      onClick={() => setActivePathCat(p.id)}
+                      onClick={() => {
+                        setPathsMegaOpen(false);
+                        router.push(`/courses?track=${encodeURIComponent(p.title)}`);
+                      }}
                       className="w-full flex flex-col items-start gap-0.5 px-3 py-1.5 mb-0.5 rounded-lg text-left border-l-4 border-l-transparent cursor-pointer transition-all duration-200 hover:bg-[var(--surface)]"
                       style={active ? { background: 'var(--surface)', borderLeftColor: catColor, boxShadow: 'var(--shadow)', outline: '1px solid var(--border2)', outlineOffset: '-1px' } : undefined}
                     >
@@ -949,7 +952,7 @@ export function TopNav() {
                       onClick={(e) => {
                         e.preventDefault();
                         setPathsMegaOpen(false);
-                        router.push('/courses');
+                        router.push(`/courses?track=${encodeURIComponent(title)}`);
                       }}
                       className="group w-full flex items-center justify-start gap-2 mt-1 text-[12.5px] font-bold text-white px-4 py-2 rounded-lg cursor-pointer shadow-[0_4px_16px_rgba(240,90,26,.3)] transition-all duration-200 hover:shadow-[0_6px_20px_rgba(240,90,26,.4)] hover:-translate-y-[1px] active:translate-y-0"
                       style={{ background: catColor }}

@@ -6,6 +6,7 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { CheckoutService } from './checkout.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { VerifyPaymentDto } from './dto/verify-payment.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 
 @Controller('checkout')
 export class CheckoutController {
@@ -24,5 +25,13 @@ export class CheckoutController {
   verify(@Req() req: Request, @Body() dto: VerifyPaymentDto) {
     const user = req.user as { id: string };
     return this.checkoutService.verifyPayment(user.id, dto);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Auth(Role.STUDENT)
+  @Post('cancel')
+  cancel(@Req() req: Request, @Body() dto: CancelOrderDto) {
+    const user = req.user as { id: string };
+    return this.checkoutService.cancelOrder(user.id, dto.razorpayOrderId);
   }
 }

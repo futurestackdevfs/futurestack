@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { TopNav } from "@/components/layout/marketing-top-nav";
 import Link from "next/link";
@@ -69,6 +69,7 @@ interface RazorpayOptions {
   handler: (res: RazorpaySuccess) => void;
   prefill?: { name?: string; email?: string; contact?: string };
   theme?: { color: string };
+  modal?: { ondismiss?: () => void };
 }
 
 interface RazorpayInstance {
@@ -77,6 +78,7 @@ interface RazorpayInstance {
 }
 
 interface PayNotice {
+  kind: "cancelled" | "failed";
   title: string;
   body: string;
 }
@@ -106,6 +108,27 @@ const emptyBilling: BillingDetails = {
   state: "",
   pincode: "",
 };
+
+const BILLING_CACHE_KEY = "fs_billing";
+
+function loadBillingCache(): BillingDetails | null {
+  try {
+    const raw = localStorage.getItem(BILLING_CACHE_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as Partial<BillingDetails>;
+    return v.fullName || v.email ? { ...emptyBilling, ...v } : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveBillingCache(details: BillingDetails): void {
+  try {
+    localStorage.setItem(BILLING_CACHE_KEY, JSON.stringify(details));
+  } catch {
+    // storage unavailable — non-fatal
+  }
+}
 
 declare global {
   interface Window {
@@ -283,6 +306,12 @@ export default function CartPage() {
   const [billing, setBilling] = useState<BillingDetails>(emptyBilling);
   const [billingError, setBillingError] = useState("");
 
+  // Guards the Razorpay modal lifecycle: once a payment outcome has been
+  // recorded (success, failed or dismissed) any later modal events are ignored.
+  const payOutcomeRef = useRef<"idle" | "success" | "notified">("idle");
+  const [editingBilling, setEditingBilling] = useState(false);
+  const prevBillingRef = useRef<BillingDetails | null>(null);
+
   // Which currencies are enabled at checkout — driven by the admin's
   // PaymentSettings toggle. A disabled currency is not even rendered, so a
   // student never picks an option that will fail at create-order.
@@ -320,6 +349,17 @@ export default function CartPage() {
   const successItems = success?.items ?? items;
   const successAmount = success?.amount ?? total;
   const successCurrency = success?.currency ?? activeCurrency;
+
+  const billingComplete = Boolean(
+    billing.fullName.trim() &&
+      billing.email.trim() &&
+      billing.phone.trim() &&
+      billing.address.trim() &&
+      billing.city.trim() &&
+      billing.state.trim() &&
+      billing.pincode.trim(),
+  );
+  const showBillingForm = editingBilling || !billingComplete;
 
   async function removeItem(courseId: string) {
     const res = await authFetch(`/api/cart/items/${courseId}`, { method: "DELETE" });
@@ -376,13 +416,83 @@ export default function CartPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function showNotice(title: string, body: string) {
-    setPayNotice({ title, body });
-    window.setTimeout(() => setPayNotice(null), 5000);
+  function showNotice(kind: "cancelled" | "failed", title: string, body: string) {
+    setPayNotice({ kind, title, body });
   }
 
   function setBillingField<K extends keyof BillingDetails>(key: K, value: string) {
     setBilling(b => ({ ...b, [key]: value }));
+  }
+
+  // Load saved billing once: prefer the latest order's snapshot (server truth,
+  // works across devices), fall back to the local cache, else show the Add form.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await authFetch("/api/student/orders");
+        if (active && res.ok) {
+          const orders = (await res.json()) as {
+            billingFullName?: string | null;
+            billingEmail?: string | null;
+            billingPhone?: string | null;
+            billingAddress?: string | null;
+            billingCity?: string | null;
+            billingState?: string | null;
+            billingPincode?: string | null;
+          }[];
+          const latest = orders.find(o => o.billingFullName && o.billingEmail && o.billingPhone);
+          if (latest) {
+            setBilling({
+              fullName: latest.billingFullName ?? "",
+              email: latest.billingEmail ?? "",
+              phone: latest.billingPhone ?? "",
+              address: latest.billingAddress ?? "",
+              city: latest.billingCity ?? "",
+              state: latest.billingState ?? "",
+              pincode: latest.billingPincode ?? "",
+            });
+            return;
+          }
+        }
+      } catch {
+        // fall through to the local cache
+      }
+      const cached = loadBillingCache();
+      if (!active) return;
+      if (cached) {
+        setBilling(cached);
+        return;
+      }
+      setEditingBilling(true);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function saveBilling() {
+    const err = validateBilling();
+    if (err) {
+      setBillingError(err);
+      return;
+    }
+    setBillingError("");
+    prevBillingRef.current = null;
+    saveBillingCache(billing);
+    setEditingBilling(false);
+  }
+
+  function startEditBilling() {
+    if (!prevBillingRef.current) prevBillingRef.current = billing;
+    setEditingBilling(true);
+  }
+
+  function cancelEditBilling() {
+    if (prevBillingRef.current) setBilling(prevBillingRef.current);
+    prevBillingRef.current = null;
+    setBillingError("");
+    setEditingBilling(false);
   }
 
   function validateBilling(): string {
@@ -401,6 +511,7 @@ export default function CartPage() {
 
   async function processPayment() {
     if (processing || items.length === 0) return;
+    payOutcomeRef.current = "idle";
     const billingE = validateBilling();
     if (billingE) {
       setProcessing(false);
@@ -451,6 +562,29 @@ export default function CartPage() {
         setPayError("Payment gateway is unavailable");
         return;
       }
+      const handleModalDismiss = () => {
+        // Fires both for a dismissal AND after a successful payment close.
+        if (payOutcomeRef.current !== "idle") return;
+        payOutcomeRef.current = "notified";
+        // The student aborted — mark the backend order CANCELLED (not left
+        // "Pending") so it shows as Cancelled in order history / admin panel.
+        // Fire-and-forget; the popup still shows if this call fails.
+        authFetch("/api/checkout/cancel", {
+          method: "POST",
+          body: JSON.stringify({ razorpayOrderId: orderData.razorpayOrderId }),
+        }).catch(() => {});
+        setProcessing(false);
+        goToStep(2);
+        // Re-sync cart from the server — a cancelled payment never clears it,
+        // so any 401-stale empty cache is corrected back to the real items.
+        mutate();
+        showNotice(
+          "cancelled",
+          "Payment cancelled",
+          "You've been returned to your cart. Your cart is safe — you can retry whenever you're ready.",
+        );
+      };
+
       const rzp = new Razorpay({
         key: orderData.keyId,
         amount: Math.round(orderData.amount * 100),
@@ -464,7 +598,14 @@ export default function CartPage() {
           contact: billing.phone.trim(),
         },
         theme: { color: "#f05a1a" },
+        // Detects the user closing/aborting the gateway — the documented
+        // "checkout modal lifecycle" hook (callbacks fire even when the
+        // rzp.on("modal.close") event isn't dispatched).
+        modal: { ondismiss: handleModalDismiss },
         handler: async (res) => {
+          // Mark success before verification so the modal.close event Razorpay
+          // fires after a successful payment can't be mistaken for a cancel.
+          payOutcomeRef.current = "success";
           try {
             const verifyRes = await authFetch("/api/checkout/verify", {
               method: "POST",
@@ -482,6 +623,7 @@ export default function CartPage() {
               items: items.map(i => ({ courseId: i.courseId, title: i.title, price: i.price })),
             });
           } catch (e) {
+            payOutcomeRef.current = "idle";
             setProcessing(false);
             setPayError(e instanceof Error ? e.message : "Payment could not be verified");
             return;
@@ -492,18 +634,19 @@ export default function CartPage() {
       });
       // If the student dismisses the modal, release the spinner without acting.
       rzp.on("payment.failed", () => {
+        if (payOutcomeRef.current !== "idle") return;
+        payOutcomeRef.current = "notified";
         setProcessing(false);
         goToStep(2);
-        showNotice("Payment failed", "The payment didn't go through. Please try again.");
-      });
-      rzp.on("modal.close", () => {
-        setProcessing(false);
-        goToStep(2);
-        // Re-sync cart from the server — a cancelled/failed payment never clears
-        // it, so any 401-stale empty cache is corrected back to the real items.
+        // Re-sync cart — a failed payment never clears it.
         mutate();
-        showNotice("Payment cancelled", "You've been returned to your cart. Your cart is safe — you can retry whenever you're ready.");
+        showNotice(
+          "failed",
+          "Payment failed",
+          "The payment didn't go through. Please try again.",
+        );
       });
+      rzp.on("modal.close", handleModalDismiss);
       rzp.open();
     } catch (e) {
       setProcessing(false);
@@ -764,18 +907,79 @@ export default function CartPage() {
             <Card className="p-5 sm:p-6">
               <div className="flex flex-col gap-1 mb-5">
                 <h1 className="font-['Inter_Tight',sans-serif] text-xl sm:text-2xl font-extrabold text-[var(--text)] tracking-[-.01em]">Billing Details</h1>
-                <p className="text-[12px] text-[var(--muted)]">Enter your details for the invoice. This will only take a minute.</p>
+                <p className="text-[12px] text-[var(--muted)]">
+                  {showBillingForm
+                    ? "Fill these once — we'll remember them for your next purchase."
+                    : "Saved for next time — you only fill these once. You can edit them anytime."}
+                </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Full Name" value={billing.fullName} onChange={v => setBillingField("fullName", v)} placeholder="e.g. Rahul Sharma" className="sm:col-span-1" />
-                <Field label="Email" value={billing.email} onChange={v => setBillingField("email", v)} placeholder="you@example.com" className="sm:col-span-1" type="email" />
-                <Field label="Phone Number" value={billing.phone} onChange={v => setBillingField("phone", v)} placeholder="e.g. 9876543210" className="sm:col-span-2" type="tel" maxLength={15} />
-                <Field label="Address" value={billing.address} onChange={v => setBillingField("address", v)} placeholder="House no, street, area" className="sm:col-span-2" textarea />
-                <Field label="City" value={billing.city} onChange={v => setBillingField("city", v)} placeholder="e.g. Mumbai" className="sm:col-span-1" />
-                <Field label="State" value={billing.state} onChange={v => setBillingField("state", v)} placeholder="e.g. Maharashtra" className="sm:col-span-1" />
-                <Field label="Pincode" value={billing.pincode} onChange={v => setBillingField("pincode", v)} placeholder="e.g. 400001" className="sm:col-span-2" maxLength={6} inputMode="numeric" />
-              </div>
+              {showBillingForm ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Field label="Full Name" value={billing.fullName} onChange={v => setBillingField("fullName", v)} placeholder="e.g. Rahul Sharma" className="sm:col-span-1" />
+                    <Field label="Email" value={billing.email} onChange={v => setBillingField("email", v)} placeholder="you@example.com" className="sm:col-span-1" type="email" />
+                    <Field label="Phone Number" value={billing.phone} onChange={v => setBillingField("phone", v)} placeholder="e.g. 9876543210" className="sm:col-span-2" type="tel" maxLength={15} />
+                    <Field label="Address" value={billing.address} onChange={v => setBillingField("address", v)} placeholder="House no, street, area" className="sm:col-span-2" textarea />
+                    <Field label="City" value={billing.city} onChange={v => setBillingField("city", v)} placeholder="e.g. Mumbai" className="sm:col-span-1" />
+                    <Field label="State" value={billing.state} onChange={v => setBillingField("state", v)} placeholder="e.g. Maharashtra" className="sm:col-span-1" />
+                    <Field label="Pincode" value={billing.pincode} onChange={v => setBillingField("pincode", v)} placeholder="e.g. 400001" className="sm:col-span-2" maxLength={6} inputMode="numeric" />
+                  </div>
+                  <div className="flex flex-col gap-2.5 mt-5">
+                    <button onClick={saveBilling} className={primaryBtnCls}>
+                      {editingBilling ? "Save changes" : "Save & Continue →"}
+                    </button>
+                    {editingBilling && (
+                      <button
+                        onClick={cancelEditBilling}
+                        className="w-full h-11 rounded-xl text-[12.5px] font-bold bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)] cursor-pointer transition-all duration-150 hover:text-[var(--text)] hover:border-[var(--border)]"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex justify-between gap-4 text-[13px]">
+                    <span className="text-[var(--muted)] shrink-0">Full Name</span>
+                    <span className="text-[var(--text)] font-semibold text-right">{billing.fullName}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-[13px]">
+                    <span className="text-[var(--muted)] shrink-0">Email</span>
+                    <span className="text-[var(--text)] font-semibold text-right break-all">{billing.email}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-[13px]">
+                    <span className="text-[var(--muted)] shrink-0">Phone</span>
+                    <span className="text-[var(--text)] font-semibold text-right">{billing.phone}</span>
+                  </div>
+                  <div className="h-px bg-[var(--border)] my-1" />
+                  <div className="flex justify-between gap-4 text-[13px]">
+                    <span className="text-[var(--muted)] shrink-0">Address</span>
+                    <span className="text-[var(--text)] font-semibold text-right">{billing.address}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2.5 text-[13px]">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[var(--muted)] text-[11px]">City</span>
+                      <span className="text-[var(--text)] font-semibold">{billing.city}</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[var(--muted)] text-[11px]">State</span>
+                      <span className="text-[var(--text)] font-semibold">{billing.state}</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[var(--muted)] text-[11px]">Pincode</span>
+                      <span className="text-[var(--text)] font-semibold">{billing.pincode}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={startEditBilling}
+                    className="self-start mt-1 flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--orange)] bg-[var(--orange-d)] px-3.5 py-2 rounded-lg border-none cursor-pointer hover:opacity-90 transition-opacity"
+                  >
+                    ✎ Edit
+                  </button>
+                </div>
+              )}
             </Card>
 
             <Card className="p-5 lg:sticky lg:top-[76px]">
@@ -862,22 +1066,34 @@ export default function CartPage() {
         )}
       </div>
 
-      {/* Cancelled / failed payment popup */}
+      {/* Cancelled / failed payment — full-screen popup */}
       {payNotice && (
-        <div className="fixed inset-x-0 top-5 z-[100] flex justify-center px-4 pointer-events-none">
-          <div className="pointer-events-auto flex items-start gap-3 bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-[var(--shadow)] px-4 py-3.5 max-w-[420px] animate-[slideDown_.3s_ease_both]">
-            <div className="w-8 h-8 rounded-full bg-[var(--orange-d)] text-[var(--orange)] flex items-center justify-center text-[15px] font-bold shrink-0">⚠</div>
-            <div className="flex-1 min-w-0 pt-0.5">
-              <div className="text-[13px] font-bold text-[var(--text)]">{payNotice.title}</div>
-              <div className="text-[12px] text-[var(--muted)] mt-0.5 leading-relaxed">{payNotice.body}</div>
-            </div>
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[3px]" onClick={() => setPayNotice(null)} />
+          <div className="relative w-full max-w-[420px] bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-[var(--shadow)] px-6 pt-8 pb-6 text-center animate-[fadeUp_.25s_ease_both]">
             <button
               onClick={() => setPayNotice(null)}
-              className="text-[var(--muted)] hover:text-[var(--text)] bg-transparent border-none cursor-pointer text-[14px] shrink-0 p-1 -m-1 rounded-md transition-colors"
               aria-label="Dismiss"
+              className="absolute top-3.5 right-3.5 text-[var(--muted)] hover:text-[var(--text)] bg-transparent border-none cursor-pointer text-[15px] w-8 h-8 rounded-lg hover:bg-[var(--bg2)] flex items-center justify-center transition-colors"
             >
               ✕
             </button>
+            <div className={`w-14 h-14 mx-auto rounded-full flex items-center justify-center text-[20px] font-bold mb-4 ${payNotice.kind === "failed" ? "bg-[var(--red-d)] text-[var(--red)]" : "bg-[var(--orange-d)] text-[var(--orange)]"}`}>
+              {payNotice.kind === "failed" ? "✕" : "⚠"}
+            </div>
+            <h3 className="font-['Inter_Tight',sans-serif] text-lg font-extrabold text-[var(--text)] mb-1.5">{payNotice.title}</h3>
+            <p className="text-[12.5px] text-[var(--muted)] leading-relaxed">{payNotice.body}</p>
+            <div className="flex flex-col gap-2.5 mt-6">
+              <button onClick={() => { setPayNotice(null); processPayment(); }} className={primaryBtnCls}>
+                Retry Payment
+              </button>
+              <button
+                onClick={() => { setPayNotice(null); goToStep(1); }}
+                className="w-full h-11 rounded-xl text-[12.5px] font-bold bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)] cursor-pointer transition-all duration-150 hover:text-[var(--text)] hover:border-[var(--border)]"
+              >
+                Back to Cart
+              </button>
+            </div>
           </div>
         </div>
       )}

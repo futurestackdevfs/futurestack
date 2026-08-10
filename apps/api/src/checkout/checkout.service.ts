@@ -425,6 +425,26 @@ export class CheckoutService {
   }
 
   /**
+   * Mark an unpaid CREATED order as CANCELLED when the student aborts the
+   * payment gateway. Idempotent: only the CREATED → CANCELLED transition is
+   * applied, so a paid/failed/expired order is never touched.
+   */
+  async cancelOrder(userId: string, razorpayOrderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { razorpayOrderId },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.userId !== userId)
+      throw new ForbiddenException('You are not allowed to cancel this order');
+
+    const updated = await this.prisma.order.updateMany({
+      where: { id: order.id, status: 'CREATED' },
+      data: { status: 'CANCELLED' },
+    });
+    return { cancelled: updated.count > 0 };
+  }
+
+  /**
    * Hourly cleanup: mark any order still CREATED after 2 hours as EXPIRED.
    * (Razorpay orders the user never paid for / abandoned.)
    */
