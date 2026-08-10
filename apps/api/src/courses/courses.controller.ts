@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
@@ -26,6 +27,7 @@ import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
 import { CreateResourceDto } from './dto/create-resource.dto';
 import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
+import { SetCourseCareerPathDto } from './dto/set-course-career-path.dto';
 import { FeatureDto } from './dto/feature.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
 
@@ -354,6 +356,15 @@ export class CoursesController {
     @Param('trackId') trackId: string,
   ) {
     return this.coursesService.unlinkCourseFromTrack(id, trackId);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Put(':id/career-path')
+  setCourseCareerPath(
+    @Param('id') id: string,
+    @Body() dto: SetCourseCareerPathDto,
+  ) {
+    return this.coursesService.setCourseCareerPath(id, dto.title);
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)

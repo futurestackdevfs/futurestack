@@ -200,6 +200,32 @@ function profileBase(role: string): string {
   return role === 'TRAINER' ? '/trainer' : '/student';
 }
 
+export type OrderHistoryItem = {
+  id: string;
+  currency: 'INR' | 'USD';
+  gatewayType: 'DOMESTIC' | 'INTERNATIONAL';
+  subtotal: number;
+  discountAmount: number;
+  couponId: string | null;
+  totalAmount: number;
+  status: 'CREATED' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+  razorpayOrderId: string;
+  razorpayPaymentId: string | null;
+  billingFullName: string | null;
+  billingEmail: string | null;
+  billingPhone: string | null;
+  billingAddress: string | null;
+  billingCity: string | null;
+  billingState: string | null;
+  billingPincode: string | null;
+  createdAt: string;
+  items: {
+    priceAtPurchase: number;
+    currency: 'INR' | 'USD';
+    course: { id: string; title: string; thumbnailUrl: string | null };
+  }[];
+};
+
 export const userApi = {
   getProfile(role: string): Promise<ProfileData> {
     return request<ProfileData>(`${profileBase(role)}/profile`, { method: 'GET' });
@@ -210,5 +236,9 @@ export const userApi = {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+  },
+
+  getOrders(role: string): Promise<OrderHistoryItem[]> {
+    return request<OrderHistoryItem[]>(`${profileBase(role)}/orders`, { method: 'GET' });
   },
 };

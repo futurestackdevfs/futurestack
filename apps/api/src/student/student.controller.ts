@@ -88,6 +88,14 @@ export class StudentController {
   // PROFILE endpoints
   // ────────────────────────────────────────────────
 
+  /** GET /student/orders — full purchase history for the student */
+  @Auth(Role.STUDENT)
+  @Get('orders')
+  async getOrders(@Req() req: Request) {
+    const user = req.user as { id: string };
+    return this.studentService.getOrders(user.id);
+  }
+
   /** GET /student/profile */
   @Auth(Role.STUDENT)
   @Get('profile')

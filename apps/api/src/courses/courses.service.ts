@@ -677,6 +677,9 @@ export class CoursesService {
         trainer: {
           select: { id: true, name: true, email: true, rating: true },
         },
+        tracks: {
+          include: { track: { select: { id: true, title: true } } },
+        },
         _count: { select: { enrollments: true, sections: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -771,6 +774,9 @@ export class CoursesService {
         skillLevel: true,
         createdAt: true,
         trainer: { select: { name: true, rating: true } },
+        tracks: {
+          select: { track: { select: { id: true, title: true } } },
+        },
         _count: { select: { enrollments: true } },
       },
       orderBy,
@@ -812,6 +818,7 @@ export class CoursesService {
         id: course.id,
         slug: slugify(course.title),
         category,
+        trackNames: course.tracks.map((tc) => tc.track.title),
         title: course.title,
         description: course.description ?? '',
         hours: totalHours || 20,
@@ -868,7 +875,25 @@ export class CoursesService {
       }));
 
     const DURATION_ORDER = ['5 – 20 hrs', '20 – 50 hrs', '50+ hrs'];
+    // Career Track facet is computed from the DB (all tracks) so it is always
+    // available in the sidebar — even at count 0 or when a search yields nothing.
+    const trackRows = await this.prisma.track.findMany({
+      select: {
+        title: true,
+        courses: {
+          where: { course: { status: 'ACTIVE' } },
+          select: { id: true },
+        },
+      },
+    });
     const facets = [
+      {
+        key: 'track',
+        title: 'Career Track',
+        options: trackRows
+          .map((t) => ({ value: t.title, count: t.courses.length }))
+          .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
+      },
       {
         key: 'level',
         title: 'Skill Level',
@@ -910,10 +935,15 @@ export class CoursesService {
       },
     ];
 
-    // Apply filters (tech matches any chip in the stack; others match the computed field)
+    // Apply filters (tech matches any chip in the stack; track matches any linked
+    // track name; others match the computed field)
     for (const { field, values } of activeFilters) {
       if (field === 'tech') {
         data = data.filter((c) => c.techStack.some((t) => values.includes(t)));
+      } else if (field === 'track') {
+        data = data.filter((c) =>
+          c.trackNames?.some((n: string) => values.includes(n)),
+        );
       } else if (
         ['duration', 'category', 'level', 'mode', 'goal'].includes(field)
       ) {
@@ -1033,6 +1063,38 @@ export class CoursesService {
       throw e;
     }
     return { message: 'Course unlinked from track' };
+  }
+
+  async setCourseCareerPath(courseId: string, title?: string) {
+    await this.findCourseOrFail(courseId);
+    await this.prisma.trackCourse.deleteMany({ where: { courseId } });
+
+    const value = title?.trim();
+    if (!value) return { message: 'Course career path cleared' };
+
+    let track = await this.prisma.track.findFirst({
+      where: { title: { equals: value, mode: 'insensitive' } },
+    });
+    if (!track) {
+      // Give auto-created tracks a unique displayOrder so none get collapsed
+      // by featuredTracks()'s displayOrder de-duplication on the /paths page.
+      const maxOrder = await this.prisma.track.aggregate({
+        _max: { displayOrder: true },
+      });
+      track = await this.prisma.track.create({
+        data: {
+          title: value,
+          displayOrder: (maxOrder._max.displayOrder ?? 0) + 1,
+        },
+      });
+    }
+
+    await this.prisma.trackCourse.upsert({
+      where: { trackId_courseId: { trackId: track.id, courseId } },
+      create: { trackId: track.id, courseId },
+      update: {},
+    });
+    return { track, message: 'Course career path updated' };
   }
 
   private async findCourseOrFail(id: string) {

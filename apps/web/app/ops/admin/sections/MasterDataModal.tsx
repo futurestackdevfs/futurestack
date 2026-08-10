@@ -11,6 +11,9 @@ export interface FieldDef {
   full?: boolean;
   options?: string[];
   optionsFrom?: string;
+  // Optional selects with a default value real data already carries should
+  // still start empty on the Add form (e.g. a career path stored elsewhere).
+  defaultEmpty?: boolean;
   // Adds an "Others" option to a select; picking it opens a free-text input
   // next to the select so the admin can type a new value.
   allowCustom?: boolean;
@@ -143,7 +146,7 @@ export function MasterDataModal({
       <div
         className="flex flex-col rounded-lg max-w-full max-h-[88vh]"
         style={{
-          width: 560,
+          width: 760,
           background: "var(--surface)",
           border: "1px solid var(--border)",
           boxShadow: "0 20px 60px rgba(0,0,0,.3)",

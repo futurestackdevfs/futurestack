@@ -11,7 +11,7 @@ export const ROUTES = {
   COURSES: "/courses",
   CERTIFICATIONS: "/certifications",
   LIVE_PROJECTS: "/live-projects",
-  PATHS: "/paths",
+  PATHS: "/courses",
   RND: "/rnd-services",
 } as const;
 

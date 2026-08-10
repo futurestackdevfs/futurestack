@@ -42,6 +42,7 @@ export default function BatchesView({ batches, sessions, searchQuery, onAddCours
     setEditingData({
       title: b.course,
       category: b.startDate !== "—" ? b.startDate : "",
+      careerPath: "",
       level: b.schedule !== "—" ? b.schedule : "",
       price: b.currentModule.startsWith("₹") ? b.currentModule.slice(1) : "",
       description: "",

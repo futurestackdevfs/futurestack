@@ -544,6 +544,45 @@ export class StudentService {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // ORDERS
+  // ─────────────────────────────────────────────────────────────
+
+  async getOrders(studentId: string) {
+    const orders = await this.prisma.order.findMany({
+      where: { userId: studentId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        currency: true,
+        gatewayType: true,
+        subtotal: true,
+        discountAmount: true,
+        couponId: true,
+        totalAmount: true,
+        status: true,
+        razorpayOrderId: true,
+        razorpayPaymentId: true,
+        billingFullName: true,
+        billingEmail: true,
+        billingPhone: true,
+        billingAddress: true,
+        billingCity: true,
+        billingState: true,
+        billingPincode: true,
+        createdAt: true,
+        items: {
+          select: {
+            priceAtPurchase: true,
+            currency: true,
+            course: { select: { id: true, title: true, thumbnailUrl: true } },
+          },
+        },
+      },
+    });
+    return orders;
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // PROFILE — GET, PUT, AVATAR
   // ─────────────────────────────────────────────────────────────
 
