@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { TRAINER_SHARE_PCT, INR, type RevenueEnrollment, type PayoutRecord, type TrainerBatch } from "../lib/data";
+import { INR, type RevenueEnrollment, type PayoutRecord, type TrainerBatch } from "../lib/data";
 import { KpiRow, Panel, Th, Td, Pill, ViewHeader } from "../sections/ui";
 
 const PAGE_SIZE = 7;
@@ -45,9 +45,30 @@ interface RevenueViewProps {
   batches: TrainerBatch[];
   searchQuery: string;
   addToast: (msg: string, type?: "success" | "danger") => void;
+  sharePct?: number;
 }
 
-export default function RevenueView({ enrollments, payouts, batches, searchQuery, addToast }: RevenueViewProps) {
+function collectedFor(e: RevenueEnrollment): number {
+  if (e.paymentMode === "Full") return e.courseFee;
+  if (e.paymentMode === "EMI") return Math.round(e.courseFee * 0.5);
+  return 0;
+}
+
+const METHOD_LABELS: Record<string, string> = {
+  upi: "UPI",
+  card: "Card",
+  netbanking: "Net Banking",
+  emi: "EMI",
+  wallet: "Wallet",
+  bank_transfer: "Bank Transfer",
+};
+
+function methodLabel(m: string | null): string {
+  if (!m) return "—";
+  return METHOD_LABELS[m] ?? m;
+}
+
+export default function RevenueView({ enrollments, payouts, batches, searchQuery, addToast, sharePct = 50 }: RevenueViewProps) {
   const [batchFilter, setBatchFilter] = useState<string>("All");
 
   const filtered = useMemo(() => {
@@ -57,7 +78,7 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
       const q = searchQuery.toLowerCase();
       list = list.filter((e) => [e.student, e.batchCode, e.course].some((v) => v.toLowerCase().includes(q)));
     }
-    return list;
+    return [...list].sort((a, b) => (a.enrolledOn < b.enrolledOn ? 1 : a.enrolledOn > b.enrolledOn ? -1 : 0));
   }, [enrollments, searchQuery, batchFilter]);
 
   const totals = useMemo(() => {
@@ -67,34 +88,33 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
       if (e.paymentMode === "EMI") return s + Math.round(e.courseFee * 0.5);
       return s;
     }, 0);
-    const myShare = Math.round(collected * (TRAINER_SHARE_PCT / 100));
+    const myShare = Math.round(collected * (sharePct / 100));
     const paidOut = payouts.filter((p) => p.status === "Paid").reduce((s, p) => s + p.amount, 0);
     return { fee, collected, myShare, paidOut, pending: myShare - paidOut };
-  }, [enrollments, payouts]);
+  }, [enrollments, payouts, sharePct]);
 
   const byBatch = useMemo(() => {
-    const map = new Map<string, { students: number; fee: number; collected: number }>();
+    const map = new Map<string, { students: number; fee: number; latest: string }>();
     for (const e of enrollments) {
-      const cur = map.get(e.batchCode) || { students: 0, fee: 0, collected: 0 };
+      const cur = map.get(e.batchCode) || { students: 0, fee: 0, latest: "" };
       cur.students += 1;
       cur.fee += e.courseFee;
-      const collectedAmt = e.paymentMode === "Full" ? e.courseFee : e.paymentMode === "EMI" ? Math.round(e.courseFee * 0.5) : 0;
-      cur.collected += collectedAmt;
+      if (e.enrolledOn > cur.latest) cur.latest = e.enrolledOn;
       map.set(e.batchCode, cur);
     }
-    return Array.from(map.entries());
+    return Array.from(map.entries()).sort((a, b) => (a[1].latest < b[1].latest ? 1 : -1));
   }, [enrollments]);
 
   const batchPage = usePagination(byBatch);
   const enrollmentPage = usePagination(filtered);
-  const payoutPage = usePagination(payouts);
+  const payoutPage = usePagination([...payouts].sort((a, b) => (a.period < b.period ? 1 : -1)));
 
   function downloadStatement() {
     const rows = [
-      ["Student", "Batch", "Course", "Course Fee", "Payment Mode", "Enrolled On", `Trainer Share (${TRAINER_SHARE_PCT}%)`],
+      ["Student", "Batch", "Course", "Course Fee", "Payment Mode", "Enrolled On", "Trainer Share"],
       ...enrollments.map((e) => [
         e.student, e.batchCode, e.course, e.courseFee, e.paymentMode,
-        e.enrolledOn, Math.round(e.courseFee * (TRAINER_SHARE_PCT / 100)),
+        e.enrolledOn, Math.round(e.courseFee * (sharePct / 100)),
       ]),
       [],
       ["TOTAL", "", "", totals.fee, "", "", totals.myShare],
@@ -115,7 +135,7 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
   return (
     <div className="p-4 pb-7">
       <ViewHeader
-        icon="💰" title="Revenue & Payouts" meta={`role::trainer · share ${TRAINER_SHARE_PCT}% · full transparency`}
+        icon="💰" title="Revenue & Payouts" meta={`role::trainer · full transparency`}
         action={
           <button onClick={downloadStatement}
             className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
@@ -128,32 +148,10 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
 
       <KpiRow items={[
         { label: "Registrations", value: enrollments.length, delta: "in my courses", color: "var(--blue)" },
-        { label: `My Share (${TRAINER_SHARE_PCT}%)`, value: INR(totals.myShare), delta: "of collected revenue", color: "var(--green)" },
-        { label: "Paid Out", value: INR(totals.paidOut), delta: "settled", color: "var(--green)" },
+        { label: "My Share", value: INR(totals.myShare), delta: "of collected revenue", color: "var(--green)" },
         { label: "Pending Payout", value: INR(totals.pending), delta: "not yet settled", color: "var(--amber)" },
+        { label: "Paid Out", value: INR(totals.paidOut), delta: "settled", color: "var(--green)" },
       ]} />
-
-      {/* Batch-wise breakdown */}
-      <Panel title="📊 Course-wise Revenue Breakdown" count={`${byBatch.length} courses`}>
-        <table className="w-full border-collapse" style={{ fontSize: 11 }}>
-          <thead>
-            <tr><Th>Batch</Th><Th>Students</Th><Th>Total Fees</Th><Th>Est. Collected</Th><Th>Collected %</Th><Th>My Share ({TRAINER_SHARE_PCT}%)</Th></tr>
-          </thead>
-          <tbody>
-            {batchPage.pageRows.map(([code, b]) => (
-              <tr key={code}>
-                <Td mono color="var(--text)"><b>{code}</b></Td>
-                <Td mono>{b.students}</Td>
-                <Td mono>{INR(b.fee)}</Td>
-                <Td mono color="var(--text)">{INR(b.collected)}</Td>
-                <Td mono>{Math.round((b.collected / b.fee) * 100)}%</Td>
-                <Td mono color="var(--green)"><b>{INR(Math.round(b.collected * (TRAINER_SHARE_PCT / 100)))}</b></Td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <TablePagination page={batchPage.page} totalPages={batchPage.totalPages} onChange={batchPage.setPage} />
-      </Panel>
 
       {/* Student-wise enrollments */}
       <Panel
@@ -173,7 +171,7 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
       >
         <table className="w-full border-collapse" style={{ fontSize: 11 }}>
           <thead>
-            <tr><Th>Student</Th><Th>Batch</Th><Th>Course Fee</Th><Th>Payment Mode</Th><Th>Enrolled On</Th><Th>My Share ({TRAINER_SHARE_PCT}%)</Th></tr>
+            <tr><Th>Student</Th><Th>Batch</Th><Th>Course Fee</Th><Th>My Share</Th><Th>Payment</Th><Th>Enrolled On</Th></tr>
           </thead>
           <tbody>
             {enrollmentPage.pageRows.map((e) => (
@@ -181,9 +179,9 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
                 <Td color="var(--text)"><b>{e.student}</b></Td>
                 <Td mono>{e.batchCode}</Td>
                 <Td mono>{INR(e.courseFee)}</Td>
-                <Td><Pill value={e.paymentMode} /></Td>
+                <Td mono color="var(--green)">{INR(Math.round(e.courseFee * (sharePct / 100)))}</Td>
+                <Td><Pill value={methodLabel(e.paymentMethod)} /></Td>
                 <Td mono>{e.enrolledOn}</Td>
-                <Td mono color="var(--green)">{INR(Math.round(e.courseFee * (TRAINER_SHARE_PCT / 100)))}</Td>
               </tr>
             ))}
             {filtered.length === 0 && (
@@ -192,6 +190,25 @@ export default function RevenueView({ enrollments, payouts, batches, searchQuery
           </tbody>
         </table>
         <TablePagination page={enrollmentPage.page} totalPages={enrollmentPage.totalPages} onChange={enrollmentPage.setPage} />
+      </Panel>
+
+      {/* Course-wise breakdown */}
+      <Panel title="📊 Course-wise Revenue Breakdown" count={`${byBatch.length} courses`}>
+        <table className="w-full border-collapse" style={{ fontSize: 11 }}>
+          <thead>
+            <tr><Th>Batch</Th><Th>Students</Th><Th>Course Fee</Th></tr>
+          </thead>
+          <tbody>
+            {batchPage.pageRows.map(([code, b]) => (
+              <tr key={code}>
+                <Td mono color="var(--text)"><b>{code}</b></Td>
+                <Td mono>{b.students}</Td>
+                <Td mono>{INR(b.fee)}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <TablePagination page={batchPage.page} totalPages={batchPage.totalPages} onChange={batchPage.setPage} />
       </Panel>
 
       {/* Payout history */}

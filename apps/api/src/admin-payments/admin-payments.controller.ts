@@ -20,4 +20,10 @@ export class AdminPaymentsController {
       perPage ? Number(perPage) : 10,
     );
   }
+
+  @Auth(Role.ADMIN)
+  @Get('trainers')
+  trainerBreakdown() {
+    return this.adminPaymentsService.trainerBreakdown();
+  }
 }

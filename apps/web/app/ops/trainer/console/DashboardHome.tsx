@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { TRAINER_SHARE_PCT, INR } from "../lib/data";
+import { INR } from "../lib/data";
 import type { TrainerBatch, TrainerSession, TrainerStudent } from "../lib/data";
 import type { ProjectSubmission, CurriculumFeedback, RevenueEnrollment, PayoutRecord } from "../lib/data";
 
@@ -32,6 +32,7 @@ interface DashboardHomeProps {
   enrollments: RevenueEnrollment[];
   payouts: PayoutRecord[];
   onNavigate: (view: string) => void;
+  sharePct?: number;
 }
 
 function Card({ icon, title, onOpen, children }: { icon: string; title: string; onOpen: () => void; children: React.ReactNode }) {
@@ -62,7 +63,7 @@ function StatPair({ label, value, color }: { label: string; value: string | numb
 }
 
 export default function DashboardHome({
-  userName, batches, sessions, students, submissions, doubts, feedback, enrollments, payouts, onNavigate,
+  userName, batches, sessions, students, submissions, doubts, feedback, enrollments, payouts, onNavigate, sharePct = 50,
 }: DashboardHomeProps) {
   const today = new Date().toISOString().slice(0, 10);
 
@@ -83,7 +84,7 @@ export default function DashboardHome({
       if (e.paymentMode === "EMI") return s + Math.round(e.courseFee * 0.5);
       return s;
     }, 0);
-    const myShare = Math.round(collected * (TRAINER_SHARE_PCT / 100));
+    const myShare = Math.round(collected * (sharePct / 100));
     const paidOut = payouts.filter((p) => p.status === "Paid").reduce((s, p) => s + p.amount, 0);
     return {
       running, enrolledTotal, todaySessions, behind, ready, reattempt,

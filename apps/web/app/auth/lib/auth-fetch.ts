@@ -8,6 +8,7 @@ function decodeJwt(t?: string): { sub?: string; role?: string } | null {
 }
 
 import { reportSessionExpired } from './session-events';
+import { refreshSession } from './refresh-session';
 
 /**
  * Fetch wrapper for authenticated requests. Attaches the access token as a
@@ -19,7 +20,7 @@ import { reportSessionExpired } from './session-events';
  * enroll/save flows get the same resilient behaviour as SWR and ops calls.
  */
 export async function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const { loadToken, loadStaffToken, saveToken, saveStaffToken } = await import('@/app/auth/lib/token-store');
+  const { loadToken, loadStaffToken } = await import('@/app/auth/lib/token-store');
   const token = (await loadToken()) ?? (await loadStaffToken());
   if (!token) return fetch(input, init); // no session — let the caller handle it
 
@@ -37,25 +38,9 @@ export async function authFetch(input: string, init: RequestInit = {}): Promise<
     const payload = decodeJwt(token);
     const role = payload?.role;
     try {
-      const qs = role && role !== 'STUDENT' ? `?role=${role}` : '';
-      const refreshRes = await fetch(`/api/auth/refresh${qs}`, { method: 'POST' });
-      if (refreshRes.ok) {
-        const data = await refreshRes.json();
-        if (data.accessToken) {
-          const fresh = decodeJwt(data.accessToken);
-          const uid = fresh?.sub ?? payload?.sub;
-          if (uid) {
-            if (fresh?.role && fresh.role !== 'STUDENT') await saveStaffToken(uid, data.accessToken);
-            else await saveToken(uid, data.accessToken);
-          }
-          // Update the BFF proxy cookie so subsequent calls don't use the expired JWT
-          fetch(fresh && fresh.role && fresh.role !== 'STUDENT' ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ token: data.accessToken }),
-          }).catch(() => {});
-          res = await doFetch(data.accessToken);
-        }
+      const refreshed = await refreshSession(role);
+      if (refreshed) {
+        res = await doFetch(refreshed.accessToken);
       }
     } catch {
       // Refresh failed — fall through; caller sees the original 401

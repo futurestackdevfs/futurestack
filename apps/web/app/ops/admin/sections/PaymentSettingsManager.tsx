@@ -8,6 +8,7 @@ interface PaymentSettings {
   id: string;
   domesticEnabled: boolean;
   internationalEnabled: boolean;
+  trainerSharePercent: number;
   updatedAt: string;
 }
 
@@ -127,6 +128,25 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
     setSaving(false);
   }
 
+  async function saveTrainerShare(pct: number) {
+    if (!settings || saving) return;
+    setSaving(true);
+    try {
+      const res = await opsFetch("/api/admin/payment-settings", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ trainerSharePercent: pct }),
+      });
+      if (!res.ok) throw new Error("Failed to update trainer share");
+      const updated = await res.json();
+      setSettings(updated);
+      addToast(`Trainer share set to ${pct}%`);
+    } catch (e: unknown) {
+      addToast(e instanceof Error ? e.message : "Failed to update trainer share", "danger");
+    }
+    setSaving(false);
+  }
+
   if (loading && !settings) {
     return (
       <div className="p-8 text-center font-mono text-[11px]" style={{ color: "var(--text3)" }}>
@@ -165,6 +185,53 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
               onChange={(v) => toggle("internationalEnabled", v)}
               note="When off, the $ USD option is hidden on the cart page and checkout rejects USD orders."
             />
+          </div>
+
+          {/* Trainer revenue share */}
+          <div
+            className="rounded-xl p-4 flex items-start justify-between gap-4 mb-5"
+            style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-[16px] shrink-0"
+                style={{ background: "var(--bg2)", color: "var(--text3)" }}
+              >
+                📊
+              </div>
+              <div>
+                <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>Trainer revenue share</div>
+                <div className="text-[11px] mt-0.5 leading-snug max-w-[360px]" style={{ color: "var(--muted)" }}>
+                  Default % of every course fee the trainer keeps; the platform receives the rest. Individual trainers can be given a custom override.
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                disabled={saving}
+                defaultValue={settings.trainerSharePercent}
+                key={settings.trainerSharePercent}
+                className="font-mono text-[12px] px-2 py-1 rounded w-[64px] text-right outline-none"
+                style={{ border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)" }}
+                id="trainer-share-input"
+              />
+              <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>%</span>
+              <button
+                disabled={saving}
+                onClick={() => {
+                  const el = document.getElementById("trainer-share-input") as HTMLInputElement | null;
+                  const pct = Math.max(0, Math.min(100, Math.round(Number(el?.value ?? settings.trainerSharePercent))));
+                  if (pct !== settings.trainerSharePercent) saveTrainerShare(pct);
+                }}
+                className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer disabled:opacity-60"
+                style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--panel)" }}
+              >
+                Save
+              </button>
+            </div>
           </div>
 
           <div className="rounded-lg px-3.5 py-2.5 text-[11px]" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text3)" }}>

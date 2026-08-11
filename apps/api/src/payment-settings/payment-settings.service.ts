@@ -33,6 +33,7 @@ export class PaymentSettingsService {
       domesticEnabled: dto.domesticEnabled ?? settings.domesticEnabled,
       internationalEnabled:
         dto.internationalEnabled ?? settings.internationalEnabled,
+      trainerSharePercent: dto.trainerSharePercent ?? settings.trainerSharePercent,
     };
     if (!next.domesticEnabled && !next.internationalEnabled) {
       throw new BadRequestException(

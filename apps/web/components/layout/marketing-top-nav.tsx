@@ -364,6 +364,7 @@ export function TopNav() {
           <button
             onMouseEnter={() => { clearCoursesTimer(); setCoursesMegaOpen(true); }}
             onMouseLeave={startCoursesTimer}
+            onClick={() => { setCoursesMegaOpen(false); router.push('/courses'); }}
             className={`px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-200 cursor-pointer bg-transparent border-none ${coursesMegaOpen ? 'text-[var(--text)]' : 'text-[var(--text)] hover:text-[var(--blue)]'}`}
           >
             Courses

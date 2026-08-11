@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { AdminService } from './admin.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { RejectTrainerDto } from './dto/reject-trainer.dto';
+import { UpdateTrainerShareDto } from './dto/update-trainer-share.dto';
 import { UploadVideoDto } from './dto/upload-video.dto';
 import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 
@@ -62,6 +63,18 @@ export class AdminController {
   @Get('users')
   async listAllUsers() {
     return this.adminService.listAllUsers();
+  }
+
+  // Revenue split is money configuration — ADMIN-only, can't be changed after
+  // revenue has been generated for the trainer.
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Auth(Role.ADMIN)
+  @Patch('trainers/:id/share')
+  async updateTrainerShare(
+    @Param('id') id: string,
+    @Body() dto: UpdateTrainerShareDto,
+  ) {
+    return this.adminService.updateTrainerShare(id, dto);
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

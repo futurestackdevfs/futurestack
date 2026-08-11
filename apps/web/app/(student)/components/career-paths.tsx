@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR from "swr";
+import { useRouter } from "next/navigation";
 
 interface FeaturedTrack {
   id: string;
@@ -20,6 +21,7 @@ const iconClasses = [
 ];
 
 export function CareerPaths() {
+  const router = useRouter();
   const { data, isLoading } = useSWR<FeaturedTrack[]>("/api/courses/public/featured-tracks");
   const paths = (Array.isArray(data) ? data : []).slice(0, 10);
 
@@ -43,7 +45,11 @@ export function CareerPaths() {
               </div>
             ))
           : paths.map((p, i) => (
-              <div key={p.id} className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3.5 flex items-center gap-2.5 cursor-pointer shadow-[var(--shadow)] hover:border-[var(--orange)] hover:bg-[var(--card-hover)] hover:-translate-y-0.5">
+              <div
+                key={p.id}
+                onClick={() => router.push(`/courses?track=${encodeURIComponent(p.title)}`)}
+                className="bg-[var(--card)] border border-[var(--border)] rounded-lg p-3.5 flex items-center gap-2.5 cursor-pointer shadow-[var(--shadow)] hover:border-[var(--orange)] hover:bg-[var(--card-hover)] hover:-translate-y-0.5"
+              >
                 <div className={`size-9 rounded-lg flex items-center justify-center text-[18px] shrink-0 ${iconClasses[i % iconClasses.length]}`}>
                   {icons[i % icons.length]}
                 </div>

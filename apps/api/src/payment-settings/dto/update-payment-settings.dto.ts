@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class UpdatePaymentSettingsDto {
   @IsOptional()
@@ -8,4 +8,10 @@ export class UpdatePaymentSettingsDto {
   @IsOptional()
   @IsBoolean()
   internationalEnabled?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  trainerSharePercent?: number;
 }

@@ -1,4 +1,5 @@
 import { reportSessionExpired } from '@/app/auth/lib/session-events';
+import { refreshSession } from '@/app/auth/lib/refresh-session';
 
 // Shared SWR fetcher — handles 401 session expiry and error responses
 function decodeJwt(t?: string): { sub?: string; role?: string } | null {
@@ -28,28 +29,9 @@ export async function fetcher<T = unknown>(url: string): Promise<T> {
   if (res.status === 401 && token) {
     try {
       const role = decodeJwt(token)?.role;
-      const qs = role && role !== 'STUDENT' ? `?role=${role}` : '';
-      const refreshRes = await fetch(`/api/auth/refresh${qs}`, { method: 'POST' });
-      if (refreshRes.ok) {
-        const data = await refreshRes.json();
-        if (data.accessToken) {
-          const { saveToken, saveStaffToken } = await import('@/app/auth/lib/token-store');
-          const payload = decodeJwt(data.accessToken);
-          const uid = payload?.sub;
-          if (uid) {
-            if (payload.role && payload.role !== 'STUDENT') {
-              await saveStaffToken(uid, data.accessToken);
-            } else {
-              await saveToken(uid, data.accessToken);
-            }
-          }
-          fetch(payload && payload.role && payload.role !== 'STUDENT' ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ token: data.accessToken }),
-          }).catch(() => {});
-          res = await doFetch(data.accessToken);
-        }
+      const refreshed = await refreshSession(role);
+      if (refreshed) {
+        res = await doFetch(refreshed.accessToken);
       }
     } catch {
       // Refresh failed — fall through to error handling below

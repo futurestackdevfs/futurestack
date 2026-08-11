@@ -238,6 +238,9 @@ function CourseForm({ editing, data, onSave, onClose }: Omit<CourseModalProps, "
                 </div>
               ) : field.type === "file" ? (
                 <div className="flex flex-col gap-1.5">
+                  {field.key === "thumbnailUrl" && (
+                    <span className="text-[9.5px]" style={{ color: "var(--text3)" }}>Recommended size: 420×160</span>
+                  )}
                   {form[field.key] ? (
                     <div className="relative w-full rounded overflow-hidden" style={{ border: "1px solid var(--border)", background: "var(--bg)", maxHeight: 120 }}>
                       <img src={form[field.key] as string} alt="Thumbnail" className="w-full h-full object-cover" style={{ maxHeight: 120 }} />

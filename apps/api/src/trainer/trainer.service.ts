@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3Service } from '../upload/s3.service';
+import { resolveTrainerSharePercent, computeTrainerShare } from '../payment-settings/share.util';
 import { UpdateProfileDto } from '../student/dto/update-profile.dto';
 import { extname, join } from 'path';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
@@ -94,67 +95,105 @@ export class TrainerService {
   }
 
   async getRevenue(trainerId: string) {
-    const [revenueLedger, payouts, enrollments] =
-      await this.prisma.$transaction([
-        this.prisma.revenueLedger.findMany({
-          where: { trainerId },
-        }),
-        this.prisma.payout.findMany({
-          where: { trainerId },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.prisma.enrollment.findMany({
-          where: { course: { trainerId } },
-          include: {
-            student: true,
-            course: true,
-            revenueLedger: true,
-          },
-        }),
-      ]);
+    const [settings, trainer, payouts] = await Promise.all([
+      this.prisma.paymentSettings.findFirst(),
+      this.prisma.user.findUnique({
+        where: { id: trainerId },
+        select: { trainerSharePercent: true },
+      }),
+      this.prisma.payout.findMany({
+        where: { trainerId },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
 
-    const totalGross = revenueLedger.reduce((sum, r) => sum + r.gross, 0);
-    const totalPlatformCut = revenueLedger.reduce(
-      (sum, r) => sum + r.platformCut,
-      0,
+    const trainerSharePercent = resolveTrainerSharePercent(
+      trainer?.trainerSharePercent,
+      settings?.trainerSharePercent,
     );
-    const totalTrainerShare = revenueLedger.reduce(
-      (sum, r) => sum + r.trainerShare,
-      0,
+
+    // Revenue is computed from PAID orders only — same source of truth as the
+    // admin payments page — so both consoles always reconcile. The order
+    // discount is allocated proportionally across items.
+    const paidOrders = await this.prisma.order.findMany({
+      where: { status: 'PAID' },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        items: {
+          include: {
+            course: {
+              select: { id: true, title: true, trainerId: true },
+            },
+          },
+        },
+      },
+    });
+
+    const courseBreakdownMap = new Map<string, any>();
+    const studentRegistrations: {
+      studentName: string;
+      courseTitle: string;
+      courseFee: number;
+      paidSoFar: number;
+      enrolledOn: Date;
+      paymentMethod: string | null;
+      trainerShare: number;
+    }[] = [];
+    let totalGross = 0;
+    let totalPlatformCut = 0;
+    let totalTrainerShare = 0;
+
+    for (const order of paidOrders) {
+      if (!order.subtotal || order.subtotal <= 0) continue;
+      const ratio = order.totalAmount / order.subtotal;
+      for (const item of order.items) {
+        if (item.course.trainerId !== trainerId) continue;
+        const effective = Math.round(item.priceAtPurchase * ratio * 100) / 100;
+        const { trainerShare, platformCut } = computeTrainerShare(
+          effective,
+          trainerSharePercent,
+        );
+        totalGross += effective;
+        totalPlatformCut += platformCut;
+        totalTrainerShare += trainerShare;
+
+        if (!courseBreakdownMap.has(item.course.id)) {
+          courseBreakdownMap.set(item.course.id, {
+            courseId: item.course.id,
+            courseTitle: item.course.title,
+            enrollmentCount: 0,
+            totalFees: 0,
+            collectedSoFar: 0,
+            collectionPct: 100,
+            trainerShare: 0,
+          });
+        }
+        const cb = courseBreakdownMap.get(item.course.id);
+        cb.enrollmentCount += 1;
+        cb.totalFees += effective;
+        cb.collectedSoFar += effective;
+        cb.trainerShare += trainerShare;
+
+        studentRegistrations.push({
+          studentName: order.user?.name ?? 'Unknown',
+          courseTitle: item.course.title,
+          courseFee: effective,
+          paidSoFar: effective,
+          enrolledOn: order.createdAt,
+          paymentMethod: order.paymentMethod ?? null,
+          trainerShare,
+        });
+      }
+    }
+
+    studentRegistrations.sort(
+      (a, b) => b.enrolledOn.getTime() - a.enrolledOn.getTime(),
     );
+
     const paidOut = payouts
       .filter((p) => p.status === 'PAID')
       .reduce((sum, p) => sum + p.amount, 0);
     const pendingPayout = totalTrainerShare - paidOut;
-
-    const courseBreakdownMap = new Map<string, any>();
-    for (const e of enrollments) {
-      if (!courseBreakdownMap.has(e.courseId)) {
-        courseBreakdownMap.set(e.courseId, {
-          courseId: e.course.id,
-          courseTitle: e.course.title,
-          enrollmentCount: 0,
-          totalFees: 0,
-          collectedSoFar: 0,
-          collectionPct: 100,
-          trainerShare: 0,
-        });
-      }
-      const cb = courseBreakdownMap.get(e.courseId);
-      cb.enrollmentCount += 1;
-      cb.totalFees += e.revenueLedger?.gross || 0;
-      cb.collectedSoFar += e.revenueLedger?.gross || 0;
-      cb.trainerShare += e.revenueLedger?.trainerShare || 0;
-    }
-
-    const studentRegistrations = enrollments.map((e) => ({
-      studentName: e.student.name,
-      courseTitle: e.course.title,
-      courseFee: e.amountPaid,
-      paidSoFar: e.amountPaid,
-      enrolledOn: e.enrolledAt,
-      trainerShare: e.revenueLedger?.trainerShare || 0,
-    }));
 
     return {
       summary: {
@@ -163,6 +202,7 @@ export class TrainerService {
         totalTrainerShare,
         paidOut,
         pendingPayout,
+        trainerSharePercent,
       },
       courseBreakdown: Array.from(courseBreakdownMap.values()),
       studentRegistrations,

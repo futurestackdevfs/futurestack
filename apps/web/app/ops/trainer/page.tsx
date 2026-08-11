@@ -92,6 +92,7 @@ export default function TrainerDashboardPage() {
   const [feedback, setFeedback] = useState<CurriculumFeedback[]>([]);
   const [enrollments, setEnrollments] = useState<RevenueEnrollment[]>([]);
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
+  const [sharePct, setSharePct] = useState(50);
 
   /* ── session + user auth ── */
   useEffect(() => {
@@ -183,6 +184,7 @@ export default function TrainerDashboardPage() {
         .catch(() => null);
 
       if (trainerData) {
+        setSharePct(trainerData.summary?.trainerSharePercent ?? 50);
         setEnrollments(
           (trainerData.studentRegistrations ?? []).map((r: any, i: number) => ({
             id: `enroll-${i}`,
@@ -191,6 +193,7 @@ export default function TrainerDashboardPage() {
             course: r.courseTitle,
             courseFee: r.courseFee,
             paymentMode: r.paidSoFar >= r.courseFee ? "Full" : r.paidSoFar > 0 ? "EMI" : "Pending",
+            paymentMethod: r.paymentMethod ?? null,
             enrolledOn: new Date(r.enrolledOn).toISOString().slice(0, 10),
           }))
         );
@@ -447,6 +450,7 @@ export default function TrainerDashboardPage() {
                   submissions={submissions} doubts={doubts} feedback={feedback}
                   enrollments={enrollments} payouts={payouts}
                   onNavigate={setView}
+                  sharePct={sharePct}
                 />
               )}
               {view === "batches" && <BatchesView batches={batches} sessions={sessions} searchQuery={searchQuery} onAddCourse={addCourse} onEditCourse={updateCourse} />}
@@ -469,7 +473,7 @@ export default function TrainerDashboardPage() {
                 />
               )}
               {view === "feedback" && <FeedbackView feedback={feedback} searchQuery={searchQuery} onAdd={addFeedback} onSubmitDraft={submitFeedbackDraft} />}
-              {view === "revenue" && <RevenueView enrollments={enrollments} payouts={payouts} batches={batches} searchQuery={searchQuery} addToast={addToast} />}
+              {view === "revenue" && <RevenueView enrollments={enrollments} payouts={payouts} batches={batches} searchQuery={searchQuery} addToast={addToast} sharePct={sharePct} />}
               {view === "ratings" && <StudentRatingsView searchQuery={searchQuery} />}
               {["grading","mentees","content-library","reports","session-history"].includes(view) && (
                 <div className="flex items-center justify-center h-full">
