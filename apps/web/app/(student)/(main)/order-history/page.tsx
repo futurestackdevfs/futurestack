@@ -34,6 +34,10 @@ function orderNumber(id: string): string {
   return `FS-${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
 
+function slugify(str: string): string {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
 // Load the brand logo as a base64 data URL so it can be embedded in the PDF.
 async function loadLogo(): Promise<string | null> {
   try {
@@ -122,7 +126,7 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
   pdf.setFontSize(7.5);
   setC(SLATE);
   pdf.text("Registered Office: Pune, Maharashtra, India", W - M, 38, { align: "right" });
-  pdf.text("support@futurestack.com", W - M, 43, { align: "right" });
+  pdf.text("support@futurestack.co.in", W - M, 43, { align: "right" });
 
   // gradient accent (blue → orange)
   pdf.setFillColor(BLUE[0], BLUE[1], BLUE[2]);
@@ -166,8 +170,13 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
   const addrLine = [order.billingAddress, [order.billingCity, order.billingState].filter(Boolean).join(", "), order.billingPincode]
     .filter(Boolean)
     .join(", ");
-  if (addrLine) pdf.text(pdf.splitTextToSize(addrLine, boxLeftW - 8), M + 4, boxTop + 28);
-  if (order.billingPhone) pdf.text(order.billingPhone, M + 4, boxTop + 36);
+  let billY = boxTop + 28;
+  if (addrLine) {
+    const addr = pdf.splitTextToSize(addrLine, boxLeftW - 8);
+    pdf.text(addr, M + 4, billY);
+    billY += (addr.length - 1) * 3.6;
+  }
+  if (order.billingPhone) pdf.text(order.billingPhone, M + 4, billY + 8);
 
   drawBox(boxRightX, boxRightW);
   setC(INDIGO);
@@ -326,7 +335,7 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
   setC(SLATE);
   pdf.setFontSize(7.5);
   pdf.text("Note: All amounts shown above are inclusive of applicable taxes.", M, ny);
-  pdf.text("This is a computer-generated invoice. In case of any discrepancy, please contact support@futurestack.com.", M, ny + 5);
+  pdf.text("This is a computer-generated invoice. In case of any discrepancy, please contact support@futurestack.co.in.", M, ny + 5);
 
   // ── Footer (logo-colour tinted band) ──
   pdf.setFillColor(TINT[0], TINT[1], TINT[2]);
@@ -343,7 +352,7 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
   pdf.setFontSize(7.5);
   setC(SLATE);
   pdf.text("FutureStack Learning Pvt. Ltd. · Registered Office: Pune, Maharashtra, India", M, 285);
-  pdf.text("For billing queries: support@futurestack.com", M, 290);
+  pdf.text("For billing queries: support@futurestack.co.in", M, 290);
 
   const filename = `FutureStack_Invoice_${orderNumber(order.id)}.pdf`;
   pdf.save(filename);
@@ -379,8 +388,8 @@ export default function OrderHistoryPage() {
     }
   }
 
-  const goToCourse = useCallback((courseId: string) => {
-    router.push(`/courses/${courseId}`);
+  const goToCourse = useCallback((courseTitle: string) => {
+    router.push(`/courses/${slugify(courseTitle)}`);
   }, [router]);
 
   if (isLoading || !user) {
@@ -473,7 +482,7 @@ export default function OrderHistoryPage() {
                           )}
                           <div className="min-w-0 flex-1">
                             <button
-                              onClick={() => goToCourse(item.course.id)}
+                              onClick={() => goToCourse(item.course.title)}
                               className="block text-[13px] font-semibold text-[var(--text)] hover:text-[var(--blue2)] transition-colors text-left border-none bg-transparent p-0 cursor-pointer truncate w-full"
                             >
                               {item.course.title}
