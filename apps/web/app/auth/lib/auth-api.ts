@@ -187,6 +187,8 @@ export type OrderHistoryItem = {
   subtotal: number;
   discountAmount: number;
   couponId: string | null;
+  gstPercent: number;
+  gstAmount: number;
   totalAmount: number;
   status: 'CREATED' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
   razorpayOrderId: string;

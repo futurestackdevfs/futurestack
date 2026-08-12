@@ -12,9 +12,17 @@ export class PrismaService
     const pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       max: 20,
-      min: 2, // pre-create 2 connections at startup so first requests don't cold-start
-      idleTimeoutMillis: 30_000,
+      // The ops dashboard fires a burst of ~6 parallel queries on every page
+      // load (stats, courses, trainers, payment settings, subviews…). Keeping
+      // that many connections warm avoids a cold TLS handshake to the remote
+      // Supabase pooler (~350ms each) on every request, which showed up as
+      // identical ~475ms latencies across unrelated endpoints.
+      min: 10,
+      idleTimeoutMillis: 300_000,
       connectionTimeoutMillis: 10_000,
+      allowExitOnIdle: false,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 30_000,
       ssl: { rejectUnauthorized: false },
     });
     const adapter = new PrismaPg(pool);

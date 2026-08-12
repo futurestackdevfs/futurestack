@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 const BACKEND = process.env.API_URL ?? "http://localhost:3002";
 
 const nextConfig: NextConfig = {
+  // Dev-only: disables the RSC HMR cache that accumulates memory across
+  // recompiles and can OOM long-lived `next dev` sessions. No effect in
+  // production builds.
+  experimental: {
+    serverComponentsHmrCache: false,
+  },
   reactStrictMode: false,
   headers: async () => [
     {

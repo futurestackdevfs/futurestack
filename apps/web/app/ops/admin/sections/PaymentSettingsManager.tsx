@@ -9,6 +9,7 @@ interface PaymentSettings {
   domesticEnabled: boolean;
   internationalEnabled: boolean;
   trainerSharePercent: number;
+  gstPercent: number;
   updatedAt: string;
 }
 
@@ -110,6 +111,13 @@ function SectionHeader({
   );
 }
 
+const SECTIONS = [
+  { id: "channels", num: "01", icon: "💳", label: "Payment & Status" },
+  { id: "fees", num: "02", icon: "🧾", label: "Fees & Tax" },
+  { id: "trainer-splits", num: "03", icon: "🎓", label: "Trainer Revenue" },
+  { id: "coupons", num: "04", icon: "🏷️", label: "Coupons" },
+];
+
 export default function PaymentSettingsManager({ token }: PaymentSettingsManagerProps) {
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
   const [trainers, setTrainers] = useState<TrainerRow[]>([]);
@@ -117,6 +125,7 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingCut, setSavingCut] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<string>("channels");
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
 
   function addToast(msg: string, type: "success" | "danger" = "success") {
@@ -218,6 +227,25 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
     setSaving(false);
   }
 
+  async function saveGst(pct: number) {
+    if (!settings || saving) return;
+    setSaving(true);
+    try {
+      const res = await opsFetch("/api/admin/payment-settings", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ gstPercent: pct }),
+      });
+      if (!res.ok) throw new Error("Failed to update GST rate");
+      const updated = await res.json();
+      setSettings(updated);
+      addToast(`GST rate set to ${pct}%`);
+    } catch (e: unknown) {
+      addToast(e instanceof Error ? e.message : "Failed to update GST rate", "danger");
+    }
+    setSaving(false);
+  }
+
   async function saveTrainerOverride(id: string, current: number | null, inputEl: HTMLInputElement | null) {
     const raw = Number(inputEl?.value);
     const pct = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : null;
@@ -244,6 +272,11 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
     }
   }
 
+  function scrollToSection(id: string) {
+    setActiveSection(id);
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   if (loading && !settings) {
     return (
       <div className="p-8 text-center font-mono text-[11px]" style={{ color: "var(--text3)" }}>
@@ -258,8 +291,8 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
   const overriddenCount = trainers.filter((t) => typeof t.trainerSharePercent === "number").length;
 
   return (
-    <div className="p-4 pb-16">
-      <div className="flex items-baseline gap-2.5 mb-5">
+    <div className="p-4 pb-16 w-full">
+      <div className="flex items-baseline gap-2.5 mb-4">
         <span className="text-[17px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>
           ⚙ Payment Settings
         </span>
@@ -269,16 +302,54 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
       </div>
 
       {settings ? (
-        <div className="flex flex-col gap-8">
-          {/* ── Section 1 · Payment Channels ── */}
-          <section>
+        <div className="flex flex-col gap-6 w-full">
+          {/* Sticky section navigation */}
+          <div
+            className="sticky top-0 z-20 rounded-xl px-2 py-1.5 flex flex-wrap items-center gap-1"
+            style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 4px 12px rgba(0,0,0,.06)" }}
+          >
+            {SECTIONS.map((s) => {
+              const isActive = activeSection === s.id;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => scrollToSection(s.id)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md font-mono text-[9.5px] font-bold cursor-pointer"
+                  style={{
+                    background: isActive ? "var(--orange-d)" : "transparent",
+                    color: isActive ? "var(--orange)" : "var(--text2)",
+                    border: "none",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) (e.currentTarget as HTMLElement).style.background = "var(--panel)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent";
+                  }}
+                >
+                  <span className="w-4 h-4 rounded flex items-center justify-center text-[8.5px] font-extrabold" style={{ background: isActive ? "var(--orange)" : "var(--bg2)", color: isActive ? "#fff" : "var(--text3)" }}>
+                    {s.num}
+                  </span>
+                  {s.icon} {s.label}
+                </button>
+              );
+            })}
+            {settings.updatedAt && (
+              <span className="ml-auto font-mono text-[9px] hidden sm:block" style={{ color: "var(--text3)" }}>
+                last updated {new Date(settings.updatedAt).toLocaleString()}
+              </span>
+            )}
+          </div>
+
+          {/* ── Section 01 · Payment Channels & Currency Status (matching) ── */}
+          <section id="channels" className="scroll-mt-20">
             <SectionHeader
               num="01"
               emoji="💳"
-              title="Payment Channels"
-              desc="Control which currencies students can use at checkout. Disabling a channel hides it from the cart page and rejects matching orders."
+              title="Payment Channels & Currency Status"
+              desc="Which currencies students can pay with at checkout, and the current availability."
             />
-            <div className="flex flex-col gap-3">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
               <Toggle
                 disabled={saving}
                 label="Domestic payments (INR)"
@@ -296,31 +367,118 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
                 note="When off, the $ USD option is hidden on the cart page and checkout rejects USD orders."
               />
             </div>
+            <div className="mt-3 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+              <div className="text-[11px] leading-snug" style={{ color: "var(--text3)" }}>
+                {settings.domesticEnabled && settings.internationalEnabled ? (
+                  <>✅ Students can pay in <strong style={{ color: "var(--text2)" }}>₹ INR</strong> and <strong style={{ color: "var(--text2)" }}>$ USD</strong>.</>
+                ) : settings.domesticEnabled ? (
+                  <>✅ Only <strong style={{ color: "var(--text2)" }}>₹ INR</strong> payments are available right now — $ USD is disabled.</>
+                ) : settings.internationalEnabled ? (
+                  <>✅ Only <strong style={{ color: "var(--text2)" }}>$ USD</strong> payments are available right now — ₹ INR is disabled.</>
+                ) : (
+                  <>⚠️ Both currencies are disabled — checkout is paused until you enable at least one.</>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setLoading(true);
+                    Promise.all([load(), loadTrainers()]).finally(() => setLoading(false));
+                  }}
+                  className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
+                  style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--panel)" }}
+                >
+                  ↻ Refresh
+                </button>
+                {settings.updatedAt && (
+                  <span className="font-mono text-[10px] hidden md:block" style={{ color: "var(--text3)" }}>
+                    last updated {new Date(settings.updatedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+            </div>
           </section>
 
-          {/* ── Section 2 · Default Trainer Share ── */}
-          <section>
+          {/* ── Section 02 · Fees & Tax ── */}
+          <section id="fees" className="scroll-mt-20">
             <SectionHeader
               num="02"
-              emoji="📊"
-              title="Default Trainer Revenue Share"
-              desc="The % of every course fee the trainer keeps by default; the platform receives the rest. This is the fallback for any trainer without a personal override (set in Section 3)."
+              emoji="🧾"
+              title="Fees & Tax"
+              desc="The GST rate charged on top of every course fee at checkout."
             />
             <div
-              className="rounded-xl p-4 flex items-start justify-between gap-4"
+              className="rounded-xl p-4 flex items-center justify-between gap-4"
               style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
             >
               <div className="flex items-start gap-3">
                 <div
                   className="w-9 h-9 rounded-lg flex items-center justify-center text-[16px] shrink-0"
-                  style={{ background: "var(--bg2)", color: "var(--text3)" }}
+                  style={{ background: "var(--orange-d)", color: "var(--orange)" }}
+                >
+                  🧾
+                </div>
+                <div>
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>GST rate</div>
+                  <div className="text-[11px] mt-0.5 leading-snug max-w-[420px]" style={{ color: "var(--muted)" }}>
+                    Current: {settings.gstPercent ?? 18}%. Charged on (fee − discount), shown as a separate invoice line. Snapshot per order — changing it only affects new purchases.
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  disabled={saving}
+                  defaultValue={settings.gstPercent}
+                  key={settings.gstPercent}
+                  className="font-mono text-[12px] px-2 py-1 rounded w-[80px] text-right outline-none"
+                  style={{ border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)" }}
+                  id="gst-rate-input"
+                />
+                <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>%</span>
+                <button
+                  disabled={saving}
+                  onClick={() => {
+                    const el = document.getElementById("gst-rate-input") as HTMLInputElement | null;
+                    const pct = Math.max(0, Math.min(100, Number(el?.value ?? settings.gstPercent)));
+                    if (!Number.isFinite(pct)) return;
+                    if (pct !== settings.gstPercent) saveGst(Math.round(pct * 10) / 10);
+                  }}
+                  className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer disabled:opacity-60"
+                  style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--panel)" }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* ── Section 03 · Trainer Revenue (default share + overrides close together) ── */}
+          <section id="trainer-splits" className="scroll-mt-20">
+            <SectionHeader
+              num="03"
+              emoji="🎓"
+              title="Trainer Revenue Share"
+              desc="The default % of each course fee trainers keep, and individual per-trainer overrides."
+            />
+            <div
+              className="rounded-xl p-4 flex items-center justify-between gap-4 mb-3"
+              style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center text-[16px] shrink-0"
+                  style={{ background: "var(--purple-d)", color: "var(--purple)" }}
                 >
                   📊
                 </div>
                 <div>
-                  <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>Default share</div>
-                  <div className="text-[11px] mt-0.5 leading-snug max-w-[360px]" style={{ color: "var(--muted)" }}>
-                    Every new trainer inherits this value unless you give them a custom override.
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>Default trainer share</div>
+                  <div className="text-[11px] mt-0.5 leading-snug max-w-[420px]" style={{ color: "var(--muted)" }}>
+                    Every new trainer inherits this. Locks once revenue has been generated for a trainer — change before the first sale.
                   </div>
                 </div>
               </div>
@@ -332,7 +490,7 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
                   disabled={saving}
                   defaultValue={settings.trainerSharePercent}
                   key={settings.trainerSharePercent}
-                  className="font-mono text-[12px] px-2 py-1 rounded w-[64px] text-right outline-none"
+                  className="font-mono text-[12px] px-2 py-1 rounded w-[80px] text-right outline-none"
                   style={{ border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)" }}
                   id="trainer-share-input"
                 />
@@ -351,16 +509,7 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
                 </button>
               </div>
             </div>
-          </section>
 
-          {/* ── Section 3 · Individual Trainer Share Overrides ── */}
-          <section>
-            <SectionHeader
-              num="03"
-              emoji="🎓"
-              title="Individual Trainer Share Overrides"
-              desc="Give a specific trainer a custom revenue split instead of the default above. Leave the box empty and hit Reset to fall back to the default. A trainer's split locks once revenue has been generated for them, so change it before the first sale."
-            />
             <div className="rounded-lg overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
               {trainersLoading ? (
                 <div className="py-8 text-center font-mono text-[10px]" style={{ color: "var(--text3)" }}>Loading trainers...</div>
@@ -462,48 +611,10 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
             </div>
           </section>
 
-          {/* ── Section 4 · Currency Status ── */}
-          <section>
+          {/* ── Section 04 · Coupons ── */}
+          <section id="coupons" className="scroll-mt-20">
             <SectionHeader
               num="04"
-              emoji="🔄"
-              title="Currency Status & Refresh"
-              desc="Current checkout availability across currencies, based on the toggles in Section 1."
-            />
-            <div className="rounded-lg px-3.5 py-2.5 text-[11px]" style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text3)" }}>
-              {settings.domesticEnabled && settings.internationalEnabled ? (
-                <>Students can pay in ₹ INR and $ USD.</>
-              ) : settings.domesticEnabled ? (
-                <>Only ₹ INR payments are available right now — $ USD is disabled.</>
-              ) : settings.internationalEnabled ? (
-                <>Only $ USD payments are available right now — ₹ INR is disabled.</>
-              ) : (
-                <>Both currencies are disabled — checkout is paused until you enable at least one.</>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-3">
-              <button
-                onClick={() => {
-                  setLoading(true);
-                  Promise.all([load(), loadTrainers()]).finally(() => setLoading(false));
-                }}
-                className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
-                style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
-              >
-                ↻ Refresh
-              </button>
-              {settings.updatedAt && (
-                <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>
-                  last updated {new Date(settings.updatedAt).toLocaleString()}
-                </span>
-              )}
-            </div>
-          </section>
-
-          {/* ── Section 5 · Coupons ── */}
-          <section>
-            <SectionHeader
-              num="05"
               emoji="🏷️"
               title="Coupons & Discounts"
               desc="Create and manage discount codes applied at checkout."

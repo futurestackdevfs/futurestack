@@ -282,8 +282,10 @@ export default function CourseDetailPage() {
     slug ? `${API}/courses/public/slug/${slug}` : null,
     fetcher,
   );
-  const { data: allCards } = useSWR<{ data: CourseCard[] }>(`${API}/courses/public/cards`, fetcher);
-  const related = (allCards?.data ?? []).filter((c) => c.id !== course?.id).slice(0, 3);
+  const { data: related } = useSWR<CourseCard[]>(
+    course?.id ? `${API}/courses/public/related/${course.id}` : null,
+    fetcher,
+  );
   const isLoading = isLoadingCourse;
 
   const { isAuthenticated } = useAuth();
@@ -941,7 +943,7 @@ export default function CourseDetailPage() {
           ))}
         </div>
 
-        {related.length > 0 && (
+        {related && related.length > 0 && (
           <SectionCard>
             <SectionTitle>Related Courses</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

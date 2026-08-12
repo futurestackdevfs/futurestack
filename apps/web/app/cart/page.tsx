@@ -9,6 +9,7 @@ import { authFetch } from "@/app/auth/lib/auth-fetch";
 interface PaymentSettings {
   domesticEnabled: boolean;
   internationalEnabled: boolean;
+  gstPercent: number;
 }
 
 type Currency = "INR" | "USD";
@@ -38,6 +39,8 @@ interface CartView {
   coupon: CartCoupon | null;
   discountAmount: number;
   subtotal: number;
+  gstPercent: number;
+  gstAmount: number;
   total: number;
   currency: Currency;
 }
@@ -137,7 +140,7 @@ declare global {
 }
 
 function emptyCart(currency: Currency = "INR"): CartView {
-  return { items: [], coupon: null, discountAmount: 0, subtotal: 0, total: 0, currency };
+  return { items: [], coupon: null, discountAmount: 0, subtotal: 0, gstPercent: 0, gstAmount: 0, total: 0, currency };
 }
 
 function formatPrice(n: number, currency: Currency = "INR") {
@@ -342,6 +345,8 @@ export default function CartPage() {
   const total = cart?.total ?? 0;
   const subtotal = cart?.subtotal ?? 0;
   const discountAmount = cart?.discountAmount ?? 0;
+  const gstPercent = cart?.gstPercent ?? paySettings?.gstPercent ?? 0;
+  const gstAmount = cart?.gstAmount ?? 0;
   const coupon = cart?.coupon ?? null;
 
   // Snapshotted on payment success — survives cart revalidation clearing the
@@ -800,6 +805,12 @@ export default function CartPage() {
                         <span className="text-[var(--green)] font-semibold">−{formatPrice(discountAmount, activeCurrency)}</span>
                       </div>
                     )}
+                    {gstPercent > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-[var(--text2)]">GST ({gstPercent}%)</span>
+                        <span className="text-[var(--text)] font-semibold">{formatPrice(gstAmount, activeCurrency)}</span>
+                      </div>
+                    )}
                   </div>
 
                   {!coupon ? (
@@ -992,10 +1003,16 @@ export default function CartPage() {
                     <span className="text-[var(--green)] font-semibold">−{formatPrice(discountAmount, activeCurrency)}</span>
                   </div>
                 )}
+                {gstPercent > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-[var(--text2)]">GST ({gstPercent}%)</span>
+                    <span className="text-[var(--text)] font-semibold">{formatPrice(gstAmount, activeCurrency)}</span>
+                  </div>
+                )}
               </div>
               <div className="h-px bg-[var(--border)] my-3.5" />
               <div className="flex justify-between items-baseline mb-4">
-                <span className="font-['Inter_Tight',sans-serif] text-[15px] font-bold text-[var(--text)]">Total</span>
+                <span className="font-['Inter_Tight',sans-serif] text-[15px] font-bold text-[var(--text)]">Total (incl. GST)</span>
                 <span className="font-['Inter_Tight',sans-serif] text-[28px] font-extrabold text-[var(--text)] tracking-[-.01em]">{formatPrice(total, activeCurrency)}</span>
               </div>
 

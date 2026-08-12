@@ -485,6 +485,8 @@ model Order {
   subtotal          Float
   discountAmount    Float       @default(0)
   couponId          String?
+  gstPercent        Float       @default(0)  // GST rate snapshot at purchase time (admin-configurable in PaymentSettings)
+  gstAmount         Float       @default(0)  // GST amount charged on top of (subtotal - discount)
   totalAmount       Float
   status            OrderStatus @default(CREATED)
   razorpayOrderId   String      @unique
@@ -522,6 +524,7 @@ model PaymentSettings {
   domesticEnabled      Boolean  @default(true)   // INR (domestic gateway)
   internationalEnabled Boolean  @default(false)  // USD (international gateway)
   trainerSharePercent  Int      @default(50)     // default % of collected gross the trainer keeps (rest = platform cut)
+  gstPercent           Float    @default(18)     // GST % charged on top of every course fee
   updatedAt            DateTime @updatedAt
 }
 

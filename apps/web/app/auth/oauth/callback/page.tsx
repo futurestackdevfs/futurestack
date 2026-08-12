@@ -1,5 +1,6 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authApi } from '../../lib/auth-api';
 import { saveToken } from '../../lib/token-store';
@@ -45,9 +46,9 @@ function OAuthHandler() {
     return (
       <div className="flex flex-col items-center gap-3">
         <p className="text-sm text-red-500">{error}</p>
-        <a href="/" className="text-xs text-primary font-semibold hover:underline">
+        <Link href="/" className="text-xs text-primary font-semibold hover:underline">
           Back to login
-        </a>
+        </Link>
       </div>
     );
   }

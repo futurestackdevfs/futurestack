@@ -284,6 +284,9 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
     ["Subtotal", fmt(order.subtotal)],
     ["Discount", order.discountAmount > 0 ? `- ${fmt(order.discountAmount)}` : "—"],
   ];
+  if (order.gstPercent > 0) {
+    sumRows.push(["GST (" + (order.gstPercent ?? 0) + "%)", fmt(order.gstAmount)]);
+  }
   pdf.setFontSize(9);
   sumRows.forEach(([k, v]) => {
     setC(SLATE);
@@ -334,7 +337,11 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
 
   setC(SLATE);
   pdf.setFontSize(7.5);
-  pdf.text("Note: All amounts shown above are inclusive of applicable taxes.", M, ny);
+  pdf.text(
+    order.gstPercent > 0
+      ? `Note: GST @ ${order.gstPercent}% is included in the total above.`
+      : "Note: All amounts shown above are inclusive of applicable taxes.",
+    M, ny);
   pdf.text("This is a computer-generated invoice. In case of any discrepancy, please contact support@futurestack.co.in.", M, ny + 5);
 
   // ── Footer (logo-colour tinted band) ──

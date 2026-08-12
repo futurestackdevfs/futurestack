@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Header,
   Post,
   Param,
   Req,
@@ -11,6 +12,7 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CertificatesService } from './certificates.service';
+import { TTLCache } from '../common/ttl-cache';
 
 const GRADIENTS = [
   'linear-gradient(135deg,#4db33d,#2d7ef7)',
@@ -32,6 +34,8 @@ function getRelativeTime(date: Date): string {
 
 @Controller('certificates')
 export class CertificatesController {
+  private readonly recentCache = new TTLCache<unknown[]>(300_000);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly certificatesService: CertificatesService,
@@ -178,7 +182,11 @@ export class CertificatesController {
   }
 
   @Get('recent')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
   async getRecentAchievements() {
+    const cached = this.recentCache.get('recent');
+    if (cached) return cached;
+
     const certs = await this.prisma.certificate.findMany({
       orderBy: { issuedAt: 'desc' },
       select: {
@@ -213,6 +221,7 @@ export class CertificatesController {
       if (result.length >= 3) break;
     }
 
+    this.recentCache.set('recent', result);
     return result;
   }
 
@@ -227,6 +236,7 @@ export class CertificatesController {
       user.id,
       courseId,
     );
+    this.recentCache.delete('recent');
     return result;
   }
 

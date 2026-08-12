@@ -12,6 +12,10 @@ function slugify(str: string): string {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+const categoryIcons: Record<string, string> = {
+  'Web Development': '🌐', 'Data & AI': '🧠', 'Cloud & DevOps': '☁️', 'Emerging Tech': '⚡', 'Mobile Development': '📱', 'Cybersecurity': '🔒', 'General': '📚',
+};
+
 export function TopNav() {
   const { isAuthenticated, isLoading, user, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -125,71 +129,70 @@ export function TopNav() {
   const [trackCoursesLoading, setTrackCoursesLoading] = useState(false);
   const [allCards, setAllCards] = useState<{ title: string; level: string; duration: string; slug: string; category: string; techStack?: string[]; hours?: number }[]>([]);
 
-  const categoryIcons: Record<string, string> = {
-    'Web Development': '🌐', 'Data & AI': '🧠', 'Cloud & DevOps': '☁️', 'Emerging Tech': '⚡', 'Mobile Development': '📱', 'Cybersecurity': '🔒', 'General': '📚',
-  };
+  const megaFetchedRef = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchCourses() {
-      setCoursesLoading(true);
-      try {
-        const res = await fetch('/api/courses/public/cards?perPage=200');
-        if (!res.ok) throw new Error('Failed');
-        const json = await res.json();
-        const cards = json.data ?? [];
-        const groups: Record<string, { title: string; desc: string; level: string; duration: string; slug: string; icon: string }[]> = {};
-        const counts: Record<string, number> = {};
-        for (const c of cards) {
-          const cat = c.category || c.tech || 'General';
-          if (!groups[cat]) { groups[cat] = []; counts[cat] = 0; }
-          counts[cat]++;
-          if (groups[cat].length < 6) {
-            groups[cat].push({
-              title: c.title,
-              desc: c.description || '',
-              level: c.level || 'All Levels',
-              duration: c.duration || 'Self-Paced',
-              slug: c.slug || c.id,
-              icon: categoryIcons[cat] || '📖',
-            });
-          }
+  const fetchCoursesData = useCallback(async () => {
+    setCoursesLoading(true);
+    try {
+      const res = await fetch('/api/courses/public/cards?perPage=200');
+      if (!res.ok) throw new Error('Failed');
+      const json = await res.json();
+      const cards = json.data ?? [];
+      const groups: Record<string, { title: string; desc: string; level: string; duration: string; slug: string; icon: string }[]> = {};
+      const counts: Record<string, number> = {};
+      for (const c of cards) {
+        const cat = c.category || c.tech || 'General';
+        if (!groups[cat]) { groups[cat] = []; counts[cat] = 0; }
+        counts[cat]++;
+        if (groups[cat].length < 6) {
+          groups[cat].push({
+            title: c.title,
+            desc: c.description || '',
+            level: c.level || 'All Levels',
+            duration: c.duration || 'Self-Paced',
+            slug: c.slug || c.id,
+            icon: categoryIcons[cat] || '📖',
+          });
         }
-        const cats = Object.entries(counts).map(([label, count]) => ({
-          id: label,
-          label,
-          icon: categoryIcons[label] || '📖',
-          count,
-        }));
-        if (!cancelled) { setCourseCatsData(cats); setCoursesByCat(groups); setAllCards(cards.map((c: any) => ({ title: c.title, level: c.level || 'All Levels', duration: c.duration || 'Self-Paced', slug: c.slug || c.id, category: c.category || c.tech || 'General', techStack: c.techStack ?? [], hours: c.hours ?? 0 }))); if (cats.length > 0) setActiveCourseCat(cats[0].id); }
-      } catch { /* use fallback */ }
-      if (!cancelled) setCoursesLoading(false);
-    }
-    fetchCourses();
-    return () => { cancelled = true; };
+      }
+      const cats = Object.entries(counts).map(([label, count]) => ({
+        id: label,
+        label,
+        icon: categoryIcons[label] || '📖',
+        count,
+      }));
+      setCourseCatsData(cats);
+      setCoursesByCat(groups);
+      setAllCards(cards.map((c: any) => ({ title: c.title, level: c.level || 'All Levels', duration: c.duration || 'Self-Paced', slug: c.slug || c.id, category: c.category || c.tech || 'General', techStack: c.techStack ?? [], hours: c.hours ?? 0 })));
+      if (cats.length > 0) setActiveCourseCat(cats[0].id);
+    } catch { /* use fallback */ }
+    setCoursesLoading(false);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchTracks() {
-      setTracksLoading(true);
-      try {
-        const res = await fetch('/api/courses/public/featured-tracks');
-        if (!res.ok) throw new Error('Failed');
-        const data = await res.json();
-        const tracks = (data.data ?? data ?? []).map((t: any) => ({
-          id: t.id || t.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          title: t.title,
-          description: t.description || '',
-          courseCount: t._count?.courses ?? t.courseCount ?? 0,
-        }));
-        if (!cancelled) { setTracksData(tracks); if (tracks.length > 0 && !activePathCat) setActivePathCat(tracks[0].id); }
-      } catch { /* use fallback */ }
-      if (!cancelled) setTracksLoading(false);
-    }
-    fetchTracks();
-    return () => { cancelled = true; };
+  const fetchTracksData = useCallback(async () => {
+    setTracksLoading(true);
+    try {
+      const res = await fetch('/api/courses/public/featured-tracks');
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      const tracks = (data.data ?? data ?? []).map((t: any) => ({
+        id: t.id || t.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        title: t.title,
+        description: t.description || '',
+        courseCount: t._count?.courses ?? t.courseCount ?? 0,
+      }));
+      setTracksData(tracks);
+      setActivePathCat((prev) => prev || tracks[0]?.id || '');
+    } catch { /* use fallback */ }
+    setTracksLoading(false);
   }, []);
+
+  const loadMegaData = useCallback(() => {
+    if (megaFetchedRef.current) return;
+    megaFetchedRef.current = true;
+    fetchCoursesData();
+    fetchTracksData();
+  }, [fetchCoursesData, fetchTracksData]);
 
   function startCoursesTimer() {
     if (coursesMegaTimer.current) clearTimeout(coursesMegaTimer.current);
@@ -362,7 +365,7 @@ export function TopNav() {
       <ul className="hidden md:flex items-center gap-0.5 list-none">
         <li className="relative group" style={animate ? { animation: `fadeUp .35s .08s ease both` } : {}}>
           <button
-            onMouseEnter={() => { clearCoursesTimer(); setCoursesMegaOpen(true); }}
+            onMouseEnter={() => { loadMegaData(); clearCoursesTimer(); setCoursesMegaOpen(true); }}
             onMouseLeave={startCoursesTimer}
             onClick={() => { setCoursesMegaOpen(false); router.push('/courses'); }}
             className={`px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-200 cursor-pointer bg-transparent border-none ${coursesMegaOpen ? 'text-[var(--text)]' : 'text-[var(--text)] hover:text-[var(--blue)]'}`}
@@ -376,7 +379,7 @@ export function TopNav() {
         </li>
         <li className="relative group" style={animate ? { animation: `fadeUp .35s ${.08 + 1 * .05}s ease both` } : {}}>
           <button
-            onMouseEnter={() => { clearPathsTimer(); setPathsMegaOpen(true); }}
+            onMouseEnter={() => { loadMegaData(); clearPathsTimer(); setPathsMegaOpen(true); }}
             onMouseLeave={startPathsTimer}
             className={`px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-200 cursor-pointer bg-transparent border-none ${pathsMegaOpen ? 'text-[var(--text)]' : 'text-[var(--text)] hover:text-[var(--blue)]'}`}
           >

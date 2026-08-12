@@ -21,6 +21,7 @@ import { CreateResourceDto } from './dto/create-resource.dto';
 import { FeatureDto } from './dto/feature.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
 import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
+import { TTLCache } from '../common/ttl-cache';
 
 const SKILL_LEVEL_LABELS: Record<string, string> = {
   BEGINNER: 'Beginner',
@@ -54,10 +55,19 @@ function normalizeThumbnail(
 
 @Injectable()
 export class CoursesService {
+  // Public catalog is read far more often than it changes. Serve repeated
+  // reads from memory and only touch the remote DB on cache miss / after edits.
+  private readonly catalogCache = new TTLCache<any>(300_000);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly vdoCipherService: VdoCipherService,
   ) {}
+
+  /** Clears every cached catalog response — call after any course/track/hero edit. */
+  private invalidateCatalog(): void {
+    this.catalogCache.clear();
+  }
 
   // ==================== PUBLIC ====================
 
@@ -87,6 +97,10 @@ export class CoursesService {
   }
 
   async featuredCourses() {
+    const CACHE_KEY = 'featured-courses';
+    const cached = this.catalogCache.get(CACHE_KEY);
+    if (cached) return cached;
+
     const SLOT_COUNT = 10;
     const courses = await this.prisma.course.findMany({
       where: {
@@ -132,7 +146,7 @@ export class CoursesService {
       enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-    return uniqueCourses.map(({ createdAt, ...rest }) => {
+    const result = uniqueCourses.map(({ createdAt, ...rest }) => {
       const stats = videoStats.get(rest.id) ?? {
         totalSeconds: 0,
         videoCount: 0,
@@ -151,9 +165,15 @@ export class CoursesService {
         badgeClass: '',
       };
     });
+    this.catalogCache.set(CACHE_KEY, result);
+    return result;
   }
 
   async featuredTracks() {
+    const CACHE_KEY = 'featured-tracks';
+    const cached = this.catalogCache.get(CACHE_KEY);
+    if (cached) return cached;
+
     const SLOT_COUNT = 10;
     const tracks = await this.prisma.track.findMany({
       where: {
@@ -178,10 +198,16 @@ export class CoursesService {
         uniqueTracks.push(t);
       }
     }
-    return uniqueTracks;
+    const result = uniqueTracks;
+    this.catalogCache.set(CACHE_KEY, result);
+    return result;
   }
 
   async trackCourses(id: string) {
+    const CACHE_KEY = `track:${id}:courses`;
+    const cached = this.catalogCache.get(CACHE_KEY);
+    if (cached) return cached;
+
     const track = await this.prisma.track.findUnique({
       where: { id },
       include: {
@@ -203,20 +229,32 @@ export class CoursesService {
       },
     });
     if (!track) throw new NotFoundException('Track not found');
-    return track.courses.map((tc) => tc.course);
+    const result = track.courses.map((tc) => tc.course);
+    this.catalogCache.set(CACHE_KEY, result);
+    return result;
   }
 
   async publicCourseBySlug(slug: string) {
+    const CACHE_KEY = `slug:${slug}`;
+    const cached = this.catalogCache.get(CACHE_KEY);
+    if (cached) return cached;
+
     const courses = await this.prisma.course.findMany({
       where: { status: 'ACTIVE' },
       select: { id: true, title: true },
     });
     const matched = courses.find((c) => slugify(c.title) === slug);
     if (!matched) throw new NotFoundException('Course not found');
-    return this.publicCourseDetail(matched.id);
+    const detail = await this.publicCourseDetail(matched.id);
+    this.catalogCache.set(CACHE_KEY, detail);
+    return detail;
   }
 
   async publicCourseDetail(id: string) {
+    const CACHE_KEY = `course:${id}`;
+    const cached = this.catalogCache.get(CACHE_KEY);
+    if (cached) return cached;
+
     const course = await this.prisma.course.findFirst({
       where: { id, status: 'ACTIVE' },
       include: {
@@ -270,7 +308,7 @@ export class CoursesService {
       0,
     );
 
-    return {
+    const result = {
       id: course.id,
       slug: slugify(course.title),
       title: course.title,
@@ -328,6 +366,76 @@ export class CoursesService {
       })),
       resources: course.resources,
     };
+    this.catalogCache.set(CACHE_KEY, result);
+    return result;
+  }
+
+  async relatedCourses(id: string) {
+    const CACHE_KEY = `related:${id}`;
+    const cached = this.catalogCache.get(CACHE_KEY);
+    if (cached) return cached;
+
+    const course = await this.prisma.course.findUnique({
+      where: { id },
+      select: { id: true, category: true },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+
+    const SELECT = {
+      id: true,
+      title: true,
+      thumbnailUrl: true,
+      category: true,
+      skillLevel: true,
+      trainer: { select: { rating: true } },
+      _count: { select: { enrollments: true } },
+    } as const;
+    const NEEDED = 3;
+
+    const sameCategory = await this.prisma.course.findMany({
+      where: {
+        status: 'ACTIVE',
+        id: { not: id },
+        ...(course.category ? { category: course.category } : {}),
+      },
+      select: SELECT,
+      take: NEEDED,
+    });
+
+    let rows = sameCategory;
+    if (rows.length < NEEDED) {
+      const others = await this.prisma.course.findMany({
+        where: {
+          status: 'ACTIVE',
+          id: { not: id, notIn: rows.map((r) => r.id) },
+        },
+        select: SELECT,
+        orderBy: { createdAt: 'desc' },
+        take: NEEDED - rows.length,
+      });
+      rows = [...rows, ...others];
+    }
+
+    const videoStats = await this.getVideoStats(rows.map((r) => r.id));
+
+    const result = rows.map((r) => {
+      const stats = videoStats.get(r.id) ?? { totalSeconds: 0, videoCount: 0 };
+      return {
+        id: r.id,
+        slug: slugify(r.title),
+        category: r.category ?? 'General',
+        title: r.title,
+        img: normalizeThumbnail(r.thumbnailUrl, '/images/C1.png'),
+        hours: Math.round(stats.totalSeconds / 3600) || 20,
+        level: SKILL_LEVEL_LABELS[r.skillLevel ?? 'INTERMEDIATE'],
+        rating: r.trainer?.rating ?? 4.7,
+        students: `${((r._count.enrollments / 1000) * 10).toFixed(1).replace('.0', '')}k`,
+        mentorName: 'Team',
+      };
+    });
+
+    this.catalogCache.set(CACHE_KEY, result);
+    return result;
   }
 
   async getCourseOverview(courseId: string) {
@@ -569,16 +677,19 @@ export class CoursesService {
   // ==================== FEATURE + REORDER ====================
 
   async featureCourse(id: string, dto: FeatureDto) {
+    this.invalidateCatalog();
     await this.findCourseOrFail(id);
     return this.prisma.course.update({ where: { id }, data: dto });
   }
 
   async featureTrack(id: string, dto: FeatureDto) {
+    this.invalidateCatalog();
     await this.findTrackOrFail(id);
     return this.prisma.track.update({ where: { id }, data: dto });
   }
 
   async reorderFeaturedCourses(dto: ReorderItemsDto) {
+    this.invalidateCatalog();
     await this.prisma.$transaction(
       dto.items.map((item) =>
         this.prisma.course.update({
@@ -591,6 +702,7 @@ export class CoursesService {
   }
 
   async reorderFeaturedTracks(dto: ReorderItemsDto) {
+    this.invalidateCatalog();
     await this.prisma.$transaction(
       dto.items.map((item) =>
         this.prisma.track.update({
@@ -605,6 +717,7 @@ export class CoursesService {
   // ==================== TRACKS ====================
 
   async createTrack(dto: CreateTrackDto) {
+    this.invalidateCatalog();
     return this.prisma.track.create({ data: dto });
   }
 
@@ -616,11 +729,13 @@ export class CoursesService {
   }
 
   async updateTrack(id: string, dto: UpdateTrackDto) {
+    this.invalidateCatalog();
     await this.findTrackOrFail(id);
     return this.prisma.track.update({ where: { id }, data: dto });
   }
 
   async deleteTrack(id: string) {
+    this.invalidateCatalog();
     const track = await this.prisma.track.findUnique({
       where: { id },
       include: { _count: { select: { courses: true } } },
@@ -661,6 +776,7 @@ export class CoursesService {
   }
 
   async createCourse(dto: CreateCourseDto) {
+    this.invalidateCatalog();
     if (dto.trainerId) await this.validateApprovedTrainer(dto.trainerId);
     const existing = await this.prisma.course.findUnique({
       where: { title: dto.title },
@@ -733,6 +849,17 @@ export class CoursesService {
     sort?: string;
     filters?: Record<string, string[]>;
   }) {
+    // Only cache the plain catalog views (no search / filters) — those are the
+    // hot requests (nav mega menu, courses listing, related courses) and their
+    // result barely changes. Search + filter responses are uncached.
+    const isFullCatalog =
+      !opts.search?.trim() && (!opts.filters || Object.keys(opts.filters).length === 0);
+    const CACHE_KEY = `cards:${opts.page}:${opts.perPage}:${opts.sort ?? 'default'}`;
+    if (isFullCatalog) {
+      const cached = this.catalogCache.get(CACHE_KEY);
+      if (cached) return cached;
+    }
+
     const where: any = { status: 'ACTIVE' };
 
     if (opts.search?.trim()) {
@@ -964,7 +1091,9 @@ export class CoursesService {
     const start = (opts.page - 1) * opts.perPage;
     data = data.slice(start, start + opts.perPage);
 
-    return { data, total, page: opts.page, perPage: opts.perPage, facets };
+    const result = { data, total, page: opts.page, perPage: opts.perPage, facets };
+    if (isFullCatalog) this.catalogCache.set(CACHE_KEY, result);
+    return result;
   }
 
   async getCourse(id: string) {
@@ -991,6 +1120,7 @@ export class CoursesService {
   }
 
   async updateCourse(id: string, dto: UpdateCourseDto) {
+    this.invalidateCatalog();
     await this.findCourseOrFail(id);
     if (dto.trainerId !== undefined)
       await this.validateApprovedTrainer(dto.trainerId);
@@ -1026,6 +1156,7 @@ export class CoursesService {
   }
 
   async deleteCourse(id: string) {
+    this.invalidateCatalog();
     await this.findCourseOrFail(id);
     const activeCount = await this.prisma.enrollment.count({
       where: { courseId: id, status: 'active' },
@@ -1040,6 +1171,7 @@ export class CoursesService {
   }
 
   async linkCourseToTrack(courseId: string, trackId: string) {
+    this.invalidateCatalog();
     await this.findCourseOrFail(courseId);
     await this.findTrackOrFail(trackId);
     try {
@@ -1057,6 +1189,7 @@ export class CoursesService {
   }
 
   async unlinkCourseFromTrack(courseId: string, trackId: string) {
+    this.invalidateCatalog();
     try {
       await this.prisma.trackCourse.delete({
         where: { trackId_courseId: { trackId, courseId } },
@@ -1071,6 +1204,7 @@ export class CoursesService {
   }
 
   async setCourseCareerPath(courseId: string, title?: string) {
+    this.invalidateCatalog();
     await this.findCourseOrFail(courseId);
     await this.prisma.trackCourse.deleteMany({ where: { courseId } });
 
@@ -1127,16 +1261,19 @@ export class CoursesService {
   // ==================== SECTIONS ====================
 
   async createSection(courseId: string, dto: CreateSectionDto) {
+    this.invalidateCatalog();
     await this.findCourseOrFail(courseId);
     return this.prisma.section.create({ data: { ...dto, courseId } });
   }
 
   async updateSection(id: string, dto: UpdateSectionDto) {
+    this.invalidateCatalog();
     await this.findSectionOrFail(id);
     return this.prisma.section.update({ where: { id }, data: dto });
   }
 
   async deleteSection(id: string) {
+    this.invalidateCatalog();
     await this.findSectionOrFail(id);
     await this.prisma.section.delete({ where: { id } });
     return { message: 'Section deleted' };
@@ -1151,16 +1288,19 @@ export class CoursesService {
   // ==================== VIDEOS ====================
 
   async createVideo(sectionId: string, dto: CreateVideoDto) {
+    this.invalidateCatalog();
     await this.findSectionOrFail(sectionId);
     return this.prisma.video.create({ data: { ...dto, sectionId } });
   }
 
   async updateVideo(id: string, dto: UpdateVideoDto) {
+    this.invalidateCatalog();
     await this.findVideoOrFail(id);
     return this.prisma.video.update({ where: { id }, data: dto });
   }
 
   async deleteVideo(id: string) {
+    this.invalidateCatalog();
     const video = await this.findVideoOrFail(id);
     await this.vdoCipherService.deleteVideo(video.vdoCipherId);
     await this.prisma.video.delete({ where: { id } });
@@ -1176,16 +1316,19 @@ export class CoursesService {
   // ==================== QUIZZES ====================
 
   async createQuiz(sectionId: string, dto: CreateQuizDto) {
+    this.invalidateCatalog();
     await this.findSectionOrFail(sectionId);
     return this.prisma.quiz.create({ data: { ...dto, sectionId } });
   }
 
   async updateQuiz(id: string, dto: UpdateQuizDto) {
+    this.invalidateCatalog();
     await this.findQuizOrFail(id);
     return this.prisma.quiz.update({ where: { id }, data: dto });
   }
 
   async deleteQuiz(id: string) {
+    this.invalidateCatalog();
     await this.findQuizOrFail(id);
     await this.prisma.quiz.delete({ where: { id } });
     return { message: 'Quiz deleted' };
@@ -1200,11 +1343,13 @@ export class CoursesService {
   // ==================== RESOURCES ====================
 
   async createResource(courseId: string, dto: CreateResourceDto) {
+    this.invalidateCatalog();
     await this.findCourseOrFail(courseId);
     return this.prisma.courseResource.create({ data: { ...dto, courseId } });
   }
 
   async deleteResource(id: string) {
+    this.invalidateCatalog();
     const resource = await this.prisma.courseResource.findUnique({
       where: { id },
     });
@@ -1262,6 +1407,10 @@ export class CoursesService {
   // ==================== HERO SLIDES ====================
 
   async featuredHeroSlides() {
+    const CACHE_KEY = 'hero-slides';
+    const cached = this.catalogCache.get(CACHE_KEY);
+    if (cached) return cached;
+
     const SLOT_COUNT = 3;
     const slides = await this.prisma.heroSlide.findMany({
       where: { isFeatured: true, displayOrder: { lt: SLOT_COUNT } },
@@ -1269,14 +1418,17 @@ export class CoursesService {
       take: SLOT_COUNT,
     });
     const seen = new Set<number>();
-    return slides.filter((s) => {
+    const result = slides.filter((s) => {
       if (seen.has(s.displayOrder)) return false;
       seen.add(s.displayOrder);
       return true;
     });
+    this.catalogCache.set(CACHE_KEY, result);
+    return result;
   }
 
   async createHeroSlide(dto: CreateHeroSlideDto) {
+    this.invalidateCatalog();
     return this.prisma.heroSlide.create({ data: dto });
   }
 
@@ -1285,16 +1437,19 @@ export class CoursesService {
   }
 
   async deleteHeroSlide(id: string) {
+    this.invalidateCatalog();
     await this.prisma.heroSlide.delete({ where: { id } });
     return { message: 'Hero slide deleted' };
   }
 
   async featureHeroSlide(id: string, dto: FeatureDto) {
+    this.invalidateCatalog();
     await this.prisma.heroSlide.findUniqueOrThrow({ where: { id } });
     return this.prisma.heroSlide.update({ where: { id }, data: dto });
   }
 
   async reorderHeroSlides(dto: ReorderItemsDto) {
+    this.invalidateCatalog();
     await this.prisma.$transaction(
       dto.items.map((item) =>
         this.prisma.heroSlide.update({

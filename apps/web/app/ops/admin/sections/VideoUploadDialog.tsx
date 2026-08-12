@@ -31,6 +31,14 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const resetForm = () => {
+    setStep('idle')
+    setFormData({ title: initialTitle, order: initialOrder, filename: '', contentType: '' })
+    setFile(null)
+    setProgress(0)
+    setError(null)
+  }
+
   useEffect(() => {
     if (isOpen) {
       setIsVisible(true)
@@ -40,14 +48,6 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
       return () => clearTimeout(timer)
     }
   }, [isOpen])
-
-  const resetForm = () => {
-    setStep('idle')
-    setFormData({ title: initialTitle, order: initialOrder, filename: '', contentType: '' })
-    setFile(null)
-    setProgress(0)
-    setError(null)
-  }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import useSWR from "swr";
 
 interface FeaturedCourse {
@@ -37,7 +38,7 @@ export function PopularCourses() {
     <section className="[animation:fadeUp_.5s_.13s_ease_both]">
       <div className="flex items-center justify-between mb-2.5">
         <h2 className="font-['Syne'] text-[17px] font-bold text-[var(--text)]">Popular Courses</h2>
-        <a className="text-[12px] font-semibold text-[var(--blue)] hover:text-[var(--orange)]" href="/courses">View All</a>
+        <Link className="text-[12px] font-semibold text-[var(--blue)] hover:text-[var(--orange)]" href="/courses">View All</Link>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {isLoading

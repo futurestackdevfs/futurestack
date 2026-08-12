@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
@@ -115,6 +116,7 @@ export class CoursesController {
   }
 
   @Get('public/featured-hero-slides')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
   featuredHeroSlides() {
     return this.coursesService.featuredHeroSlides();
   }
@@ -200,21 +202,25 @@ export class CoursesController {
   // ================================================================
 
   @Get('public/featured-courses')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
   featuredCourses() {
     return this.coursesService.featuredCourses();
   }
 
   @Get('public/featured-tracks')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
   featuredTracks() {
     return this.coursesService.featuredTracks();
   }
 
   @Get('public/tracks/:id/courses')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
   trackCourses(@Param('id') id: string) {
     return this.coursesService.trackCourses(id);
   }
 
   @Get('public/cards')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
   publicCards(
     @Query('page') page?: string,
     @Query('perPage') perPage?: string,
@@ -234,11 +240,19 @@ export class CoursesController {
   }
 
   @Get('public/slug/:slug')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
   publicCourseBySlug(@Param('slug') slug: string) {
     return this.coursesService.publicCourseBySlug(slug);
   }
 
+  @Get('public/related/:id')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
+  relatedCourses(@Param('id') id: string) {
+    return this.coursesService.relatedCourses(id);
+  }
+
   @Get('public/:id')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
   publicCourseDetail(@Param('id') id: string) {
     return this.coursesService.publicCourseDetail(id);
   }
@@ -251,6 +265,7 @@ export class CoursesController {
 
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('search')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
   searchCourses(
     @Query('q') q?: string,
     @Query('category') category?: string,

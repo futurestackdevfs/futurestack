@@ -193,7 +193,14 @@ export class CheckoutService {
       }
     }
 
-    const totalAmount = this.round2(subtotal - discountAmount);
+    const totalBeforeGst = this.round2(subtotal - discountAmount);
+
+    // GST is added on top (exclusive) of the discounted fee. The rate is the
+    // admin-configurable PaymentSettings value and is snapshotted on the Order
+    // so historical invoices stay accurate if the rate changes later.
+    const gstPercent = settings.gstPercent ?? 18;
+    const gstAmount = this.round2((totalBeforeGst * gstPercent) / 100);
+    const totalAmount = this.round2(totalBeforeGst + gstAmount);
 
     // Razorpay rejects orders below ₹1 (100 paise). Surface a clear error
     // instead of a misleading "gateway unavailable" when a coupon zeroes out
@@ -225,6 +232,8 @@ export class CheckoutService {
           subtotal,
           discountAmount,
           couponId,
+          gstPercent,
+          gstAmount,
           totalAmount,
           razorpayOrderId: orderId,
           ...billing,
@@ -321,9 +330,7 @@ export class CheckoutService {
           status: 'PAID',
           razorpayPaymentId: meta.razorpayPaymentId,
           razorpaySignature: meta.razorpaySignature,
-          ...(meta.paymentMethod
-            ? { paymentMethod: meta.paymentMethod }
-            : {}),
+          ...(meta.paymentMethod ? { paymentMethod: meta.paymentMethod } : {}),
         },
       });
 
@@ -422,18 +429,18 @@ export class CheckoutService {
   async handleWebhookEvent(event: Record<string, any>) {
     try {
       const type = event?.event as string | undefined;
-        const payload = event?.payload as
-          | {
-              payment?: {
-                entity?: {
-                  id?: string;
-                  order_id?: string;
-                  payment_signature?: string;
-                  method?: string;
-                };
+      const payload = event?.payload as
+        | {
+            payment?: {
+              entity?: {
+                id?: string;
+                order_id?: string;
+                payment_signature?: string;
+                method?: string;
               };
-            }
-          | undefined;
+            };
+          }
+        | undefined;
       const entity = payload?.payment?.entity;
       const razorpayOrderId = entity?.order_id;
       if (!razorpayOrderId) return;

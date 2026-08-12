@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR from "swr";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 interface FeaturedTrack {
@@ -31,7 +32,7 @@ export function CareerPaths() {
     <section className="[animation:fadeUp_.5s_.18s_ease_both]">
       <div className="flex items-center justify-between mb-2.5">
         <h2 className="font-['Syne'] text-[17px] font-bold text-[var(--text)]">Career Paths</h2>
-        <a className="text-[12px] font-semibold text-[var(--blue)] hover:text-[var(--orange)]" href="/courses">View All</a>
+        <Link className="text-[12px] font-semibold text-[var(--blue)] hover:text-[var(--orange)]" href="/courses">View All</Link>
       </div>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {isLoading
