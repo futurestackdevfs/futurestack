@@ -76,7 +76,9 @@ export function StaffLoginForm() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token: accessToken }),
       });
-      const path = roleRedirects[user.role] ?? '/ops/admin';
+      const fallback = roleRedirects[user.role] ?? '/ops/admin';
+      const redirectTo = new URLSearchParams(window.location.search).get('redirect');
+      const path = redirectTo && redirectTo.startsWith('/ops/') ? redirectTo : fallback;
       router.push(path);
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : 'Login failed. Please try again.');

@@ -182,7 +182,7 @@ export class CertificatesController {
   }
 
   @Get('recent')
-  @Header('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
   async getRecentAchievements() {
     const cached = this.recentCache.get('recent');
     if (cached) return cached;
