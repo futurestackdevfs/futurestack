@@ -227,6 +227,7 @@ export class CoursesController {
     @Query('search') search?: string,
     @Query('sort') sort?: string,
     @Query('filters') filters?: string,
+    @Query('fields') fields?: string,
   ) {
     const p = page ? parseInt(page, 10) : 1;
     const pp = perPage ? parseInt(perPage, 10) : 12;
@@ -236,6 +237,7 @@ export class CoursesController {
       search,
       sort,
       filters: filters ? JSON.parse(filters) : undefined,
+      fields,
     });
   }
 

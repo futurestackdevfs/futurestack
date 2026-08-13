@@ -848,13 +848,20 @@ export class CoursesService {
     search?: string;
     sort?: string;
     filters?: Record<string, string[]>;
+    fields?: string;
   }) {
+    // `fields=lean` powers the nav mega-menu: it only needs slug/title/category/
+    // duration/level/techStack/hours — NOT the heavy full-object fields like
+    // description, whatYoullLearn, careerBody, tracks, price, thumbnail. This
+    // slashes the payload (and the TTLCache footprint) for the every-page nav.
+    const lean = opts.fields === 'lean';
+
     // Only cache the plain catalog views (no search / filters) — those are the
     // hot requests (nav mega menu, courses listing, related courses) and their
     // result barely changes. Search + filter responses are uncached.
     const isFullCatalog =
       !opts.search?.trim() && (!opts.filters || Object.keys(opts.filters).length === 0);
-    const CACHE_KEY = `cards:${opts.page}:${opts.perPage}:${opts.sort ?? 'default'}`;
+    const CACHE_KEY = `cards:${opts.page}:${opts.perPage}:${opts.sort ?? 'default'}:${lean ? 'lean' : 'full'}`;
     if (isFullCatalog) {
       const cached = this.catalogCache.get(CACHE_KEY);
       if (cached) return cached;
@@ -890,61 +897,83 @@ export class CoursesService {
     else if (opts.sort === 'Most Popular')
       orderBy = { enrollments: { _count: 'desc' } };
 
-    const courses = await this.prisma.course.findMany({
+    const leanSelect: Record<string, any> & {
+      _count?: boolean;
+      trainer?: boolean;
+      tracks?: boolean;
+    } = {
+      id: true,
+      title: true,
+      description: true,
+      category: true,
+      techStack: true,
+      skillLevel: true,
+      createdAt: true,
+    };
+    if (!lean) {
+      (leanSelect as any).thumbnailUrl = true;
+      (leanSelect as any).price = true;
+      (leanSelect as any).whatYoullLearn = true;
+      (leanSelect as any).careerTitle = true;
+      (leanSelect as any).careerBody = true;
+      (leanSelect as any).trainer = { select: { name: true, rating: true } };
+      (leanSelect as any).tracks = {
+        select: { track: { select: { id: true, title: true } } },
+      };
+      (leanSelect as any)._count = { select: { enrollments: true } };
+    }
+    const courses = (await this.prisma.course.findMany({
       where,
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        thumbnailUrl: true,
-        price: true,
-        techStack: true,
-        whatYoullLearn: true,
-        careerTitle: true,
-        careerBody: true,
-        category: true,
-        skillLevel: true,
-        createdAt: true,
-        trainer: { select: { name: true, rating: true } },
-        tracks: {
-          select: { track: { select: { id: true, title: true } } },
-        },
-        _count: { select: { enrollments: true } },
-      },
+      select: leanSelect,
       orderBy,
-    });
+    })) as any[];
 
     const videoStats = await this.getVideoStats(courses.map((c) => c.id));
 
     // Build computed card data
     const enrollmentCounts = courses
-      .map((c) => c._count.enrollments)
+      .map((c) => c._count?.enrollments ?? 0)
       .sort((a, b) => b - a);
     const trendingThreshold =
       enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-    let data = courses.map((course) => {
+    let data: any[] = courses.map((course) => {
       const stats = videoStats.get(course.id) ?? {
         totalSeconds: 0,
         videoCount: 0,
       };
       const totalHours = Math.round(stats.totalSeconds / 3600);
-
-      const isTrending =
-        course._count.enrollments > 0 &&
-        course._count.enrollments >= trendingThreshold;
-      const isNew = course.createdAt >= fourteenDaysAgo;
-      const badge = null;
-      const badgeClass = '';
-      const category = course.category ?? course.techStack[0] ?? 'General';
-      const level = SKILL_LEVEL_LABELS[course.skillLevel ?? 'INTERMEDIATE'];
       const durationLabel =
         totalHours > 50
           ? '50+ hrs'
           : totalHours > 20
             ? '20 – 50 hrs'
             : '5 – 20 hrs';
+
+      if (lean) {
+        const category = course.category ?? course.techStack[0] ?? 'General';
+        const level = SKILL_LEVEL_LABELS[course.skillLevel ?? 'INTERMEDIATE'];
+        return {
+          id: course.id,
+          slug: slugify(course.title),
+          category,
+          title: course.title,
+          description: course.description ?? '',
+          hours: totalHours || 20,
+          level,
+          techStack: course.techStack,
+          duration: durationLabel,
+        };
+      }
+      const isTrending =
+        (course._count?.enrollments ?? 0) > 0 &&
+        (course._count?.enrollments ?? 0) >= trendingThreshold;
+      const isNew = course.createdAt >= fourteenDaysAgo;
+      const badge = null;
+      const badgeClass = '';
+      const category = course.category ?? course.techStack[0] ?? 'General';
+      const level = SKILL_LEVEL_LABELS[course.skillLevel ?? 'INTERMEDIATE'];
 
       return {
         id: course.id,
@@ -1009,23 +1038,27 @@ export class CoursesService {
     const DURATION_ORDER = ['5 – 20 hrs', '20 – 50 hrs', '50+ hrs'];
     // Career Track facet is computed from the DB (all tracks) so it is always
     // available in the sidebar — even at count 0 or when a search yields nothing.
-    const trackRows = await this.prisma.track.findMany({
-      select: {
-        title: true,
-        courses: {
-          where: { course: { status: 'ACTIVE' } },
-          select: { id: true },
-        },
-      },
-    });
-    const facets = [
-      {
-        key: 'track',
-        title: 'Career Track',
-        options: trackRows
-          .map((t) => ({ value: t.title, count: t.courses.length }))
-          .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
-      },
+    const trackRows = lean
+      ? []
+      : await this.prisma.track.findMany({
+          select: {
+            title: true,
+            courses: {
+              where: { course: { status: 'ACTIVE' } },
+              select: { id: true },
+            },
+          },
+        });
+    const facets = lean
+      ? []
+      : [
+          {
+            key: 'track',
+            title: 'Career Track',
+            options: trackRows
+              .map((t) => ({ value: t.title, count: t.courses.length }))
+              .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value)),
+          },
       {
         key: 'level',
         title: 'Skill Level',

@@ -134,7 +134,7 @@ export function TopNav() {
   const fetchCoursesData = useCallback(async () => {
     setCoursesLoading(true);
     try {
-      const res = await fetch('/api/courses/public/cards?perPage=200');
+      const res = await fetch('/api/courses/public/cards?perPage=200&fields=lean');
       if (!res.ok) throw new Error('Failed');
       const json = await res.json();
       const cards = json.data ?? [];
