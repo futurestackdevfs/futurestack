@@ -1,6 +1,7 @@
-﻿"use client";
+"use client";
 
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import useSWR from "swr";
 import { useAuth } from "@/app/auth/hooks/use-auth";
@@ -497,7 +498,7 @@ export default function CoursesPage() {
                   className={`group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow)] transition-all duration-[220ms] ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-1 hover:border-[#C7D8FF] hover:shadow-[var(--shadow-lg)] ${viewMode === "list" ? "md:flex-row" : ""}`}
                 >
                   <div className={`relative overflow-hidden bg-[var(--bg2)] ${viewMode === "list" ? "md:w-[200px] md:h-full md:min-h-[120px]" : "aspect-[21/8]"}`}>
-                    <img src={course.img} alt={course.title} className="h-full w-full object-cover" />
+                    <Image src={course.img} alt={course.title} fill sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" className="object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-[rgba(13,31,92,.5)] via-transparent to-transparent" />
                     {course.badge && (
                       <span className={`absolute left-3 top-3 rounded-full px-2.5 py-[3px] text-[10px] font-extrabold uppercase tracking-[.4px] text-white shadow-[0_2px_10px_rgba(0,0,0,.25)] ${course.badgeClass}`}>{course.badge}</span>

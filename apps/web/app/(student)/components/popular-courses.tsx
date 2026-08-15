@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import useSWR from "swr";
 
 interface FeaturedCourse {
@@ -56,7 +57,7 @@ export function PopularCourses() {
                 <div className="relative aspect-[21/8] w-full overflow-hidden rounded-[18px_18px_0_0] bg-[var(--bg2)]">
                   {c.thumbnailUrl ? (
                     <div className="absolute inset-0">
-                      <img src={c.thumbnailUrl} alt={c.title} className="h-full w-full object-cover" />
+                      <Image src={c.thumbnailUrl} alt={c.title} fill sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw" className="object-cover" />
                     </div>
                   ) : <div className="absolute inset-0" style={{ background: fallbackGradient }} />}
                   {c.badge && (

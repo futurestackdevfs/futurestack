@@ -33,12 +33,20 @@ async function proxy(req: NextRequest) {
 
   let backendRes: Response;
   try {
-    backendRes = await fetch(url, {
+    const isPublicGet = req.method === 'GET' && path.includes('/public/');
+    const fetchOptions: RequestInit = {
       method: req.method,
       headers,
       body: body ? Buffer.from(body) : undefined,
-      cache: 'no-store',
-    });
+    };
+    
+    if (isPublicGet) {
+      fetchOptions.next = { revalidate: 60 };
+    } else {
+      fetchOptions.cache = 'no-store';
+    }
+
+    backendRes = await fetch(url, fetchOptions);
   } catch (err) {
     // Backend unreachable (ECONNREFUSED, timeout, DNS failure, etc.)
     return NextResponse.json(

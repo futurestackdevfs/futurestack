@@ -4,12 +4,14 @@ import { AppModule } from './app.module';
 import { join } from 'path';
 import * as express from 'express';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 
 async function bootstrap() {
   // rawBody: true keeps the untouched request body available via req.rawBody for
   // signature verification (Razorpay webhook) while still parsing JSON on every
   // other route normally.
   const app = await NestFactory.create(AppModule, { rawBody: true });
+  app.use(helmet());
   app.use(cookieParser());
 
   const allowedOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:3000')

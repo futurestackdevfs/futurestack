@@ -53,9 +53,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SWRConfig
       value={{
         fetcher,
-        revalidateOnFocus: true,
+        revalidateOnFocus: false, // Prevent aggressive refetching when switching tabs
         revalidateOnReconnect: true,
-        dedupingInterval: 5000,
+        dedupingInterval: 60000, // Cache requests for 60 seconds to avoid over-fetching
+        keepPreviousData: true, // Keep old data visible while fetching new data
       }}
     >
       {children}

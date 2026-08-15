@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import useSWR from "swr";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { loadToken } from "@/app/auth/lib/token-store";
@@ -951,7 +952,7 @@ export default function CourseDetailPage() {
                 <Link key={rc.id} href={`/courses/${rc.slug}`} className="border border-[var(--border)] dark:border-[#1e2535] rounded-xl overflow-hidden cursor-pointer transition-all hover:border-[#C7D8FF] dark:hover:border-[#2d3358] hover:shadow-md hover:-translate-y-[3px] bg-white dark:bg-[#111520] no-underline group">
                   <div className="aspect-[21/8] overflow-hidden bg-[#F3F4F6] dark:bg-[#0b0e14]">
                     {rc.img ? (
-                      <img src={rc.img} alt={rc.title} className="w-full h-full object-cover" />
+                      <Image src={rc.img} alt={rc.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
                     ) : (
                       <div className="w-full h-full bg-[linear-gradient(135deg,#1A3BA0,#4A72E8)]"></div>
                     )}

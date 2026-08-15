@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 interface RestApiCourseCardProps {
   slug?: string;
@@ -43,7 +44,7 @@ export function RestApiCourseCard({ slug = "rest-api-design-with-node-js" }: Res
       onKeyDown={(e) => { if (e.key === "Enter") router.push(`/courses/${course.slug}`); }}
     >
       <div className="relative overflow-hidden bg-[var(--bg2)] aspect-[21/8]">
-        <img src={course.img} alt={course.title} className="w-full h-full object-cover" />
+        <Image src={course.img} alt={course.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[rgba(13,31,92,.55)]"></div>
         {course.badge && (
           <span className={`absolute top-2.5 left-2.5 px-3 py-[4px] rounded-[20px] text-[10.5px] font-extrabold tracking-[.5px] uppercase text-white shadow-[0_2px_10px_rgba(0,0,0,.25)] ${course.badgeClass}`}>{course.badge}</span>

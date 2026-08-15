@@ -149,8 +149,10 @@ export class AuthController {
     const redirectUrl = googleRedirect ?? `${frontendUrl}/auth/oauth/callback`;
 
     // Redirect to frontend OAuth callback page to initialize localStorage and auth state
+    // We strictly DO NOT pass the refresh token in the URL query string to prevent credential leakage.
+    // The refresh token is already set securely via the HttpOnly cookie above.
     return res.redirect(
-      `${redirectUrl}?token=${accessToken}&refresh=${rawRefreshToken}`,
+      `${redirectUrl}?token=${accessToken}`,
     );
   }
 
