@@ -1,8 +1,8 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { saveToken, saveStaffToken } from '@/app/auth/lib/token-store';
 import { emit } from '@/app/auth/hooks/use-auth';
+import { refreshSession } from '@/app/auth/lib/refresh-session';
 
 function decodeJwt(token: string) {
   try {
@@ -26,35 +26,19 @@ export function SessionExpiredModal() {
   const signIn = useCallback(async () => {
     try {
       const lastRole = sessionStorage.getItem('fs_last_role') ?? 'STUDENT';
-      const refreshRes = await fetch(`/api/auth/refresh?role=${lastRole}`, { method: 'POST' });
-      if (refreshRes.ok) {
-        const data = await refreshRes.json();
-        if (data.accessToken) {
-          const payload = decodeJwt(data.accessToken);
-          const uid = payload?.sub;
-          const role = payload?.role;
-          if (uid) {
-            if (role && role !== 'STUDENT') {
-              await saveStaffToken(uid, data.accessToken);
-            } else {
-              await saveToken(uid, data.accessToken);
-            }
-            await fetch(
-              role && role !== 'STUDENT' ? '/api/auth/set-token-staff' : '/api/auth/set-token',
-              {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ token: data.accessToken }),
-              },
-            );
-            emit({
-              user: { id: uid, name: payload.name, email: payload.email, role: payload.role, avatarUrl: payload.avatarUrl, emailVerified: payload.emailVerified },
-              isAuthenticated: true,
-              isLoading: false,
-            });
-            dismiss();
-            return;
-          }
+      const refreshed = await refreshSession(lastRole);
+      if (refreshed?.accessToken) {
+        const payload = decodeJwt(refreshed.accessToken);
+        const uid = payload?.sub;
+        const role = payload?.role;
+        if (uid) {
+          emit({
+            user: { id: uid, name: payload.name, email: payload.email, role: payload.role, avatarUrl: payload.avatarUrl, emailVerified: payload.emailVerified },
+            isAuthenticated: true,
+            isLoading: false,
+          });
+          dismiss();
+          return;
         }
       }
     } catch {

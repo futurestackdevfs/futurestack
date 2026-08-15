@@ -11,6 +11,7 @@ import { CreateStaffDto } from './dto/create-staff.dto';
 import { UploadVideoDto } from './dto/upload-video.dto';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
 import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
+import { UpdateTrainerShareDto } from './dto/update-trainer-share.dto';
 
 @Injectable()
 export class AdminService {
@@ -193,6 +194,7 @@ export class AdminService {
         emailVerified: true,
         avatarUrl: true,
         approvalStatus: true,
+        trainerSharePercent: true,
         createdAt: true,
         lastLoginAt: true,
         _count: { select: { enrollments: true, coursesTaught: true } },
@@ -231,6 +233,42 @@ export class AdminService {
     return {
       message: `${user.name} has been created as ${dto.role}.`,
       userId: user.id,
+    };
+  }
+
+  /**
+   * Sets/clears a per-trainer share override (% the trainer keeps). A null
+   * value resets to the global PaymentSettings default. Refuses once the
+   * trainer has any revenue ledger entries — the split is locked in once
+   * money starts flowing.
+   */
+  async updateTrainerShare(id: string, dto: UpdateTrainerShareDto) {
+    const trainer = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
+
+    if (!trainer || trainer.role !== Role.TRAINER) {
+      throw new NotFoundException('Trainer not found');
+    }
+
+    const hasRevenue = await this.prisma.revenueLedger.count({
+      where: { trainerId: id },
+    });
+    if (hasRevenue > 0) {
+      throw new ConflictException(
+        'Cannot change revenue split after revenue has been generated',
+      );
+    }
+
+    await this.prisma.user.update({
+      where: { id },
+      data: { trainerSharePercent: dto.trainerSharePercent ?? null },
+    });
+
+    return {
+      message: 'Revenue split updated',
+      trainerSharePercent: dto.trainerSharePercent,
     };
   }
 

@@ -1,5 +1,6 @@
 import { loadStaffToken, saveStaffToken } from "@/app/auth/lib/token-store";
 import { reportSessionExpired } from "@/app/auth/lib/session-events";
+import { refreshSession } from "@/app/auth/lib/refresh-session";
 
 function decodeJwtRole(t: string): string | undefined {
   try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role; } catch { return undefined; }
@@ -41,20 +42,11 @@ export async function opsFetch(input: string, init: RequestInit = {}): Promise<R
   if (res.status === 401) {
     const role = decodeJwtRole(token);
     try {
-      const qs = role && role !== 'STUDENT' ? `?role=${role}` : '';
-      const refreshRes = await fetch(`/api/auth/refresh${qs}`, { method: 'POST' });
-      if (refreshRes.ok) {
-        const { accessToken } = await refreshRes.json();
-        if (accessToken) {
-          const staffUid = localStorage.getItem('fs_staff_uid');
-          if (staffUid) await saveStaffToken(staffUid, accessToken);
-          fetch('/api/auth/set-token-staff', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ token: accessToken }),
-          }).catch(() => {});
-          res = await doFetch(accessToken);
-        }
+      const refreshed = await refreshSession(role);
+      if (refreshed) {
+        const staffUid = localStorage.getItem('fs_staff_uid');
+        if (staffUid) await saveStaffToken(staffUid, refreshed.accessToken);
+        res = await doFetch(refreshed.accessToken);
       }
     } catch {
       // refresh failed — return original 401

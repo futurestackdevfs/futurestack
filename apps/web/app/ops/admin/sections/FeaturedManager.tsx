@@ -244,7 +244,7 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`/api/upload/resource?folder=banners`, {
+      const res = await fetch(`/api/upload/image?folder=banners`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: fd,

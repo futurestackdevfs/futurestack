@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import useSWR from "swr";
 
 interface FeaturedCourse {
@@ -37,7 +38,7 @@ export function PopularCourses() {
     <section className="[animation:fadeUp_.5s_.13s_ease_both]">
       <div className="flex items-center justify-between mb-2.5">
         <h2 className="font-['Syne'] text-[17px] font-bold text-[var(--text)]">Popular Courses</h2>
-        <a className="text-[12px] font-semibold text-[var(--blue)] hover:text-[var(--orange)]" href="/courses">View All</a>
+        <Link className="text-[12px] font-semibold text-[var(--blue)] hover:text-[var(--orange)]" href="/courses">View All</Link>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {isLoading
@@ -52,10 +53,10 @@ export function PopularCourses() {
             ))
           : courses.map((c) => (
               <div key={c.id} onClick={() => router.push(`/courses/${slugify(c.title)}`)} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden cursor-pointer shadow-[var(--shadow)] hover:-translate-y-1 hover:border-[rgba(37,99,235,.3)] hover:shadow-[var(--shadow-lg)] group">
-                <div className="relative aspect-[16/7] w-full overflow-hidden rounded-[18px_18px_0_0] bg-[var(--bg2)]">
+                <div className="relative aspect-[21/8] w-full overflow-hidden rounded-[18px_18px_0_0] bg-[var(--bg2)]">
                   {c.thumbnailUrl ? (
                     <div className="absolute inset-0">
-                      <img src={c.thumbnailUrl} alt={c.title} className="h-full w-full object-cover transition-transform duration-[0.45s] group-hover:scale-[1.06]" />
+                      <img src={c.thumbnailUrl} alt={c.title} className="h-full w-full object-cover" />
                     </div>
                   ) : <div className="absolute inset-0" style={{ background: fallbackGradient }} />}
                   {c.badge && (

@@ -51,6 +51,8 @@ async function proxy(req: NextRequest) {
   const resHeaders = new Headers();
   const resCt = backendRes.headers.get('content-type');
   if (resCt) resHeaders.set('content-type', resCt);
+  const resCache = backendRes.headers.get('cache-control');
+  if (resCache) resHeaders.set('cache-control', resCache);
 
   const response = new NextResponse(resBody, {
     status: backendRes.status,

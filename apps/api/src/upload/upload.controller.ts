@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Query,
   UploadedFile,
   UseInterceptors,
   BadRequestException,
@@ -56,6 +57,38 @@ export class UploadController {
   async uploadDiscussionImage(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('No file uploaded');
     return this.processUpload(file, 'discussions');
+  }
+
+  // Course & banner image uploads: Admins & Content Managers. Images only.
+  // The ?folder= query (courses | banners) decides the storage location — the
+  // generic /upload/resource endpoint no longer needs to accept these.
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post('image')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      fileFilter: (_req, file, cb) => {
+        if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(file.originalname)) {
+          return cb(
+            new BadRequestException(
+              'Only image files are allowed (jpg, jpeg, png, webp, gif)',
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    }),
+  )
+  async uploadImage(
+    @Query('folder') folder: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    const safeFolder: S3Folder =
+      folder === 'banners' ? 'banners' : folder === 'courses' ? 'courses' : 'courses';
+    return this.processUpload(file, safeFolder);
   }
 
   // Course Resource uploads: Admins & Content Managers. Any resource type. Max 50MB.

@@ -282,8 +282,10 @@ export default function CourseDetailPage() {
     slug ? `${API}/courses/public/slug/${slug}` : null,
     fetcher,
   );
-  const { data: allCards } = useSWR<{ data: CourseCard[] }>(`${API}/courses/public/cards`, fetcher);
-  const related = (allCards?.data ?? []).filter((c) => c.id !== course?.id).slice(0, 3);
+  const { data: related } = useSWR<CourseCard[]>(
+    course?.id ? `${API}/courses/public/related/${course.id}` : null,
+    fetcher,
+  );
   const isLoading = isLoadingCourse;
 
   const { isAuthenticated } = useAuth();
@@ -941,15 +943,15 @@ export default function CourseDetailPage() {
           ))}
         </div>
 
-        {related.length > 0 && (
+        {related && related.length > 0 && (
           <SectionCard>
             <SectionTitle>Related Courses</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {related.map((rc) => (
                 <Link key={rc.id} href={`/courses/${rc.slug}`} className="border border-[var(--border)] dark:border-[#1e2535] rounded-xl overflow-hidden cursor-pointer transition-all hover:border-[#C7D8FF] dark:hover:border-[#2d3358] hover:shadow-md hover:-translate-y-[3px] bg-white dark:bg-[#111520] no-underline group">
-                  <div className="aspect-[16/7] overflow-hidden bg-[#F3F4F6] dark:bg-[#0b0e14]">
+                  <div className="aspect-[21/8] overflow-hidden bg-[#F3F4F6] dark:bg-[#0b0e14]">
                     {rc.img ? (
-                      <img src={rc.img} alt={rc.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                      <img src={rc.img} alt={rc.title} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full bg-[linear-gradient(135deg,#1A3BA0,#4A72E8)]"></div>
                     )}

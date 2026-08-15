@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  computeTrainerShare,
+  resolveTrainerSharePercent,
+} from '../payment-settings/share.util';
 
 const VALID_STATUSES = [
   'CREATED',
@@ -132,5 +136,107 @@ export class AdminPaymentsService {
         totalPages: Math.max(1, Math.ceil(total / size)),
       },
     };
+  }
+
+  /** Per-trainer revenue split (gross / platform cut / trainer share) computed
+   *  live from the PAID order book — each item's course trainer + the trainer
+   *  share % resolution (per-trainer override falling back to the global
+   *  PaymentSettings default), same math as checkout. This works even for
+   *  orders that predate the RevenueLedger. Sorted by trainer share. */
+  async trainerBreakdown() {
+    const [settings, paidOrders] = await Promise.all([
+      this.prisma.paymentSettings.findFirst(),
+      this.prisma.order.findMany({
+        where: { status: OrderStatus.PAID },
+        include: {
+          items: {
+            include: {
+              course: {
+                select: {
+                  id: true,
+                  trainer: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                      trainerSharePercent: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const defaultSharePct = settings?.trainerSharePercent ?? 50;
+    const map = new Map<
+      string,
+      {
+        trainerId: string;
+        trainerName: string;
+        trainerEmail: string;
+        trainerSharePercent: number | null;
+        gross: number;
+        platformCut: number;
+        trainerShare: number;
+        enrollments: number;
+      }
+    >();
+
+    for (const order of paidOrders) {
+      if (!order.subtotal || order.subtotal <= 0) continue;
+      // Allocate the order discount proportionally across items so gross
+      // reconciles exactly with the admin "Revenue (Paid)" KPI (totalAmount).
+      const ratio = order.totalAmount / order.subtotal;
+      for (const item of order.items) {
+        const trainer = item.course.trainer;
+        if (!trainer) continue;
+        const cur =
+          map.get(trainer.id) ??
+          {
+            trainerId: trainer.id,
+            trainerName: trainer.name,
+            trainerEmail: trainer.email,
+            trainerSharePercent: trainer.trainerSharePercent ?? null,
+            gross: 0,
+            platformCut: 0,
+            trainerShare: 0,
+            enrollments: 0,
+          };
+        const pct = resolveTrainerSharePercent(
+          trainer.trainerSharePercent,
+          defaultSharePct,
+        );
+        const effective = Math.round(item.priceAtPurchase * ratio * 100) / 100;
+        const { trainerShare, platformCut } = computeTrainerShare(
+          effective,
+          pct,
+        );
+        cur.gross += effective;
+        cur.platformCut += platformCut;
+        cur.trainerShare += trainerShare;
+        cur.enrollments += 1;
+        map.set(trainer.id, cur);
+      }
+    }
+
+    const trainers = Array.from(map.values()).sort(
+      (a, b) => b.trainerShare - a.trainerShare,
+    );
+
+    const totals = trainers.reduce(
+      (acc, t) => {
+        acc.gross += t.gross;
+        acc.platformCut += t.platformCut;
+        acc.trainerShare += t.trainerShare;
+        acc.enrollments += t.enrollments;
+        return acc;
+      },
+      { gross: 0, platformCut: 0, trainerShare: 0, enrollments: 0 },
+    );
+
+    return { trainers, totals, count: trainers.length };
   }
 }

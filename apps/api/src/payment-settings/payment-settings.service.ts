@@ -14,7 +14,11 @@ export class PaymentSettingsService {
     const settings = await this.prisma.paymentSettings.findFirst();
     if (settings) return settings;
     return this.prisma.paymentSettings.create({
-      data: { domesticEnabled: true, internationalEnabled: false },
+      data: {
+        domesticEnabled: true,
+        internationalEnabled: false,
+        gstPercent: 18,
+      },
     });
   }
 
@@ -24,6 +28,7 @@ export class PaymentSettingsService {
     return {
       domesticEnabled: s.domesticEnabled,
       internationalEnabled: s.internationalEnabled,
+      gstPercent: s.gstPercent,
     };
   }
 
@@ -33,6 +38,9 @@ export class PaymentSettingsService {
       domesticEnabled: dto.domesticEnabled ?? settings.domesticEnabled,
       internationalEnabled:
         dto.internationalEnabled ?? settings.internationalEnabled,
+      trainerSharePercent:
+        dto.trainerSharePercent ?? settings.trainerSharePercent,
+      gstPercent: dto.gstPercent ?? settings.gstPercent,
     };
     if (!next.domesticEnabled && !next.internationalEnabled) {
       throw new BadRequestException(

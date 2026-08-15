@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { TOAST_EVENT } from '@/lib/toast';
+import { refreshSession } from '@/app/auth/lib/refresh-session';
 
 type ToastItem = { id: number; message: string; phase: 'enter' | 'visible' | 'exit' };
 
@@ -87,23 +88,20 @@ export function ToastContainer() {
                 const roles = isOps ? ['ADMIN', 'TRAINER', 'COORDINATOR', 'CONTENT_MANAGER', 'SUPPORT'] : ['STUDENT'];
                 for (const role of roles) {
                   try {
-                    const qs = role !== 'STUDENT' ? `?role=${role}` : '';
-                    const res = await fetch(`/api/auth/refresh${qs}`, { method: 'POST' });
-                    if (res.ok) {
-                      const { accessToken, user } = await res.json();
-                      if (accessToken) {
-                        const uid = JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub;
-                        const saveKey = isOps ? 'fs_staff_uid' : 'fs_uid';
-                        localStorage.setItem(saveKey, uid);
-                        localStorage.setItem(isOps ? 'fs_token_staff' : 'fs_token', accessToken);
-                        await fetch(isOps ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
-                          method: 'POST',
-                          headers: { 'content-type': 'application/json' },
-                          body: JSON.stringify({ token: accessToken }),
-                        });
-                        window.location.reload();
-                        return;
-                      }
+                    const refreshed = await refreshSession(role);
+                    if (refreshed?.accessToken) {
+                      const { accessToken } = refreshed;
+                      const uid = JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub;
+                      const saveKey = isOps ? 'fs_staff_uid' : 'fs_uid';
+                      localStorage.setItem(saveKey, uid);
+                      localStorage.setItem(isOps ? 'fs_token_staff' : 'fs_token', accessToken);
+                      await fetch(isOps ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ token: accessToken }),
+                      });
+                      window.location.reload();
+                      return;
                     }
                   } catch {}
                 }

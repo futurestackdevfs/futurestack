@@ -1,6 +1,7 @@
 // Calls go to /api/* (Next.js BFF proxy) — backend URL never exposed to browser
 const API = '/api';
 import { reportSessionExpired } from './session-events';
+import { refreshSession } from './refresh-session';
 
 export type User = {
   id?: string;
@@ -49,30 +50,9 @@ async function request<T>(
   // On 401, try refreshing before giving up (even without explicit token — BFF proxy may have used cookie)
   if (res.status === 401 && !path.includes('/refresh') && !path.includes('/login')) {
     try {
-      // Decode role from explicit token if available; otherwise default to STUDENT
-      const role = decodeJwtRole(token);
-      const qs = role && role !== 'STUDENT' ? `?role=${role}` : '';
-      const refreshRes = await fetch(`${API}/auth/refresh${qs}`, { method: 'POST' });
-      if (refreshRes.ok) {
-        const refreshData = await refreshRes.json();
-        const { saveToken, saveStaffToken } = await import('./token-store');
-        const studentUid = localStorage.getItem('fs_uid');
-        const staffUid = localStorage.getItem('fs_staff_uid');
-        if (studentUid && refreshData.accessToken) {
-          await saveToken(studentUid, refreshData.accessToken);
-        }
-        if (staffUid && refreshData.accessToken) {
-          await saveStaffToken(staffUid, refreshData.accessToken);
-        }
-        // Update the BFF proxy cookie so subsequent calls don't use the expired JWT
-        const cookieEndpoint = staffUid && !studentUid ? '/api/auth/set-token-staff' : '/api/auth/set-token';
-        fetch(cookieEndpoint, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ token: refreshData.accessToken }),
-        }).catch(() => {});
-        // Retry original request with new token
-        res = await doFetch(refreshData.accessToken);
+      const refreshed = await refreshSession(decodeJwtRole(token));
+      if (refreshed) {
+        res = await doFetch(refreshed.accessToken);
       }
     } catch {
       // Refresh failed — fall through to error handling below
@@ -207,6 +187,8 @@ export type OrderHistoryItem = {
   subtotal: number;
   discountAmount: number;
   couponId: string | null;
+  gstPercent: number;
+  gstAmount: number;
   totalAmount: number;
   status: 'CREATED' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
   razorpayOrderId: string;

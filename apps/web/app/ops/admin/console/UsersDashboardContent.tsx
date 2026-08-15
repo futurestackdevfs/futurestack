@@ -12,6 +12,7 @@ interface User {
   emailVerified: boolean;
   avatarUrl: string | null;
   approvalStatus: string | null;
+  trainerSharePercent: number | null;
   createdAt: string;
   lastLoginAt: string | null;
   _count: { enrollments: number; coursesTaught: number };
@@ -44,6 +45,7 @@ export default function UsersDashboardContent() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [savingCut, setSavingCut] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +76,30 @@ export default function UsersDashboardContent() {
   function handleFilterChange(setter: (v: string) => void, value: string) {
     setter(value);
     setCurrentPage(1);
+  }
+
+  async function saveTrainerShare(id: string, current: number | null, inputEl: HTMLInputElement | null) {
+    const raw = Number(inputEl?.value);
+    const pct = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : null;
+    if (pct === current) return;
+    setSavingCut(id);
+    try {
+      const res = await opsFetch(`/api/admin/trainers/${id}/share`, {
+        method: "PATCH",
+        body: JSON.stringify({ trainerSharePercent: pct }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || `HTTP ${res.status}`);
+      }
+      const updated = await res.json();
+      const share = typeof updated?.trainerSharePercent === "number" ? updated.trainerSharePercent : pct;
+      setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, trainerSharePercent: share } : u)));
+    } catch {
+      if (inputEl) inputEl.value = String(current ?? "");
+    } finally {
+      setSavingCut(null);
+    }
   }
 
   function getPageNumbers() {
@@ -182,7 +208,7 @@ export default function UsersDashboardContent() {
             <table className="w-full" style={{ borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--panel)" }}>
-                  {["User", "Email", "Role", "Status", "Joined", "Last Login", "Activity"].map((h) => (
+                  {["User", "Email", "Role", "Status", "Joined", "Last Login", "Trainer Share", "Activity"].map((h) => (
                     <th key={h} className="font-mono text-[9px] font-bold uppercase tracking-wider text-left px-3 py-2" style={{ color: "var(--text3)" }}>{h}</th>
                   ))}
                 </tr>
@@ -213,6 +239,34 @@ export default function UsersDashboardContent() {
                     </td>
                     <td className="px-3 py-2 font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>{u.createdAt?.slice(0, 10) || "—"}</td>
                     <td className="px-3 py-2 font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>{u.lastLoginAt?.slice(0, 10) || "Never"}</td>
+                    <td className="px-3 py-2">
+                      {u.role === "TRAINER" ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            defaultValue={u.trainerSharePercent ?? ""}
+                            placeholder="default"
+                            disabled={savingCut === u.id}
+                            className="font-mono text-[10px] px-1.5 py-0.5 rounded w-[52px] text-right outline-none"
+                            style={{ border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)" }}
+                            id={`cut-${u.id}`}
+                          />
+                          <span className="text-[9px]" style={{ color: "var(--text3)" }}>%</span>
+                          <button
+                            disabled={savingCut === u.id}
+                            onClick={() => saveTrainerShare(u.id, u.trainerSharePercent, document.getElementById(`cut-${u.id}`) as HTMLInputElement | null)}
+                            className="font-mono text-[8.5px] font-semibold px-2 py-0.5 rounded cursor-pointer disabled:opacity-50"
+                            style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
+                          >
+                            {savingCut === u.id ? "…" : "Set"}
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ color: "var(--text3)" }}>—</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       <div className="flex gap-2 font-mono text-[9px]" style={{ color: "var(--text3)" }}>
                         {u.role === "STUDENT" && <span>{u._count.enrollments} enrollments</span>}

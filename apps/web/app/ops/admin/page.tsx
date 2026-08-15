@@ -66,12 +66,8 @@ interface CurriculumEntry {
   sections: { id: number; num: string; title: string; lessons: { id: number; name: string; type: string; duration: string }[] }[];
 }
 
-let DB: { [key: string]: any[] } = {
+const DB: { [key: string]: any[] } = {
   courses: [], batches: [], instructors: [], feeplans: [], certs: [], departments: [], admins: [],
-};
-
-let nextId: { [key: string]: number } = {
-  courses: 1, batches: 1, instructors: 1, feeplans: 1, certs: 1, departments: 1,
 };
 
 /* ───────────────────────────────────────────────
@@ -253,7 +249,7 @@ const COLUMNS: Record<string, ColumnDef[]> = {
   ],
 };
 
-let CURRICULUM_SEED: Record<string, CurriculumEntry> = {};
+const CURRICULUM_SEED: Record<string, CurriculumEntry> = {};
 
 /* ───────────────────────────────────────────────
    MAIN PAGE
@@ -658,7 +654,12 @@ export default function AdminMasterDataPage() {
       }));
       addToast(`${ENTITY_NAMES[currentEntity]} updated successfully`);
     } else {
-      const newId = nextId[currentEntity]++;
+      const maxId = db[currentEntity].reduce(
+        (max: number, r: any) =>
+          typeof r.id === 'number' ? Math.max(max, r.id) : max,
+        0,
+      );
+      const newId = maxId + 1;
       setDb((prev) => ({
         ...prev,
         [currentEntity]: [...prev[currentEntity], { ...formData, id: newId }],

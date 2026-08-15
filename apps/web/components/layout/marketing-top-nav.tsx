@@ -12,6 +12,10 @@ function slugify(str: string): string {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+const categoryIcons: Record<string, string> = {
+  'Web Development': '🌐', 'Data & AI': '🧠', 'Cloud & DevOps': '☁️', 'Emerging Tech': '⚡', 'Mobile Development': '📱', 'Cybersecurity': '🔒', 'General': '📚',
+};
+
 export function TopNav() {
   const { isAuthenticated, isLoading, user, logout } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -125,71 +129,70 @@ export function TopNav() {
   const [trackCoursesLoading, setTrackCoursesLoading] = useState(false);
   const [allCards, setAllCards] = useState<{ title: string; level: string; duration: string; slug: string; category: string; techStack?: string[]; hours?: number }[]>([]);
 
-  const categoryIcons: Record<string, string> = {
-    'Web Development': '🌐', 'Data & AI': '🧠', 'Cloud & DevOps': '☁️', 'Emerging Tech': '⚡', 'Mobile Development': '📱', 'Cybersecurity': '🔒', 'General': '📚',
-  };
+  const megaFetchedRef = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchCourses() {
-      setCoursesLoading(true);
-      try {
-        const res = await fetch('/api/courses/public/cards?perPage=200');
-        if (!res.ok) throw new Error('Failed');
-        const json = await res.json();
-        const cards = json.data ?? [];
-        const groups: Record<string, { title: string; desc: string; level: string; duration: string; slug: string; icon: string }[]> = {};
-        const counts: Record<string, number> = {};
-        for (const c of cards) {
-          const cat = c.category || c.tech || 'General';
-          if (!groups[cat]) { groups[cat] = []; counts[cat] = 0; }
-          counts[cat]++;
-          if (groups[cat].length < 6) {
-            groups[cat].push({
-              title: c.title,
-              desc: c.description || '',
-              level: c.level || 'All Levels',
-              duration: c.duration || 'Self-Paced',
-              slug: c.slug || c.id,
-              icon: categoryIcons[cat] || '📖',
-            });
-          }
+  const fetchCoursesData = useCallback(async () => {
+    setCoursesLoading(true);
+    try {
+      const res = await fetch('/api/courses/public/cards?perPage=200&fields=lean');
+      if (!res.ok) throw new Error('Failed');
+      const json = await res.json();
+      const cards = json.data ?? [];
+      const groups: Record<string, { title: string; desc: string; level: string; duration: string; slug: string; icon: string }[]> = {};
+      const counts: Record<string, number> = {};
+      for (const c of cards) {
+        const cat = c.category || c.tech || 'General';
+        if (!groups[cat]) { groups[cat] = []; counts[cat] = 0; }
+        counts[cat]++;
+        if (groups[cat].length < 6) {
+          groups[cat].push({
+            title: c.title,
+            desc: c.description || '',
+            level: c.level || 'All Levels',
+            duration: c.duration || 'Self-Paced',
+            slug: c.slug || c.id,
+            icon: categoryIcons[cat] || '📖',
+          });
         }
-        const cats = Object.entries(counts).map(([label, count]) => ({
-          id: label,
-          label,
-          icon: categoryIcons[label] || '📖',
-          count,
-        }));
-        if (!cancelled) { setCourseCatsData(cats); setCoursesByCat(groups); setAllCards(cards.map((c: any) => ({ title: c.title, level: c.level || 'All Levels', duration: c.duration || 'Self-Paced', slug: c.slug || c.id, category: c.category || c.tech || 'General', techStack: c.techStack ?? [], hours: c.hours ?? 0 }))); if (cats.length > 0) setActiveCourseCat(cats[0].id); }
-      } catch { /* use fallback */ }
-      if (!cancelled) setCoursesLoading(false);
-    }
-    fetchCourses();
-    return () => { cancelled = true; };
+      }
+      const cats = Object.entries(counts).map(([label, count]) => ({
+        id: label,
+        label,
+        icon: categoryIcons[label] || '📖',
+        count,
+      }));
+      setCourseCatsData(cats);
+      setCoursesByCat(groups);
+      setAllCards(cards.map((c: any) => ({ title: c.title, level: c.level || 'All Levels', duration: c.duration || 'Self-Paced', slug: c.slug || c.id, category: c.category || c.tech || 'General', techStack: c.techStack ?? [], hours: c.hours ?? 0 })));
+      if (cats.length > 0) setActiveCourseCat(cats[0].id);
+    } catch { /* use fallback */ }
+    setCoursesLoading(false);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchTracks() {
-      setTracksLoading(true);
-      try {
-        const res = await fetch('/api/courses/public/featured-tracks');
-        if (!res.ok) throw new Error('Failed');
-        const data = await res.json();
-        const tracks = (data.data ?? data ?? []).map((t: any) => ({
-          id: t.id || t.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          title: t.title,
-          description: t.description || '',
-          courseCount: t._count?.courses ?? t.courseCount ?? 0,
-        }));
-        if (!cancelled) { setTracksData(tracks); if (tracks.length > 0 && !activePathCat) setActivePathCat(tracks[0].id); }
-      } catch { /* use fallback */ }
-      if (!cancelled) setTracksLoading(false);
-    }
-    fetchTracks();
-    return () => { cancelled = true; };
+  const fetchTracksData = useCallback(async () => {
+    setTracksLoading(true);
+    try {
+      const res = await fetch('/api/courses/public/featured-tracks');
+      if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
+      const tracks = (data.data ?? data ?? []).map((t: any) => ({
+        id: t.id || t.title?.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        title: t.title,
+        description: t.description || '',
+        courseCount: t._count?.courses ?? t.courseCount ?? 0,
+      }));
+      setTracksData(tracks);
+      setActivePathCat((prev) => prev || tracks[0]?.id || '');
+    } catch { /* use fallback */ }
+    setTracksLoading(false);
   }, []);
+
+  const loadMegaData = useCallback(() => {
+    if (megaFetchedRef.current) return;
+    megaFetchedRef.current = true;
+    fetchCoursesData();
+    fetchTracksData();
+  }, [fetchCoursesData, fetchTracksData]);
 
   function startCoursesTimer() {
     if (coursesMegaTimer.current) clearTimeout(coursesMegaTimer.current);
@@ -316,7 +319,7 @@ export function TopNav() {
   }, [logout, router]);
 
   return (<>
-    <nav className={`flex items-center gap-3 md:gap-5 px-3 md:px-6 h-14 bg-[var(--surface)]/80 backdrop-blur-lg border-b border-[var(--border)] fixed top-0 left-0 right-0 z-[999] shadow-[var(--shadow)] ${animate ? "[animation:slideDown_.4s_ease_both]" : ""}`}>
+    <nav className={`flex items-center gap-3 md:gap-5 px-3 md:px-6 h-14 bg-[var(--surface)]/80 backdrop-blur-lg border-b border-[var(--border)] fixed top-0 left-0 right-0 z-[999] shadow-[var(--shadow)] font-[family-name:var(--font-dm-sans)] ${animate ? "[animation:slideDown_.4s_ease_both]" : ""}`}>
       <Link href="/" className="flex items-center gap-2.5 shrink-0 no-underline group">
         <img src="/images/logo.png" alt="FutureStack" style={{ height: 42 }} className="transition-transform duration-300 group-hover:scale-105" />
       </Link>
@@ -362,29 +365,28 @@ export function TopNav() {
       <ul className="hidden md:flex items-center gap-0.5 list-none">
         <li className="relative group" style={animate ? { animation: `fadeUp .35s .08s ease both` } : {}}>
           <button
-            onMouseEnter={() => { clearCoursesTimer(); setCoursesMegaOpen(true); }}
+            onMouseEnter={() => { loadMegaData(); clearCoursesTimer(); setCoursesMegaOpen(true); }}
             onMouseLeave={startCoursesTimer}
-            className={`px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-200 cursor-pointer bg-transparent border-none ${coursesMegaOpen ? 'text-[var(--text)]' : 'text-[var(--text)] hover:text-[var(--blue)]'}`}
+            onClick={() => { setCoursesMegaOpen(false); router.push('/courses'); }}
+            className={`px-2.5 py-1.5 rounded-md text-[12.5px] font-medium flex items-center gap-1 transition-all duration-200 cursor-pointer border-none ${coursesMegaOpen ? 'text-[var(--blue)] bg-[var(--blue-dim)]' : 'text-[var(--text2)] hover:text-[var(--blue)] hover:bg-[var(--blue-dim)]'}`}
           >
             Courses
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="transition-transform duration-200" style={{ transform: coursesMegaOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
-          <span className="absolute bottom-0 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-[var(--blue)] to-[var(--orange)] rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-1000 ease-out origin-left" />
         </li>
         <li className="relative group" style={animate ? { animation: `fadeUp .35s ${.08 + 1 * .05}s ease both` } : {}}>
           <button
-            onMouseEnter={() => { clearPathsTimer(); setPathsMegaOpen(true); }}
+            onMouseEnter={() => { loadMegaData(); clearPathsTimer(); setPathsMegaOpen(true); }}
             onMouseLeave={startPathsTimer}
-            className={`px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-200 cursor-pointer bg-transparent border-none ${pathsMegaOpen ? 'text-[var(--text)]' : 'text-[var(--text)] hover:text-[var(--blue)]'}`}
+            className={`px-2.5 py-1.5 rounded-md text-[12.5px] font-medium flex items-center gap-1 transition-all duration-200 cursor-pointer border-none ${pathsMegaOpen ? 'text-[var(--blue)] bg-[var(--blue-dim)]' : 'text-[var(--text2)] hover:text-[var(--blue)] hover:bg-[var(--blue-dim)]'}`}
           >
             Career Paths
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="transition-transform duration-200" style={{ transform: pathsMegaOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
-          <span className="absolute bottom-0 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-[var(--blue)] to-[var(--orange)] rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-1000 ease-out origin-left" />
         </li>
         {[
           { href: "/certificates", label: "Certifications" },
@@ -404,16 +406,15 @@ export function TopNav() {
                       router.push('/#student-login');
                     }
                   }}
-                  className="px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-150 text-[var(--text)] cursor-not-allowed select-none border-none bg-transparent"
+                  className="px-2.5 py-1.5 rounded-md text-[12.5px] font-medium flex items-center gap-1 transition-all duration-150 text-[var(--text2)] hover:text-[var(--blue)] hover:bg-[var(--blue-dim)] cursor-not-allowed select-none border-none bg-transparent"
                   title="Sign in to view your dashboard"
                 >
                   {link.label}
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
                 </button>
               ) : (
-                <Link href={link.href} className="relative px-2.5 py-1.5 rounded-md text-[15px] font-medium flex items-center gap-1 transition-all duration-300 text-[var(--text)] hover:text-[var(--blue)] group">
+                <Link href={link.href} className="relative px-2.5 py-1.5 rounded-md text-[12.5px] font-medium flex items-center gap-1 transition-all duration-300 text-[var(--text2)] hover:text-[var(--blue)] hover:bg-[var(--blue-dim)] group">
                   {link.label}
-                  <span className="absolute bottom-0 left-2.5 right-2.5 h-[2px] bg-gradient-to-r from-[var(--blue)] to-[var(--orange)] rounded-full scale-x-0 group-hover:scale-x-100 transition-transform duration-1000 ease-out origin-left" />
                 </Link>
               )}
             </li>
@@ -590,7 +591,7 @@ export function TopNav() {
       )}
 
       {/* Mobile menu panel */}
-      <div className={`fixed top-14 right-0 z-50 w-[260px] h-[calc(100vh-56px)] bg-[var(--surface)] border-l border-[var(--border)] shadow-2xl md:hidden overflow-y-auto transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "translate-x-full"}`}>
+      <div className={`fixed top-14 right-0 z-50 w-[260px] h-[calc(100vh-56px)] bg-[var(--surface)] border-l border-[var(--border)] shadow-2xl md:hidden overflow-y-auto transition-transform duration-300 font-[family-name:var(--font-dm-sans)] ${mobileOpen ? "translate-x-0" : "translate-x-full"}`}>
         {/* Mobile search */}
         <div className="px-3 pt-3 pb-1">
           <div className="flex items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-2.5 gap-1.5 h-[32px] focus-within:border-[var(--blue2)]">
@@ -632,7 +633,7 @@ export function TopNav() {
                   <Link
                     href={link.href}
                     onClick={() => setMobileOpen(false)}
-                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12.5px] font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
+                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12.5px] font-medium text-[var(--text2)] hover:text-[var(--blue)] hover:bg-[var(--blue-dim)] transition-colors"
                   >
                     {link.label}
                   </Link>

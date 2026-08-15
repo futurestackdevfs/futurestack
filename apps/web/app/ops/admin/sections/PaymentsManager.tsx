@@ -53,6 +53,28 @@ interface PaymentsData {
   pagination: Pagination;
 }
 
+interface TrainerShare {
+  trainerId: string;
+  trainerName: string;
+  trainerEmail: string;
+  trainerSharePercent: number | null;
+  gross: number;
+  platformCut: number;
+  trainerShare: number;
+  enrollments: number;
+}
+
+interface TrainerBreakdown {
+  trainers: TrainerShare[];
+  totals: {
+    gross: number;
+    platformCut: number;
+    trainerShare: number;
+    enrollments: number;
+  };
+  count: number;
+}
+
 interface Tab {
   key: string;
   label: string;
@@ -109,8 +131,10 @@ function getPageItems(current: number, total: number): (number | "…")[] {
 
 export default function PaymentsManager({ token }: { token: string }) {
   const [data, setData] = useState<PaymentsData | null>(null);
+  const [trainers, setTrainers] = useState<TrainerBreakdown | null>(null);
   const [status, setStatus] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
+  const [trainerPage, setTrainerPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
@@ -147,12 +171,26 @@ export default function PaymentsManager({ token }: { token: string }) {
     [token],
   );
 
+  const loadTrainers = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await opsFetch("/api/admin/payments/trainers", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to load trainer breakdown");
+      setTrainers((await res.json()) as TrainerBreakdown);
+    } catch (e: unknown) {
+      addToast(e instanceof Error ? e.message : "Failed to load trainer breakdown", "danger");
+    }
+  }, [token]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const body = await load(status, page);
       if (!cancelled && body) setData(body);
     })();
+    loadTrainers();
     return () => {
       cancelled = true;
     };
@@ -164,6 +202,18 @@ export default function PaymentsManager({ token }: { token: string }) {
   const totalPages = pagination?.totalPages ?? 1;
   const from = pagination && pagination.total > 0 ? (pagination.page - 1) * pagination.perPage + 1 : 0;
   const to = pagination ? Math.min(pagination.page * pagination.perPage, pagination.total) : 0;
+
+  const TRAINER_PER_PAGE = 10;
+  const trainerList = trainers?.trainers ?? [];
+  const trainerTotalPages = Math.max(1, Math.ceil(trainerList.length / TRAINER_PER_PAGE));
+  const trainerFrom = trainerList.length > 0 ? (trainerPage - 1) * TRAINER_PER_PAGE + 1 : 0;
+  const trainerTo = Math.min(trainerPage * TRAINER_PER_PAGE, trainerList.length);
+  const trainerPageRows = trainerList.slice((trainerPage - 1) * TRAINER_PER_PAGE, trainerPage * TRAINER_PER_PAGE);
+
+  function goToTrainerPage(p: number) {
+    if (p < 1 || p > trainerTotalPages || p === trainerPage) return;
+    setTrainerPage(p);
+  }
 
   function switchStatus(next?: string) {
     setExpandedId(null);
@@ -242,6 +292,110 @@ export default function PaymentsManager({ token }: { token: string }) {
             {kpi("Expired", summary?.expired ?? 0, "var(--amber)")}
             {kpi("Cancelled", summary?.cancelled ?? 0, "var(--text3)")}
             {kpi("Pending", summary?.created ?? 0, "var(--blue)")}
+          </div>
+
+          {/* Trainer share breakdown */}
+          <div
+            className="rounded-xl overflow-hidden mb-4"
+            style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 1px 2px rgba(15,23,42,.04)" }}
+          >
+            <div
+              className="flex items-center justify-between px-3.5 py-2"
+              style={{ background: "var(--panel)", borderBottom: "1px solid var(--border)" }}
+            >
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>
+                🎓 Trainer Share Breakdown
+              </span>
+              <span className="font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>
+                {trainerList.length > 0 ? `${trainerFrom}–${trainerTo} of ${trainerList.length} trainers` : "0 trainers"} · {TRAINER_PER_PAGE}/page
+              </span>
+            </div>
+
+            {trainerList.length === 0 ? (
+              <div className="px-3.5 py-8 text-center font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
+                No revenue generated yet — trainer shares will appear here once orders are paid.
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2 px-3.5 py-2.5" style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
+                  <div className="flex items-center gap-5 rounded-lg px-3 py-2" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+                    <div>
+                      <div className="text-[15px] font-extrabold tabular-nums" style={{ color: "var(--text)" }}>{formatMoney(trainers?.totals.gross, "INR")}</div>
+                      <div className="text-[9px] font-medium mt-0.5 uppercase tracking-wider" style={{ color: "var(--text3)" }}>Total Gross</div>
+                    </div>
+                    <div className="pl-5" style={{ borderLeft: "1px solid var(--border)" }}>
+                      <div className="text-[15px] font-extrabold tabular-nums" style={{ color: "var(--green)" }}>{formatMoney(trainers?.totals.trainerShare, "INR")}</div>
+                      <div className="text-[9px] font-medium mt-0.5 uppercase tracking-wider" style={{ color: "var(--text3)" }}>Trainer Share</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left min-w-[760px]" style={{ borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(148,163,184,.05)" }}>
+                        {["Trainer", "Share %", "Enrollments", "Gross", "Platform Cut", "Trainer Share"].map((h) => (
+                          <th
+                            key={h}
+                            className="font-mono text-[9px] font-bold uppercase tracking-[.08em] text-[var(--text3)] px-2.5 py-[7px]"
+                            style={{ textAlign: "left", whiteSpace: "nowrap", fontWeight: 700 }}
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trainerPageRows.map((t) => (
+                        <tr key={t.trainerId} style={{ borderBottom: "1px solid var(--border)" }}>
+                          <td className="px-2.5 py-[7px]">
+                            <div className="text-[11.5px] font-semibold" style={{ color: "var(--text)" }}>{t.trainerName}</div>
+                            <div className="font-mono text-[9px] max-w-[200px] truncate" style={{ color: "var(--text3)" }}>{t.trainerEmail}</div>
+                          </td>
+                          <td className="px-2.5 py-[7px] font-mono text-[10.5px]" style={{ color: "var(--text2)" }}>
+                            {t.trainerSharePercent != null ? `${t.trainerSharePercent}%` : "—"}
+                          </td>
+                          <td className="px-2.5 py-[7px] font-mono text-[10.5px] tabular-nums" style={{ color: "var(--text2)" }}>
+                            {t.enrollments}
+                          </td>
+                          <td className="px-2.5 py-[7px] font-mono text-[10.5px] tabular-nums whitespace-nowrap" style={{ color: "var(--text2)" }}>
+                            {formatMoney(t.gross, "INR")}
+                          </td>
+                          <td className="px-2.5 py-[7px] font-mono text-[10.5px] tabular-nums whitespace-nowrap" style={{ color: "var(--text3)" }}>
+                            {formatMoney(t.platformCut, "INR")}
+                          </td>
+                          <td className="px-2.5 py-[7px] font-mono text-[11.5px] font-bold tabular-nums whitespace-nowrap" style={{ color: "var(--green)" }}>
+                            {formatMoney(t.trainerShare, "INR")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {trainerTotalPages > 1 && (
+                  <div
+                    className="flex items-center justify-between flex-wrap gap-2 px-3.5 py-2"
+                    style={{ borderTop: "1px solid var(--border)", background: "var(--panel)" }}
+                  >
+                    <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>
+                      Page {trainerPage} of {trainerTotalPages}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <PageBtn label="‹" disabled={trainerPage <= 1} onClick={() => goToTrainerPage(trainerPage - 1)} title="Previous" />
+                      {getPageItems(trainerPage, trainerTotalPages).map((p, i) =>
+                        p === "…" ? (
+                          <span key={`e${i}`} className="px-1 font-mono text-[10px]" style={{ color: "var(--text3)" }}>…</span>
+                        ) : (
+                          <PageBtn key={p} label={String(p)} active={p === trainerPage} onClick={() => goToTrainerPage(p)} />
+                        ),
+                      )}
+                      <PageBtn label="›" disabled={trainerPage >= trainerTotalPages} onClick={() => goToTrainerPage(trainerPage + 1)} title="Next" />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Filter tabs + actions */}

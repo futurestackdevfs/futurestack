@@ -48,28 +48,7 @@ import { AdminPaymentsModule } from './admin-payments/admin-payments.module';
     CertificatesModule,
     TrainerModule,
     VdoCipherModule,
-    ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        throttlers: [
-          {
-            ttl: Number(config.get('THROTTLE_TTL') ?? 60_000),
-            limit: Number(config.get('THROTTLE_LIMIT') ?? 60),
-          },
-        ],
-      }),
-    }),
     ScheduleModule.forRoot(),
-    PrismaModule,
-    AuthModule,
-    StudentModule,
-    AdminModule,
-    CoursesModule,
-    UploadModule,
-    DiscussionModule,
-    CertificatesModule,
-    TrainerModule,
-    VdoCipherModule,
     ReviewsModule,
     CouponModule,
     CartModule,

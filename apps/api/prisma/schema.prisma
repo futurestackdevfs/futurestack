@@ -92,6 +92,7 @@ model User {
   // Trainer-only profile fields (nullable — only populated for TRAINER role)
   yearsExperience      Int?
   rating               Float?
+  trainerSharePercent  Int?      // per-trainer override (% trainer keeps); null = use global PaymentSettings default
 
   enrollments          Enrollment[]
   videoProgress        VideoProgress[]
@@ -357,12 +358,13 @@ model Payout {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
-  tokenHash String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   expiresAt DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
 }
 
 model Review {
@@ -483,11 +485,14 @@ model Order {
   subtotal          Float
   discountAmount    Float       @default(0)
   couponId          String?
+  gstPercent        Float       @default(0)  // GST rate snapshot at purchase time (admin-configurable in PaymentSettings)
+  gstAmount         Float       @default(0)  // GST amount charged on top of (subtotal - discount)
   totalAmount       Float
   status            OrderStatus @default(CREATED)
   razorpayOrderId   String      @unique
   razorpayPaymentId String?
   razorpaySignature String?
+  paymentMethod     String?
   billingFullName   String?
   billingEmail      String?
   billingPhone      String?
@@ -518,6 +523,8 @@ model PaymentSettings {
   id                   String   @id @default(uuid())
   domesticEnabled      Boolean  @default(true)   // INR (domestic gateway)
   internationalEnabled Boolean  @default(false)  // USD (international gateway)
+  trainerSharePercent  Int      @default(50)     // default % of collected gross the trainer keeps (rest = platform cut)
+  gstPercent           Float    @default(18)     // GST % charged on top of every course fee
   updatedAt            DateTime @updatedAt
 }
 

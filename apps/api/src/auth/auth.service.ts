@@ -64,6 +64,18 @@ export class AuthService {
     return raw;
   }
 
+  /**
+   * Rotation with a grace window for concurrent refreshes.
+   *
+   * When the access JWT expires, several in-flight requests hit 401 at the
+   * same time and each one calls this endpoint. Classic rotation deletes the
+   * old row on first use, so the losing requests find the hash gone and get
+   * 401 — or worse, trip the replay guard and wipe every token for the user.
+   *
+   * Instead we soft-rotate: set `revokedAt` on the consumed token and, if the
+   * incoming token was revoked by the SAME user within the last 60s, treat it
+   * as a legit concurrent refresh and issue a fresh token rather than failing.
+   */
   async refreshTokens(rawToken: string): Promise<{
     accessToken: string;
     newRawRefreshToken: string;
@@ -77,6 +89,7 @@ export class AuthService {
     });
 
     if (!stored || stored.expiresAt < new Date()) {
+      // Missing or genuinely expired token — clean up the row if present and reject.
       if (stored) {
         await this.prisma.refreshToken.delete({ where: { tokenHash: hash } });
       }
@@ -87,15 +100,23 @@ export class AuthService {
       throw new UnauthorizedException('Account is suspended');
     }
 
-    // Token rotation — atomically consume the old token. If it's already gone,
-    // the same token was replayed (parallel request / stolen), so revoke the
-    // whole token family for this user and reject rather than crashing with P2025.
-    const consumed = await this.prisma.refreshToken.deleteMany({
-      where: { tokenHash: hash },
+    // Atomically consume the token. If another request already consumed it
+    // (`updated.count === 0`), give it a short grace window: a just-rotated
+    // token means a legit concurrent refresh, not a replay, so issue a fresh
+    // token instead of killing the session. An old revokedAt (or one set in
+    // the microseconds between our read and update) is treated as just-rotated
+    // too — the only hard reject is a token revoked more than 60s ago.
+    const updated = await this.prisma.refreshToken.updateMany({
+      where: { tokenHash: hash, revokedAt: null },
+      data: { revokedAt: new Date() },
     });
-    if (consumed.count === 0) {
-      await this.revokeAllUserTokens(stored.userId);
-      throw new UnauthorizedException('Refresh token has already been used');
+
+    if (updated.count === 0 && stored.revokedAt) {
+      const rotatedRecently =
+        Date.now() - stored.revokedAt.getTime() <= 60_000;
+      if (!rotatedRecently) {
+        throw new UnauthorizedException('Refresh token has already been used');
+      }
     }
 
     const newRawRefreshToken = await this.createRefreshToken(stored.userId);
@@ -110,11 +131,6 @@ export class AuthService {
     if (!rawToken) return;
     const hash = this.hashToken(rawToken);
     await this.prisma.refreshToken.deleteMany({ where: { tokenHash: hash } });
-  }
-
-  /** Invalidates every active refresh token for a user (replay/theft protection). */
-  private async revokeAllUserTokens(userId: string): Promise<void> {
-    await this.prisma.refreshToken.deleteMany({ where: { userId } });
   }
 
   private signToken(user: SafeUser) {

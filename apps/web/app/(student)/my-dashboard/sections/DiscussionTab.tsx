@@ -116,6 +116,14 @@ export default function DiscussionTab({ courseId, onCountChange }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmDeleteReply, setConfirmDeleteReply] = useState<{ replyId: string; msgId: string } | null>(null);
   const [attachment, setAttachment] = useState<File | null>(null);
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    tick();
+    const timer = setInterval(tick, 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const { data: messages, isLoading, mutate } = useSWR<DiscussionMessage[]>(
     `/api/discussion/${courseId}?page=1&limit=${limit}`,
@@ -359,7 +367,7 @@ export default function DiscussionTab({ courseId, onCountChange }: Props) {
           const isInstructor = msg.author.role === "TRAINER";
           const canModify = me && (
             msg.author.id === me.id
-              ? Date.now() - new Date(msg.createdAt).getTime() < 600_000
+              ? now - new Date(msg.createdAt).getTime() < 600_000
               : ["ADMIN", "CONTENT_MANAGER"].includes(me.role)
           );
           const repliesOpen = openReplies.has(msg.id);

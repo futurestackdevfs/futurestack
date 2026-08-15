@@ -7,12 +7,14 @@ import {
 import { Currency } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponService } from '../coupon/coupon.service';
+import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 
 @Injectable()
 export class CartService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly couponService: CouponService,
+    private readonly paymentSettings: PaymentSettingsService,
   ) {}
 
   async getOrCreateCart(userId: string) {
@@ -121,8 +123,7 @@ export class CartService {
         courseId: item.courseId,
         title: item.course.title,
         thumbnail: item.course.thumbnailUrl,
-        category:
-          item.course.category ?? item.course.techStack[0] ?? 'General',
+        category: item.course.category ?? item.course.techStack[0] ?? 'General',
         rating: item.course.averageRating,
         reviews: item.course.reviewCount,
         modules: item.course._count.sections,
@@ -168,12 +169,19 @@ export class CartService {
       }
     }
 
+    const taxableAmount = this.round2(subtotal - discountAmount);
+    const gstPercent =
+      (await this.paymentSettings.getSettings()).gstPercent ?? 18;
+    const gstAmount = this.round2((taxableAmount * gstPercent) / 100);
+
     return {
       items: enriched,
       coupon,
       discountAmount,
       subtotal,
-      total: this.round2(subtotal - discountAmount),
+      gstPercent,
+      gstAmount,
+      total: this.round2(taxableAmount + gstAmount),
       currency,
     };
   }
@@ -293,11 +301,18 @@ export class CartService {
       data: { couponId: result.coupon.id },
     });
 
+    const taxableAmount = this.round2(view.subtotal - result.discountAmount);
+    const gstPercent =
+      (await this.paymentSettings.getSettings()).gstPercent ?? 18;
+    const gstAmount = this.round2((taxableAmount * gstPercent) / 100);
+
     return {
       coupon: this.presentCoupon(result.coupon),
       discountAmount: result.discountAmount,
       subtotal: view.subtotal,
-      total: this.round2(view.subtotal - result.discountAmount),
+      gstPercent,
+      gstAmount,
+      total: this.round2(taxableAmount + gstAmount),
       currency: 'INR' as const,
     };
   }

@@ -46,7 +46,7 @@ export function Footer() {
             <div className="footer-brand-col">
               <img src="/images/logo.png" alt="FutureStack" style={{ height: 46, marginBottom: 12 }} />
               <p style={{ color: "var(--muted)", fontSize: 15, lineHeight: 1.7, margin: 0 }}>
-                Think ahead. Code beyond. Build real-world skills with industry-certified courses and hands-on projects.
+                Think. Create. Conquer. Build real-world skills with industry-certified courses and hands-on projects.
               </p>
             </div>
 

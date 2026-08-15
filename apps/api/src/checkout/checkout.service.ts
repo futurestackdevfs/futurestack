@@ -13,12 +13,17 @@ import { Currency } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponService } from '../coupon/coupon.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
+import {
+  computeTrainerShare,
+  resolveTrainerSharePercent,
+} from '../payment-settings/share.util';
 import { RazorpayClientService } from './razorpay-client.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
 interface FinalizeMeta {
   razorpayPaymentId: string;
   razorpaySignature?: string;
+  paymentMethod?: string;
 }
 
 @Injectable()
@@ -188,7 +193,14 @@ export class CheckoutService {
       }
     }
 
-    const totalAmount = this.round2(subtotal - discountAmount);
+    const totalBeforeGst = this.round2(subtotal - discountAmount);
+
+    // GST is added on top (exclusive) of the discounted fee. The rate is the
+    // admin-configurable PaymentSettings value and is snapshotted on the Order
+    // so historical invoices stay accurate if the rate changes later.
+    const gstPercent = settings.gstPercent ?? 18;
+    const gstAmount = this.round2((totalBeforeGst * gstPercent) / 100);
+    const totalAmount = this.round2(totalBeforeGst + gstAmount);
 
     // Razorpay rejects orders below ₹1 (100 paise). Surface a clear error
     // instead of a misleading "gateway unavailable" when a coupon zeroes out
@@ -220,6 +232,8 @@ export class CheckoutService {
           subtotal,
           discountAmount,
           couponId,
+          gstPercent,
+          gstAmount,
           totalAmount,
           razorpayOrderId: orderId,
           ...billing,
@@ -316,11 +330,20 @@ export class CheckoutService {
           status: 'PAID',
           razorpayPaymentId: meta.razorpayPaymentId,
           razorpaySignature: meta.razorpaySignature,
+          ...(meta.paymentMethod ? { paymentMethod: meta.paymentMethod } : {}),
         },
       });
 
       if (updated.count === 0) {
         // Already processed by the other path (verify or webhook) — safe no-op.
+        // Still backfill the payment method if it arrived later (webhook after
+        // frontend verify) so the trainer revenue view always shows UPI/Card.
+        if (meta.paymentMethod) {
+          await tx.order.updateMany({
+            where: { id: orderId, paymentMethod: null },
+            data: { paymentMethod: meta.paymentMethod },
+          });
+        }
         const existing = await tx.order.findUnique({
           where: { id: orderId },
           include: { enrollments: true },
@@ -334,17 +357,49 @@ export class CheckoutService {
       });
       if (!order) return [];
 
+      const settings = await this.paymentSettings.getSettings();
+
       const enrollments = await Promise.all(
-        order.items.map((item) =>
-          tx.enrollment.create({
+        order.items.map(async (item) => {
+          const course = await tx.course.findUnique({
+            where: { id: item.courseId },
+            select: {
+              id: true,
+              trainer: { select: { id: true, trainerSharePercent: true } },
+            },
+          });
+
+          const created = await tx.enrollment.create({
             data: {
               studentId: order.userId,
               courseId: item.courseId,
               amountPaid: item.priceAtPurchase,
               orderId: order.id,
             },
-          }),
-        ),
+          });
+
+          if (course?.trainer) {
+            const sharePct = resolveTrainerSharePercent(
+              course.trainer.trainerSharePercent,
+              settings.trainerSharePercent,
+            );
+            const { trainerShare, platformCut } = computeTrainerShare(
+              item.priceAtPurchase,
+              sharePct,
+            );
+            await tx.revenueLedger.create({
+              data: {
+                trainerId: course.trainer.id,
+                enrollmentId: created.id,
+                gross: item.priceAtPurchase,
+                platformCut,
+                trainerShare,
+              },
+            });
+          }
+
+          return created;
+        }),
       );
 
       if (order.couponId) {
@@ -381,6 +436,7 @@ export class CheckoutService {
                 id?: string;
                 order_id?: string;
                 payment_signature?: string;
+                method?: string;
               };
             };
           }
@@ -401,6 +457,7 @@ export class CheckoutService {
         await this.finalizeOrder(order.id, {
           razorpayPaymentId: entity?.id ?? '',
           razorpaySignature: entity?.payment_signature ?? undefined,
+          paymentMethod: entity?.method ?? undefined,
         });
       } else if (type === 'payment.failed') {
         await this.prisma.order.updateMany({

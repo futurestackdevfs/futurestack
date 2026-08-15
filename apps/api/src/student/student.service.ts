@@ -558,6 +558,8 @@ export class StudentService {
         subtotal: true,
         discountAmount: true,
         couponId: true,
+        gstPercent: true,
+        gstAmount: true,
         totalAmount: true,
         status: true,
         razorpayOrderId: true,

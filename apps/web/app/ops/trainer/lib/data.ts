@@ -96,6 +96,7 @@ export interface RevenueEnrollment {
   course: string;
   courseFee: number;
   paymentMode: "Full" | "EMI" | "Pending";
+  paymentMethod: string | null;
   enrolledOn: string;
 }
 
@@ -106,9 +107,6 @@ export interface PayoutRecord {
   amount: number;
   status: "Paid" | "Pending";
 }
-
-/** Trainer's agreed revenue share of collected batch revenue. */
-export const TRAINER_SHARE_PCT = 50;
 
 export const BATCHES: TrainerBatch[] = [
   { id: 1, code: "BAT-MERN-WD-04", course: "MERN Stack Development", schedule: "Weekend · Sat/Sun 10:00–13:00", enrolled: 24, seats: 30, startDate: "2026-05-16", progressPct: 46, currentModule: "M5 · Express.js & REST APIs", nextSession: "2026-07-11 · 10:00", status: "Running" },
