@@ -5,7 +5,7 @@ import { join } from 'path';
 import * as express from 'express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import * as compression from 'compression';
+import compression from 'compression';
 
 async function bootstrap() {
   // rawBody: true keeps the untouched request body available via req.rawBody for
