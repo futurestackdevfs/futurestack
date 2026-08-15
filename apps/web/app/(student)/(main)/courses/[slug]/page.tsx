@@ -475,8 +475,6 @@ export default function CourseDetailPage() {
 
       {/* ══ CINEMATIC HERO ══ */}
       <section className="relative overflow-hidden mt-3 bg-[linear-gradient(120deg,#07153D_0%,#0D1F5C_55%,#1e45b8_100%)] py-10 md:py-[56px]">
-        <div className="absolute inset-0" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'80\' height=\'80\' viewBox=\'0 0 80 80\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Ccircle cx=\'40\' cy=\'40\' r=\'1.5\' fill=\'rgba(255,255,255,0.05)\'/%3E%3C/svg%3E")' }} />
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 78% 30%, rgba(240,78,0,.18) 0%, transparent 55%)' }} />
         <div className="max-w-[1700px] mx-auto px-3 md:px-6 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-9 lg:gap-14 items-center relative z-[1]">
           <div>
             <div className="inline-flex items-center gap-1.5 bg-[rgba(255,255,255,.1)] border border-[rgba(255,255,255,.15)] px-3 py-[5px] rounded-[20px] text-[11.5px] font-semibold text-[rgba(255,255,255,.85)] uppercase tracking-[.4px] mb-3.5" style={{ animation: 'fadeUp .5s ease both' }}>
@@ -950,7 +948,7 @@ export default function CourseDetailPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {related.map((rc) => (
                 <Link key={rc.id} href={`/courses/${rc.slug}`} className="border border-[var(--border)] dark:border-[#1e2535] rounded-xl overflow-hidden cursor-pointer transition-all hover:border-[#C7D8FF] dark:hover:border-[#2d3358] hover:shadow-md hover:-translate-y-[3px] bg-white dark:bg-[#111520] no-underline group">
-                  <div className="aspect-[21/8] overflow-hidden bg-[#F3F4F6] dark:bg-[#0b0e14]">
+                  <div className="relative aspect-[21/8] overflow-hidden bg-[#F3F4F6] dark:bg-[#0b0e14]">
                     {rc.img ? (
                       <Image src={rc.img} alt={rc.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
                     ) : (

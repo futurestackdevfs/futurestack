@@ -9,8 +9,6 @@ import { CertificatesService } from '../certificates/certificates.service';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
 import { S3Service } from '../upload/s3.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
-import { extname, join } from 'path';
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
 
 export interface NextVideo {
   id: string;
@@ -677,19 +675,9 @@ export class StudentService {
     });
     if (!user) throw new NotFoundException('User not found');
 
-    let avatarUrl: string;
-    if (this.s3Service.isConfigured()) {
-      avatarUrl = await this.s3Service.uploadFile(file, 'avatars');
-      if (user.avatarUrl) {
-        await this.s3Service.deleteByUrl(user.avatarUrl);
-      }
-    } else {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      const filename = uniqueSuffix + extname(file.originalname);
-      const dir = join(__dirname, '../../public/uploads/avatars');
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, filename), file.buffer);
-      avatarUrl = `/uploads/avatars/${filename}`;
+    const avatarUrl = await this.s3Service.uploadFile(file, 'avatars');
+    if (user.avatarUrl) {
+      await this.s3Service.deleteByUrl(user.avatarUrl);
     }
 
     await this.prisma.user.update({
