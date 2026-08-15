@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import useSWR from "swr";
@@ -171,9 +171,19 @@ export default function CoursesPage() {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set());
   const router = useRouter();
-  const [search, setSearch] = useState(
-    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("search") ?? "" : "")
-  );
+  const searchParams = useSearchParams();
+  const urlSearch = searchParams?.get("search");
+
+  const [search, setSearch] = useState(urlSearch ?? "");
+
+  useEffect(() => {
+    const val = urlSearch ?? "";
+    if (val !== search) {
+      setSearch(val);
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlSearch]);
   const [sort, setSort] = useState("Most Popular");
   const [currentPage, setCurrentPage] = useState(1);
   const [inCart, setInCart] = useState<Set<string>>(new Set());
