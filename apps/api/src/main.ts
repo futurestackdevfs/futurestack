@@ -5,6 +5,7 @@ import { join } from 'path';
 import * as express from 'express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import * as compression from 'compression';
 
 async function bootstrap() {
   // rawBody: true keeps the untouched request body available via req.rawBody for
@@ -12,6 +13,7 @@ async function bootstrap() {
   // other route normally.
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.use(helmet());
+  app.use(compression());
   app.use(cookieParser());
 
   const allowedOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:3000')
