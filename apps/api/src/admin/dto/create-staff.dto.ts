@@ -12,6 +12,6 @@ export class CreateStaffDto {
   @MinLength(8)
   password: string;
 
-  @IsIn(['TRAINER', 'COORDINATOR', 'SUPPORT', 'ADMIN', 'CONTENT_MANAGER'])
-  role: 'TRAINER' | 'COORDINATOR' | 'SUPPORT' | 'ADMIN' | 'CONTENT_MANAGER';
+  @IsIn(['TRAINER', 'COORDINATOR', 'SUPPORT', 'ADMIN', 'CONTENT_MANAGER', 'SALES'])
+  role: 'TRAINER' | 'COORDINATOR' | 'SUPPORT' | 'ADMIN' | 'CONTENT_MANAGER' | 'SALES';
 }

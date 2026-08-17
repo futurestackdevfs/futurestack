@@ -16,6 +16,7 @@ const roles = [
   { id: 'COORDINATOR',     icon: '📋', label: 'Coordinator',     color: '#16a34a' },
   { id: 'SUPPORT',         icon: '🎧', label: 'Support',         color: '#0891b2' },
   { id: 'CONTENT_MANAGER', icon: '✍️', label: 'Content Manager', color: '#f05a1a' },
+  { id: 'SALES',           icon: '💼', label: 'Sales',           color: '#eab308' },
 ] as const;
 
 type RoleId = (typeof roles)[number]['id'];
@@ -26,6 +27,7 @@ const roleData: Record<RoleId, { title: string; sub: string; email: string }> = 
   COORDINATOR:     { title: 'Welcome back, Coordinator',     sub: 'Sign in to manage batches, schedules, and live sessions.',       email: 'coordinator@example.com' },
   SUPPORT:         { title: 'Welcome back, Support',         sub: 'Sign in to handle tickets, queries, and student support.',       email: 'support@example.com' },
   CONTENT_MANAGER: { title: 'Welcome back, Content Manager', sub: 'Sign in to manage course content, media, and publishing.',       email: 'content@example.com' },
+  SALES:           { title: 'Welcome back, Sales',           sub: 'Sign in to manage leads, quotes, and admissions.',                  email: 'sales@example.com' },
 };
 
 const roleRedirects: Record<string, string> = {
@@ -34,6 +36,7 @@ const roleRedirects: Record<string, string> = {
   COORDINATOR:     '/ops/coordinator',
   SUPPORT:         '/ops/support',
   CONTENT_MANAGER: '/ops/content-manager',
+  SALES:           '/ops/sales',
 };
 
 export function StaffLoginForm() {

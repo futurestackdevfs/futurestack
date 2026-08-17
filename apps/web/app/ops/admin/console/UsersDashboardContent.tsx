@@ -25,6 +25,7 @@ const ROLE_COLORS: Record<string, string> = {
   COORDINATOR: "var(--green)",
   SUPPORT: "var(--cyan)",
   CONTENT_MANAGER: "var(--pink)",
+  SALES: "var(--amber)",
 };
 
 const ROLE_BGS: Record<string, string> = {
@@ -34,6 +35,7 @@ const ROLE_BGS: Record<string, string> = {
   COORDINATOR: "var(--green-d)",
   SUPPORT: "var(--cyan-d)",
   CONTENT_MANAGER: "var(--pink-d)",
+  SALES: "var(--amber-d)",
 };
 
 const PER_PAGE = 15;
@@ -157,7 +159,7 @@ export default function UsersDashboardContent() {
           <div className="font-mono text-[8.5px] font-semibold uppercase tracking-wider" style={{ color: "var(--text3)" }}>Admins</div>
         </div>
         <div className="rounded px-3 py-2" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-          <div className="font-mono text-[18px] font-extrabold" style={{ color: "var(--green)" }}>{(stats.roles["COORDINATOR"] || 0) + (stats.roles["SUPPORT"] || 0) + (stats.roles["CONTENT_MANAGER"] || 0)}</div>
+          <div className="font-mono text-[18px] font-extrabold" style={{ color: "var(--green)" }}>{(stats.roles["COORDINATOR"] || 0) + (stats.roles["SUPPORT"] || 0) + (stats.roles["CONTENT_MANAGER"] || 0) + (stats.roles["SALES"] || 0)}</div>
           <div className="font-mono text-[8.5px] font-semibold uppercase tracking-wider" style={{ color: "var(--text3)" }}>Other Staff</div>
         </div>
       </div>
@@ -186,6 +188,7 @@ export default function UsersDashboardContent() {
           <option value="COORDINATOR">Coordinator</option>
           <option value="SUPPORT">Support</option>
           <option value="CONTENT_MANAGER">Content Manager</option>
+          <option value="SALES">Sales</option>
         </select>
         <select value={statusFilter} onChange={(e) => handleFilterChange(setStatusFilter, e.target.value)}
           className="py-[7px] px-2.5 rounded border text-[11px] outline-none cursor-pointer"

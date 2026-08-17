@@ -38,6 +38,7 @@ export class AuthController {
       [Role.CONTENT_MANAGER]: 'fs_cm_refresh',
       [Role.COORDINATOR]: 'fs_coordinator_refresh',
       [Role.SUPPORT]: 'fs_support_refresh',
+      [Role.SALES]: 'fs_sales_refresh',
     };
     return map[role] ?? 'fs_ops_refresh';
   }

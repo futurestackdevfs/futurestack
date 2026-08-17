@@ -1,31 +1,31 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import { AgentMailClient } from 'agentmail';
 
 @Injectable()
 export class MailService {
-  private readonly resend: Resend;
+  private readonly client: AgentMailClient;
   private readonly logger = new Logger(MailService.name);
 
   constructor(private readonly configService: ConfigService) {
-    this.resend = new Resend(this.configService.get<string>('RESEND_API_KEY'));
+    this.client = new AgentMailClient({
+      apiKey: this.configService.get<string>('AGENTMAIL_API_KEY'),
+    });
   }
 
-  private get fromAddress(): string {
-    // Use Resend's shared test domain until you verify your own domain
-    // with Resend for production sending.
+  private get inboxId(): string {
     return (
-      this.configService.get<string>('EMAIL_FROM') ??
-      'FutureStack <onboarding@resend.dev>'
+      this.configService.get<string>('AGENTMAIL_INBOX_ID') ??
+      'FutureStack <onboarding@agentmail.to>'
     );
   }
 
   async sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
     try {
-      await this.resend.emails.send({
-        from: this.fromAddress,
+      await this.client.inboxes.messages.send(this.inboxId, {
         to,
         subject: 'Reset your FutureStack password',
+        text: `We received a request to reset your FutureStack password.\n\nClick here to reset your password: ${resetUrl}\n\nThis link expires in 1 hour. If you didn't request this, you can safely ignore this email.`,
         html: `
           <p>We received a request to reset your FutureStack password.</p>
           <p><a href="${resetUrl}">Click here to reset your password</a></p>

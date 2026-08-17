@@ -38,6 +38,7 @@ enum Role {
   SUPPORT
   ADMIN
   CONTENT_MANAGER
+  SALES
 }
 
 enum Currency {

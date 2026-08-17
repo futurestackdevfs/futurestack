@@ -85,7 +85,7 @@ export function ToastContainer() {
             <button
               onClick={async () => {
                 const isOps = window.location.pathname.startsWith('/ops');
-                const roles = isOps ? ['ADMIN', 'TRAINER', 'COORDINATOR', 'CONTENT_MANAGER', 'SUPPORT'] : ['STUDENT'];
+                const roles = isOps ? ['ADMIN', 'TRAINER', 'COORDINATOR', 'CONTENT_MANAGER', 'SUPPORT', 'SALES'] : ['STUDENT'];
                 for (const role of roles) {
                   try {
                     const refreshed = await refreshSession(role);

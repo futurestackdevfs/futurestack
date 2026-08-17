@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken, clearStaffToken } from "@/app/auth/lib/token-store";
 import { OpsStatusbar } from "@/app/ops/components/OpsStatusbar";
@@ -477,12 +478,11 @@ export default function TrainerDashboardPage() {
               {view === "ratings" && <StudentRatingsView searchQuery={searchQuery} />}
               {["grading","mentees","content-library","reports","session-history"].includes(view) && (
                 <div className="flex items-center justify-center h-full">
-                  <div className="font-mono text-[13px]" style={{ color: "var(--text3)" }}>
-                    {view === "grading" ? "Grading Queue" :
-                     view === "mentees" ? "Mentees" :
-                     view === "content-library" ? "Content Library" :
-                     view === "reports" ? "Reports" :
-                     "Session History"} — coming soon
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <div className="text-[22px] font-bold" style={{ color: "var(--text)" }}>Coming Soon</div>
+                    <Link href="/" className="font-mono text-[12px] font-semibold underline underline-offset-2 transition-colors" style={{ color: "var(--blue)", textDecoration: "none" }}>
+                      ← Go to Home
+                    </Link>
                   </div>
                 </div>
               )}

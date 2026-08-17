@@ -283,7 +283,7 @@ export default function MyDashboardPage() {
           {/* Account */}
           <div className="px-2.5 py-0.5">
             <div className="text-[8px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-0.5 px-2">Account</div>
-            <Link href="/settings" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
+            <Link href="/profile" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
             <Link href="/help" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[10px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[11px] shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
           </div>
 
@@ -430,7 +430,7 @@ export default function MyDashboardPage() {
             {/* Account */}
             <div className="px-2.5 py-1">
               <div className="text-[9px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-1 px-2">Account</div>
-              <Link href="/settings" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
+              <Link href="/profile" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
               <Link href="/help" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[11px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-xs shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
             </div>
             {/* Footer */}

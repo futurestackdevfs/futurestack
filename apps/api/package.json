@@ -50,8 +50,8 @@
     "pg": "^8.21.0",
     "prisma": "^7.8.0",
     "razorpay": "^2.9.8",
+    "agentmail": "^0.5.19",
     "reflect-metadata": "^0.2.2",
-    "resend": "^6.14.0",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
