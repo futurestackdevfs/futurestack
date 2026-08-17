@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import useSWR from "swr";
@@ -171,9 +171,19 @@ export default function CoursesPage() {
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set());
   const router = useRouter();
-  const [search, setSearch] = useState(
-    () => (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("search") ?? "" : "")
-  );
+  const searchParams = useSearchParams();
+  const urlSearch = searchParams?.get("search");
+
+  const [search, setSearch] = useState(urlSearch ?? "");
+
+  useEffect(() => {
+    const val = urlSearch ?? "";
+    if (val !== search) {
+      setSearch(val);
+      setCurrentPage(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlSearch]);
   const [sort, setSort] = useState("Most Popular");
   const [currentPage, setCurrentPage] = useState(1);
   const [inCart, setInCart] = useState<Set<string>>(new Set());
@@ -383,7 +393,13 @@ export default function CoursesPage() {
         {/* Sticky toolbar */}
         <div className="sticky top-[56px] z-30 border-b border-[var(--border)] bg-[var(--card)]">
           <div className="flex flex-wrap items-center gap-2.5 px-4 py-3 md:px-7">
-            <div className="relative w-full max-w-[360px] flex-1 max-md:max-w-full max-md:basis-full">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                router.push(`/courses?${params}`);
+              }}
+              className="relative w-full max-w-[360px] flex-1 max-md:max-w-full max-md:basis-full"
+            >
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" /></svg>
               <input
                 type="text"
@@ -392,7 +408,7 @@ export default function CoursesPage() {
                 onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 className="w-full rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--bg)] py-2.5 pl-9 pr-3 text-[13px] outline-none transition-[border-color,box-shadow] placeholder:text-[var(--muted)] focus:border-[var(--blue)] focus:bg-[var(--card)] focus:shadow-[0_0_0_3px_rgba(37,99,235,.12)]"
               />
-            </div>
+            </form>
 
             <div className="ml-auto flex items-center gap-2">
               {/* Mobile filters toggle */}
