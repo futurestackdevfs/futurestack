@@ -7,6 +7,8 @@ interface User {
   id: string;
   name: string;
   email: string;
+  companyId: string | null;
+  phone: string | null;
   role: string;
   isActive: boolean;
   emailVerified: boolean;
@@ -48,6 +50,37 @@ export default function UsersDashboardContent() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [savingCut, setSavingCut] = useState<string | null>(null);
+  const [selected, setSelected] = useState<User | null>(null);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regeneratedPwd, setRegeneratedPwd] = useState<{ pwd: string; email: string } | null>(null);
+
+  async function copyValue(key: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1600);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  async function regeneratePassword(u: User) {
+    setRegenerating(true);
+    setRegeneratedPwd(null);
+    try {
+      const res = await opsFetch(`/api/admin/users/${u.id}/regenerate-password`, {
+        method: "POST",
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
+      setRegeneratedPwd({ pwd: body.tempPassword, email: u.email });
+    } catch {
+      /* keep silent — button just stays idle */
+    } finally {
+      setRegenerating(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -218,7 +251,7 @@ export default function UsersDashboardContent() {
               </thead>
               <tbody>
                 {paginated.map((u) => (
-                  <tr key={u.id} style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--panel)] transition-colors">
+                  <tr key={u.id} style={{ borderBottom: "1px solid var(--border)" }} className="hover:bg-[var(--panel)] transition-colors cursor-pointer" onClick={() => setSelected(u)}>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0" style={{ background: `linear-gradient(135deg, ${ROLE_COLORS[u.role] || "var(--text3)"}, ${ROLE_COLORS[u.role] || "var(--text3)"}cc)` }}>
@@ -320,6 +353,84 @@ export default function UsersDashboardContent() {
           </div>
         )}
       </div>
+
+      {/* Staff detail popup */}
+      {selected && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+          onClick={() => setSelected(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden"
+            style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b flex items-center gap-3" style={{ borderColor: "var(--border)", background: "var(--bg)" }}>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold text-white shrink-0" style={{ background: `linear-gradient(135deg, ${ROLE_COLORS[selected.role] || "var(--text3)"}, ${ROLE_COLORS[selected.role] || "var(--text3)"}cc)` }}>
+                {selected.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-[14px] font-bold truncate" style={{ color: "var(--text)" }}>{selected.name}</h2>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="font-mono text-[9px] font-bold px-1.5 py-[3px] rounded" style={{ background: ROLE_BGS[selected.role] || "var(--bg)", color: ROLE_COLORS[selected.role] || "var(--text2)" }}>{selected.role}</span>
+                  <span className="font-mono text-[9px] font-bold px-1.5 py-[3px] rounded" style={{ background: selected.isActive ? "var(--green-d)" : "var(--red-d)", color: selected.isActive ? "var(--green)" : "var(--red)" }}>{selected.isActive ? "Active" : "Inactive"}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelected(null)}
+                className="flex items-center justify-center w-7 h-7 rounded-lg border-none bg-transparent cursor-pointer hover:bg-[var(--panel)] transition-colors"
+                style={{ color: "var(--text3)" }}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <div className="rounded-xl p-4 border" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-semibold text-[var(--text3)] uppercase tracking-wider">Login Email</span>
+                  {selected.companyId ? (
+                    <button
+                      onClick={() => copyValue("login", selected.companyId!)}
+                      className="font-mono text-[9px] font-bold px-2.5 py-1 rounded cursor-pointer"
+                      style={{ border: "1px solid var(--border)", color: copiedKey === "login" ? "var(--green)" : "var(--blue)", background: "var(--surface)" }}
+                    >
+                      {copiedKey === "login" ? "✓ Copied" : "Copy"}
+                    </button>
+                  ) : null}
+                </div>
+                <div className="font-mono text-[13px] font-bold truncate" style={{ color: "var(--blue)" }}>
+                  {selected.companyId ?? <span style={{ color: "var(--text3)", fontStyle: "italic" }}>No company login</span>}
+                </div>
+              </div>
+
+              <div className="rounded-xl p-4 border" style={{ background: "var(--bg)", borderColor: "var(--border)" }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-semibold text-[var(--text3)] uppercase tracking-wider">Password</span>
+                  <button
+                    onClick={() => regeneratePassword(selected)}
+                    disabled={regenerating}
+                    className="font-mono text-[9px] font-bold px-2.5 py-1 rounded cursor-pointer disabled:opacity-50"
+                    style={{ border: "1px solid var(--orange)", color: "var(--orange)", background: "var(--surface)" }}
+                  >
+                    {regenerating ? "…" : "↻ Regenerate"}
+                  </button>
+                </div>
+                {regeneratedPwd ? (
+                  <div className="space-y-1">
+                    <div className="font-mono text-[13px] font-bold truncate" style={{ color: "var(--orange)" }}>{regeneratedPwd.pwd}</div>
+                    <div className="text-[10px]" style={{ color: "var(--green)" }}>✓ New password emailed to {regeneratedPwd.email}</div>
+                    <div className="text-[9.5px]" style={{ color: "var(--text3)" }}>Valid for 10 minutes — user must set their own on first login.</div>
+                  </div>
+                ) : (
+                  <div className="text-[10.5px]" style={{ color: "var(--text3)" }}>No active reset. Regenerate sends a new temporary password by email.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

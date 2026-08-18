@@ -72,6 +72,11 @@ export function StaffLoginForm() {
     setError(null);
     try {
       const { accessToken, user } = await authApi.loginOps(email, password);
+      if (selectedRole !== user.role) {
+        const actualLabel = roles.find((r) => r.id === user.role)?.label ?? user.role;
+        setError(`This account is a ${actualLabel}. Please select "${actualLabel}" in "I am logging in as" above to continue.`);
+        return;
+      }
       const uid = decodeToken(accessToken).sub;
       await saveStaffToken(uid, accessToken);
       await fetch('/api/auth/set-token-staff', {
@@ -79,10 +84,9 @@ export function StaffLoginForm() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token: accessToken }),
       });
-      const fallback = roleRedirects[user.role] ?? '/ops/admin';
       const redirectTo = new URLSearchParams(window.location.search).get('redirect');
-      const path = redirectTo && redirectTo.startsWith('/ops/') ? redirectTo : fallback;
-      router.push(path);
+      const path = redirectTo && redirectTo.startsWith('/ops/') ? redirectTo : roleRedirects[user.role];
+      router.push(user.mustChangePassword ? '/auth/set-new-password' : path);
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : 'Login failed. Please try again.');
     } finally {

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken, clearStaffToken } from "@/app/auth/lib/token-store";
 import { OpsStatusbar } from "@/app/ops/components/OpsStatusbar";
+import { RoleGate } from "@/app/ops/components/RoleGate";
 import { TrainerTopbar } from "./sections/TrainerTopbar";
 import { TrainerSidebar } from "./sections/TrainerSidebar";
 import DashboardHome from "./console/DashboardHome";
@@ -423,6 +424,7 @@ export default function TrainerDashboardPage() {
   if (!user) return null;
 
   return (
+    <RoleGate role="TRAINER">
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <TrainerTopbar
         user={user}
@@ -526,5 +528,6 @@ export default function TrainerDashboardPage() {
         }
       `}</style>
     </div>
+    </RoleGate>
   );
 }

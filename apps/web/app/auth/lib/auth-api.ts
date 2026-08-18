@@ -10,6 +10,7 @@ export type User = {
   role: string;
   avatarUrl?: string;
   emailVerified?: boolean;
+  mustChangePassword?: boolean;
 };
 
 export type AuthResponse = { accessToken: string; user: User };
@@ -117,6 +118,13 @@ export const authApi = {
     return request<{ message: string }>('/auth/reset-password', {
       method: 'POST',
       body: JSON.stringify({ token, newPassword }),
+    });
+  },
+
+  async setPassword(newPassword: string) {
+    return request<{ message: string }>('/auth/set-password', {
+      method: 'POST',
+      body: JSON.stringify({ newPassword }),
     });
   },
 

@@ -33,7 +33,7 @@ const BADGE_STYLES: Record<string, { bg: string; fg: string }> = {
   ARCHIVED: { bg: "var(--red-d)", fg: "var(--red)" },
 };
 
-export default function TrainerDashboardContent() {
+export default function TrainerDashboardContent({ onAddStaff, addLabel }: { onAddStaff?: () => void; addLabel?: string }) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -138,6 +138,15 @@ export default function TrainerDashboardContent() {
           </span>
         </div>
         <div className="flex gap-1.5">
+          {onAddStaff && (
+            <button
+              onClick={onAddStaff}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[10.5px] font-semibold cursor-pointer"
+              style={{ background: "var(--orange)", color: "#fff", border: "1px solid var(--orange)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+            >+ Add {addLabel}</button>
+          )}
           <button className="font-mono text-[10.5px] font-semibold px-3 py-1.5 rounded cursor-pointer"
             style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)"; }}

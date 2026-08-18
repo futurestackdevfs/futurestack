@@ -421,6 +421,44 @@ export class CheckoutService {
         data: { items: { deleteMany: {} }, couponId: null },
       });
 
+      /* Auto-attribution: this student paid online. If they have an active
+         (unconverted) lead owned by a salesperson — matched by linked
+         studentId or email — credit the order to that salesperson and
+         auto-convert the lead. Pure online sales (no lead) stay unassigned. */
+      if (order.salespersonId === null) {
+        const user = await tx.user.findUnique({
+          where: { id: order.userId },
+          select: { email: true },
+        });
+        const lead = await tx.lead.findFirst({
+          where: {
+            status: { in: ['New', 'Interested'] },
+            OR: [
+              { studentId: order.userId },
+              ...(user?.email ? [{ email: user.email }] : []),
+            ],
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (lead && lead.salespersonId) {
+          await tx.order.update({
+            where: { id: order.id },
+            data: { salespersonId: lead.salespersonId },
+          });
+          await tx.lead.update({
+            where: { id: lead.id },
+            data: {
+              studentId: order.userId,
+              status: 'Converted',
+              score: 100,
+              orderId: order.id,
+              lastContact: new Date(),
+              nextFollowUp: null,
+            },
+          });
+        }
+      }
+
       return enrollments;
     });
   }

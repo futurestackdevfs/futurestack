@@ -65,6 +65,19 @@ export class AdminController {
     return this.adminService.listAllUsers();
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Auth(Role.ADMIN)
+  @Post('users/:id/regenerate-password')
+  async regeneratePassword(@Param('id') id: string) {
+    return this.adminService.regeneratePassword(id);
+  }
+
+  @Auth(Role.ADMIN)
+  @Get('sales-dashboard')
+  async getSalesDashboard() {
+    return this.adminService.getSalesDashboard();
+  }
+
   // Revenue split is money configuration — ADMIN-only, can't be changed after
   // revenue has been generated for the trainer.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

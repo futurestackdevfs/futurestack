@@ -5,7 +5,6 @@ import { Hero } from "@/app/(student)/components/hero";
 import { PopularCourses } from "@/app/(student)/components/popular-courses";
 import { CareerPaths } from "@/app/(student)/components/career-paths";
 import { HomeSidebar } from "@/app/(student)/components/home-sidebar";
-
 const eyebrowColors: Record<string, string> = {
   "cta-certs": "#7c3aed",
   "cta-proj": "#2563eb",
@@ -83,7 +82,7 @@ export default function StudentPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <div className="shell-inner flex flex-col lg:flex-row gap-3 lg:gap-4 p-2 md:p-3 lg:p-3">
+        <div className="shell-inner flex flex-col lg:flex-row gap-3 lg:gap-4 p-2 md:p-3 lg:p-3">
         <main className="flex flex-col gap-2.5 flex-[3] min-h-0 pt-1 pb-1">
           <Hero />
           <PopularCourses />

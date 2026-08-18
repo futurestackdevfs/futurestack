@@ -10,7 +10,7 @@ const batches = [
   { id: 5, code: "BAT-DEVOPS-01", course: "Docker & K8s", instructor: "Rohit Singh", students: 12, capacity: 25, status: "Upcoming" },
 ];
 
-export default function CoordinatorDashboardContent() {
+export default function CoordinatorDashboardContent({ onAddStaff, addLabel }: { onAddStaff?: () => void; addLabel?: string }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     if (!search) return batches;
@@ -28,9 +28,22 @@ export default function CoordinatorDashboardContent() {
           <span className="text-[17px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>🗂 Coordinator Dashboard</span>
           <span className="font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>role::coordinator · {batches.length} batches</span>
         </div>
-        <input placeholder="Search batches…" value={search} onChange={(e) => setSearch(e.target.value)}
-          className="font-mono text-[10.5px] px-2.5 py-1.5 rounded outline-none w-48"
-          style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }} />
+        <div className="flex items-center gap-2">
+          {onAddStaff && (
+            <button
+              onClick={onAddStaff}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
+              style={{ background: "var(--orange)", color: "#fff", border: "1px solid var(--orange)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+            >
+              + Add {addLabel}
+            </button>
+          )}
+          <input placeholder="Search batches…" value={search} onChange={(e) => setSearch(e.target.value)}
+            className="font-mono text-[10.5px] px-2.5 py-1.5 rounded outline-none w-48"
+            style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }} />
+        </div>
       </div>
 
       <div className="grid grid-cols-4 rounded overflow-hidden mb-4" style={{ border: "1px solid var(--border)", background: "var(--border)", gap: 1 }}>

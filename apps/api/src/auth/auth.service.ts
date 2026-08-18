@@ -233,7 +233,11 @@ export class AuthService {
     email: string,
     password: string,
   ): Promise<SafeUser | null> {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { companyId: email }],
+      },
+    });
 
     if (!user || !user.password) {
       // user.password is null for OAuth-only accounts — no local login possible
@@ -247,6 +251,15 @@ export class AuthService {
 
     if (!user.isActive) {
       throw new UnauthorizedException('Account is suspended');
+    }
+
+    if (
+      user.passwordExpiresAt &&
+      user.passwordExpiresAt.getTime() < Date.now()
+    ) {
+      throw new UnauthorizedException(
+        'Your temporary password has expired. Use the forgot-password link to set a new one.',
+      );
     }
 
     if (user.role === Role.TRAINER && user.approvalStatus !== 'APPROVED') {
@@ -325,8 +338,35 @@ export class AuthService {
         email: user.email,
         name: user.name,
         role: user.role,
+        mustChangePassword: user.mustChangePassword,
       },
     };
+  }
+
+  /**
+   * Sets a brand-new password for a user who was provisioned by an admin
+   * (mustChangePassword=true). Used on first login so the staff member can
+   * replace their auto-generated temporary password with their own.
+   */
+  async setPassword(userId: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException(
+        'Password must be at least 8 characters',
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        mustChangePassword: false,
+        passwordExpiresAt: null,
+      },
+    });
+
+    return { message: 'Password has been set successfully' };
   }
 
   /**
@@ -341,7 +381,11 @@ export class AuthService {
         'If an account with that email exists, a reset link has been sent.',
     };
 
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { companyId: email }],
+      },
+    });
 
     if (!user || !user.password) {
       // No account, or an OAuth-only account with no local password to reset
@@ -396,6 +440,7 @@ export class AuthService {
         password: hashedPassword,
         passwordResetToken: null,
         passwordResetExpires: null,
+        passwordExpiresAt: null,
       },
     });
 
