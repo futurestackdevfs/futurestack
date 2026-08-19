@@ -36,6 +36,27 @@ export class DiscussionService {
     }
   }
 
+  private async checkTrainerCourseOwnership(
+    courseId: string,
+    role: Role,
+    userId: string,
+  ) {
+    // ADMIN/CONTENT_MANAGER can act in any course. TRAINERs are restricted to
+    // the courses they actually teach.
+    if (role !== Role.TRAINER) return;
+
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: { trainerId: true },
+    });
+    if (!course) throw new NotFoundException('Course not found');
+    if (course.trainerId !== userId) {
+      throw new ForbiddenException(
+        'You can only moderate your own course discussions.',
+      );
+    }
+  }
+
   async listMessages(
     courseId: string,
     userId: string,
@@ -193,15 +214,18 @@ export class DiscussionService {
     });
   }
 
-  async pinMessage(messageId: string, role: Role) {
+  async pinMessage(messageId: string, role: Role, userId: string) {
     if (!['TRAINER', 'ADMIN', 'CONTENT_MANAGER'].includes(role)) {
       throw new ForbiddenException('Only staff can pin messages.');
     }
 
     const message = await this.prisma.courseDiscussion.findUnique({
       where: { id: messageId },
+      select: { id: true, isPinned: true, courseId: true },
     });
     if (!message) throw new NotFoundException('Message not found');
+
+    await this.checkTrainerCourseOwnership(message.courseId, role, userId);
 
     return this.prisma.courseDiscussion.update({
       where: { id: messageId },
@@ -209,15 +233,18 @@ export class DiscussionService {
     });
   }
 
-  async markAnswered(messageId: string, role: Role) {
+  async markAnswered(messageId: string, role: Role, userId: string) {
     if (!['TRAINER', 'ADMIN', 'CONTENT_MANAGER'].includes(role)) {
       throw new ForbiddenException('Only staff can mark messages as answered.');
     }
 
     const message = await this.prisma.courseDiscussion.findUnique({
       where: { id: messageId },
+      select: { id: true, isAnswered: true, courseId: true },
     });
     if (!message) throw new NotFoundException('Message not found');
+
+    await this.checkTrainerCourseOwnership(message.courseId, role, userId);
 
     return this.prisma.courseDiscussion.update({
       where: { id: messageId },
@@ -272,12 +299,38 @@ export class DiscussionService {
     });
   }
 
-  async toggleUpvote(userId: string, messageId?: string, replyId?: string) {
+  async toggleUpvote(
+    userId: string,
+    role: Role,
+    courseId?: string,
+    messageId?: string,
+    replyId?: string,
+  ) {
     if ((messageId && replyId) || (!messageId && !replyId)) {
       throw new BadRequestException(
         'Provide exactly one of messageId or replyId',
       );
     }
+
+    let targetCourseId = courseId;
+    if (!targetCourseId) {
+      const where = messageId ? { messageId } : { replyId };
+      const target = messageId
+        ? await this.prisma.courseDiscussion.findUnique({
+            where: { id: messageId },
+            select: { courseId: true },
+          })
+        : await this.prisma.courseDiscussionReply.findUnique({
+            where: { id: replyId },
+            select: { message: { select: { courseId: true } } },
+          });
+      if (!target) throw new NotFoundException('Discussion item not found');
+      targetCourseId = messageId
+        ? (target as { courseId: string }).courseId
+        : (target as { message: { courseId: string } }).message.courseId;
+    }
+
+    await this.checkCourseAccess(targetCourseId, userId, role);
 
     const existingUpvote = await this.prisma.discussionUpvote.findFirst({
       where: {

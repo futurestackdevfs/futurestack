@@ -20,8 +20,11 @@ import { refreshSession } from './refresh-session';
  * enroll/save flows get the same resilient behaviour as SWR and ops calls.
  */
 export async function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const { loadToken, loadStaffToken } = await import('@/app/auth/lib/token-store');
-  const token = (await loadToken()) ?? (await loadStaffToken());
+  const { loadToken } = await import('@/app/auth/lib/token-store');
+  // authFetch is only used by student flows (cart, courses, top-nav). Use the
+  // student token only — falling back to a staff token here would send staff
+  // refresh requests from the public site and trigger session-expired popups.
+  const token = await loadToken();
   if (!token) return fetch(input, init); // no session — let the caller handle it
 
   const doFetch = (t?: string) => fetch(input, {

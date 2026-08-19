@@ -114,7 +114,10 @@ export class TrainerService {
     // admin payments page — so both consoles always reconcile. The order
     // discount is allocated proportionally across items.
     const paidOrders = await this.prisma.order.findMany({
-      where: { status: 'PAID' },
+      where: {
+        status: 'PAID',
+        items: { some: { course: { trainerId } } },
+      },
       include: {
         user: { select: { id: true, name: true, email: true } },
         items: {

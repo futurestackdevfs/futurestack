@@ -257,8 +257,21 @@ export class CoursesService {
     const cached = this.catalogCache.get(CACHE_KEY);
     if (cached) return cached;
 
+    // Narrow to likely candidates in SQL (every slug word must appear in the
+    // title, case-insensitive) instead of pulling the whole catalog, then
+    // exact-match the slugified title.
+    const words = slug.split('-').filter(Boolean);
     const courses = await this.prisma.course.findMany({
-      where: { status: 'ACTIVE' },
+      where: {
+        status: 'ACTIVE',
+        ...(words.length > 0
+          ? {
+              AND: words.map((w) => ({
+                title: { contains: w, mode: 'insensitive' as const },
+              })),
+            }
+          : {}),
+      },
       select: { id: true, title: true },
     });
     const matched = courses.find((c) => slugify(c.title) === slug);
@@ -287,7 +300,6 @@ export class CoursesService {
             coursesTaught: { select: { id: true } },
           },
         },
-        resources: { orderBy: { createdAt: 'asc' } },
         sections: {
           orderBy: { order: 'asc' },
           include: {
@@ -385,7 +397,6 @@ export class CoursesService {
           totalQuestions: q.totalQuestions,
         })),
       })),
-      resources: course.resources,
     };
     this.catalogCache.set(CACHE_KEY, result);
     return result;
@@ -448,7 +459,7 @@ export class CoursesService {
         slug: slugify(r.title),
         category: r.category ?? 'General',
         title: r.title,
-        img: normalizeThumbnail(r.thumbnailUrl, '/images/C1.png'),
+        img: normalizeThumbnail(r.thumbnailUrl, '/images/logo.png'),
         hours: Math.round(stats.totalSeconds / 3600) || 20,
         level: SKILL_LEVEL_LABELS[r.skillLevel ?? 'INTERMEDIATE'],
         rating: r.trainer?.rating ?? 4.7,
@@ -533,7 +544,7 @@ export class CoursesService {
       items: [
         ...section.videos.map((v) => ({
           type: 'video' as const,
-          id: v.id,
+          id: v.isPreview ? v.id : null,
           title: v.title,
           durationSeconds: v.durationSeconds,
           order: v.order,
@@ -594,6 +605,7 @@ export class CoursesService {
         id: true,
         vdoCipherId: true,
         videoStatus: true,
+        isPreview: true,
         order: true,
         section: {
           select: {
@@ -608,8 +620,10 @@ export class CoursesService {
     if (!video) throw new NotFoundException('Video not available for preview');
     if (video.videoStatus !== 'READY')
       throw new BadRequestException('Video not ready');
-    if (video.section.course.status !== 'ACTIVE')
+    if (!video.section?.course || video.section.course.status !== 'ACTIVE')
       throw new NotFoundException('Video not available');
+    if (!video.isPreview)
+      throw new NotFoundException('Video not available for preview');
 
     const firstSection = await this.prisma.section.findFirst({
       where: { courseId: video.section.courseId },
@@ -1032,7 +1046,7 @@ export class CoursesService {
           .toUpperCase(),
         mentorName: course.trainer?.name ?? 'Team',
         mentorColor: 'from-blue-500 to-blue-600',
-        img: normalizeThumbnail(course.thumbnailUrl, '/images/C1.png'),
+        img: normalizeThumbnail(course.thumbnailUrl, '/images/logo.png'),
         mode: 'Self-Paced',
         goal: 'Upskill',
         tech: category,
