@@ -12,7 +12,7 @@ const contentItems = [
   { id: 7, title: "Express.js REST API", course: "MERN Stack", type: "Video + Docs", status: "Draft", updated: "2026-06-22", reviewer: "—" },
 ];
 
-export default function ContentMgrDashboardContent() {
+export default function ContentMgrDashboardContent({ onAddStaff, addLabel }: { onAddStaff?: () => void; addLabel?: string }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
     if (!search) return contentItems;
@@ -30,9 +30,22 @@ export default function ContentMgrDashboardContent() {
           <span className="text-[17px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>📝 Content Manager</span>
           <span className="font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>role::content_manager · {pendingReview} pending reviews</span>
         </div>
-        <input placeholder="Search content…" value={search} onChange={(e) => setSearch(e.target.value)}
-          className="font-mono text-[10.5px] px-2.5 py-1.5 rounded outline-none w-48"
-          style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }} />
+        <div className="flex items-center gap-2">
+          {onAddStaff && (
+            <button
+              onClick={onAddStaff}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold cursor-pointer transition-all"
+              style={{ background: "var(--orange)", color: "#fff", border: "1px solid var(--orange)" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+            >
+              + Add {addLabel}
+            </button>
+          )}
+          <input placeholder="Search content…" value={search} onChange={(e) => setSearch(e.target.value)}
+            className="font-mono text-[10.5px] px-2.5 py-1.5 rounded outline-none w-48"
+            style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }} />
+        </div>
       </div>
 
       <div className="grid grid-cols-4 rounded overflow-hidden mb-4" style={{ border: "1px solid var(--border)", background: "var(--border)", gap: 1 }}>

@@ -59,6 +59,7 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [newSlideTitles, setNewSlideTitles] = useState<Record<number, string>>({});
   const [newSlideLinks, setNewSlideLinks] = useState<Record<number, string>>({});
+  const [pendingReplace, setPendingReplace] = useState<{ index: number; file: File } | null>(null);
 
   useEffect(() => {
     if (openSlot) {
@@ -249,7 +250,10 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
-      if (!res.ok) throw new Error("Upload failed");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `Upload failed (${res.status})`);
+      }
       const data = await res.json();
       const title = newSlideTitles[index] || "Hero Slide";
       const linkUrl = newSlideLinks[index] || "";
@@ -261,9 +265,12 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
         method: "PATCH",
         body: JSON.stringify({ isFeatured: true, displayOrder: index }),
       });
-      const updated = [...featuredHeroSlides, { ...created, isFeatured: true, displayOrder: index }];
-      updated.sort((a, b) => a.displayOrder - b.displayOrder);
-      setFeaturedHeroSlides(updated);
+      setFeaturedHeroSlides((prev) => {
+        const withoutSlot = prev.filter((f) => f.displayOrder !== index);
+        const updated = [...withoutSlot, { ...created, isFeatured: true, displayOrder: index }];
+        updated.sort((a, b) => a.displayOrder - b.displayOrder);
+        return updated;
+      });
       setAllHeroSlides((prev) => [...prev, created]);
       setNewSlideTitles((prev) => ({ ...prev, [index]: "" }));
       setNewSlideLinks((prev) => ({ ...prev, [index]: "" }));
@@ -274,13 +281,40 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
     setUploadingIndex(null);
   }
 
+  async function confirmReplace() {
+    if (!pendingReplace) return;
+    const { index, file } = pendingReplace;
+    setPendingReplace(null);
+    const existing = featuredHeroSlides.find((f) => f.displayOrder === index);
+    if (existing) {
+      setActing(true);
+      try {
+        await apiCall(token, `/courses/hero-slides/${existing.id}`, { method: "DELETE" });
+        setFeaturedHeroSlides((prev) => prev.filter((f) => f.id !== existing.id));
+        setAllHeroSlides((prev) => prev.filter((f) => f.id !== existing.id));
+      } catch (e: any) {
+        addToast(e.message, "danger");
+        setActing(false);
+        return;
+      }
+      setActing(false);
+    }
+    await uploadHeroSlideImage(index, file);
+  }
+
   function triggerUpload(index: number) {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) uploadHeroSlideImage(index, file);
+      if (!file) return;
+      const existing = featuredHeroSlides.find((f) => f.displayOrder === index);
+      if (existing) {
+        setPendingReplace({ index, file });
+      } else {
+        uploadHeroSlideImage(index, file);
+      }
     };
     input.click();
   }
@@ -549,6 +583,50 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
           </div>
         ))}
       </div>
+
+      {pendingReplace && (
+        <div
+          className="fixed inset-0 z-[400] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setPendingReplace(null)}
+        >
+          <div
+            className="rounded-xl p-5 max-w-sm w-full"
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              boxShadow: "0 12px 32px rgba(0,0,0,.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-2.5 mb-2">
+              <span className="text-[20px] leading-none" style={{ color: "var(--red)" }}>⚠️</span>
+              <span className="font-extrabold text-[14px] tracking-tight" style={{ color: "var(--text)" }}>
+                Replace this slide?
+              </span>
+            </div>
+            <div className="text-[12px] leading-relaxed mb-4" style={{ color: "var(--text3)" }}>
+              This slot already has an image. Uploading a new one will <b style={{ color: "var(--red)" }}>delete the current slide image permanently</b> and replace it with the new upload. Continue?
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setPendingReplace(null)}
+                className="px-3 py-1.5 rounded text-[12px] font-semibold cursor-pointer"
+                style={{ background: "var(--panel)", color: "var(--text3)", border: "1px solid var(--border)" }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={acting}
+                onClick={confirmReplace}
+                className="px-3 py-1.5 rounded text-[12px] font-semibold cursor-pointer disabled:opacity-40"
+                style={{ background: "var(--red)", color: "#fff" }}
+              >
+                Delete & Upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

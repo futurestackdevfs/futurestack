@@ -21,6 +21,7 @@ import { CartModule } from './cart/cart.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { PaymentSettingsModule } from './payment-settings/payment-settings.module';
 import { AdminPaymentsModule } from './admin-payments/admin-payments.module';
+import { SalesModule } from './sales/sales.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { AdminPaymentsModule } from './admin-payments/admin-payments.module';
     CheckoutModule,
     PaymentSettingsModule,
     AdminPaymentsModule,
+    SalesModule,
   ],
   controllers: [AppController],
   providers: [

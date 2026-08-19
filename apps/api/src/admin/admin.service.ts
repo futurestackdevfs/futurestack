@@ -4,9 +4,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { Role } from '@prisma/client';
+import { OrderStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UploadVideoDto } from './dto/upload-video.dto';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
@@ -20,6 +22,8 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly vdoCipherService: VdoCipherService,
+    private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {}
 
   async listAllTrainers() {
@@ -189,6 +193,8 @@ export class AdminService {
         id: true,
         name: true,
         email: true,
+        companyId: true,
+        phone: true,
         role: true,
         isActive: true,
         emailVerified: true,
@@ -204,9 +210,163 @@ export class AdminService {
   }
 
   /**
-   * Admin directly creates a Coordinator, Support, or Admin account.
-   * Unlike trainer self-registration, this account is immediately usable —
-   * the admin has already vetted the person by choosing to create it.
+   * Sales dashboard fed from the real order book. Each order becomes a "lead"
+   * row: CREATED → Hot (in pipeline), PAID → Warm (converted), anything else
+   * (FAILED / CANCELLED / EXPIRED) → Cold. KPIs are computed from the same
+   * orders so the numbers always reconcile with the data shown in the table.
+   * Also lists every SALES role staff member with the leads/revenue attributed
+   * to them via Order.salespersonId (0 when nothing assigned).
+   */
+  async getSalesDashboard() {
+    const [orders, salesStaff, careerLeads] = await Promise.all([
+      this.prisma.order.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          items: {
+            include: { course: { select: { id: true, title: true } } },
+          },
+        },
+      }),
+      this.prisma.user.findMany({
+        where: { role: Role.SALES },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          companyId: true,
+          isActive: true,
+          _count: { select: { salesOrders: true } },
+        },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.lead.findMany({
+        where: {
+          OR: [
+            { source: { in: ['career_guidance', 'fab', 'sidebar_card'] } },
+            { salespersonId: null },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          salesperson: { select: { id: true, name: true } },
+        },
+      }),
+    ]);
+
+    const salesRevenue = new Map<string, number>();
+    const convertedCount = new Map<string, number>();
+    const successValue = new Map<string, number>();
+    for (const o of orders) {
+      if (o.salespersonId) {
+        salesRevenue.set(
+          o.salespersonId,
+          (salesRevenue.get(o.salespersonId) ?? 0) + o.totalAmount,
+        );
+        if (o.status === OrderStatus.PAID) {
+          convertedCount.set(
+            o.salespersonId,
+            (convertedCount.get(o.salespersonId) ?? 0) + 1,
+          );
+          successValue.set(
+            o.salespersonId,
+            (successValue.get(o.salespersonId) ?? 0) + o.totalAmount,
+          );
+        }
+      }
+    }
+
+    const staffRows = salesStaff.map((s) => {
+      const leadsCount = s._count.salesOrders;
+      const converted = convertedCount.get(s.id) ?? 0;
+      const totalValue = salesRevenue.get(s.id) ?? 0;
+      return {
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        companyId: s.companyId,
+        isActive: s.isActive,
+        leadsCount,
+        convertedCount: converted,
+        conversionRate:
+          leadsCount > 0 ? Math.round((converted / leadsCount) * 100) : 0,
+        successValue: successValue.get(s.id) ?? 0,
+        totalValue,
+        avgValue: leadsCount > 0 ? totalValue / leadsCount : 0,
+      };
+    });
+
+    const leads = orders.map((o) => {
+      const status =
+        o.status === OrderStatus.CREATED
+          ? 'Hot'
+          : o.status === OrderStatus.PAID
+            ? 'Warm'
+            : 'Cold';
+      const firstItem = o.items[0];
+      return {
+        id: o.id,
+        name: o.billingFullName ?? o.user?.name ?? 'Unknown',
+        course: firstItem?.course.title ?? '—',
+        source: o.gatewayType ?? 'Checkout',
+        status,
+        orderStatus: o.status,
+        date: o.createdAt.toISOString().slice(0, 10),
+        value: o.totalAmount,
+        salespersonId: o.salespersonId,
+      };
+    });
+
+    // Public enquiries from the website forms (career guidance, sidebar card,
+    // FAB). They start unassigned; once a salesperson claims one by editing it
+    // they show up here with the real DB status and the assigned salesperson.
+    const publicLeads = careerLeads.map((l) => {
+      return {
+        id: l.id,
+        name: l.name,
+        course: l.course ?? '—',
+        source: l.source ?? 'Career Guidance',
+        status: l.status,
+        orderStatus: 'LEAD',
+        date: l.createdAt.toISOString().slice(0, 10),
+        value: l.budget ?? 0,
+        salespersonId: l.salespersonId,
+        salespersonName: l.salesperson?.name ?? null,
+        email: l.email,
+        phone: l.phone,
+      };
+    });
+
+    const hot = orders.filter((o) => o.status === OrderStatus.CREATED);
+    const paid = orders.filter((o) => o.status === OrderStatus.PAID);
+    const pipelineValue = hot.reduce((s, o) => s + o.totalAmount, 0);
+    const paidValue = paid.reduce((s, o) => s + o.totalAmount, 0);
+    const conversionRate =
+      orders.length > 0 ? Math.round((paid.length / orders.length) * 100) : 0;
+    const avgDealSize =
+      paid.length > 0 ? paidValue / paid.length : 0;
+
+    return {
+      summary: {
+        totalLeads: orders.length,
+        activeLeads: hot.length,
+        pipelineValue,
+        totalRevenue: paidValue,
+        convertedLeads: paid.length,
+        conversionRate,
+        avgDealSize,
+      },
+      salesStaff: staffRows,
+      leads,
+      publicLeads,
+    };
+  }
+
+  /**
+   * Admin directly creates a staff account (Coordinator, Support, Sales, …).
+   * The email and a temporary password are generated automatically — the
+   * account is created with mustChangePassword=true so the staff member is
+   * forced to set their own password on first login.
    */
   async createStaffAccount(dto: CreateStaffDto) {
     const existing = await this.prisma.user.findUnique({
@@ -217,23 +377,144 @@ export class AdminService {
       throw new ConflictException('An account with this email already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const companyId = dto.companyId
+      ? await this.ensureCompanyIdAvailable(dto.companyId)
+      : await this.generateUniqueCompanyEmail(dto.name, dto.role);
+    const tempPassword = this.generateTempPassword();
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
+        companyId,
         name: dto.name,
+        phone: dto.phone,
         password: hashedPassword,
         role: dto.role,
+        emailVerified: true,
+        mustChangePassword: true,
+        passwordExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
         // Admin-created trainers are pre-approved — no pending review needed
         ...(dto.role === 'TRAINER' && { approvalStatus: 'APPROVED' }),
       },
     });
 
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const loginUrl = `${frontendUrl}/auth/staff-login`;
+    await this.mailService.sendStaffCredentialsEmail(dto.email, {
+      name: user.name,
+      role: user.role,
+      loginEmail: companyId,
+      tempPassword,
+      loginUrl,
+    });
+
     return {
-      message: `${user.name} has been created as ${dto.role}.`,
+      message: `${user.name} has been created as ${dto.role}. Credentials sent to ${dto.email}.`,
       userId: user.id,
+      email: dto.email,
+      companyId,
+      tempPassword,
+      mustChangePassword: true,
+      emailSent: true,
     };
+  }
+
+  /**
+   * Regenerates a fresh temporary password for a user and emails it to them.
+   * The new password is valid for 10 minutes and the user is forced to
+   * change it on next login (mustChangePassword=true).
+   */
+  async regeneratePassword(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const tempPassword = this.generateTempPassword();
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        mustChangePassword: true,
+        passwordExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      },
+    });
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    const loginUrl = `${frontendUrl}/auth/staff-login`;
+
+    await this.mailService.sendPasswordRegeneratedEmail(user.email, {
+      name: user.name,
+      loginEmail: user.companyId ?? user.email,
+      tempPassword,
+      loginUrl,
+    });
+
+    return {
+      message: `New password generated and emailed to ${user.email}.`,
+      tempPassword,
+      emailSent: true,
+    };
+  }
+
+  /**
+   * Admin can provide their own company email; if it's already taken, throw.
+   */
+  private async ensureCompanyIdAvailable(companyId: string): Promise<string> {
+    const existing = await this.prisma.user.findUnique({
+      where: { companyId },
+    });
+
+    if (existing) {
+      throw new ConflictException(
+        'This company email is already in use',
+      );
+    }
+
+    return companyId;
+  }
+
+  /**
+   * Builds a company email like `ramw.sales@futurestack.co.in` from the staff
+   * member's name (first name + last name initial, lowercased) and role. If
+   * the email is already taken, appends a numeric suffix (ramw2.sales@…).
+   */
+  private async generateUniqueCompanyEmail(
+    name: string,
+    role: string,
+  ): Promise<string> {
+    const parts = name.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const first = parts[0] ?? 'user';
+    const lastInitial = parts.length > 1 ? parts[parts.length - 1].charAt(0) : '';
+    const base = `${first}${lastInitial}`;
+    const rolePart = role.toLowerCase();
+    const domain = '@futurestack.co.in';
+
+    let email = `${base}.${rolePart}${domain}`;
+    let suffix = 2;
+    while (await this.prisma.user.findUnique({ where: { companyId: email } })) {
+      email = `${base}${suffix}.${rolePart}${domain}`;
+      suffix++;
+    }
+
+    return email;
+  }
+
+  private generateTempPassword(): string {
+    const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += charset[Math.floor(Math.random() * charset.length)];
+    }
+    return password;
   }
 
   /**

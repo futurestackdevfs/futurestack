@@ -535,7 +535,7 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
                               <div className="flex items-center gap-2.5">
                                 <div
                                   className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
-                                  style={{ background: "linear-gradient(135deg, var(--purple), var(--purple)cc)" }}
+                                  style={{ background: "linear-gradient(135deg, var(--purple), color-mix(in srgb, var(--purple) 75%, transparent))" }}
                                 >
                                   {t.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                                 </div>

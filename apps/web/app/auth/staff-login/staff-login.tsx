@@ -16,6 +16,7 @@ const roles = [
   { id: 'COORDINATOR',     icon: '📋', label: 'Coordinator',     color: '#16a34a' },
   { id: 'SUPPORT',         icon: '🎧', label: 'Support',         color: '#0891b2' },
   { id: 'CONTENT_MANAGER', icon: '✍️', label: 'Content Manager', color: '#f05a1a' },
+  { id: 'SALES',           icon: '💼', label: 'Sales',           color: '#eab308' },
 ] as const;
 
 type RoleId = (typeof roles)[number]['id'];
@@ -26,6 +27,7 @@ const roleData: Record<RoleId, { title: string; sub: string; email: string }> = 
   COORDINATOR:     { title: 'Welcome back, Coordinator',     sub: 'Sign in to manage batches, schedules, and live sessions.',       email: 'coordinator@example.com' },
   SUPPORT:         { title: 'Welcome back, Support',         sub: 'Sign in to handle tickets, queries, and student support.',       email: 'support@example.com' },
   CONTENT_MANAGER: { title: 'Welcome back, Content Manager', sub: 'Sign in to manage course content, media, and publishing.',       email: 'content@example.com' },
+  SALES:           { title: 'Welcome back, Sales',           sub: 'Sign in to manage leads, quotes, and admissions.',                  email: 'sales@example.com' },
 };
 
 const roleRedirects: Record<string, string> = {
@@ -34,6 +36,7 @@ const roleRedirects: Record<string, string> = {
   COORDINATOR:     '/ops/coordinator',
   SUPPORT:         '/ops/support',
   CONTENT_MANAGER: '/ops/content-manager',
+  SALES:           '/ops/sales',
 };
 
 export function StaffLoginForm() {
@@ -69,6 +72,11 @@ export function StaffLoginForm() {
     setError(null);
     try {
       const { accessToken, user } = await authApi.loginOps(email, password);
+      if (selectedRole !== user.role) {
+        const actualLabel = roles.find((r) => r.id === user.role)?.label ?? user.role;
+        setError(`This account is a ${actualLabel}. Please select "${actualLabel}" in "I am logging in as" above to continue.`);
+        return;
+      }
       const uid = decodeToken(accessToken).sub;
       await saveStaffToken(uid, accessToken);
       await fetch('/api/auth/set-token-staff', {
@@ -76,10 +84,9 @@ export function StaffLoginForm() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token: accessToken }),
       });
-      const fallback = roleRedirects[user.role] ?? '/ops/admin';
       const redirectTo = new URLSearchParams(window.location.search).get('redirect');
-      const path = redirectTo && redirectTo.startsWith('/ops/') ? redirectTo : fallback;
-      router.push(path);
+      const path = redirectTo && redirectTo.startsWith('/ops/') ? redirectTo : roleRedirects[user.role];
+      router.push(user.mustChangePassword ? '/auth/set-new-password' : path);
     } catch (ex) {
       setError(ex instanceof Error ? ex.message : 'Login failed. Please try again.');
     } finally {

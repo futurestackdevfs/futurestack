@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect, useMemo } from "react";
 import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken, clearStaffToken } from "@/app/auth/lib/token-store";
+import { RoleGate } from "@/app/ops/components/RoleGate";
 import { AdminTopbar } from "./sections/AdminTopbar";
 import { AdminSidebar } from "./sections/AdminSidebar";
 import { Statusbar } from "./sections/Statusbar";
@@ -25,6 +26,7 @@ import CoordinatorDashboardContent from "./console/CoordinatorDashboardContent";
 import SupportDashboardContent from "./console/SupportDashboardContent";
 import ContentMgrDashboardContent from "./console/ContentMgrDashboardContent";
 import UsersDashboardContent from "./console/UsersDashboardContent";
+import CreateStaffModal from "./sections/CreateStaffModal";
 
 /* ───────────────────────────────────────────────
    TYPES
@@ -65,6 +67,14 @@ interface CurriculumEntry {
   nextSectionId: number;
   sections: { id: number; num: string; title: string; lessons: { id: number; name: string; type: string; duration: string }[] }[];
 }
+
+const ROLE_META: Record<string, { id: string; label: string; icon: string; color: string }> = {
+  sales: { id: "SALES", label: "Sales", icon: "📞", color: "var(--orange)" },
+  coordinator: { id: "COORDINATOR", label: "Coordinator", icon: "🗂", color: "var(--blue)" },
+  support: { id: "SUPPORT", label: "Support", icon: "🎧", color: "var(--green)" },
+  trainer: { id: "TRAINER", label: "Trainer", icon: "🎓", color: "var(--purple)" },
+  "content-manager": { id: "CONTENT_MANAGER", label: "Content Manager", icon: "📝", color: "var(--pink)" },
+};
 
 const DB: { [key: string]: any[] } = {
   courses: [], batches: [], instructors: [], feeplans: [], certs: [], departments: [], admins: [],
@@ -275,6 +285,7 @@ export default function AdminMasterDataPage() {
   const [stats, setStats] = useState<CourseStats | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [profileModal, setProfileModal] = useState<{ open: boolean; mode: "profile" | "settings" }>({ open: false, mode: "profile" });
+  const [createStaffRole, setCreateStaffRole] = useState<{ id: string; label: string; icon: string; color: string } | null>(null);
   const [confirmState, setConfirmState] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
 
   // Promise-based styled confirmation popup — replaces window.confirm/alert.
@@ -1022,6 +1033,7 @@ export default function AdminMasterDataPage() {
   if (!user) return null;
 
   return (
+    <RoleGate role="ADMIN">
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <AdminTopbar
         user={user as any}
@@ -1125,11 +1137,11 @@ export default function AdminMasterDataPage() {
         ) : (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
             {view === "users" && <UsersDashboardContent />}
-            {view === "sales" && <SalesDashboardContent />}
-            {view === "trainer" && <TrainerDashboardContent />}
-            {view === "coordinator" && <CoordinatorDashboardContent />}
-            {view === "support" && <SupportDashboardContent />}
-            {view === "content-manager" && <ContentMgrDashboardContent />}
+            {view === "sales" && <SalesDashboardContent onAddStaff={() => setCreateStaffRole(ROLE_META["sales"])} addLabel="Sales" />}
+            {view === "trainer" && <TrainerDashboardContent onAddStaff={() => setCreateStaffRole(ROLE_META["trainer"])} addLabel="Trainer" />}
+            {view === "coordinator" && <CoordinatorDashboardContent onAddStaff={() => setCreateStaffRole(ROLE_META["coordinator"])} addLabel="Coordinator" />}
+            {view === "support" && <SupportDashboardContent onAddStaff={() => setCreateStaffRole(ROLE_META["support"])} addLabel="Support" />}
+            {view === "content-manager" && <ContentMgrDashboardContent onAddStaff={() => setCreateStaffRole(ROLE_META["content-manager"])} addLabel="Content Manager" />}
           </main>
         )}
       </div>
@@ -1204,6 +1216,11 @@ export default function AdminMasterDataPage() {
         onClose={() => setProfileModal({ open: false, mode: "profile" })}
       />
 
+      {/* Create Staff Modal */}
+      {createStaffRole && (
+        <CreateStaffModal role={createStaffRole} onClose={() => setCreateStaffRole(null)} />
+      )}
+
       {/* Toasts */}
       <div className="fixed bottom-9 right-4 flex flex-col gap-2 z-[300]">
         {toasts.map((t) => (
@@ -1232,5 +1249,6 @@ export default function AdminMasterDataPage() {
         }
       `}</style>
     </div>
+    </RoleGate>
   );
 }

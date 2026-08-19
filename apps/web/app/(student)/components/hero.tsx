@@ -21,36 +21,51 @@ export function Hero() {
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
   const rafRef = useRef<number>(0);
-  const startRef = useRef<number>(0);
+  const startRef = useRef(0);
+  const restartRef = useRef(false);
 
   const slides: HeroSlide[] = (Array.isArray(data) ? data : []).sort((a, b) => a.displayOrder - b.displayOrder);
 
   const advance = useCallback(() => {
-    setCurrent((prev) => (prev + 1) % slides.length);
+    setCurrent((prev) => (prev + 1) % Math.max(1, slides.length));
   }, [slides.length]);
 
   useEffect(() => {
     if (slides.length <= 1 || paused) return;
-    setProgress(0);
     progressRef.current = 0;
+    restartRef.current = false;
     startRef.current = performance.now();
 
     function frame(now: number) {
+      if (restartRef.current) {
+        restartRef.current = false;
+        startRef.current = now;
+        progressRef.current = 0;
+        setProgress(0);
+        rafRef.current = requestAnimationFrame(frame);
+        return;
+      }
       const elapsed = now - startRef.current;
       const pct = Math.min(100, (elapsed / 5000) * 100);
-      progressRef.current = pct;
-      setProgress(pct);
-      if (pct >= 100) {
-        advance();
-      } else {
-        rafRef.current = requestAnimationFrame(frame);
+      const rounded = Math.round(pct);
+      if (rounded !== progressRef.current) {
+        progressRef.current = rounded;
+        setProgress(rounded);
       }
+      if (pct >= 100) {
+        startRef.current = now;
+        progressRef.current = 0;
+        setProgress(0);
+        advance();
+      }
+      rafRef.current = requestAnimationFrame(frame);
     }
     rafRef.current = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [current, paused, advance, slides.length]);
+  }, [paused, advance, slides.length]);
 
   function handleDotClick(i: number) {
+    restartRef.current = true;
     setCurrent(i);
     setProgress(0);
   }
@@ -60,8 +75,8 @@ export function Hero() {
       <section className="relative flex min-h-[270px] items-center overflow-hidden rounded-2xl border border-white/6 bg-[var(--hero-bg)] shadow-[var(--shadow-lg)] [animation:fadeUp_.5s_ease_both]">
         <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 60% 50%, rgba(45,126,247,.2) 0%, transparent 60%), radial-gradient(ellipse at 90% 30%, rgba(255,106,26,.14) 0%, transparent 50%)" }}>
           <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-          <div className="relative flex h-[300px] w-full items-center justify-center overflow-hidden rounded-xl">
-            <Image src="/images/mainbanner.png" alt="Technology" fill priority sizes="(max-width: 1200px) 100vw, 1200px" className="object-cover" />
+          <div className="relative flex h-[380px] w-full items-center justify-center overflow-hidden rounded-xl">
+            <Image src="/images/mainbanner.png" alt="Technology" fill priority sizes="(max-width: 1200px) 100vw, 1200px" className="object-fill" />
           </div>
         </div>
       </section>
@@ -80,7 +95,7 @@ export function Hero() {
         <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
       </div>
 
-      <div className="relative z-10 flex h-[300px] w-full items-center justify-center overflow-hidden rounded-xl">
+      <div className="relative z-10 flex h-[380px] w-full items-center justify-center overflow-hidden rounded-xl">
         {slides.map((s, i) => (
           <Image
             key={s.id}
@@ -89,7 +104,7 @@ export function Hero() {
             fill
             priority={i === 0}
             sizes="(max-width: 1200px) 100vw, 1200px"
-            className="object-cover transition-opacity duration-700"
+            className="object-fill transition-opacity duration-700"
             style={{ opacity: i === current ? 1 : 0 }}
           />
         ))}

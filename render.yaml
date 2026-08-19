@@ -25,9 +25,9 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
-      - key: RESEND_API_KEY
+      - key: AGENTMAIL_API_KEY
         sync: false
-      - key: EMAIL_FROM
-        value: "FutureStack <onboarding@resend.dev>"
+      - key: AGENTMAIL_INBOX_ID
+        value: "FutureStack <onboarding@agentmail.to>"
       - key: VDOCIPHER_API_KEY
         sync: false

@@ -3,7 +3,7 @@ export interface AuthUser {
   id: string
   email: string
   name: string
-  role: 'STUDENT' | 'TRAINER' | 'COORDINATOR' | 'SUPPORT' | 'ADMIN'
+  role: 'STUDENT' | 'TRAINER' | 'COORDINATOR' | 'SUPPORT' | 'ADMIN' | 'SALES'
   avatarUrl: string | null
   emailVerified: boolean
 }

@@ -22,6 +22,7 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterTrainerDto } from './dto/register-trainer.dto';
+import { SetPasswordDto } from './dto/set-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -38,6 +39,7 @@ export class AuthController {
       [Role.CONTENT_MANAGER]: 'fs_cm_refresh',
       [Role.COORDINATOR]: 'fs_coordinator_refresh',
       [Role.SUPPORT]: 'fs_support_refresh',
+      [Role.SALES]: 'fs_sales_refresh',
     };
     return map[role] ?? 'fs_ops_refresh';
   }
@@ -205,5 +207,13 @@ export class AuthController {
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.newPassword);
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 900_000 } })
+  @UseGuards(JwtAuthGuard)
+  @Post('set-password')
+  async setPassword(@Req() req: Request, @Body() dto: SetPasswordDto) {
+    const user = req.user as { id: string };
+    return this.authService.setPassword(user.id, dto.newPassword);
   }
 }

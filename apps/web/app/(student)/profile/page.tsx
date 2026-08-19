@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth/hooks/use-auth';
 import { showToast } from '@/lib/toast';
-import { userApi, type UpdateProfilePayload } from '@/app/auth/lib/auth-api';
+import { userApi, authApi, type UpdateProfilePayload } from '@/app/auth/lib/auth-api';
 import Image from 'next/image';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -125,6 +125,7 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [animate, setAnimate] = useState(false);
   const [showPopup, setShowPopup] = useState<'name' | 'email' | null>(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   useEffect(() => { setAnimate(true); }, []);
 
@@ -197,6 +198,20 @@ export default function ProfilePage() {
       showToast(msg);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!user || resettingPassword) return;
+    setResettingPassword(true);
+    try {
+      await authApi.forgotPassword(user.email);
+      showToast('Reset link sent! Check your inbox.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send reset link';
+      showToast(msg);
+    } finally {
+      setResettingPassword(false);
     }
   }
 
@@ -445,15 +460,17 @@ export default function ProfilePage() {
               </div>
 
               {/* Bottom Actions */}
-              <div className="flex items-center justify-between mt-6 pt-5 border-t border-[var(--border)]">
-                <button
-                  type="button"
-                  onClick={() => { logout(); router.push('/'); }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] hover:text-red-500 hover:border-red-300 dark:hover:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all duration-200 cursor-pointer"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-                  Sign Out
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-5 border-t border-[var(--border)]">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { logout(); router.push('/'); }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] hover:text-red-500 hover:border-red-300 dark:hover:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all duration-200 cursor-pointer"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                    Sign Out
+                  </button>
+                </div>
                 <div className="flex items-center gap-3">
                   {saved && (
                     <span className="text-xs font-semibold text-green-600 dark:text-green-400 [animation:fadeIn_.2s_ease] flex items-center gap-1">
@@ -478,6 +495,32 @@ export default function ProfilePage() {
             </div>
           </form>
         )}
+
+        {/* Reset Password */}
+        <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-sm overflow-hidden" style={animate ? { animation: 'fadeUp .35s ease both' } : {}}>
+          <div className="px-5 py-3.5 border-b border-[var(--border)] flex items-center gap-2.5 bg-[var(--bg)]/50">
+            <div className="size-7 rounded-lg bg-orange-500/10 flex items-center justify-center">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-orange-500"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-sm font-semibold text-[var(--text)]">Reset Password</h2>
+              <p className="text-[11px] text-[var(--text3)] mt-0.5 truncate">We'll email you a secure reset link at {user.email}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetPassword}
+              disabled={resettingPassword}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 active:scale-[0.97] transition-all duration-200 shadow-md hover:shadow-lg cursor-pointer border-none disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {resettingPassword ? (
+                <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+              )}
+              {resettingPassword ? 'Sending…' : 'Send Reset Link'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

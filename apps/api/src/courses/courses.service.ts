@@ -7,6 +7,7 @@ import {
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
+import { S3Service } from '../upload/s3.service';
 import { CreateTrackDto } from './dto/create-track.dto';
 import { UpdateTrackDto } from './dto/update-track.dto';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -62,6 +63,7 @@ export class CoursesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly vdoCipherService: VdoCipherService,
+    private readonly s3Service: S3Service,
   ) {}
 
   /** Clears every cached catalog response — call after any course/track/hero edit. */
@@ -1471,7 +1473,15 @@ export class CoursesService {
 
   async deleteHeroSlide(id: string) {
     this.invalidateCatalog();
+    const slide = await this.prisma.heroSlide.findUnique({ where: { id } });
     await this.prisma.heroSlide.delete({ where: { id } });
+    if (slide?.imageUrl) {
+      try {
+        await this.s3Service.deleteByUrl(slide.imageUrl);
+      } catch {
+        // File already gone or S3 unreachable — the slide record is deleted regardless.
+      }
+    }
     return { message: 'Hero slide deleted' };
   }
 

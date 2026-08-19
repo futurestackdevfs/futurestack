@@ -5,6 +5,7 @@ import { StudentLoginForm } from "@/app/auth/components/student-login-form";
 import { QuickActions } from "./quick-actions";
 import { ResumeLearning } from "./resume-learning";
 import { Achievements } from "./achievements";
+import { CareerGuidanceCard } from "./career-guidance";
 import Link from "next/link";
 
 export function HomeSidebar() {
@@ -69,6 +70,7 @@ export function HomeSidebar() {
         <StudentLoginForm />
       )}
 
+      <CareerGuidanceCard />
       <QuickActions />
       <Achievements />
     </aside>

@@ -38,6 +38,7 @@ enum Role {
   SUPPORT
   ADMIN
   CONTENT_MANAGER
+  SALES
 }
 
 enum Currency {
@@ -66,13 +67,16 @@ enum DiscountType {
 model User {
   id                   String          @id @default(uuid())
   email                String          @unique
+  companyId            String?         @unique
   name                 String
   password             String?
   passwordResetToken   String?         @unique
   passwordResetExpires DateTime?
+  passwordExpiresAt    DateTime?
   googleId             String?         @unique
   role                 Role            @default(STUDENT)
   isActive             Boolean         @default(true)
+  mustChangePassword   Boolean         @default(false)
   avatarUrl            String?
   emailVerified        Boolean         @default(false)
   createdAt            DateTime        @default(now())
@@ -114,6 +118,9 @@ model User {
   cart               Cart?
   wishlist           Wishlist?
   orders             Order[]
+  salesOrders        Order[]         @relation("OrderSalesperson")
+  leads              Lead[]          @relation("LeadSalesperson")
+  leadAsStudent      Lead[]          @relation("LeadStudent")
 }
 
 model Track {
@@ -500,10 +507,15 @@ model Order {
   billingCity       String?
   billingState      String?
   billingPincode    String?
-  items             OrderItem[]
+  batchMode         String?     // "Online" | "Offline" — set by the sales console for manually collected sales
+  discountReason    String?     // salesperson notes for a manual discount
+items             OrderItem[]
   enrollments       Enrollment[]
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  leads             Lead[]
+  salesperson       User?           @relation("OrderSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
+  salespersonId     String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 }
 
 model OrderItem {
@@ -526,5 +538,48 @@ model PaymentSettings {
   trainerSharePercent  Int      @default(50)     // default % of collected gross the trainer keeps (rest = platform cut)
   gstPercent           Float    @default(18)     // GST % charged on top of every course fee
   updatedAt            DateTime @updatedAt
+}
+
+model Lead {
+  id           String    @id @default(uuid())
+  name         String
+  email        String?
+  phone        String?
+  city         String?
+  course       String?                    // course interest (free text or from course list)
+  status       String    @default("New")  // "New" | "Interested" | "Converted" | "Dropped"
+  budget       Float     @default(0)
+  score        Int       @default(35)
+  source       String?                    // e.g. Website, Referral, Walk-in, Demo
+  notes        String?                    // salesperson notes / follow-up context
+  nextFollowUp DateTime?
+  lastContact  DateTime?
+
+  salesperson   User?   @relation("LeadSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
+  salespersonId String?
+  student       User?   @relation("LeadStudent", fields: [studentId], references: [id], onDelete: SetNull)
+  studentId     String?
+  order         Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId       String?
+
+  followUps LeadFollowUp[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([salespersonId])
+  @@index([status])
+}
+
+model LeadFollowUp {
+  id          String   @id @default(uuid())
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId      String
+  action      String   // "scheduled" | "rescheduled" | "completed" | "converted" | "dropped"
+  note        String?
+  scheduledAt DateTime? // the follow-up time this entry refers to
+  createdAt   DateTime @default(now())
+
+  @@index([leadId])
 }
 

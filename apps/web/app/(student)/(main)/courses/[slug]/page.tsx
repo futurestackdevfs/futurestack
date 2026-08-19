@@ -475,8 +475,6 @@ export default function CourseDetailPage() {
 
       {/* ══ CINEMATIC HERO ══ */}
       <section className="relative overflow-hidden mt-3 bg-[linear-gradient(120deg,#07153D_0%,#0D1F5C_55%,#1e45b8_100%)] py-10 md:py-[56px]">
-        <div className="absolute inset-0" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'80\' height=\'80\' viewBox=\'0 0 80 80\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Ccircle cx=\'40\' cy=\'40\' r=\'1.5\' fill=\'rgba(255,255,255,0.05)\'/%3E%3C/svg%3E")' }} />
-        <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 78% 30%, rgba(240,78,0,.18) 0%, transparent 55%)' }} />
         <div className="max-w-[1700px] mx-auto px-3 md:px-6 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-9 lg:gap-14 items-center relative z-[1]">
           <div>
             <div className="inline-flex items-center gap-1.5 bg-[rgba(255,255,255,.1)] border border-[rgba(255,255,255,.15)] px-3 py-[5px] rounded-[20px] text-[11.5px] font-semibold text-[rgba(255,255,255,.85)] uppercase tracking-[.4px] mb-3.5" style={{ animation: 'fadeUp .5s ease both' }}>
@@ -900,7 +898,7 @@ export default function CourseDetailPage() {
           <div className="bg-white dark:bg-[#111520] border-[1.5px] border-[#C7D8FF] dark:border-[#2d3358] rounded-xl p-4 shadow-sm relative overflow-hidden">
             <div className="absolute right-[-10px] bottom-[-14px] text-[60px] font-extrabold text-[#EEF2FF] dark:text-[#2d3358]/40 tracking-[-2px] leading-none pointer-events-none font-['Instrument_Serif',serif] select-none">CERTIFICATE</div>
             <div className="flex items-center gap-2.5 mb-3 relative z-[1]">
-              <div className="w-9 h-9 rounded-[8px] bg-[linear-gradient(135deg,#1A3BA0,#4A72E8)] flex items-center justify-center flex-shrink-0">
+              <div className="w-9 h-9 rounded-[8px] bg-[linear-gradient(135deg,#c9a84c,#e8c96a)] flex items-center justify-center flex-shrink-0 shadow-[0_2px_8px_rgba(201,168,76,.35)]">
                 <svg width="18" height="18" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
               </div>
               <div>
@@ -908,10 +906,17 @@ export default function CourseDetailPage() {
                 <div className="text-[11.5px] text-[#6B7280] dark:text-[#7a859a]">Issued upon course completion</div>
               </div>
             </div>
-            <div className="border border-dashed border-[#C7D8FF] dark:border-[#2d3358] rounded-[8px] p-3 text-center bg-[linear-gradient(135deg,#f8faff,#eef2ff)] dark:bg-[#1a1f3a]/40 relative z-[1]">
-              <div className="font-['Instrument_Serif',serif] italic text-[14px] text-[#0D1F5C] dark:text-[#e8eaf0]">Certificate of Completion</div>
-              <div className="text-[11px] text-[#4B5563] dark:text-[#b0bac9] my-1">{course.title}</div>
-              <div className="text-[11px] text-[#6B7280] dark:text-[#7a859a]">Future Stack · Verified by {course.mentorName}</div>
+            <div className="relative z-[1] bg-[#fdfbf6] rounded-[8px] overflow-hidden">
+              <div className="m-[7px] border-[2px] border-[#c9a84c] rounded-[6px] px-4 py-3 text-center relative">
+                <div className="absolute top-[-2px] left-[-2px] w-[14px] h-[14px] border-t-[2px] border-l-[2px] border-[#8b6914] rounded-tl-[6px]" />
+                <div className="absolute top-[-2px] right-[-2px] w-[14px] h-[14px] border-t-[2px] border-r-[2px] border-[#8b6914] rounded-tr-[6px]" />
+                <div className="absolute bottom-[-2px] left-[-2px] w-[14px] h-[14px] border-b-[2px] border-l-[2px] border-[#8b6914] rounded-bl-[6px]" />
+                <div className="absolute bottom-[-2px] right-[-2px] w-[14px] h-[14px] border-b-[2px] border-r-[2px] border-[#8b6914] rounded-br-[6px]" />
+                <div className="font-['Inter_Tight',sans-serif] text-[9px] font-[800] uppercase tracking-[.24em] text-[#8b6914] mb-[2px]">FutureStack Academy</div>
+                <div className="font-['Instrument_Serif',Georgia,serif] text-[15px] italic text-[#5a4008] leading-[1.25]">Certificate of Completion</div>
+                <div className="font-['Inter_Tight',sans-serif] text-[12px] font-[800] text-[#0d1f3c] mt-[4px] leading-[1.3]">{course.title}</div>
+                <div className="text-[10px] text-[#8b7340] mt-[3px] tracking-[.02em]">Future Stack · Verified by {course.mentorName}</div>
+              </div>
             </div>
           </div>
 
@@ -950,7 +955,7 @@ export default function CourseDetailPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {related.map((rc) => (
                 <Link key={rc.id} href={`/courses/${rc.slug}`} className="border border-[var(--border)] dark:border-[#1e2535] rounded-xl overflow-hidden cursor-pointer transition-all hover:border-[#C7D8FF] dark:hover:border-[#2d3358] hover:shadow-md hover:-translate-y-[3px] bg-white dark:bg-[#111520] no-underline group">
-                  <div className="aspect-[21/8] overflow-hidden bg-[#F3F4F6] dark:bg-[#0b0e14]">
+                  <div className="relative aspect-[21/8] overflow-hidden bg-[#F3F4F6] dark:bg-[#0b0e14]">
                     {rc.img ? (
                       <Image src={rc.img} alt={rc.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
                     ) : (
