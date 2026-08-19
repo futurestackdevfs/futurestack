@@ -6,10 +6,37 @@ import Image from "next/image";
 interface AdminTopbarProps {
   user: { name: string; email: string; role: string; initials: string };
   currentView?: string;
+  token?: string;
   onSearch?: (q: string) => void;
+  onNavigate?: (result: GlobalSearchResult) => void;
+  onRefresh?: () => void;
   onMyProfile?: () => void;
   onAccountSettings?: () => void;
   onSignOut?: () => void;
+}
+
+export interface GlobalSearchResult {
+  type: "course" | "user" | "trainer" | "order" | "coupon" | "lead";
+  id: string;
+  title: string;
+  subtitle?: string;
+  meta?: string;
+}
+
+interface GlobalSearchGroup {
+  key: string;
+  label: string;
+  icon: string;
+  items: GlobalSearchResult[];
+}
+
+interface GlobalSearchPayload {
+  courses: { id: string; title: string; code: string; status: string; category: string; price: number | null; originalPrice: number | null }[];
+  users: { id: string; name: string; email: string; role: string; companyId: string | null; isActive: boolean }[];
+  trainers: { id: string; name: string; email: string; approvalStatus: string; rating: number | null }[];
+  orders: { id: string; orderNo: string; status: string; totalAmount: number; currency: string; createdAt: string; studentName: string | null; studentEmail: string | null; courseTitle: string | null }[];
+  coupons: { id: string; code: string; discountType: string; value: number; currency: string | null; isActive: boolean; usedCount: number }[];
+  leads: { id: string; name: string; email: string | null; phone: string | null; course: string | null; status: string }[];
 }
 
 const VIEW_LABELS: Record<string, string> = {
@@ -22,11 +49,16 @@ const VIEW_LABELS: Record<string, string> = {
   "content-manager": "content / dashboard",
 };
 
-export function AdminTopbar({ user, currentView, onSearch, onMyProfile, onAccountSettings, onSignOut }: AdminTopbarProps) {
+export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, onRefresh, onMyProfile, onAccountSettings, onSignOut }: AdminTopbarProps) {
   const [isDark, setIsDark] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState<GlobalSearchGroup[]>([]);
+  const searchRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -38,9 +70,18 @@ export function AdminTopbar({ user, currentView, onSearch, onMyProfile, onAccoun
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
   }, []);
 
   function toggleTheme() {
@@ -52,8 +93,100 @@ export function AdminTopbar({ user, currentView, onSearch, onMyProfile, onAccoun
   }
 
   function handleSearch(e: React.ChangeEvent<HTMLInputElement>) {
-    setSearch(e.target.value);
-    onSearch?.(e.target.value);
+    const value = e.target.value;
+    setSearch(value);
+    setSearchOpen(true);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => runSearch(value), 250);
+  }
+
+  async function runSearch(q: string) {
+    const query = q.trim();
+    if (!token || !query) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const res = await fetch(`/api/admin/search?q=${encodeURIComponent(query)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Search failed");
+      const data = (await res.json()) as GlobalSearchPayload;
+      const groups: GlobalSearchGroup[] = [];
+      const push = (key: string, label: string, icon: string, items: GlobalSearchResult[]) => {
+        if (items.length > 0) groups.push({ key, label, icon, items });
+      };
+      push("courses", "Courses", "📚", data.courses.map((c) => ({
+        type: "course", id: c.id,
+        title: c.title,
+        subtitle: c.code,
+        meta: `${c.category || ""} · ${c.status}${c.price ? ` · ₹${c.price.toLocaleString()}` : ""}`,
+      })));
+      push("users", "Users", "👤", data.users.map((u) => ({
+        type: "user", id: u.id,
+        title: u.name,
+        subtitle: u.email,
+        meta: `${u.role}${u.isActive ? " · active" : " · inactive"}`,
+      })));
+      push("trainers", "Trainers", "🎓", data.trainers.map((t) => ({
+        type: "trainer", id: t.id,
+        title: t.name,
+        subtitle: t.email,
+        meta: t.approvalStatus,
+      })));
+      push("orders", "Orders", "💵", data.orders.map((o) => ({
+        type: "order", id: o.id,
+        title: o.orderNo,
+        subtitle: o.studentName || o.studentEmail || "",
+        meta: `${o.status} · ${o.currency === "USD" ? "$" : "₹"}${o.totalAmount.toLocaleString()}${o.courseTitle ? ` · ${o.courseTitle}` : ""}`,
+      })));
+      push("coupons", "Coupons", "🎟", data.coupons.map((c) => ({
+        type: "coupon", id: c.id,
+        title: c.code,
+        subtitle: c.discountType === "PERCENT" ? `${c.value}% off` : `${c.currency} ${c.value}`,
+        meta: `${c.usedCount} used · ${c.isActive ? "active" : "inactive"}`,
+      })));
+      push("leads", "Leads", "📞", data.leads.map((l) => ({
+        type: "lead", id: l.id,
+        title: l.name,
+        subtitle: l.email || l.phone || "",
+        meta: `${l.course || ""} · ${l.status}`,
+      })));
+      setSearchResults(groups);
+      setSearchLoading(false);
+    } catch {
+      setSearchResults([]);
+      setSearchLoading(false);
+    }
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      runSearch(search);
+    } else if (e.key === "Escape") {
+      setSearch("");
+      setSearchOpen(false);
+      setSearchResults([]);
+      onSearch?.("");
+    }
+  }
+
+  function clearSearch() {
+    setSearch("");
+    setSearchOpen(false);
+    setSearchResults([]);
+    onSearch?.("");
+  }
+
+  function pickResult(result: GlobalSearchResult) {
+    setSearch("");
+    setSearchOpen(false);
+    setSearchResults([]);
+    onSearch?.(result.title);
+    onNavigate?.(result);
   }
 
   return (
@@ -94,43 +227,120 @@ export function AdminTopbar({ user, currentView, onSearch, onMyProfile, onAccoun
       </div>
 
       {/* Search */}
-      <div
-        style={{
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
-          borderRadius: 4,
-          height: 26,
-        }}
-        className="flex-1 max-w-[280px] ml-2 flex items-center gap-1.5 px-2"
-      >
-        <span style={{ color: "var(--text3)", fontSize: 11 }}>⌕</span>
-        <input
-          type="text"
-          value={search}
-          onChange={handleSearch}
-          placeholder="Search courses, batches, instructors…"
+      <div ref={searchRef} className="relative flex-1 max-w-[280px] ml-2" style={{ zIndex: 60 }}>
+        <div
           style={{
-            background: "none",
-            border: "none",
-            outline: "none",
-            fontFamily: "var(--mono)",
-            fontSize: 10.5,
-            color: "var(--text)",
-            width: "100%",
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            borderRadius: 4,
+            height: 26,
           }}
-        />
-        <kbd
-          style={{
-            fontFamily: "var(--mono)",
-            fontSize: 8.5,
-            color: "var(--text3)",
-            border: "1px solid var(--border2)",
-            borderRadius: 3,
-            padding: "1px 4px",
-          }}
+          className="flex items-center gap-1.5 px-2"
         >
-          ⌘K
-        </kbd>
+          <button
+            onClick={() => runSearch(search)}
+            title="Search platform"
+            className="flex items-center"
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text3)" }}
+          >
+            <span style={{ fontSize: 11 }}>⌕</span>
+          </button>
+          <input
+            type="text"
+            value={search}
+            onChange={handleSearch}
+            onKeyDown={handleSearchKeyDown}
+            onFocus={() => setSearchOpen(true)}
+            placeholder="Search platform…"
+            style={{
+              background: "none",
+              border: "none",
+              outline: "none",
+              fontFamily: "var(--mono)",
+              fontSize: 10.5,
+              color: "var(--text)",
+              width: "100%",
+            }}
+          />
+          {search ? (
+            <button
+              onClick={clearSearch}
+              title="Clear search"
+              className="flex items-center justify-center"
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text3)", fontSize: 12, lineHeight: 1 }}
+            >
+              ✕
+            </button>
+          ) : (
+            <kbd
+              style={{
+                fontFamily: "var(--mono)",
+                fontSize: 8.5,
+                color: "var(--text3)",
+                border: "1px solid var(--border2)",
+                borderRadius: 3,
+                padding: "1px 4px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ↵
+            </kbd>
+          )}
+        </div>
+
+        {searchOpen && search.trim() && (
+          <div
+            className="absolute left-0 top-[32px] w-[380px] max-h-[420px] overflow-y-auto rounded-xl border"
+            style={{
+              background: "var(--surface)",
+              borderColor: "var(--border)",
+              boxShadow: "0 12px 40px rgba(0,0,0,.22)",
+              zIndex: 100,
+            }}
+          >
+            {searchLoading ? (
+              <div className="p-5 text-center font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
+                Searching platform…
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-5 text-center font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
+                No results for “{search.trim()}”
+              </div>
+            ) : (
+              searchResults.map((group) => (
+                <div key={group.key} className="border-b border-[var(--border)] last:border-b-0">
+                  <div
+                    className="px-3 py-1.5 font-mono text-[9px] font-bold uppercase tracking-widest"
+                    style={{ background: "var(--panel)", color: "var(--text3)" }}
+                  >
+                    {group.icon} {group.label} ({group.items.length})
+                  </div>
+                  {group.items.map((item) => (
+                    <button
+                      key={`${group.key}-${item.id}`}
+                      onClick={() => pickResult(item)}
+                      className="w-full text-left px-3 py-2 flex items-start gap-2.5 cursor-pointer hover:bg-[var(--bg)]"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[11.5px] font-semibold truncate" style={{ color: "var(--text)" }}>{item.title}</div>
+                        {item.subtitle && (
+                          <div className="font-mono text-[9px] truncate" style={{ color: "var(--text3)" }}>{item.subtitle}</div>
+                        )}
+                        {item.meta && (
+                          <div className="font-mono text-[8.5px] truncate" style={{ color: "var(--text2)" }}>{item.meta}</div>
+                        )}
+                      </div>
+                      <span className="shrink-0 font-mono text-[8.5px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: "var(--orange-d)", color: "var(--orange)" }}>
+                        GO
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Right */}
@@ -152,6 +362,27 @@ export function AdminTopbar({ user, currentView, onSearch, onMyProfile, onAccoun
           />
           LIVE
         </div>
+
+        {/* Refresh current view */}
+        <button
+          onClick={onRefresh}
+          title="Refresh current view"
+          style={{
+            fontFamily: "var(--mono)",
+            fontSize: 10.5,
+            color: "var(--text3)",
+            border: "1px solid var(--border)",
+            borderRadius: 3,
+            background: "var(--bg)",
+            height: 22,
+            padding: "0 7px",
+            cursor: "pointer",
+          }}
+          className="flex items-center gap-1 hover:text-[var(--text2)]"
+        >
+          <span className="text-[11px] leading-none">↻</span>
+          Refresh
+        </button>
 
         {/* Theme toggle */}
         <button

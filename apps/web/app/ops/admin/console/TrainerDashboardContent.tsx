@@ -6,7 +6,7 @@ import { opsFetch } from "@/app/ops/lib/ops-fetch";
 /* ── Types ── */
 interface Course {
   id: string; title: string; category: string; skillLevel: string;
-  mentorName?: string; price: number; status: string;
+  mentorName?: string; price: number; originalPrice?: number | null; status: string;
   _count?: { enrollments: number; sections: number };
   sections?: { _count: { videos: number } }[];
   totalLessons?: number; totalHours?: number;
@@ -33,20 +33,22 @@ const BADGE_STYLES: Record<string, { bg: string; fg: string }> = {
   ARCHIVED: { bg: "var(--red-d)", fg: "var(--red)" },
 };
 
-export default function TrainerDashboardContent({ onAddStaff, addLabel }: { onAddStaff?: () => void; addLabel?: string }) {
+export default function TrainerDashboardContent({ onAddStaff, addLabel, searchQuery = "" }: { onAddStaff?: () => void; addLabel?: string; searchQuery?: string }) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [internalSearch, setInternalSearch] = useState("");
   const [page, setPage] = useState(0);
   const PER_PAGE = 7;
 
+  const activeQuery = internalSearch.trim() || searchQuery.trim();
+
   const filteredCourses = useMemo(() => {
-    if (!searchQuery.trim()) return courses;
-    const q = searchQuery.toLowerCase();
+    if (!activeQuery) return courses;
+    const q = activeQuery.toLowerCase();
     return courses.filter((c) => c.title.toLowerCase().includes(q));
-  }, [courses, searchQuery]);
+  }, [courses, activeQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredCourses.length / PER_PAGE));
   const safePage = Math.min(page, totalPages - 1);
@@ -85,7 +87,7 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel }: { onAd
       activeMentees: stats?.totalStudents ?? 0,
       avgRating,
       highestRating,
-      activeBatches: activeCourses.length,
+      activeCourses: activeCourses.length,
       completion: totalLessons > 0 ? Math.min(95, Math.round(((stats?.totalEnrollments ?? 0) / Math.max(totalLessons, 1)) * 100)) : 0,
     };
   }, [courses, trainers, stats]);
@@ -111,7 +113,7 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel }: { onAd
     }));
   }, [courses]);
 
-  const batches = useMemo(() => {
+  const activeCoursesList = useMemo(() => {
     return courses.filter((c) => c.status === "ACTIVE").map((c) => ({
       id: c.id,
       code: c.title?.slice(0, 2).toUpperCase() + "-" + c.id?.slice(0, 4),
@@ -166,7 +168,7 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel }: { onAd
         <KPICell label="Total Enrollments" value={stats?.totalEnrollments ?? 0} delta={`${stats?.activeEnrollments ?? 0} active`} color="var(--amber)" />
         <KPICell label="Active Mentees" value={kpi.activeMentees} delta="↑4 mo" deltaClass="up" color="var(--green)" />
         <KPICell label="Avg Rating" value={kpi.avgRating} delta={kpi.highestRating ? `Highest ${kpi.highestRating}` : "—"} color="var(--orange)" />
-        <KPICell label="Active Batches" value={kpi.activeBatches} delta="running" color="var(--text)" />
+        <KPICell label="Active Courses" value={kpi.activeCourses} delta="running" color="var(--text)" />
         <KPICell label="Completion" value={`${kpi.completion}%`} delta="↑2pp mo" deltaClass="up" color="var(--green)" />
       </div>
 
@@ -181,8 +183,8 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel }: { onAd
               <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
                 <span style={{ position: "absolute", left: 6, fontSize: 9, color: "var(--text3)", pointerEvents: "none" }}>🔍</span>
                 <input
-                  value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+                  value={internalSearch}
+                  onChange={(e) => { setInternalSearch(e.target.value); setPage(0); }}
                   placeholder="Search…"
                   style={{
                     width: 100, fontSize: 10, padding: "2px 4px 2px 18px", border: "1px solid var(--border)",
@@ -218,7 +220,19 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel }: { onAd
                           {c.status === "ACTIVE" ? "Active" : c.status === "DRAFT" ? "Draft" : c.status}
                         </span>
                       </td>
-                      <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>₹{(c.price ?? 0).toLocaleString()}</td>
+                      <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ borderBottom: "1px solid var(--border)" }}>
+                        {c.originalPrice != null && c.originalPrice > (c.price ?? 0) ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-[var(--muted)] line-through">₹{c.originalPrice.toLocaleString()}</span>
+                            <span className="font-bold" style={{ color: "var(--text)" }}>₹{(c.price ?? 0).toLocaleString()}</span>
+                            <span className="font-mono text-[8px] font-bold px-1 py-0.5 rounded-full" style={{ background: "var(--green-d)", color: "var(--green)" }}>
+                              -{Math.round(((c.originalPrice - (c.price ?? 0)) / c.originalPrice) * 100)}%
+                            </span>
+                          </span>
+                        ) : (
+                          <span style={{ color: "var(--text2)" }}>₹{(c.price ?? 0).toLocaleString()}</span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -245,21 +259,21 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel }: { onAd
             )}
           </Panel>
 
-          {/* Active Batches */}
-          <Panel title="📅 Active Batches" meta={`${batches.length} running`} action={<button className="font-mono text-[9px] font-bold px-2 py-0.5 rounded cursor-pointer" style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }} onClick={() => {}}>View All</button>}>
+          {/* Active Courses */}
+          <Panel title="📚 Active Courses" meta={`${activeCoursesList.length} running`} action={<button className="font-mono text-[9px] font-bold px-2 py-0.5 rounded cursor-pointer" style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }} onClick={() => {}}>View All</button>}>
             <div>
-              {batches.slice(0, 7).map((b) => (
+              {activeCoursesList.slice(0, 7).map((b) => (
                 <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
-                  <div className="w-6 h-6 rounded flex items-center justify-center text-[11px] shrink-0" style={{ background: "var(--blue-d)", color: "var(--blue)" }}>📅</div>
+                  <div className="w-6 h-6 rounded flex items-center justify-center text-[11px] shrink-0" style={{ background: "var(--blue-d)", color: "var(--blue)" }}>📚</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)" }}>{b.name}</div>
                     <div className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>{b.code} · {b.enrolled} students · {b.modules} modules</div>
                   </div>
-                  <span className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: "var(--green-d)", color: "var(--green)" }}>Running</span>
+                  <span className="font-mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: "var(--green-d)", color: "var(--green)" }}>Active</span>
                 </div>
               ))}
-              {batches.length === 0 && (
-                <div className="font-mono text-[10.5px] py-2" style={{ color: "var(--text3)" }}>No active batches.</div>
+              {activeCoursesList.length === 0 && (
+                <div className="font-mono text-[10.5px] py-2" style={{ color: "var(--text3)" }}>No active courses.</div>
               )}
             </div>
           </Panel>

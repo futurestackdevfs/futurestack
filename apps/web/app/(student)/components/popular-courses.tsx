@@ -11,6 +11,9 @@ interface FeaturedCourse {
   description: string | null;
   thumbnailUrl: string | null;
   price: number;
+  originalPrice?: number | null;
+  offPct?: number;
+  hasDiscount?: boolean;
   techStack: string[];
   displayOrder: number;
   trainer: { name: string } | null;

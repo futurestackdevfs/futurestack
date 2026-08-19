@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
@@ -63,6 +63,12 @@ export class AdminController {
   @Get('users')
   async listAllUsers() {
     return this.adminService.listAllUsers();
+  }
+
+  @Auth(Role.ADMIN)
+  @Get('search')
+  async globalSearch(@Query('q') q?: string) {
+    return this.adminService.globalSearch(q ?? '');
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

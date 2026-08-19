@@ -44,16 +44,30 @@ export class WishlistService {
             where: { courseId: { in: courseIds }, currency: 'INR' },
           })
         : [];
-    const priceMap = new Map(priceRows.map((p) => [p.courseId, p.amount]));
+    const priceMap = new Map(
+      priceRows.map((p) => [p.courseId, { price: p.amount, originalPrice: p.originalPrice }]),
+    );
 
     return {
-      items: items.map((i) => ({
-        courseId: i.courseId,
-        title: i.course.title,
-        thumbnail: i.course.thumbnailUrl,
-        price: priceMap.get(i.courseId) ?? null,
-        currency: 'INR',
-      })),
+      items: items.map((i) => {
+        const row = priceMap.get(i.courseId);
+        const price = row?.price ?? null;
+        const originalPrice = row?.originalPrice ?? null;
+        let offPct = 0;
+        if (originalPrice != null && price != null && originalPrice > price) {
+          offPct = Math.min(99, Math.round(((originalPrice - price) / originalPrice) * 100));
+        }
+        return {
+          courseId: i.courseId,
+          title: i.course.title,
+          thumbnail: i.course.thumbnailUrl,
+          price,
+          originalPrice,
+          offPct,
+          hasDiscount: offPct > 0,
+          currency: 'INR',
+        };
+      }),
     };
   }
 

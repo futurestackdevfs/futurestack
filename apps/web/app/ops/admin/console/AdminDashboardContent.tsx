@@ -12,6 +12,68 @@ interface PendingTrainer {
   createdAt: string;
 }
 
+interface Course {
+  id: string | number;
+  title?: string;
+  name?: string;
+  status?: string;
+  price?: number;
+  enrollments?: number;
+  totalLessons?: number;
+  category?: string;
+  level?: string;
+  instructor?: string;
+}
+
+interface Instructor {
+  id: string;
+  name: string;
+  email: string;
+  instId: string;
+  specialization: string;
+  rating: number;
+  status: string;
+}
+
+interface PlatformStats {
+  totalCourses: number;
+  activeCourses: number;
+  draftCourses: number;
+  totalTracks: number;
+  totalTrainers: number;
+  pendingTrainers: number;
+  totalStudents: number;
+  totalEnrollments: number;
+  activeEnrollments: number;
+}
+
+interface PaymentsSummary {
+  total: number;
+  created: number;
+  paid: number;
+  failed: number;
+  cancelled: number;
+  expired: number;
+  totalRevenue: number;
+}
+
+interface TrainerShareRow {
+  trainerId: string;
+  trainerName: string;
+  trainerEmail: string;
+  trainerSharePercent: number | null;
+  gross: number;
+  platformCut: number;
+  trainerShare: number;
+  enrollments: number;
+}
+
+interface TrainerBreakdown {
+  trainers: TrainerShareRow[];
+  totals: { gross: number; platformCut: number; trainerShare: number; enrollments: number };
+  count: number;
+}
+
 function PendingApprovalsPanel() {
   const [pending, setPending] = useState<PendingTrainer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,39 +152,49 @@ function PendingApprovalsPanel() {
 
 interface Props {
   db: { [key: string]: any[] };
+  stats: PlatformStats | null;
 }
 
-export default function AdminDashboardContent({ db }: Props) {
-  const courses = db.courses || [];
-  const batches = db.batches || [];
-  const instructors = db.instructors || [];
-  const feeplans = db.feeplans || [];
-  const departments = db.departments || [];
+export default function AdminDashboardContent({ db, stats }: Props) {
+  const courses = (db.courses || []) as Course[];
+  const instructors = (db.instructors || []) as Instructor[];
+  const [payments, setPayments] = useState<PaymentsSummary | null>(null);
+  const [breakdown, setBreakdown] = useState<TrainerBreakdown | null>(null);
 
-  const totalCourses = courses.length;
-  const draftCourses = courses.filter((c: any) => c.status === "Draft").length;
-  const activeCourses = courses.filter((c: any) => c.status === "Active").length;
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      opsFetch("/api/admin/payments?perPage=1").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      opsFetch("/api/admin/payments/trainers").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([pay, brk]) => {
+      if (cancelled) return;
+      if (pay?.summary) setPayments(pay.summary);
+      if (brk?.totals) setBreakdown(brk);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
-  const totalBatches = batches.length;
-  const runningBatches = batches.filter((b: any) => b.status === "Running").length;
-  const upcomingBatches = batches.filter((b: any) => b.status === "Upcoming").length;
-  const completedBatches = batches.filter((b: any) => b.status === "Completed").length;
-  const totalEnrolled = batches.reduce((s: number, b: any) => s + (b.enrolled || 0), 0);
-  const totalSeats = batches.reduce((s: number, b: any) => s + (b.seats || 0), 0);
-  const avgBatchSize = totalBatches > 0 ? Math.round(totalEnrolled / totalBatches) : 0;
+  const formatMoney = (v: number) => `₹${(v ?? 0).toLocaleString("en-IN")}`;
 
-  const activeInstructors = instructors.filter((i: any) => i.status === "Active").length;
-  const instructorsOnLeave = instructors.filter((i: any) => i.status === "On Leave").length;
-  const totalInstructors = instructors.length;
+  // ── Real backend totals (fall back to derived values when unavailable) ──
+  const totalCourses = stats?.totalCourses ?? courses.length;
+  const activeCourses = stats?.activeCourses ?? courses.filter((c) => c.status === "ACTIVE").length;
+  const draftCourses = stats?.draftCourses ?? courses.filter((c) => c.status === "DRAFT").length;
+  const archivedCourses = Math.max(0, totalCourses - activeCourses - draftCourses);
+  const totalTracks = stats?.totalTracks ?? 0;
+  const totalTrainers = stats?.totalTrainers ?? instructors.length;
+  const pendingTrainers = stats?.pendingTrainers ?? 0;
+  const totalStudents = stats?.totalStudents ?? 0;
+  const totalEnrollments = stats?.totalEnrollments ?? courses.reduce((s, c) => s + (c.enrollments ?? 0), 0);
+  const activeEnrollments = stats?.activeEnrollments ?? 0;
 
-  const activeFeePlans = feeplans.filter((f: any) => f.status === "Active").length;
-  const totalRevenue = feeplans.reduce((s: number, f: any) => s + (f.baseFee || 0), 0);
+  // ── Derived from live course rows ──
+  const lowContentCourses = courses.filter((c) => (c.totalLessons ?? 0) === 0 && c.status === "ACTIVE");
+  const topCourses = [...courses]
+    .sort((a, b) => (b.enrollments ?? 0) - (a.enrollments ?? 0))
+    .slice(0, 5);
 
-  const totalDeptHeadcount = departments.reduce((s: number, d: any) => s + (d.headcount || 0), 0);
-  const activeDepts = departments.filter((d: any) => d.status === "Active").length;
-
-  const lowEnrollBatches = batches.filter((b: any) => b.enrolled < Math.ceil(b.seats * 0.7));
-  const instructorsOnLeaveList = instructors.filter((i: any) => i.status === "On Leave");
+  const inReviewCount = stats?.pendingTrainers ?? 0;
 
   return (
     <div className="p-2.5 space-y-2">
@@ -139,16 +211,16 @@ export default function AdminDashboardContent({ db }: Props) {
       <div className="rounded overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between px-2 py-1" style={{ background: "var(--panel)", borderBottom: "1px solid var(--border)" }}>
           <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>📊 Platform Overview</span>
-          <span className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>Updated just now</span>
+          <span className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>Live · updated just now</span>
         </div>
         <div className="p-2">
           <div className="grid grid-cols-5 gap-1.5">
             {[
-              { label: "Total Students", value: String(totalEnrolled), delta: `across ${totalBatches} batches`, color: "var(--blue)" },
-              { label: "Active Batches", value: String(runningBatches), delta: `of ${totalBatches} total`, color: "var(--green)" },
-              { label: "Active Trainers", value: String(activeInstructors), delta: `${instructorsOnLeave} on leave`, color: "var(--purple)" },
-              { label: "Total Courses", value: String(totalCourses), delta: `${draftCourses} draft`, color: "var(--orange)" },
-              { label: "New Enrollments", value: String(totalEnrolled), delta: "across all batches", color: "var(--pink)" },
+              { label: "Total Students", value: String(totalStudents), delta: `${activeEnrollments} active enrollments`, color: "var(--blue)" },
+              { label: "Total Courses", value: String(totalCourses), delta: `${activeCourses} active, ${draftCourses} draft`, color: "var(--orange)" },
+              { label: "Total Enrollments", value: String(totalEnrollments), delta: `${activeEnrollments} active`, color: "var(--green)" },
+              { label: "Approved Trainers", value: String(totalTrainers), delta: `${pendingTrainers} pending review`, color: "var(--purple)" },
+              { label: "Learning Tracks", value: String(totalTracks), delta: "career paths", color: "var(--pink)" },
             ].map((s, i) => (
               <div key={i} className="px-2 py-1.5 rounded" style={{ background: "var(--panel)" }}>
                 <div className="font-mono text-[7.5px] uppercase tracking-wider" style={{ color: "var(--text3)" }}>{s.label}</div>
@@ -160,20 +232,20 @@ export default function AdminDashboardContent({ db }: Props) {
         </div>
       </div>
 
-      {/* ─── Two-column: Revenue & Finance | Enrollment Control ─── */}
+      {/* ─── Two-column: Revenue & Catalog | Enrollment & Users ─── */}
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between px-2 py-1" style={{ background: "var(--panel)", borderBottom: "1px solid var(--border)" }}>
-            <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>💰 Revenue & Finance</span>
-            <span className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>{activeFeePlans} active plans</span>
+            <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>💰 Sales & Revenue Split</span>
+            <span className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>{payments?.paid ?? breakdown?.totals.enrollments ?? 0} paid · {payments?.total ?? 0} orders</span>
           </div>
           <div className="p-2 space-y-1.5">
             {[
-              { label: "Total Base Revenue", value: `₹${totalRevenue.toLocaleString("en-IN")}`, badge: `${activeFeePlans} plans`, bc: "var(--green-d)", fc: "var(--green)" },
-              { label: "Total Enrollments", value: String(totalEnrolled), badge: `${totalSeats} seats available`, bc: "var(--blue-d)", fc: "var(--blue)" },
-              { label: "Active Courses", value: String(activeCourses), badge: `${draftCourses} draft`, bc: "var(--orange-d)", fc: "var(--orange)" },
-              { label: "Active Instructors", value: String(activeInstructors), badge: `${instructorsOnLeave} on leave`, bc: "var(--purple-d)", fc: "var(--purple)" },
-              { label: "Active Departments", value: String(activeDepts), badge: `${totalDeptHeadcount} staff`, bc: "var(--amber-d)", fc: "var(--amber)" },
+              { label: "Total Sales", value: formatMoney(payments?.totalRevenue ?? breakdown?.totals.gross ?? 0), badge: `${payments?.paid ?? 0} paid`, bc: "var(--green-d)", fc: "var(--green)" },
+              { label: "Trainer Share", value: formatMoney(breakdown?.totals.trainerShare ?? 0), badge: `${breakdown?.totals.enrollments ?? 0} enrollments`, bc: "var(--purple-d)", fc: "var(--purple)" },
+              { label: "Platform (Remaining)", value: formatMoney(breakdown?.totals.platformCut ?? 0), badge: "after trainer cut", bc: "var(--orange-d)", fc: "var(--orange)" },
+              { label: "Active Courses", value: String(activeCourses), badge: `${draftCourses} draft`, bc: "var(--blue-d)", fc: "var(--blue)" },
+              { label: "Approved Trainers", value: String(totalTrainers), badge: `${pendingTrainers} pending`, bc: "var(--amber-d)", fc: "var(--amber)" },
             ].map((r, i) => (
               <div key={i} className="flex items-center justify-between px-2 py-1 rounded" style={{ background: "var(--panel)" }}>
                 <div>
@@ -188,65 +260,61 @@ export default function AdminDashboardContent({ db }: Props) {
 
         <div className="rounded overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between px-2 py-1" style={{ background: "var(--panel)", borderBottom: "1px solid var(--border)" }}>
-            <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>📝 Enrollment Control</span>
-            <span className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>Batch status</span>
+            <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>📝 Enrollment & Users</span>
+            <span className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>Platform health</span>
           </div>
           <div className="p-2 space-y-1.5">
             <div className="flex items-center justify-between px-2 py-1.5 rounded" style={{ background: "var(--panel)" }}>
               <div>
-                <div className="font-mono text-[8px] font-semibold" style={{ color: "var(--text3)" }}>Running Batches</div>
-                <div className="font-mono text-[19px] font-bold" style={{ color: "var(--orange)" }}>{runningBatches}</div>
+                <div className="font-mono text-[8px] font-semibold" style={{ color: "var(--text3)" }}>Active Enrollments</div>
+                <div className="font-mono text-[19px] font-bold" style={{ color: "var(--orange)" }}>{activeEnrollments}</div>
               </div>
-              <button className="font-mono text-[8px] font-semibold px-2 py-1 rounded cursor-pointer"
-                style={{ background: "var(--orange)", color: "#fff", border: "none" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-              >View</button>
+              <span className="font-mono text-[7.5px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--orange-d)", color: "var(--orange)" }}>{totalEnrollments} total</span>
             </div>
             <div className="flex items-center justify-between px-2 py-1 rounded" style={{ background: "var(--panel)" }}>
               <div>
-                <div className="font-mono text-[8px] font-semibold" style={{ color: "var(--text3)" }}>Upcoming Batches</div>
-                <div className="font-mono text-[15px] font-bold" style={{ color: "var(--green)" }}>{upcomingBatches}</div>
+                <div className="font-mono text-[8px] font-semibold" style={{ color: "var(--text3)" }}>Total Students</div>
+                <div className="font-mono text-[15px] font-bold" style={{ color: "var(--green)" }}>{totalStudents}</div>
               </div>
-              <span className="font-mono text-[7.5px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--green-d)", color: "var(--green)" }}>{upcomingBatches > 0 ? "Scheduled" : "None"}</span>
+              <span className="font-mono text-[7.5px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--green-d)", color: "var(--green)" }}>{totalStudents > 0 ? "Registered" : "None"}</span>
             </div>
             <div className="flex items-center justify-between px-2 py-1 rounded" style={{ background: "var(--panel)" }}>
               <div>
-                <div className="font-mono text-[8px] font-semibold" style={{ color: "var(--text3)" }}>Completed Batches</div>
-                <div className="font-mono text-[15px] font-bold" style={{ color: "var(--blue)" }}>{completedBatches}</div>
+                <div className="font-mono text-[8px] font-semibold" style={{ color: "var(--text3)" }}>Courses in Review</div>
+                <div className="font-mono text-[15px] font-bold" style={{ color: "var(--blue)" }}>{draftCourses}</div>
               </div>
-              <span className="font-mono text-[7.5px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--blue-d)", color: "var(--blue)" }}>Finished</span>
+              <span className="font-mono text-[7.5px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--blue-d)", color: "var(--blue)" }}>{draftCourses > 0 ? "Draft" : "None"}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ─── Two-column: Batch Oversight | User & Role Management ─── */}
+      {/* ─── Two-column: Catalog Oversight | User & Role Management ─── */}
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between px-2 py-1" style={{ background: "var(--panel)", borderBottom: "1px solid var(--border)" }}>
-            <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>📅 Batch Oversight</span>
-            <span className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>{lowEnrollBatches.length} flagged</span>
+            <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>📚 Catalog Oversight</span>
+            <span className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>{lowContentCourses.length} flagged</span>
           </div>
           <div className="p-2 space-y-1.5">
             <div className="grid grid-cols-3 gap-1.5">
               <div className="px-2 py-1.5 rounded text-center" style={{ background: "var(--panel)" }}>
-                <div className="font-mono text-[7.5px] uppercase" style={{ color: "var(--text3)" }}>Running</div>
-                <div className="font-mono text-[17px] font-bold" style={{ color: "var(--green)" }}>{runningBatches}</div>
+                <div className="font-mono text-[7.5px] uppercase" style={{ color: "var(--text3)" }}>Active</div>
+                <div className="font-mono text-[17px] font-bold" style={{ color: "var(--green)" }}>{activeCourses}</div>
               </div>
               <div className="px-2 py-1.5 rounded text-center" style={{ background: "var(--panel)" }}>
-                <div className="font-mono text-[7.5px] uppercase" style={{ color: "var(--text3)" }}>Upcoming</div>
-                <div className="font-mono text-[17px] font-bold" style={{ color: "var(--blue)" }}>{upcomingBatches}</div>
+                <div className="font-mono text-[7.5px] uppercase" style={{ color: "var(--text3)" }}>Draft</div>
+                <div className="font-mono text-[17px] font-bold" style={{ color: "var(--blue)" }}>{draftCourses}</div>
               </div>
               <div className="px-2 py-1.5 rounded text-center" style={{ background: "var(--panel)" }}>
-                <div className="font-mono text-[7.5px] uppercase" style={{ color: "var(--text3)" }}>Avg Size</div>
-                <div className="font-mono text-[17px] font-bold" style={{ color: "var(--purple)" }}>{avgBatchSize}</div>
+                <div className="font-mono text-[7.5px] uppercase" style={{ color: "var(--text3)" }}>Archived</div>
+                <div className="font-mono text-[17px] font-bold" style={{ color: "var(--purple)" }}>{archivedCourses}</div>
               </div>
             </div>
             <div className="flex items-center justify-between px-2 py-1 rounded" style={{ background: "var(--panel)" }}>
               <div>
-                <div className="font-mono text-[8px] font-semibold" style={{ color: "var(--text3)" }}>Low Enrollment</div>
-                <div className="font-mono text-[15px] font-bold" style={{ color: "var(--red)" }}>{lowEnrollBatches.length}</div>
+                <div className="font-mono text-[8px] font-semibold" style={{ color: "var(--text3)" }}>Low Content (ACTIVE)</div>
+                <div className="font-mono text-[15px] font-bold" style={{ color: "var(--red)" }}>{lowContentCourses.length}</div>
               </div>
               <button className="font-mono text-[8px] font-semibold px-2 py-1 rounded cursor-pointer"
                 style={{ background: "var(--red-d)", color: "var(--red)", border: "1px solid rgba(200,30,58,.25)" }}
@@ -254,17 +322,17 @@ export default function AdminDashboardContent({ db }: Props) {
                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--red-d)"; (e.currentTarget as HTMLElement).style.color = "var(--red)"; }}
               >Flagged</button>
             </div>
-            {lowEnrollBatches.slice(0, 2).map((b: any) => (
-              <div key={b.code} className="text-[9.5px] px-2 py-0.5 font-mono" style={{ color: "var(--text3)" }}>
-                • <strong style={{ color: "var(--text)" }}>{b.code}</strong> — Low enrollment ({b.enrolled}/{b.seats})
+            {lowContentCourses.slice(0, 2).map((c) => (
+              <div key={String(c.id)} className="text-[9.5px] px-2 py-0.5 font-mono" style={{ color: "var(--text3)" }}>
+                • <strong style={{ color: "var(--text)" }}>{c.title || c.name}</strong> — No lessons added yet
               </div>
             ))}
-            {instructorsOnLeaveList.slice(0, 1).map((i: any) => (
-              <div key={i.instId} className="text-[9.5px] px-2 py-0.5 font-mono" style={{ color: "var(--text3)" }}>
-                • <strong style={{ color: "var(--text)" }}>{i.instId}</strong> — {i.name} on leave
+            {inReviewCount > 0 && (
+              <div className="text-[9.5px] px-2 py-0.5 font-mono" style={{ color: "var(--text3)" }}>
+                • <strong style={{ color: "var(--text)" }}>{inReviewCount}</strong> trainers awaiting approval
               </div>
-            ))}
-            {lowEnrollBatches.length === 0 && instructorsOnLeaveList.length === 0 && (
+            )}
+            {lowContentCourses.length === 0 && inReviewCount === 0 && (
               <div className="text-[9.5px] px-2 py-0.5 font-mono" style={{ color: "var(--text3)" }}>No issues flagged</div>
             )}
           </div>
@@ -273,20 +341,16 @@ export default function AdminDashboardContent({ db }: Props) {
         <div className="rounded overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between px-2 py-1" style={{ background: "var(--panel)", borderBottom: "1px solid var(--border)" }}>
             <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>👥 User & Role Management</span>
-            <button className="font-mono text-[7.5px] font-semibold px-1.5 py-0.5 rounded cursor-pointer" style={{ border: "1px solid var(--border)", color: "var(--blue)", background: "var(--surface)" }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--blue)"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
-            >+ Add User</button>
           </div>
           <div className="p-2">
             <div className="grid grid-cols-3 gap-1.5">
               {[
-                { role: "Instructors", count: String(totalInstructors), color: "var(--purple)", bg: "var(--purple-d)" },
-                { role: "Active", count: String(activeInstructors), color: "var(--green)", bg: "var(--green-d)" },
-                { role: "On Leave", count: String(instructorsOnLeave), color: "var(--red)", bg: "var(--red-d)" },
+                { role: "Approved Trainers", count: String(totalTrainers), color: "var(--purple)", bg: "var(--purple-d)" },
+                { role: "Pending Review", count: String(pendingTrainers), color: "var(--amber)", bg: "var(--amber-d)" },
+                { role: "Total Students", count: String(totalStudents), color: "var(--blue)", bg: "var(--blue-d)" },
                 { role: "Active Courses", count: String(activeCourses), color: "var(--orange)", bg: "var(--orange-d)" },
-                { role: "Students", count: String(totalEnrolled), color: "var(--blue)", bg: "var(--blue-d)" },
-                { role: "Departments", count: String(activeDepts), color: "var(--pink)", bg: "var(--pink-d)" },
+                { role: "Draft Courses", count: String(draftCourses), color: "var(--green)", bg: "var(--green-d)" },
+                { role: "Career Tracks", count: String(totalTracks), color: "var(--pink)", bg: "var(--pink-d)" },
               ].map((u, i) => (
                 <div key={i} className="px-2 py-1.5 rounded flex items-center justify-between" style={{ background: "var(--panel)" }}>
                   <div>
@@ -305,20 +369,17 @@ export default function AdminDashboardContent({ db }: Props) {
       <div className="rounded overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between px-2 py-1" style={{ background: "var(--panel)", borderBottom: "1px solid var(--border)" }}>
           <span className="font-mono text-[9.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>📊 Reports & Analytics</span>
-          <button className="font-mono text-[7.5px] font-semibold px-1.5 py-0.5 rounded cursor-pointer" style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
-          >View All →</button>
+          <span className="font-mono text-[7.5px]" style={{ color: "var(--text3)" }}>live data</span>
         </div>
         <div className="p-2">
           <div className="grid grid-cols-3 gap-1.5">
             {[
-              { label: "Total Courses", value: String(totalCourses), sub: `${activeCourses} active, ${draftCourses} draft`, icon: "📚", color: "var(--orange)" },
-              { label: "Total Batches", value: String(totalBatches), sub: `${runningBatches} running, ${upcomingBatches} upcoming, ${completedBatches} completed`, icon: "📅", color: "var(--blue)" },
-              { label: "Total Instructors", value: String(totalInstructors), sub: `${activeInstructors} active, ${instructorsOnLeave} on leave`, icon: "🎓", color: "var(--purple)" },
-              { label: "Total Enrollments", value: String(totalEnrolled), sub: `avg ${avgBatchSize}/batch`, icon: "📈", color: "var(--green)" },
-              { label: "Revenue Potential", value: `₹${totalRevenue.toLocaleString("en-IN")}`, sub: `${activeFeePlans} fee plans`, icon: "💰", color: "var(--amber)" },
-              { label: "Departments", value: String(activeDepts), sub: `${totalDeptHeadcount} total staff`, icon: "🏢", color: "var(--pink)" },
+              { label: "Total Courses", value: String(totalCourses), sub: `${activeCourses} active, ${draftCourses} draft, ${archivedCourses} archived`, icon: "📚", color: "var(--orange)" },
+              { label: "Career Tracks", value: String(totalTracks), sub: "configured", icon: "🧭", color: "var(--blue)" },
+              { label: "Approved Trainers", value: String(totalTrainers), sub: `${pendingTrainers} pending review`, icon: "🎓", color: "var(--purple)" },
+              { label: "Total Students", value: String(totalStudents), sub: `${activeEnrollments} active enrollments`, icon: "🎒", color: "var(--green)" },
+              { label: "Total Enrollments", value: String(totalEnrollments), sub: `${activeEnrollments} active`, icon: "📈", color: "var(--amber)" },
+              { label: "Total Sales", value: formatMoney(payments?.totalRevenue ?? 0), sub: `${payments?.paid ?? 0} paid orders`, icon: "💰", color: "var(--pink)" },
             ].map((r, i) => (
               <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded" style={{ background: "var(--panel)" }}>
                 <span style={{ fontSize: 16 }}>{r.icon}</span>
@@ -330,6 +391,42 @@ export default function AdminDashboardContent({ db }: Props) {
               </div>
             ))}
           </div>
+
+          {topCourses.length > 0 && (
+            <div className="mt-2">
+              <div className="font-mono text-[9px] font-bold uppercase tracking-wider px-1 py-1.5" style={{ color: "var(--text3)" }}>🏆 Top Courses by Enrollment</div>
+              {topCourses.map((c, i) => (
+                <div key={String(c.id)} className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: "var(--panel)" }}>
+                  <span className="font-mono text-[9px] font-bold w-3" style={{ color: "var(--text3)" }}>{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono text-[10px] font-semibold truncate" style={{ color: "var(--text)" }}>{c.title || c.name}</div>
+                    <div className="font-mono text-[8px]" style={{ color: "var(--text3)" }}>{c.category || "—"} · {c.level || "—"}</div>
+                  </div>
+                  <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: "var(--blue-d)", color: "var(--blue)" }}>{c.enrollments ?? 0} students</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {breakdown && breakdown.trainers.length > 0 && (
+            <div className="mt-2">
+              <div className="font-mono text-[9px] font-bold uppercase tracking-wider px-1 py-1.5" style={{ color: "var(--text3)" }}>
+                🎓 Trainer Revenue Split (per trainer)
+              </div>
+              {breakdown.trainers.slice(0, 8).map((t) => (
+                <div key={t.trainerId} className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: "var(--panel)" }}>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono text-[10px] font-semibold truncate" style={{ color: "var(--text)" }}>{t.trainerName}</div>
+                    <div className="font-mono text-[8px]" style={{ color: "var(--text3)" }}>{t.enrollments} enrollments · {t.trainerSharePercent != null ? `${t.trainerSharePercent}% share` : "global share"}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-mono text-[8px] px-1.5 py-0.5 rounded" style={{ background: "var(--purple-d)", color: "var(--purple)" }}>{formatMoney(t.trainerShare)}</span>
+                    <span className="font-mono text-[8px] px-1.5 py-0.5 rounded" style={{ background: "var(--orange-d)", color: "var(--orange)" }}>{formatMoney(t.platformCut)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

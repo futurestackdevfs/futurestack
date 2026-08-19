@@ -6,6 +6,7 @@ import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken, clearStaffToken } from "@/app/auth/lib/token-store";
 import { RoleGate } from "@/app/ops/components/RoleGate";
 import { AdminTopbar } from "./sections/AdminTopbar";
+import type { GlobalSearchResult } from "./sections/AdminTopbar";
 import { AdminSidebar } from "./sections/AdminSidebar";
 import { Statusbar } from "./sections/Statusbar";
 import { KpiStrip } from "./sections/KpiStrip";
@@ -37,13 +38,9 @@ interface Course {
   description: string; learnOutcomes: string; technologies: string;
   careerTitle: string; careerBody: string; instructor: string; thumbnailLabel: string; status: string;
 }
-interface Batch {
-  id: number; code: string; course: string; instructor: string;
-  schedule: string; seats: number; enrolled: number; startDate: string; status: string;
-}
 interface Instructor {
   id: number; instId: string; name: string; specialization: string;
-  email: string; phone: string; activeBatches: number; rating: number; status: string;
+  email: string; phone: string; activeCourses: number; rating: number; status: string;
 }
 interface FeePlan {
   id: number; code: string; name: string; course: string; baseFee: number;
@@ -77,14 +74,14 @@ const ROLE_META: Record<string, { id: string; label: string; icon: string; color
 };
 
 const DB: { [key: string]: any[] } = {
-  courses: [], batches: [], instructors: [], feeplans: [], certs: [], departments: [], admins: [],
+  courses: [], instructors: [], feeplans: [], certs: [], departments: [], admins: [],
 };
 
 /* ───────────────────────────────────────────────
    SCHEMAS
 ─────────────────────────────────────────────── */
 const ENTITY_ICONS: Record<string, string> = {
-  courses: "📚", batches: "📅", instructors: "🎓", feeplans: "💳", certs: "🏅", departments: "🏢",
+  courses: "📚", instructors: "🎓", feeplans: "💳", certs: "🏅", departments: "🏢",
 };
 
 // Course.skillLevel enum (BEGINNER/…) ↔ display label
@@ -113,7 +110,7 @@ const CAREER_PATHS = [
 ];
 
 const ENTITY_NAMES: Record<string, string> = {
-  courses: "Course", batches: "Batch", instructors: "Instructor", feeplans: "Fee Plan", certs: "Certification Template", departments: "Department",
+  courses: "Course", instructors: "Instructor", feeplans: "Fee Plan", certs: "Certification Template", departments: "Department",
 };
 
 const SCHEMAS: Record<string, FieldDef[]> = {
@@ -127,6 +124,7 @@ const SCHEMAS: Record<string, FieldDef[]> = {
     { key: "careerPath", label: "Career Path", type: "select", options: CAREER_PATHS, allowCustom: true, full: true, defaultEmpty: true, placeholder: "Select career path (saved to Tracks)" },
     { key: "level", label: "Level", type: "select", required: true, options: ["Beginner", "Intermediate", "Advanced"] },
     { key: "price", label: "Price (₹)", type: "number", required: true, placeholder: "e.g. 45000" },
+    { key: "discountPercent", label: "Discount (%)", type: "discount", placeholder: "e.g. 90", full: true },
     { key: "description", label: "About This Course", type: "textarea", required: true, full: true, placeholder: "Long-form description shown on the course detail page…" },
     { key: "whatYoullLearn", label: "What You'll Learn (one per line)", type: "textarea", required: true, full: true, placeholder: "Build production-grade full-stack apps with the MERN stack\nDesign scalable REST APIs with Express.js and Node.js\n…" },
     { key: "techStack", label: "Technologies Covered (comma separated)", type: "text", required: true, full: true, placeholder: "MongoDB, Mongoose, Express.js, React.js, Node.js, Redux Toolkit, JWT Auth" },
@@ -141,23 +139,13 @@ const SCHEMAS: Record<string, FieldDef[]> = {
     { key: "totalLessons", label: "Total Lessons", type: "number", placeholder: "e.g. 96" },
     { key: "totalHours", label: "Total Duration (hours)", type: "number", placeholder: "e.g. 80" },
   ],
-  batches: [
-    { key: "code", label: "Batch Code", type: "text", required: true, placeholder: "e.g. BAT-MERN-WD-04" },
-    { key: "course", label: "Course", type: "select", required: true, optionsFrom: "courses" },
-    { key: "instructor", label: "Instructor", type: "select", required: true, optionsFrom: "instructors" },
-    { key: "schedule", label: "Schedule", type: "select", required: true, options: ["Weekday Morning", "Weekday Evening", "Weekend"] },
-    { key: "seats", label: "Total Seats", type: "number", required: true, placeholder: "e.g. 30" },
-    { key: "enrolled", label: "Enrolled", type: "number", placeholder: "e.g. 24" },
-    { key: "startDate", label: "Start Date", type: "date", required: true },
-    { key: "status", label: "Status", type: "select", required: true, options: ["Upcoming", "Running", "Completed", "Cancelled"] },
-  ],
   instructors: [
     { key: "instId", label: "Instructor ID", type: "text", required: true, placeholder: "e.g. INS-014" },
     { key: "name", label: "Full Name", type: "text", required: true, placeholder: "e.g. Aakash Verma" },
     { key: "specialization", label: "Specialization", type: "select", required: true, options: ["Full Stack", "Data Science", "AI / ML", "DevOps", "Cybersecurity", "Programming", "Cloud"] },
     { key: "email", label: "Email", type: "email", required: true, placeholder: "name@futurestack.in" },
     { key: "phone", label: "Phone", type: "text", placeholder: "+91 98XXXXXXXX" },
-    { key: "activeBatches", label: "Active Batches", type: "number", placeholder: "e.g. 2" },
+    { key: "activeCourses", label: "Active Courses", type: "number", placeholder: "e.g. 2" },
     { key: "rating", label: "Rating (out of 5)", type: "number", placeholder: "e.g. 4.8" },
     { key: "status", label: "Status", type: "select", required: true, options: ["Active", "On Leave", "Inactive"] },
   ],
@@ -212,22 +200,30 @@ const COLUMNS: Record<string, ColumnDef[]> = {
       ),
     },
     { key: "level", label: "Level" },
+    {
+      key: "price",
+      label: "Price",
+      render: (v, r) => {
+        const price = Number(v ?? 0);
+        const orig = r.originalPrice != null && Number(r.originalPrice) > price ? Number(r.originalPrice) : null;
+        if (orig == null) return <span className="font-mono text-[10.5px]" style={{ color: "var(--text2)" }}>₹{price.toLocaleString()}</span>;
+        const off = Math.round(((orig - price) / orig) * 100);
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-[10.5px] text-[var(--muted)] line-through">₹{orig.toLocaleString()}</span>
+            <span className="font-mono text-[10.5px] font-bold" style={{ color: "var(--text)" }}>₹{price.toLocaleString()}</span>
+            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "var(--green-d)", color: "var(--green)" }}>-{off}%</span>
+          </div>
+        );
+      },
+    },
     { key: "status", label: "Status", render: (v) => <StatusBadge status={v === "ACTIVE" ? "Active" : v === "DRAFT" ? "Draft" : v === "ARCHIVED" ? "Archived" : v} /> },
-  ],
-  batches: [
-    { key: "code", label: "Batch Code", mono: true, strong: true },
-    { key: "course", label: "Course", mono: true },
-    { key: "instructor", label: "Instructor", mono: true },
-    { key: "schedule", label: "Schedule" },
-    { key: "seats", label: "Seats", render: (v, r) => `${r.enrolled ?? 0}/${v}` },
-    { key: "startDate", label: "Start Date", mono: true },
-    { key: "status", label: "Status", render: (v) => <StatusBadge status={v} /> },
   ],
   instructors: [
     { key: "name", label: "Name" },
     { key: "email", label: "Email" },
     { key: "specialization", label: "Specialization" },
-    { key: "activeBatches", label: "Courses Taught", mono: true },
+    { key: "activeCourses", label: "Courses Taught", mono: true },
     { key: "rating", label: "Rating", render: (v) => `${v ?? "—"} ⭐` },
     { key: "status", label: "Status", render: (v) => <StatusBadge status={v} /> },
   ],
@@ -284,6 +280,7 @@ export default function AdminMasterDataPage() {
   const [token, setToken] = useState<string | null>(null);
   const [stats, setStats] = useState<CourseStats | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const [profileModal, setProfileModal] = useState<{ open: boolean; mode: "profile" | "settings" }>({ open: false, mode: "profile" });
   const [createStaffRole, setCreateStaffRole] = useState<{ id: string; label: string; icon: string; color: string } | null>(null);
   const [confirmState, setConfirmState] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
@@ -356,6 +353,7 @@ export default function AdminMasterDataPage() {
         name: c.title || "Untitled",
         description: c.description || "",
         price: c.price ?? 0,
+        originalPrice: c.originalPrice != null ? c.originalPrice : null,
         status: c.status || "DRAFT",
         trainerId: c.trainerId || c.trainer?.id || "",
         category: c.category || (Array.isArray(c.techStack) && c.techStack[0]) || "",
@@ -383,7 +381,7 @@ export default function AdminMasterDataPage() {
         email: t.email || "",
         specialization: t.bio || t.yearsExperience ? `${t.yearsExperience || 0} yrs exp` : "",
         phone: "",
-        activeBatches: t._count?.coursesTaught ?? 0,
+        activeCourses: t._count?.coursesTaught ?? 0,
         rating: t.rating ?? 0,
         status: "Active",
       }));
@@ -398,6 +396,43 @@ export default function AdminMasterDataPage() {
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3500);
+  }
+
+  // Navbar refresh — refetches the parent-level data (stats/courses/trainers)
+  // and remounts the currently-active view so its own component reloads too.
+  function handleNavRefresh() {
+    setRefreshKey((k) => k + 1);
+    setRefreshNonce((n) => n + 1);
+    addToast(`Refreshed ${view}`);
+  }
+
+  // Global search navigation — jump to the right view + entity for a result.
+  function handleNavigate(result: GlobalSearchResult) {
+    setExpandedCourseId(null);
+    setSearchQuery(result.title);
+    switch (result.type) {
+      case "course":
+        setCurrentEntity("courses");
+        setView("master-data");
+        break;
+      case "trainer":
+        setCurrentEntity("instructors");
+        setView("master-data");
+        break;
+      case "user":
+        setView("users");
+        break;
+      case "order":
+        setView("payments");
+        break;
+      case "coupon":
+        setView("payment-settings");
+        break;
+      case "lead":
+        setView("sales");
+        break;
+    }
+    addToast(`Opened ${result.title}`);
   }
 
   /* ── helpers ── */
@@ -453,7 +488,6 @@ export default function AdminMasterDataPage() {
 
   const tabs: EntityTab[] = useMemo(() => [
     { key: "courses", icon: "📚", label: "Courses", count: db.courses.length },
-    { key: "batches", icon: "📅", label: "Batches", count: db.batches.length },
     { key: "instructors", icon: "🎓", label: "Instructors", count: db.instructors.length },
     { key: "feeplans", icon: "💳", label: "Fee Plans", count: db.feeplans.length },
     { key: "certs", icon: "🏅", label: "Certifications", count: db.certs.length },
@@ -462,7 +496,6 @@ export default function AdminMasterDataPage() {
 
   const kpiItems = useMemo(() => [
     { label: "Courses", value: stats?.totalCourses ?? db.courses.length, delta: `${stats?.activeCourses ?? 0} active`, color: "var(--orange)" },
-    { label: "Batches", value: db.batches.length, delta: `${db.batches.filter((b: Batch) => b.status === "Running").length} running`, color: "var(--blue)" },
     { label: "Instructors", value: stats?.totalTrainers ?? db.instructors.length, delta: `${stats?.pendingTrainers ?? 0} pending approval`, color: "var(--purple)" },
     { label: "Fee Plans", value: db.feeplans.length, delta: "configured", color: "var(--green)" },
     { label: "Cert. Templates", value: db.certs.length, delta: "configured", color: "var(--pink)" },
@@ -481,6 +514,11 @@ export default function AdminMasterDataPage() {
         id: record.id,
         title: record.title || record.name || "",
         price: record.price ?? 0,
+        discountPercent:
+          record.originalPrice != null &&
+          Number(record.originalPrice) > Number(record.price ?? 0)
+            ? String(Math.round(((Number(record.originalPrice) - Number(record.price ?? 0)) / Number(record.originalPrice)) * 100))
+            : "",
         trainerId: record.trainerId || "",
         description: record.description || "",
         whatYoullLearn: Array.isArray(record.whatYoullLearn) ? record.whatYoullLearn.join("\n") : (record.whatYoullLearn || ""),
@@ -572,6 +610,17 @@ export default function AdminMasterDataPage() {
 
         if (formData.title !== undefined) body.title = formData.title;
         if (formData.price !== undefined) body.price = Number(formData.price);
+        // Discount is entered as a % — derive the list (original) price server-side
+        // format: originalPrice = price / (1 - pct/100). Empty / 0 = no discount.
+        if (formData.discountPercent !== undefined) {
+          const pct = Number(formData.discountPercent);
+          const price = Number(formData.price);
+          if (Number.isFinite(pct) && pct > 0 && pct < 100 && Number.isFinite(price) && price > 0) {
+            body.originalPrice = Math.round((price / (1 - pct / 100)) / 100) * 100;
+          } else {
+            body.originalPrice = null;
+          }
+        }
         // Only send trainerId when the admin actually changed it — the backend
         // re-validates trainerId as an approved trainer on every update, so
         // resending the unchanged value can fail a save (e.g. Status-only edits)
@@ -604,6 +653,7 @@ export default function AdminMasterDataPage() {
                       ...r,
                       ...body,
                       name: body.title || r.name,
+                      originalPrice: body.originalPrice !== undefined ? body.originalPrice : r.originalPrice,
                       level: body.skillLevel ? SKILL_LEVEL_LABELS[body.skillLevel] : r.level,
                       careerPath: formData.careerPath ?? r.careerPath,
                     }
@@ -628,6 +678,7 @@ export default function AdminMasterDataPage() {
               title: created.title || body.title,
               description: created.description || "",
               price: created.price ?? 0,
+              originalPrice: created.originalPrice != null ? created.originalPrice : null,
               status: created.status || "DRAFT",
               modules: 0, instructor: "", instructorEmail: "",
               thumbnailUrl: created.thumbnailUrl || "",
@@ -1019,10 +1070,6 @@ export default function AdminMasterDataPage() {
   }
 
   /* ── computed display helpers ── */
-  function renderCourseInBatch(courseCode: string) {
-    return <span className="font-mono text-[10px]" style={{ color: "var(--blue)" }}>{courseCode}</span>;
-  }
-
   function renderInstructorName(id: string) {
     return <span className="font-mono text-[10px]">{getInstructorName(id)}</span>;
   }
@@ -1038,7 +1085,10 @@ export default function AdminMasterDataPage() {
       <AdminTopbar
         user={user as any}
         currentView={view}
+        token={token || ""}
         onSearch={setSearchQuery}
+        onNavigate={handleNavigate}
+        onRefresh={handleNavRefresh}
         onMyProfile={() => setProfileModal({ open: true, mode: "profile" })}
         onAccountSettings={() => setProfileModal({ open: true, mode: "settings" })}
                     onSignOut={async () => {
@@ -1054,21 +1104,21 @@ export default function AdminMasterDataPage() {
 
         {view === "admin-dashboard" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
-            <AdminDashboardContent db={db} />
+            <AdminDashboardContent key={`admin-dashboard-${refreshNonce}`} db={db} stats={stats} />
           </main>
         ) : view === "featured" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
-            <FeaturedManager token={token || ""} />
+            <FeaturedManager key={`featured-${refreshNonce}`} token={token || ""} />
           </main>
 
         ) : view === "payment-settings" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
-            <PaymentSettingsManager token={token || ""} />
+            <PaymentSettingsManager key={`payment-settings-${refreshNonce}`} token={token || ""} searchQuery={searchQuery} />
           </main>
 
         ) : view === "payments" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
-            <PaymentsManager token={token || ""} />
+            <PaymentsManager key={`payments-${refreshNonce}`} token={token || ""} searchQuery={searchQuery} />
           </main>
 
         ) : view === "master-data" ? (
@@ -1080,7 +1130,7 @@ export default function AdminMasterDataPage() {
                     🗄 Master Data Management
                   </span>
                   <span className="font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
-                    role::lms_administrator · 6 entities · last_sync: just now
+                    role::lms_administrator · 5 entities · last_sync: just now
                   </span>
                 </div>
                 <div className="flex gap-1.5">
@@ -1111,7 +1161,6 @@ export default function AdminMasterDataPage() {
                   <span className="font-mono text-[10.5px] font-bold uppercase tracking-wider flex items-center gap-1.5" style={{ color: "var(--text2)" }}>
                     {ENTITY_ICONS[currentEntity]} {ENTITY_NAMES[currentEntity]}s
                     {currentEntity === "courses" && " & Curriculum"}
-                    {currentEntity === "batches" && " & Schedules"}
                     {currentEntity === "instructors" && " / Trainers"}
                     {currentEntity === "feeplans" && " & Discounts"}
                     {currentEntity === "certs" && " Templates"}
@@ -1136,12 +1185,12 @@ export default function AdminMasterDataPage() {
           </main>
         ) : (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
-            {view === "users" && <UsersDashboardContent />}
-            {view === "sales" && <SalesDashboardContent onAddStaff={() => setCreateStaffRole(ROLE_META["sales"])} addLabel="Sales" />}
-            {view === "trainer" && <TrainerDashboardContent onAddStaff={() => setCreateStaffRole(ROLE_META["trainer"])} addLabel="Trainer" />}
-            {view === "coordinator" && <CoordinatorDashboardContent onAddStaff={() => setCreateStaffRole(ROLE_META["coordinator"])} addLabel="Coordinator" />}
-            {view === "support" && <SupportDashboardContent onAddStaff={() => setCreateStaffRole(ROLE_META["support"])} addLabel="Support" />}
-            {view === "content-manager" && <ContentMgrDashboardContent onAddStaff={() => setCreateStaffRole(ROLE_META["content-manager"])} addLabel="Content Manager" />}
+            {view === "users" && <UsersDashboardContent key={`users-${refreshNonce}`} searchQuery={searchQuery} />}
+            {view === "sales" && <SalesDashboardContent key={`sales-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["sales"])} addLabel="Sales" />}
+            {view === "trainer" && <TrainerDashboardContent key={`trainer-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["trainer"])} addLabel="Trainer" />}
+            {view === "coordinator" && <CoordinatorDashboardContent key={`coordinator-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["coordinator"])} addLabel="Coordinator" />}
+            {view === "support" && <SupportDashboardContent key={`support-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["support"])} addLabel="Support" />}
+            {view === "content-manager" && <ContentMgrDashboardContent key={`content-manager-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["content-manager"])} addLabel="Content Manager" />}
           </main>
         )}
       </div>

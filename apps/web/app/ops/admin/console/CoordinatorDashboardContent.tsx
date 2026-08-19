@@ -10,13 +10,14 @@ const batches = [
   { id: 5, code: "BAT-DEVOPS-01", course: "Docker & K8s", instructor: "Rohit Singh", students: 12, capacity: 25, status: "Upcoming" },
 ];
 
-export default function CoordinatorDashboardContent({ onAddStaff, addLabel }: { onAddStaff?: () => void; addLabel?: string }) {
+export default function CoordinatorDashboardContent({ onAddStaff, addLabel, searchQuery = "" }: { onAddStaff?: () => void; addLabel?: string; searchQuery?: string }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
-    if (!search) return batches;
     const q = search.toLowerCase();
-    return batches.filter((b) => Object.values(b).some((v) => String(v).toLowerCase().includes(q)));
-  }, [search]);
+    const eq = searchQuery.toLowerCase().trim();
+    if (!q && !eq) return batches;
+    return batches.filter((b) => Object.values(b).some((v) => String(v).toLowerCase().includes(q) || String(v).toLowerCase().includes(eq)));
+  }, [search, searchQuery]);
 
   const totalStudents = batches.reduce((s, b) => s + b.students, 0);
   const totalCapacity = batches.reduce((s, b) => s + b.capacity, 0);

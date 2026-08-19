@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 
 interface PaymentOrder {
@@ -129,7 +129,7 @@ function getPageItems(current: number, total: number): (number | "…")[] {
   return pages;
 }
 
-export default function PaymentsManager({ token }: { token: string }) {
+export default function PaymentsManager({ token, searchQuery = "" }: { token: string; searchQuery?: string }) {
   const [data, setData] = useState<PaymentsData | null>(null);
   const [trainers, setTrainers] = useState<TrainerBreakdown | null>(null);
   const [status, setStatus] = useState<string | undefined>(undefined);
@@ -138,6 +138,28 @@ export default function PaymentsManager({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
+
+  const filteredOrders = useMemo<PaymentOrder[]>(() => {
+    const rows = data?.orders ?? [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((o) =>
+      [
+        o.orderNo,
+        o.id,
+        o.student?.name,
+        o.student?.email,
+        o.billing.fullName,
+        o.billing.email,
+        o.razorpayOrderId,
+        o.razorpayPaymentId,
+        o.couponCode,
+        ...o.items.map((i) => i.title),
+      ]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q)),
+    );
+  }, [data, searchQuery]);
 
   function addToast(msg: string, type: "success" | "danger" = "success") {
     const id = Date.now();
@@ -471,14 +493,16 @@ export default function PaymentsManager({ token }: { token: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data?.orders.length === 0 && (
+                  {filteredOrders.length === 0 && (
                     <tr>
                       <td colSpan={9} className="px-3 py-10 text-center font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
-                        No payments{status ? ` with status ${status}` : ""} found.
+                        {data?.orders.length === 0
+                          ? `No payments${status ? ` with status ${status}` : ""} found.`
+                          : `No payments match "${searchQuery}".`}
                       </td>
                     </tr>
                   )}
-                  {data?.orders.map((o) => {
+                  {filteredOrders.map((o) => {
                     const open = expandedId === o.id;
                     return (
                       <OrderRow
@@ -489,7 +513,7 @@ export default function PaymentsManager({ token }: { token: string }) {
                       />
                     );
                   })}
-                  {loading && data && data.orders.length > 0 && (
+                  {loading && data && filteredOrders.length > 0 && (
                     <tr>
                       <td colSpan={9} className="px-3 py-2 text-center font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>
                         syncing…

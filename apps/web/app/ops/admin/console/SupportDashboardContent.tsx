@@ -11,13 +11,14 @@ const tickets = [
   { id: 1006, student: "Neha Gupta", issue: "Refund request", priority: "High", status: "Open", created: "2026-06-24", assignee: "Unassigned" },
 ];
 
-export default function SupportDashboardContent({ onAddStaff, addLabel }: { onAddStaff?: () => void; addLabel?: string }) {
+export default function SupportDashboardContent({ onAddStaff, addLabel, searchQuery = "" }: { onAddStaff?: () => void; addLabel?: string; searchQuery?: string }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
-    if (!search) return tickets;
     const q = search.toLowerCase();
-    return tickets.filter((t) => Object.values(t).some((v) => String(v).toLowerCase().includes(q)));
-  }, [search]);
+    const eq = searchQuery.toLowerCase().trim();
+    if (!q && !eq) return tickets;
+    return tickets.filter((t) => Object.values(t).some((v) => String(v).toLowerCase().includes(q) || String(v).toLowerCase().includes(eq)));
+  }, [search, searchQuery]);
 
   const openTickets = tickets.filter((t) => t.status !== "Resolved").length;
   const highPriority = tickets.filter((t) => t.priority === "High" && t.status !== "Resolved").length;

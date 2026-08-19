@@ -12,13 +12,14 @@ const contentItems = [
   { id: 7, title: "Express.js REST API", course: "MERN Stack", type: "Video + Docs", status: "Draft", updated: "2026-06-22", reviewer: "—" },
 ];
 
-export default function ContentMgrDashboardContent({ onAddStaff, addLabel }: { onAddStaff?: () => void; addLabel?: string }) {
+export default function ContentMgrDashboardContent({ onAddStaff, addLabel, searchQuery = "" }: { onAddStaff?: () => void; addLabel?: string; searchQuery?: string }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
-    if (!search) return contentItems;
     const q = search.toLowerCase();
-    return contentItems.filter((c) => Object.values(c).some((v) => String(v).toLowerCase().includes(q)));
-  }, [search]);
+    const eq = searchQuery.toLowerCase().trim();
+    if (!q && !eq) return contentItems;
+    return contentItems.filter((c) => Object.values(c).some((v) => String(v).toLowerCase().includes(q) || String(v).toLowerCase().includes(eq)));
+  }, [search, searchQuery]);
 
   const pendingReview = contentItems.filter((c) => c.status === "Review").length;
   const published = contentItems.filter((c) => c.status === "Published").length;

@@ -54,6 +54,19 @@ function normalizeThumbnail(
   return `/${url}`;
 }
 
+/** Derived discount info from price + originalPrice. `originalPrice` null/<=price
+ *  means no discount (offPct 0). The badge is computed, never stored. */
+function discountInfo(
+  price: number,
+  originalPrice: number | null | undefined,
+): { offPct: number; hasDiscount: boolean } {
+  if (originalPrice != null && originalPrice > price && originalPrice > 0) {
+    const offPct = Math.min(99, Math.round(((originalPrice - price) / originalPrice) * 100));
+    return { offPct, hasDiscount: true };
+  }
+  return { offPct: 0, hasDiscount: false };
+}
+
 @Injectable()
 export class CoursesService {
   // Public catalog is read far more often than it changes. Serve repeated
@@ -118,6 +131,7 @@ export class CoursesService {
         description: true,
         thumbnailUrl: true,
         price: true,
+        originalPrice: true,
         techStack: true,
         displayOrder: true,
         whatYoullLearn: true,
@@ -163,6 +177,7 @@ export class CoursesService {
         thumbnailUrl: normalizeThumbnail(rest.thumbnailUrl),
         totalVideos: stats.videoCount,
         durationHours: Math.round(stats.totalSeconds / 3600) || 1,
+        ...discountInfo(rest.price, rest.originalPrice),
         badge: null,
         badgeClass: '',
       };
@@ -223,6 +238,7 @@ export class CoursesService {
                 thumbnailUrl: true,
                 techStack: true,
                 price: true,
+                originalPrice: true,
               },
             },
           },
@@ -317,6 +333,9 @@ export class CoursesService {
       description: course.description ?? '',
       thumbnailUrl: normalizeThumbnail(course.thumbnailUrl),
       price: course.price,
+      originalPrice: course.originalPrice,
+      offPct: discountInfo(course.price, course.originalPrice).offPct,
+      hasDiscount: discountInfo(course.price, course.originalPrice).hasDiscount,
       whatYoullLearn: course.whatYoullLearn,
       techStack: course.techStack,
       careerTitle: course.careerTitle,
@@ -389,6 +408,8 @@ export class CoursesService {
       thumbnailUrl: true,
       category: true,
       skillLevel: true,
+      price: true,
+      originalPrice: true,
       trainer: { select: { rating: true } },
       _count: { select: { enrollments: true } },
     } as const;
@@ -433,6 +454,7 @@ export class CoursesService {
         rating: r.trainer?.rating ?? 4.7,
         students: `${((r._count.enrollments / 1000) * 10).toFixed(1).replace('.0', '')}k`,
         mentorName: 'Team',
+        ...discountInfo(r.price, r.originalPrice),
       };
     });
 
@@ -538,6 +560,9 @@ export class CoursesService {
       description: course.description,
       thumbnailUrl: course.thumbnailUrl,
       price: course.price,
+      originalPrice: course.originalPrice,
+      offPct: discountInfo(course.price, course.originalPrice).offPct,
+      hasDiscount: discountInfo(course.price, course.originalPrice).hasDiscount,
       whatYoullLearn: course.whatYoullLearn,
       techStack: course.techStack,
       careerTitle: course.careerTitle,
@@ -643,6 +668,7 @@ export class CoursesService {
         description: true,
         thumbnailUrl: true,
         price: true,
+        originalPrice: true,
         isFeatured: true,
         techStack: true,
         _count: { select: { enrollments: true } },
@@ -667,6 +693,8 @@ export class CoursesService {
         description: c.description,
         thumbnailUrl: c.thumbnailUrl,
         price: c.price,
+        originalPrice: c.originalPrice,
+        ...discountInfo(c.price, c.originalPrice),
         isFeatured: c.isFeatured,
         techStack: c.techStack,
         enrollmentCount: c._count.enrollments,
@@ -790,7 +818,11 @@ export class CoursesService {
       );
     const code = dto.code ?? (await this.generateCourseCode(dto.title));
     const course = await this.prisma.course.create({ data: { ...dto, code } });
-    await this.syncBasePrice(course.id, course.price ?? 0);
+    await this.syncBasePrice(
+      course.id,
+      course.price ?? 0,
+      course.originalPrice ?? null,
+    );
     return course;
   }
 
@@ -915,6 +947,7 @@ export class CoursesService {
     if (!lean) {
       (leanSelect as any).thumbnailUrl = true;
       (leanSelect as any).price = true;
+      (leanSelect as any).originalPrice = true;
       (leanSelect as any).whatYoullLearn = true;
       (leanSelect as any).careerTitle = true;
       (leanSelect as any).careerBody = true;
@@ -1005,6 +1038,7 @@ export class CoursesService {
         tech: category,
         duration: durationLabel,
         price: course.price,
+        ...discountInfo(course.price, course.originalPrice),
         techStack: course.techStack,
         whatYoullLearn: course.whatYoullLearn,
         careerTitle: course.careerTitle,
@@ -1169,12 +1203,21 @@ export class CoursesService {
           `A course with the title "${dto.title}" already exists`,
         );
     }
-    const { price, ...rest } = dto;
+    const { price, originalPrice, ...rest } = dto;
     const course = await this.prisma.course.update({
       where: { id },
-      data: rest,
+      data: {
+        ...rest,
+        ...(originalPrice !== undefined ? { originalPrice } : {}),
+      },
     });
-    await this.syncBasePrice(id, price ?? course.price);
+    await this.syncBasePrice(
+      id,
+      price ?? course.price,
+      originalPrice !== undefined
+        ? originalPrice
+        : course.originalPrice,
+    );
     return course;
   }
 
@@ -1182,11 +1225,25 @@ export class CoursesService {
    * Keeps the base INR CoursePrice row in sync with the course's main price so
    * cart/checkout can always find a price for a course.
    */
-  private async syncBasePrice(courseId: string, amount: number) {
+  private async syncBasePrice(
+    courseId: string,
+    amount: number,
+    originalPrice?: number | null,
+  ) {
     await this.prisma.coursePrice.upsert({
       where: { courseId_currency: { courseId, currency: 'INR' } },
-      create: { courseId, currency: 'INR', amount },
-      update: { amount },
+      create: {
+        courseId,
+        currency: 'INR',
+        amount,
+        originalPrice: originalPrice ?? null,
+      },
+      update: {
+        amount,
+        ...(originalPrice !== undefined
+          ? { originalPrice }
+          : { originalPrice: null }),
+      },
     });
   }
 

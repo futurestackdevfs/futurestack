@@ -9,6 +9,8 @@ function ResetPasswordForm() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get('token') ?? '';
+  const isStudent = params.get('portal') === 'student';
+  const homeRoute = isStudent ? '/' : '/my-dashboard';
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -57,7 +59,7 @@ function ResetPasswordForm() {
       await authApi.resetPassword(token, newPassword);
       showToast('Password reset successfully!');
       setSuccess(true);
-      setTimeout(() => router.replace('/my-dashboard'), 2500);
+      setTimeout(() => router.replace(homeRoute), 2500);
     } catch (ex) {
       setApiError(ex instanceof Error ? ex.message : 'Reset failed. The link may have expired.');
     } finally {
@@ -73,13 +75,13 @@ function ResetPasswordForm() {
         </div>
         <div>
           <h2 className="text-[16px] font-bold text-[var(--text)]">Password reset successful!</h2>
-          <p className="text-[12px] text-[var(--muted)] mt-1">Redirecting you to your dashboard…</p>
+          <p className="text-[12px] text-[var(--muted)] mt-1">{isStudent ? 'Redirecting you to your home…' : 'Redirecting you to your dashboard…'}</p>
         </div>
         <Link
-          href="/my-dashboard"
+          href={homeRoute}
           className="mt-2 inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-[12px] font-bold text-white bg-[linear-gradient(135deg,#ff6b00,#2563eb)] hover:opacity-90 hover:-translate-y-0.5 shadow-[0_8px_18px_rgba(37,99,235,0.2)] transition-all duration-300 no-underline"
         >
-          Go to Dashboard
+          {isStudent ? 'Go to Home' : 'Go to Dashboard'}
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
         </Link>
       </div>

@@ -87,6 +87,7 @@ export class CartService {
             title: true,
             thumbnailUrl: true,
             price: true,
+            originalPrice: true,
             category: true,
             techStack: true,
             averageRating: true,
@@ -107,13 +108,25 @@ export class CartService {
             where: { courseId: { in: courseIds }, currency },
           })
         : [];
-    const priceMap = new Map(priceRows.map((p) => [p.courseId, p.amount]));
+    const priceMap = new Map(
+      priceRows.map((p) => [
+        p.courseId,
+        { price: p.amount, originalPrice: p.originalPrice },
+      ]),
+    );
 
     const enriched = items.map((item) => {
       // Prefer the live CoursePrice row for the requested currency; fall back
       // to the course's base price when no row exists yet (e.g. older courses
       // created before the multi-currency table was added).
-      const price = priceMap.get(item.courseId) ?? item.course.price;
+      const row = priceMap.get(item.courseId);
+      const price = row?.price ?? item.course.price;
+      const originalPrice =
+        row?.originalPrice ?? (item.course.originalPrice ?? null);
+      let offPct = 0;
+      if (originalPrice != null && originalPrice > price) {
+        offPct = Math.min(99, Math.round(((originalPrice - price) / originalPrice) * 100));
+      }
       const stats = videoStats.get(item.courseId) ?? {
         totalSeconds: 0,
         videoCount: 0,
@@ -130,6 +143,9 @@ export class CartService {
         lessons: stats.videoCount,
         hours: totalHours || 1,
         price,
+        originalPrice,
+        offPct,
+        hasDiscount: offPct > 0,
         currency,
       };
     });

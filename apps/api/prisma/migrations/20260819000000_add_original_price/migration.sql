@@ -1,0 +1,3 @@
+ALTER TABLE "Course" ADD COLUMN "originalPrice" DOUBLE PRECISION;
+
+ALTER TABLE "CoursePrice" ADD COLUMN "originalPrice" DOUBLE PRECISION;

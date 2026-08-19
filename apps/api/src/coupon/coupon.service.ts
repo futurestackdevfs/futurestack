@@ -229,6 +229,81 @@ export class CouponService {
     }
   }
 
+  /**
+   * Hard-delete a coupon. CouponRedemption rows have `ON DELETE RESTRICT`, so
+   * they are removed first; Cart rows auto-null via SET NULL. Order.couponId is
+   * a plain string (no FK) and is kept for historical records.
+   */
+  async remove(id: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const coupon = await tx.coupon.findUnique({ where: { id } });
+      if (!coupon) throw new NotFoundException('Coupon not found');
+      await tx.couponRedemption.deleteMany({ where: { couponId: id } });
+      await tx.coupon.delete({ where: { id } });
+    });
+    return { success: true };
+  }
+
+  /**
+   * Sales made using a given coupon — joins CouponRedemption → Order → User so
+   * the admin can see who redeemed it, when, and for how much.
+   */
+  async listSales(id: string) {
+    const coupon = await this.prisma.coupon.findUnique({ where: { id } });
+    if (!coupon) throw new NotFoundException('Coupon not found');
+
+    const redemptions = await this.prisma.couponRedemption.findMany({
+      where: { couponId: id },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (redemptions.length === 0) {
+      return { code: coupon.code, totalSales: 0, totalDiscount: 0, items: [] };
+    }
+
+    const orderIds = redemptions.map((r) => r.orderId);
+    const orders = await this.prisma.order.findMany({
+      where: { id: { in: orderIds } },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+        items: { select: { courseId: true } },
+      },
+    });
+    const orderMap = new Map(orders.map((o) => [o.id, o]));
+
+    const items = redemptions.map((r) => {
+      const order = orderMap.get(r.orderId);
+      return {
+        redemptionId: r.id,
+        usedAt: r.createdAt,
+        orderId: r.orderId,
+        orderStatus: order?.status ?? null,
+        amount: order?.totalAmount ?? null,
+        currency: order?.currency ?? null,
+        discountAmount: order?.discountAmount ?? null,
+        subtotal: order?.subtotal ?? null,
+        student: order?.user
+          ? { id: order.user.id, name: order.user.name, email: order.user.email }
+          : null,
+        courseCount: order?.items.length ?? null,
+      };
+    });
+
+    const totalDiscount = this.round2(
+      items.reduce((sum, i) => sum + (i.discountAmount ?? 0), 0),
+    );
+
+    return {
+      code: coupon.code,
+      totalSales: items.length,
+      totalDiscount,
+      items,
+    };
+  }
+
+  private round2(n: number): number {
+    return Math.round(n * 100) / 100;
+  }
+
   private assertCreateValid(dto: {
     discountType: string;
     value: number;
