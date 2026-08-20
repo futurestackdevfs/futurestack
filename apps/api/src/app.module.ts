@@ -22,6 +22,7 @@ import { CheckoutModule } from './checkout/checkout.module';
 import { PaymentSettingsModule } from './payment-settings/payment-settings.module';
 import { AdminPaymentsModule } from './admin-payments/admin-payments.module';
 import { SalesModule } from './sales/sales.module';
+import { CoordinatorModule } from './coordinator/coordinator.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { SalesModule } from './sales/sales.module';
     PaymentSettingsModule,
     AdminPaymentsModule,
     SalesModule,
+    CoordinatorModule,
   ],
   controllers: [AppController],
   providers: [
