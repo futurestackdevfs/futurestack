@@ -832,11 +832,6 @@ export class CoursesService {
       );
     const code = dto.code ?? (await this.generateCourseCode(dto.title));
     const course = await this.prisma.course.create({ data: { ...dto, code } });
-    await this.syncBasePrice(
-      course.id,
-      course.price ?? 0,
-      course.originalPrice ?? null,
-    );
     return course;
   }
 
@@ -1222,43 +1217,11 @@ export class CoursesService {
       where: { id },
       data: {
         ...rest,
+        ...(price !== undefined ? { price } : {}),
         ...(originalPrice !== undefined ? { originalPrice } : {}),
       },
     });
-    await this.syncBasePrice(
-      id,
-      price ?? course.price,
-      originalPrice !== undefined
-        ? originalPrice
-        : course.originalPrice,
-    );
     return course;
-  }
-
-  /**
-   * Keeps the base INR CoursePrice row in sync with the course's main price so
-   * cart/checkout can always find a price for a course.
-   */
-  private async syncBasePrice(
-    courseId: string,
-    amount: number,
-    originalPrice?: number | null,
-  ) {
-    await this.prisma.coursePrice.upsert({
-      where: { courseId_currency: { courseId, currency: 'INR' } },
-      create: {
-        courseId,
-        currency: 'INR',
-        amount,
-        originalPrice: originalPrice ?? null,
-      },
-      update: {
-        amount,
-        ...(originalPrice !== undefined
-          ? { originalPrice }
-          : { originalPrice: null }),
-      },
-    });
   }
 
   async deleteCourse(id: string) {

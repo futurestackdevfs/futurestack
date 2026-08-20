@@ -71,9 +71,7 @@ export class CartService {
   }
 
   /**
-   * Builds the cart view for a given currency. Every item must have a live
-   * CoursePrice row in the requested currency, otherwise we throw rather than
-   * silently substituting a different currency's number.
+   * Builds the cart view for a given currency.
    */
   async getCartView(userId: string, currency: Currency) {
     const cart = await this.getOrCreateCart(userId);
@@ -102,27 +100,10 @@ export class CartService {
 
     const courseIds = items.map((i) => i.courseId);
     const videoStats = await this.getVideoStats(courseIds);
-    const priceRows =
-      courseIds.length > 0
-        ? await this.prisma.coursePrice.findMany({
-            where: { courseId: { in: courseIds }, currency },
-          })
-        : [];
-    const priceMap = new Map(
-      priceRows.map((p) => [
-        p.courseId,
-        { price: p.amount, originalPrice: p.originalPrice },
-      ]),
-    );
 
     const enriched = items.map((item) => {
-      // Prefer the live CoursePrice row for the requested currency; fall back
-      // to the course's base price when no row exists yet (e.g. older courses
-      // created before the multi-currency table was added).
-      const row = priceMap.get(item.courseId);
-      const price = row?.price ?? item.course.price;
-      const originalPrice =
-        row?.originalPrice ?? (item.course.originalPrice ?? null);
+      const price = item.course.price;
+      const originalPrice = item.course.originalPrice ?? null;
       let offPct = 0;
       if (originalPrice != null && originalPrice > price) {
         offPct = Math.min(99, Math.round(((originalPrice - price) / originalPrice) * 100));
