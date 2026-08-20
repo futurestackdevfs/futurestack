@@ -7,7 +7,7 @@ import { AdminPaymentsService } from './admin-payments.service';
 export class AdminPaymentsController {
   constructor(private readonly adminPaymentsService: AdminPaymentsService) {}
 
-  @Auth(Role.ADMIN)
+  @Auth(Role.ADMIN, Role.COORDINATOR)
   @Get()
   list(
     @Query('status') status?: string,
@@ -21,7 +21,7 @@ export class AdminPaymentsController {
     );
   }
 
-  @Auth(Role.ADMIN)
+  @Auth(Role.ADMIN, Role.COORDINATOR)
   @Get('trainers')
   trainerBreakdown() {
     return this.adminPaymentsService.trainerBreakdown();

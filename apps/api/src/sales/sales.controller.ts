@@ -24,7 +24,7 @@ interface AuthenticatedRequest extends Request {
 }
 
 @Controller('sales')
-@Auth(Role.SALES, Role.ADMIN)
+@Auth(Role.SALES, Role.ADMIN, Role.COORDINATOR)
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 

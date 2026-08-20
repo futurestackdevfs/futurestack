@@ -37,9 +37,9 @@ export default function CreateStaffModal({ role, onClose }: CreateStaffModalProp
       setError("Email is required.");
       return;
     }
-    const emailValid = /^[^@]+@(gmail|hotmail)\.com$/i.test(email.trim());
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
     if (!emailValid) {
-      setError("Email must be a Gmail or Hotmail address.");
+      setError("Please enter a valid email address.");
       return;
     }
     setLoading(true);

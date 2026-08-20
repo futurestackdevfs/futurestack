@@ -5,10 +5,7 @@ export class CreateStaffDto {
   @MinLength(2)
   name: string;
 
-  @IsEmail()
-  @Matches(/^[^@]+@(gmail|hotmail)\.com$/i, {
-    message: 'email must be a Gmail or Hotmail address',
-  })
+  @IsEmail({}, { message: 'email must be a valid email address' })
   email: string;
 
   @IsOptional()

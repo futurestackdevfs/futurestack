@@ -13,26 +13,26 @@ import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER, Role.COORDINATOR)
   @Get('stats')
   async getPlatformStats() {
     return this.adminService.getPlatformStats();
   }
 
   // Trainer approval is content-management work — shared with Content Manager.
-  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER, Role.COORDINATOR)
   @Get('trainers')
   async listAllTrainers() {
     return this.adminService.listAllTrainers();
   }
 
-  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER, Role.COORDINATOR)
   @Get('trainers/pending')
   async listPendingTrainers() {
     return this.adminService.listPendingTrainers();
   }
 
-  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER, Role.COORDINATOR)
   @Get('trainers/approved')
   async listApprovedTrainers() {
     return this.adminService.listApprovedTrainers();
@@ -59,7 +59,7 @@ export class AdminController {
     return this.adminService.createStaffAccount(dto);
   }
 
-  @Auth(Role.ADMIN)
+  @Auth(Role.ADMIN, Role.COORDINATOR)
   @Get('users')
   async listAllUsers() {
     return this.adminService.listAllUsers();
