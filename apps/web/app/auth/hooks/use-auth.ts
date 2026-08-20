@@ -58,14 +58,30 @@ async function clearSessionCookie(type: 'student' | 'staff' = 'student') {
 async function bootstrap() {
   try {
     const isOps = typeof window !== 'undefined' && window.location.pathname.startsWith('/ops');
-    const token = isOps ? await loadStaffToken() : await loadToken();
+    let token: string | null = null;
+    let tokenType: 'student' | 'staff' = 'student';
+
+    if (isOps) {
+      token = await loadStaffToken();
+      tokenType = 'staff';
+    } else {
+      token = await loadToken();
+      if (!token) {
+        // A logged-in staff member visiting the main site is still
+        // authenticated — fall back to the staff token so the student
+        // sign-in popup doesn't nag them on every page load.
+        token = await loadStaffToken();
+        if (token) tokenType = 'staff';
+      }
+    }
+
     if (!token) {
       emit({ user: null, isAuthenticated: false, isLoading: false });
       return;
     }
     const user = decodeJwt(token);
     if (!sessionStorage.getItem(COOKIE_SYNCED)) {
-      await setSessionCookie(token, isOps ? 'staff' : 'student');
+      await setSessionCookie(token, tokenType);
     }
     emit({ user, isAuthenticated: true, isLoading: false });
   } catch (err) {

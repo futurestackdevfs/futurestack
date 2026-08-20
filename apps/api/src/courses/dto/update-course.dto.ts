@@ -31,6 +31,11 @@ export class UpdateCourseDto {
   price?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  originalPrice?: number;
+
+  @IsOptional()
   @IsString()
   trainerId?: string;
 

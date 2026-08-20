@@ -140,6 +140,7 @@ model Course {
   description  String?
   thumbnailUrl String?
   price        Float
+  originalPrice Float?    // list/strikethrough price (admin-set). null = no discount, display price only.
   status       CourseStatus  @default(DRAFT)
   isFeatured   Boolean       @default(false)
   displayOrder Int           @default(0)
@@ -408,6 +409,7 @@ model CoursePrice {
   courseId String
   currency Currency
   amount   Float
+  originalPrice Float?
 
   @@unique([courseId, currency])
 }

@@ -24,6 +24,9 @@ interface CartItem {
   modules: number;
   lessons: number;
   price: number;
+  originalPrice?: number | null;
+  offPct?: number;
+  hasDiscount?: boolean;
   currency: Currency;
 }
 
@@ -49,6 +52,9 @@ interface WishlistItem {
   courseId: string;
   title: string;
   price: number | null;
+  originalPrice?: number | null;
+  offPct?: number;
+  hasDiscount?: boolean;
   currency: Currency;
 }
 
@@ -767,6 +773,9 @@ export default function CartPage() {
                         </div>
 
                         <div className="flex flex-col items-end gap-3 shrink-0">
+                          {item.hasDiscount && item.originalPrice != null && (
+                            <span className="text-[9px] font-extrabold text-[var(--green)] bg-[var(--green-d)] px-2 py-0.5 rounded-full whitespace-nowrap">-{item.offPct}% off</span>
+                          )}
                           {coupon && itemOff > 0 ? (
                             <div className="flex flex-col items-end gap-1">
                               <span className="text-[10px] font-extrabold uppercase tracking-[.06em] text-[var(--green)] bg-[var(--green-d)] px-2 py-0.5 rounded-full whitespace-nowrap">🏷️ {discountLabel(coupon, activeCurrency)}</span>
@@ -775,6 +784,11 @@ export default function CartPage() {
                                 <span className="font-['Inter_Tight',sans-serif] text-lg sm:text-xl font-extrabold text-[var(--green)] tracking-[-.01em]">{formatPrice(finalPrice, activeCurrency)}</span>
                               </div>
                               <span className="text-[11px] font-bold text-[var(--green)]">−{formatPrice(itemOff, activeCurrency)} off</span>
+                            </div>
+                          ) : item.hasDiscount && item.originalPrice != null ? (
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-[12px] text-[var(--muted)] line-through">{formatPrice(item.originalPrice, activeCurrency)}</span>
+                              <span className="font-['Inter_Tight',sans-serif] text-lg sm:text-xl font-extrabold text-[var(--green)] tracking-[-.01em]">{formatPrice(item.price, activeCurrency)}</span>
                             </div>
                           ) : (
                             <span className="font-['Inter_Tight',sans-serif] text-lg sm:text-xl font-extrabold text-[var(--text)] tracking-[-.01em]">{formatPrice(item.price, activeCurrency)}</span>
@@ -883,7 +897,17 @@ export default function CartPage() {
                       <div className="flex-1 min-w-0">
                         <div className="text-[13.5px] sm:text-[15px] font-bold text-[var(--text)] leading-snug line-clamp-2">{item.title}</div>
                         <div className="mt-1 text-[11.5px] font-semibold text-[var(--text2)]">
-                          {item.price != null ? formatPrice(item.price, activeCurrency) : "Price on enquiry"}
+                          {item.price != null ? (
+                            item.hasDiscount && item.originalPrice != null ? (
+                              <span className="flex items-center gap-1.5">
+                                <span className="text-[var(--muted)] line-through">{formatPrice(item.originalPrice, activeCurrency)}</span>
+                                <span className="text-[var(--green)]">{formatPrice(item.price, activeCurrency)}</span>
+                                <span className="text-[9px] font-extrabold text-[var(--green)] bg-[var(--green-d)] px-1 py-[1px] rounded-full">-{item.offPct ?? 0}%</span>
+                              </span>
+                            ) : (
+                              formatPrice(item.price, activeCurrency)
+                            )
+                          ) : "Price on enquiry"}
                         </div>
                       </div>
 

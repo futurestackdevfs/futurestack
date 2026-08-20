@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 export interface FieldDef {
   key: string;
   label: string;
-  type: "text" | "number" | "select" | "email" | "date" | "textarea" | "file" | "duration";
+  type: "text" | "number" | "select" | "email" | "date" | "textarea" | "file" | "duration" | "discount";
   required?: boolean;
   placeholder?: string;
   full?: boolean;
@@ -200,7 +200,69 @@ export function MasterDataModal({
                   {field.required && <span style={{ color: "var(--red)" }}> *</span>}
                 </label>
 
-                {field.type === "textarea" ? (
+                {field.type === "discount" ? (
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex gap-1.5 items-center">
+                      <input
+                        type="number"
+                        min={0}
+                        max={99}
+                        value={form[field.key] ?? ""}
+                        onChange={(e) => handleChange(field.key, e.target.value)}
+                        placeholder={field.placeholder}
+                        className="w-[45%] shrink-0 text-[12px] px-2.5 py-1.5 rounded outline-none"
+                        style={{
+                          fontFamily: "'Inter', sans-serif",
+                          border: errors[field.key]
+                            ? "1px solid var(--red)"
+                            : "1px solid var(--border)",
+                          background: "var(--bg)",
+                          color: "var(--text)",
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = "var(--orange)";
+                          e.currentTarget.style.background = "var(--surface)";
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = errors[field.key]
+                            ? "var(--red)"
+                            : "var(--border)";
+                          e.currentTarget.style.background = "var(--bg)";
+                        }}
+                      />
+                      <span className="text-[11px] font-semibold shrink-0" style={{ color: "var(--text3)" }}>% off</span>
+                    </div>
+                    {(() => {
+                      const pct = Number(form[field.key]);
+                      const price = Number(form.price);
+                      const hasPrice = Number.isFinite(price) && price > 0;
+                      const hasPct = Number.isFinite(pct) && pct > 0 && pct < 100;
+                      if (hasPrice && hasPct) {
+                        const orig = Math.round((price / (1 - pct / 100)) / 100) * 100;
+                        return (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px]" style={{ background: "var(--green-d)", border: "1px solid var(--border)" }}>
+                            <span className="font-mono text-[var(--muted)] line-through">₹{orig.toLocaleString("en-IN")}</span>
+                            <span className="font-mono font-bold" style={{ color: "var(--text)" }}>→ ₹{Math.round(price).toLocaleString("en-IN")}</span>
+                            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "var(--green)", color: "#fff" }}>-{pct}%</span>
+                            <span className="text-[9.5px] ml-auto" style={{ color: "var(--text3)" }}>list price = ₹{orig.toLocaleString("en-IN")}</span>
+                          </div>
+                        );
+                      }
+                      if (hasPrice && Number.isFinite(pct) && pct === 0) {
+                        return (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px]" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text3)" }}>
+                            No discount — shows as ₹{Math.round(price).toLocaleString("en-IN")}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px]" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text3)" }}>
+                          Enter a discount % to preview the list price
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : field.type === "textarea" ? (
                   <textarea
                     value={form[field.key] ?? ""}
                     onChange={(e) => handleChange(field.key, e.target.value)}

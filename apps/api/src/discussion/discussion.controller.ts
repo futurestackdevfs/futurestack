@@ -90,7 +90,7 @@ export class DiscussionController {
   @Patch(':courseId/messages/:messageId/pin')
   async pinMessage(@Param('messageId') messageId: string, @Req() req: Request) {
     const user = req.user as RequestUser;
-    return this.discussionService.pinMessage(messageId, user.role);
+    return this.discussionService.pinMessage(messageId, user.role, user.id);
   }
 
   @Auth()
@@ -100,7 +100,7 @@ export class DiscussionController {
     @Req() req: Request,
   ) {
     const user = req.user as RequestUser;
-    return this.discussionService.markAnswered(messageId, user.role);
+    return this.discussionService.markAnswered(messageId, user.role, user.id);
   }
 
   @Auth()
@@ -129,20 +129,34 @@ export class DiscussionController {
   @Auth()
   @Post(':courseId/messages/:messageId/upvote')
   async toggleMessageUpvote(
+    @Param('courseId') courseId: string,
     @Param('messageId') messageId: string,
     @Req() req: Request,
   ) {
     const user = req.user as RequestUser;
-    return this.discussionService.toggleUpvote(user.id, messageId, undefined);
+    return this.discussionService.toggleUpvote(
+      user.id,
+      user.role,
+      courseId,
+      messageId,
+      undefined,
+    );
   }
 
   @Auth()
   @Post(':courseId/replies/:replyId/upvote')
   async toggleReplyUpvote(
+    @Param('courseId') courseId: string,
     @Param('replyId') replyId: string,
     @Req() req: Request,
   ) {
     const user = req.user as RequestUser;
-    return this.discussionService.toggleUpvote(user.id, undefined, replyId);
+    return this.discussionService.toggleUpvote(
+      user.id,
+      user.role,
+      courseId,
+      undefined,
+      replyId,
+    );
   }
 }

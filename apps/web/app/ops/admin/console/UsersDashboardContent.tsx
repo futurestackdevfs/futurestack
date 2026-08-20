@@ -42,7 +42,7 @@ const ROLE_BGS: Record<string, string> = {
 
 const PER_PAGE = 15;
 
-export default function UsersDashboardContent() {
+export default function UsersDashboardContent({ searchQuery = "" }: { searchQuery?: string }) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -53,7 +53,7 @@ export default function UsersDashboardContent() {
   const [selected, setSelected] = useState<User | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
-  const [regeneratedPwd, setRegeneratedPwd] = useState<{ pwd: string; email: string } | null>(null);
+  const [regeneratedPwd, setRegeneratedPwd] = useState<{ pwd: string | null; email: string } | null>(null);
 
   async function copyValue(key: string, value: string) {
     try {
@@ -74,7 +74,7 @@ export default function UsersDashboardContent() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
-      setRegeneratedPwd({ pwd: body.tempPassword, email: u.email });
+      setRegeneratedPwd({ pwd: body.tempPassword ?? null, email: u.email });
     } catch {
       /* keep silent — button just stays idle */
     } finally {
@@ -97,13 +97,13 @@ export default function UsersDashboardContent() {
       if (roleFilter !== "all" && u.role !== roleFilter) return false;
       if (statusFilter === "active" && !u.isActive) return false;
       if (statusFilter === "inactive" && u.isActive) return false;
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        if (!u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
-      }
+      const q = search.trim().toLowerCase();
+      const eq = searchQuery.trim().toLowerCase();
+      if (q && !u.name.toLowerCase().includes(q) && !u.email.toLowerCase().includes(q)) return false;
+      if (eq && !u.name.toLowerCase().includes(eq) && !u.email.toLowerCase().includes(eq)) return false;
       return true;
     });
-  }, [users, search, roleFilter, statusFilter]);
+  }, [users, search, searchQuery, roleFilter, statusFilter]);
 
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const paginated = filtered.slice((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE);
@@ -419,12 +419,21 @@ export default function UsersDashboardContent() {
                 </div>
                 {regeneratedPwd ? (
                   <div className="space-y-1">
-                    <div className="font-mono text-[13px] font-bold truncate" style={{ color: "var(--orange)" }}>{regeneratedPwd.pwd}</div>
-                    <div className="text-[10px]" style={{ color: "var(--green)" }}>✓ New password emailed to {regeneratedPwd.email}</div>
-                    <div className="text-[9.5px]" style={{ color: "var(--text3)" }}>Valid for 10 minutes — user must set their own on first login.</div>
+                    {regeneratedPwd.pwd && (
+                      <div className="font-mono text-[13px] font-bold truncate" style={{ color: "var(--orange)" }}>{regeneratedPwd.pwd}</div>
+                    )}
+                    <div className="text-[10px]" style={{ color: "var(--green)" }}>
+                      {regeneratedPwd.pwd ? "✓ New password emailed to " : "✓ Password reset link emailed to "}
+                      {regeneratedPwd.email}
+                    </div>
+                    {regeneratedPwd.pwd ? (
+                      <div className="text-[9.5px]" style={{ color: "var(--text3)" }}>Valid for 10 minutes — user must set their own on first login.</div>
+                    ) : (
+                      <div className="text-[9.5px]" style={{ color: "var(--text3)" }}>Valid for 1 hour — student sets a new password via the link.</div>
+                    )}
                   </div>
                 ) : (
-                  <div className="text-[10.5px]" style={{ color: "var(--text3)" }}>No active reset. Regenerate sends a new temporary password by email.</div>
+                  <div className="text-[10.5px]" style={{ color: "var(--text3)" }}>No active reset. Regenerate emails a temporary password or a reset link by role.</div>
                 )}
               </div>
             </div>

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -35,6 +36,12 @@ export class CouponController {
   }
 
   @Auth(Role.ADMIN)
+  @Get(':id/sales')
+  sales(@Param('id') id: string) {
+    return this.couponService.listSales(id);
+  }
+
+  @Auth(Role.ADMIN)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.couponService.findOne(id);
@@ -50,5 +57,11 @@ export class CouponController {
   @Patch(':id/deactivate')
   deactivate(@Param('id') id: string) {
     return this.couponService.deactivate(id);
+  }
+
+  @Auth(Role.ADMIN)
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.couponService.remove(id);
   }
 }

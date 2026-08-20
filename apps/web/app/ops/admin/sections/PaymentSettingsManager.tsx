@@ -24,6 +24,7 @@ interface TrainerRow {
 
 interface PaymentSettingsManagerProps {
   token: string;
+  searchQuery?: string;
 }
 
 function Toggle({
@@ -118,7 +119,7 @@ const SECTIONS = [
   { id: "coupons", num: "04", icon: "🏷️", label: "Coupons" },
 ];
 
-export default function PaymentSettingsManager({ token }: PaymentSettingsManagerProps) {
+export default function PaymentSettingsManager({ token, searchQuery = "" }: PaymentSettingsManagerProps) {
   const [settings, setSettings] = useState<PaymentSettings | null>(null);
   const [trainers, setTrainers] = useState<TrainerRow[]>([]);
   const [trainersLoading, setTrainersLoading] = useState(true);
@@ -619,7 +620,7 @@ export default function PaymentSettingsManager({ token }: PaymentSettingsManager
               title="Coupons & Discounts"
               desc="Create and manage discount codes applied at checkout."
             />
-            <CouponsManager token={token} />
+            <CouponsManager token={token} searchQuery={searchQuery} />
           </section>
         </div>
       ) : (

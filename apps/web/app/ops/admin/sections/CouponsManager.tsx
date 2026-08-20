@@ -28,11 +28,41 @@ function formatMoney(n: number | null | undefined, c?: Currency | null) {
   return "₹" + n.toLocaleString("en-IN");
 }
 
+function formatDateTime(iso: string | null | undefined) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("en-IN", {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
+
+interface CouponSales {
+  code: string;
+  totalSales: number;
+  totalDiscount: number;
+  items: {
+    redemptionId: string;
+    usedAt: string;
+    orderId: string;
+    orderStatus: string | null;
+    amount: number | null;
+    currency: Currency | null;
+    discountAmount: number | null;
+    subtotal: number | null;
+    student: { id: string; name: string; email: string } | null;
+    courseCount: number | null;
+  }[];
+}
+
 const fieldCls =
   "w-full h-9 rounded-lg bg-[transparent] border border-[var(--border)] px-2.5 text-[12px] text-[var(--text)] outline-none focus:border-[var(--blue)] placeholder:text-[var(--text3)]";
 const labelClsMini = "block text-[10px] font-mono font-semibold uppercase tracking-wider mb-1" + " ";
 
-export default function CouponsManager({ token }: { token: string }) {
+export default function CouponsManager({ token, searchQuery = "" }: { token: string; searchQuery?: string }) {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,6 +71,9 @@ export default function CouponsManager({ token }: { token: string }) {
   const [coursesError, setCoursesError] = useState("");
   const [coursesSearch, setCoursesSearch] = useState("");
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
+  const [salesByCoupon, setSalesByCoupon] = useState<Record<string, CouponSales | null>>({});
+  const [expandedCoupon, setExpandedCoupon] = useState<string | null>(null);
+  const [salesLoading, setSalesLoading] = useState<string | null>(null);
 
   const [code, setCode] = useState("");
   const [discountType, setDiscountType] = useState<DiscountType>("PERCENT");
@@ -55,7 +88,7 @@ export default function CouponsManager({ token }: { token: string }) {
   const [scopeMode, setScopeMode] = useState<"all" | "selected">("all");
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
 
-  function req(path: string, method: "GET" | "POST" | "PATCH" = "GET", body?: unknown) {
+  function req(path: string, method: "GET" | "POST" | "PATCH" | "DELETE" = "GET", body?: unknown) {
     return fetch(`/api${path}`, {
       method,
       headers: {
@@ -187,8 +220,54 @@ export default function CouponsManager({ token }: { token: string }) {
     }
   }
 
+  async function deleteCoupon(id: string) {
+    if (!token) return;
+    if (!window.confirm("Delete this coupon permanently? Its redemption history will also be removed.")) return;
+    try {
+      const res = await req(`/admin/coupons/${id}`, "DELETE");
+      if (!res.ok) throw new Error("Failed to delete coupon");
+      addToast("Coupon deleted");
+      setSalesByCoupon((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      if (expandedCoupon === id) setExpandedCoupon(null);
+      await load();
+    } catch (e: unknown) {
+      addToast(e instanceof Error ? e.message : "Failed to delete coupon", "danger");
+    }
+  }
+
   const discountLabel = (c: Coupon) =>
     c.discountType === "PERCENT" ? `${c.value}%` : formatMoney(c.value, c.currency);
+
+  const filteredCoupons = useMemo(() => {
+    if (!searchQuery.trim()) return coupons;
+    const q = searchQuery.trim().toLowerCase();
+    return coupons.filter((c) => c.code.toLowerCase().includes(q));
+  }, [coupons, searchQuery]);
+
+  async function toggleSales(couponId: string) {
+    if (expandedCoupon === couponId) {
+      setExpandedCoupon(null);
+      return;
+    }
+    setExpandedCoupon(couponId);
+    if (salesByCoupon[couponId] !== undefined) return;
+    setSalesLoading(couponId);
+    try {
+      const res = await req(`/admin/coupons/${couponId}/sales`);
+      if (!res.ok) throw new Error("Failed to load coupon sales");
+      const body = (await res.json()) as CouponSales;
+      setSalesByCoupon((prev) => ({ ...prev, [couponId]: body }));
+    } catch (e: unknown) {
+      setSalesByCoupon((prev) => ({ ...prev, [couponId]: null }));
+      addToast(e instanceof Error ? e.message : "Failed to load coupon sales", "danger");
+    } finally {
+      setSalesLoading(null);
+    }
+  }
 
   return (
     <>
@@ -344,7 +423,7 @@ export default function CouponsManager({ token }: { token: string }) {
       <div className="rounded-xl overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)]">
           <span className="font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
-            {coupons.length} coupon{coupons.length !== 1 ? "s" : ""}
+            {searchQuery.trim() ? `${filteredCoupons.length} of ${coupons.length} coupon${coupons.length !== 1 ? "s" : ""}` : `${coupons.length} coupon${coupons.length !== 1 ? "s" : ""}`}
           </span>
           <button onClick={load} className="font-mono text-[10.5px] font-semibold px-2.5 py-1 rounded cursor-pointer"
             style={{ border: "1px solid var(--border)", color: "var(--text2)" }}>
@@ -358,36 +437,125 @@ export default function CouponsManager({ token }: { token: string }) {
           <div className="p-6 text-center font-mono text-[11px]" style={{ color: "var(--text3)" }}>
             No coupons yet — create one above.
           </div>
+        ) : filteredCoupons.length === 0 ? (
+          <div className="p-6 text-center font-mono text-[11px]" style={{ color: "var(--text3)" }}>
+            No coupons match “{searchQuery}”.
+          </div>
         ) : (
           <div className="divide-y divide-[var(--border)]">
-            {coupons.map((c) => {
+            {filteredCoupons.map((c) => {
               const scope = c.applicableCourseIds.length === 0 ? "All courses" : `${c.applicableCourseIds.length} course(s)`;
+              const expanded = expandedCoupon === c.id;
+              const sales = salesByCoupon[c.id];
               return (
-                <div key={c.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[12.5px] font-bold" style={{ color: "var(--text)" }}>{c.code}</span>
-                      <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded"
-                        style={{ background: c.discountType === "PERCENT" ? "var(--blue-d)" : "var(--green-d)", color: c.discountType === "PERCENT" ? "var(--blue)" : "var(--green)" }}>
-                        {c.discountType}
-                      </span>
-                      <span className="font-mono text-[9.5px] font-bold px-1.5 py-0.5 rounded"
-                        style={{ background: c.isActive ? "var(--green-d)" : "var(--red-d)", color: c.isActive ? "var(--green)" : "var(--red)" }}>
-                        {c.isActive ? "ACTIVE" : "INACTIVE"}
-                      </span>
+                <div key={c.id}>
+                  <div className="flex items-center gap-3 px-4 py-3">
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => toggleSales(c.id)}
+                      title="Click to see sales made with this coupon"
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                          className={`shrink-0 text-[var(--text3)] transition-transform duration-200 ${expanded ? "rotate-90" : ""}`}>
+                          <path d="M9 6l6 6-6 6" />
+                        </svg>
+                        <span className="font-mono text-[12.5px] font-bold" style={{ color: "var(--text)" }}>{c.code}</span>
+                        <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded"
+                          style={{ background: c.discountType === "PERCENT" ? "var(--blue-d)" : "var(--green-d)", color: c.discountType === "PERCENT" ? "var(--blue)" : "var(--green)" }}>
+                          {c.discountType}
+                        </span>
+                        <span className="font-mono text-[9.5px] font-bold px-1.5 py-0.5 rounded"
+                          style={{ background: c.isActive ? "var(--green-d)" : "var(--red-d)", color: c.isActive ? "var(--green)" : "var(--red)" }}>
+                          {c.isActive ? "ACTIVE" : "INACTIVE"}
+                        </span>
+                      </div>
+                      <div className="font-mono text-[10.5px] mt-1" style={{ color: "var(--text3)" }}>
+                        {discountLabel(c)} · {scope} · {c.usedCount} used{c.maxUses ? ` / ${c.maxUses}` : ""}
+                        {c.minOrderAmount != null && ` · min ${formatMoney(c.minOrderAmount, c.currency)}`}
+                      </div>
                     </div>
-                    <div className="font-mono text-[10.5px] mt-1" style={{ color: "var(--text3)" }}>
-                      {discountLabel(c)} · {scope} · {c.usedCount} used{c.maxUses ? ` / ${c.maxUses}` : ""}
-                      {c.minOrderAmount != null && ` · min ${formatMoney(c.minOrderAmount, c.currency)}`}
-                    </div>
+                    <button onClick={() => (c.isActive ? deactivate(c.id) : reactivate(c.id))}
+                      className="font-mono text-[10.5px] font-bold px-2.5 py-1.5 rounded cursor-pointer shrink-0"
+                      style={c.isActive
+                        ? { border: "1px solid var(--border)", color: "var(--red)" }
+                        : { background: "var(--green-d)", color: "var(--green)", border: "1px solid transparent" }}>
+                      {c.isActive ? "Deactivate" : "Activate"}
+                    </button>
+                    <button onClick={() => deleteCoupon(c.id)}
+                      className="font-mono text-[10.5px] font-bold px-2.5 py-1.5 rounded cursor-pointer shrink-0"
+                      style={{ border: "1px solid var(--border)", color: "var(--red)" }}
+                      title="Delete this coupon permanently">
+                      Delete
+                    </button>
                   </div>
-                  <button onClick={() => (c.isActive ? deactivate(c.id) : reactivate(c.id))}
-                    className="font-mono text-[10.5px] font-bold px-2.5 py-1.5 rounded cursor-pointer shrink-0"
-                    style={c.isActive
-                      ? { border: "1px solid var(--border)", color: "var(--red)" }
-                      : { background: "var(--green-d)", color: "var(--green)", border: "1px solid transparent" }}>
-                    {c.isActive ? "Deactivate" : "Activate"}
-                  </button>
+
+                  {expanded && (
+                    <div className="px-4 pb-3">
+                      <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3" style={{ background: "var(--bg)" }}>
+                        {salesLoading === c.id ? (
+                          <div className="font-mono text-[10.5px] py-1" style={{ color: "var(--text3)" }}>Loading sales…</div>
+                        ) : !sales ? (
+                          <div className="font-mono text-[10.5px] py-1" style={{ color: "var(--red)" }}>Could not load sales for this coupon.</div>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-4 mb-2.5">
+                              <span className="font-mono text-[10.5px] font-bold" style={{ color: "var(--text2)" }}>
+                                {sales.totalSales} sale{sales.totalSales !== 1 ? "s" : ""}
+                              </span>
+                              <span className="font-mono text-[10.5px] font-bold" style={{ color: "var(--green)" }}>
+                                {formatMoney(sales.totalDiscount)} total discount
+                              </span>
+                            </div>
+
+                            {sales.items.length === 0 ? (
+                              <div className="font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
+                                No sales yet for this coupon.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-left font-mono text-[10.5px]">
+                                  <thead>
+                                    <tr style={{ color: "var(--text3)" }}>
+                                      <th className="py-1 pr-3 font-semibold">Student</th>
+                                      <th className="py-1 pr-3 font-semibold">Order</th>
+                                      <th className="py-1 pr-3 font-semibold">Subtotal</th>
+                                      <th className="py-1 pr-3 font-semibold">Discount</th>
+                                      <th className="py-1 pr-3 font-semibold">Total</th>
+                                      <th className="py-1 pr-3 font-semibold">Status</th>
+                                      <th className="py-1 font-semibold">Used on</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {sales.items.map((s) => (
+                                      <tr key={s.redemptionId} style={{ color: "var(--text2)", borderTop: "1px solid var(--border)" }}>
+                                        <td className="py-1.5 pr-3">
+                                          {s.student
+                                            ? <>{s.student.name || s.student.email}</>
+                                            : <span style={{ color: "var(--text3)" }}>Deleted user</span>}
+                                        </td>
+                                        <td className="py-1.5 pr-3 text-[var(--blue)]">{s.orderId.slice(0, 8)}</td>
+                                        <td className="py-1.5 pr-3">{formatMoney(s.subtotal, s.currency)}</td>
+                                        <td className="py-1.5 pr-3 text-[var(--green)]">-{formatMoney(s.discountAmount, s.currency)}</td>
+                                        <td className="py-1.5 pr-3">{formatMoney(s.amount, s.currency)}</td>
+                                        <td className="py-1.5 pr-3">
+                                          <span className="font-mono text-[9.5px] font-bold px-1.5 py-0.5 rounded"
+                                            style={{ background: s.orderStatus === "PAID" ? "var(--green-d)" : "var(--orange-d)", color: s.orderStatus === "PAID" ? "var(--green)" : "var(--orange)" }}>
+                                            {s.orderStatus ?? "—"}
+                                          </span>
+                                        </td>
+                                        <td className="py-1.5">{formatDateTime(s.usedAt)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -30,6 +30,9 @@ interface CourseCard {
   tech: string;
   duration: string;
   price: number;
+  originalPrice: number | null;
+  offPct: number;
+  hasDiscount: boolean;
   techStack: string[];
   whatYoullLearn: string[];
   careerTitle: string | null;

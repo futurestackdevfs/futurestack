@@ -23,7 +23,7 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   const pathname = usePathname();
-  const hidden = pathname.startsWith("/my-dashboard");
+  const hidden = pathname.startsWith("/my-dashboard") || pathname.startsWith("/profile");
 
   const openLead = (src: string) => {
     setSource(src);

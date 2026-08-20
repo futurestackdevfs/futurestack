@@ -142,12 +142,43 @@ export class CheckoutService {
       });
     }
 
+    // Double-charge guard: never create a second open order while the user
+    // still has a CREATED order for any of the same courses. Otherwise two
+    // Razorpay orders could both be paid — the 2nd finalize would fail the
+    // enrollment unique constraint, leaving money collected with no access.
+    const openOrder = await this.prisma.order.findFirst({
+      where: {
+        userId,
+        status: 'CREATED',
+        items: { some: { courseId: { in: kept.map((k) => k.courseId) } } },
+      },
+      select: { id: true, totalAmount: true },
+    });
+    if (openOrder) {
+      throw new ConflictException({
+        message:
+          'You already have a pending order for one of these courses. Complete or cancel it before placing another.',
+        orderId: openOrder.id,
+      });
+    }
+
     // Live prices from CoursePrice rows — never trust the frontend.
     // Fall back to the course's base price when no row exists for the currency.
     const priceRows = await this.prisma.coursePrice.findMany({
       where: { courseId: { in: kept.map((k) => k.courseId) }, currency },
     });
     const priceMap = new Map(priceRows.map((p) => [p.courseId, p.amount]));
+
+    // Non-INR orders MUST have an explicit CoursePrice row — the course's base
+    // `price` is INR. Falling back here would silently charge the INR amount as
+    // USD (e.g. ₹5,000 → $5,000), so fail loudly instead.
+    const missingPriced = kept.filter((k) => !priceMap.has(k.courseId));
+    if (currency !== Currency.INR && missingPriced.length > 0) {
+      throw new BadRequestException(
+        'Pricing is not configured for this course in the selected currency — please retry in INR or contact support',
+      );
+    }
+
     const coursePrice = (k: { courseId: string; price: number }) =>
       priceMap.get(k.courseId) ?? k.price;
 

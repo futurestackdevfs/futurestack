@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { OrderStatus, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
@@ -207,6 +208,166 @@ export class AdminService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  /**
+   * Global admin search across the whole platform: courses, users, trainers,
+   * orders, coupons and leads. Used by the ops console top-bar search box —
+   * returns lightweight preview objects grouped by type so the UI can render
+   * a dropdown and deep-link into the right section.
+   */
+  async globalSearch(q: string) {
+    const query = q.trim();
+    if (!query) return { courses: [], users: [], trainers: [], orders: [], coupons: [], leads: [] };
+
+    const contains = { contains: query, mode: 'insensitive' as const };
+
+    const [courses, users, trainers, orders, coupons, leads] = await Promise.all([
+      this.prisma.course.findMany({
+        where: { OR: [{ title: contains }, { code: contains }, { category: contains }] },
+        take: 8,
+        select: {
+          id: true,
+          title: true,
+          code: true,
+          status: true,
+          category: true,
+          price: true,
+          originalPrice: true,
+        },
+      }),
+      this.prisma.user.findMany({
+        where: {
+          OR: [{ name: contains }, { email: contains }, { companyId: contains }],
+        },
+        take: 8,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          companyId: true,
+          isActive: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.user.findMany({
+        where: {
+          role: Role.TRAINER,
+          OR: [{ name: contains }, { email: contains }],
+        },
+        take: 8,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          approvalStatus: true,
+          rating: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.order.findMany({
+        where: {
+          OR: [
+            { id: { contains: query, mode: 'insensitive' } },
+            { razorpayOrderId: contains },
+            { razorpayPaymentId: contains },
+            { billingFullName: contains },
+            { billingEmail: contains },
+            { user: { OR: [{ name: contains }, { email: contains }] } },
+          ],
+        },
+        take: 8,
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          items: { select: { course: { select: { title: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.coupon.findMany({
+        where: { code: { contains: query.toUpperCase() } },
+        take: 8,
+        select: {
+          id: true,
+          code: true,
+          discountType: true,
+          value: true,
+          currency: true,
+          isActive: true,
+          usedCount: true,
+        },
+      }),
+      this.prisma.lead.findMany({
+        where: {
+          OR: [{ name: contains }, { email: contains }, { course: contains }],
+        },
+        take: 8,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          course: true,
+          status: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return {
+      courses: courses.map((c) => ({
+        id: c.id,
+        title: c.title,
+        code: c.code,
+        status: c.status,
+        category: c.category,
+        price: c.price,
+        originalPrice: c.originalPrice,
+      })),
+      users: users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        companyId: u.companyId,
+        isActive: u.isActive,
+      })),
+      trainers: trainers.map((t) => ({
+        id: t.id,
+        name: t.name,
+        email: t.email,
+        approvalStatus: t.approvalStatus ?? 'PENDING',
+        rating: t.rating,
+      })),
+      orders: orders.map((o) => ({
+        id: o.id,
+        orderNo: o.id.slice(0, 8).toUpperCase(),
+        status: o.status,
+        totalAmount: o.totalAmount,
+        currency: o.currency,
+        createdAt: o.createdAt,
+        studentName: o.user?.name ?? o.billingFullName ?? null,
+        studentEmail: o.user?.email ?? o.billingEmail ?? null,
+        courseTitle: o.items[0]?.course.title ?? null,
+      })),
+      coupons: coupons.map((c) => ({
+        id: c.id,
+        code: c.code,
+        discountType: c.discountType,
+        value: c.value,
+        currency: c.currency,
+        isActive: c.isActive,
+        usedCount: c.usedCount,
+      })),
+      leads: leads.map((l) => ({
+        id: l.id,
+        name: l.name,
+        email: l.email,
+        phone: l.phone,
+        course: l.course,
+        status: l.status,
+      })),
+    };
   }
 
   /**
@@ -435,6 +596,35 @@ export class AdminService {
       throw new NotFoundException('User not found');
     }
 
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+
+    if (user.role === Role.STUDENT) {
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const hashedToken = crypto
+        .createHash('sha256')
+        .update(rawToken)
+        .digest('hex');
+      const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          passwordResetToken: hashedToken,
+          passwordResetExpires: expires,
+          passwordExpiresAt: null,
+        },
+      });
+
+      const resetUrl = `${frontendUrl}/auth/reset-password?token=${rawToken}&portal=student`;
+      await this.mailService.sendPasswordResetEmail(user.email, resetUrl);
+
+      return {
+        message: `A password reset link has been emailed to ${user.email}.`,
+        emailSent: true,
+      };
+    }
+
     const tempPassword = this.generateTempPassword();
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
@@ -447,8 +637,6 @@ export class AdminService {
       },
     });
 
-    const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
     const loginUrl = `${frontendUrl}/auth/staff-login`;
 
     await this.mailService.sendPasswordRegeneratedEmail(user.email, {

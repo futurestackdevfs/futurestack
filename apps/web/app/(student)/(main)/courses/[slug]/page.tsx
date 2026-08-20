@@ -29,6 +29,9 @@ interface CourseDetail {
   description: string;
   thumbnailUrl: string | null;
   price: number;
+  originalPrice: number | null;
+  offPct: number;
+  hasDiscount: boolean;
   whatYoullLearn: string[];
   techStack: string[];
   careerTitle: string | null;
@@ -119,11 +122,13 @@ function ratingDistribution(rating: number): number[] {
   return [p5, p4, p3, p2, p1];
 }
 
-/** One-time vs "regular" price — derived from the live course price. */
-function pricePair(price: number) {
-  const regular = Math.round(price / 0.6 / 100) * 100;
-  const save = Math.max(0, regular - price);
-  return { regular, save };
+/** One-time vs "regular" price — driven by the real originalPrice when the
+ *  course is on sale (admin-set), otherwise falls back to a simple display. */
+function pricePair(course: { price: number; originalPrice: number | null; offPct: number; hasDiscount: boolean }) {
+  if (course.hasDiscount && course.originalPrice != null && course.originalPrice > course.price) {
+    return { regular: course.originalPrice, save: course.originalPrice - course.price };
+  }
+  return { regular: course.price, save: 0 };
 }
 
 /* ── Little SVG icons ────────────────────────────── */
@@ -434,7 +439,7 @@ export default function CourseDetailPage() {
     return { section: s, items, index: si };
   });
 
-  const { regular: regularPrice, save: saveAmount } = pricePair(course.price);
+  const { regular: regularPrice, save: saveAmount } = pricePair(course);
   const bars = ratingDistribution(course.rating);
 
   const faqs = [
@@ -811,11 +816,20 @@ export default function CourseDetailPage() {
           {/* Pricing */}
           <div className="bg-white dark:bg-[#111520] border border-[var(--border)] dark:border-[#1e2535] rounded-2xl overflow-hidden shadow-[var(--shadow-lg)] dark:shadow-[var(--shadow-lg)]">
             <div className="p-5 pb-4 border-b border-[var(--border)] dark:border-[#1e2535]">
-              <div className="text-[13px] text-[#9CA3AF] dark:text-[#7a859a] line-through mb-0.5">{fmtINR(regularPrice)} <span className="not-italic text-[#9CA3AF]">one-time</span></div>
+              {saveAmount > 0 ? (
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <div className="text-[13px] text-[#9CA3AF] dark:text-[#7a859a] line-through">{fmtINR(regularPrice)} <span className="not-italic text-[#9CA3AF]">one-time</span></div>
+                  {course.offPct > 0 && (
+                    <span className="rounded-full px-2 py-[2px] text-[10px] font-extrabold text-white" style={{ background: "#16A34A" }}>{course.offPct}% off</span>
+                  )}
+                </div>
+              ) : (
+                <div className="text-[11px] text-[#9CA3AF] dark:text-[#7a859a] mb-0.5">One-time payment</div>
+              )}
               <div className="flex items-end gap-1.5 mb-1">
                 <span className="text-[36px] font-extrabold text-[#0D1F5C] dark:text-[#e8eaf0] font-['Instrument_Serif',serif] leading-none">{fmtINR(course.price)}</span>
               </div>
-              {saveAmount > 0 && <div className="text-[12px] font-bold text-[#16A34A] dark:text-[#22C55E]">✓ Save {fmtINR(saveAmount)} — limited-time price</div>}
+              {saveAmount > 0 && <div className="text-[12px] font-bold text-[#16A34A] dark:text-[#22C55E]">✓ Save {fmtINR(saveAmount)}</div>}
             </div>
 
             <div className="p-4 border-b border-[var(--border)] dark:border-[#1e2535]">

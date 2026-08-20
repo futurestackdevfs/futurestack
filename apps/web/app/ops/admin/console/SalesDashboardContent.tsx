@@ -118,7 +118,7 @@ interface SalesStaff {
   avgValue: number;
 }
 
-export default function SalesDashboardContent({ onAddStaff, addLabel }: { onAddStaff?: () => void; addLabel?: string }) {
+export default function SalesDashboardContent({ onAddStaff, addLabel, searchQuery = "" }: { onAddStaff?: () => void; addLabel?: string; searchQuery?: string }) {
   const [leads, setLeads] = useState<SalesLead[]>([]);
   const [publicLeads, setPublicLeads] = useState<SalesLead[]>([]);
   const [salesStaff, setSalesStaff] = useState<SalesStaff[]>([]);
@@ -205,21 +205,23 @@ export default function SalesDashboardContent({ onAddStaff, addLabel }: { onAddS
 
   const filtered = useMemo(() => {
     let rows = leads;
-    if (search) {
-      const q = search.toLowerCase();
-      rows = rows.filter((l) => Object.values(l).some((v) => String(v).toLowerCase().includes(q)));
+    const q = search.toLowerCase().trim();
+    const eq = searchQuery.toLowerCase().trim();
+    if (q || eq) {
+      rows = rows.filter((l) => Object.values(l).some((v) => String(v).toLowerCase().includes(q) || String(v).toLowerCase().includes(eq)));
     }
     return rows;
-  }, [leads, search]);
+  }, [leads, search, searchQuery]);
 
   const filteredPublic = useMemo(() => {
     let rows = publicLeads;
-    if (search) {
-      const q = search.toLowerCase();
-      rows = rows.filter((l) => Object.values(l).some((v) => String(v).toLowerCase().includes(q)));
+    const q = search.toLowerCase().trim();
+    const eq = searchQuery.toLowerCase().trim();
+    if (q || eq) {
+      rows = rows.filter((l) => Object.values(l).some((v) => String(v).toLowerCase().includes(q) || String(v).toLowerCase().includes(eq)));
     }
     return rows;
-  }, [publicLeads, search]);
+  }, [publicLeads, search, searchQuery]);
 
   const staffPaged = usePaged(salesStaff);
   const pipelinePaged = usePaged(filtered);
