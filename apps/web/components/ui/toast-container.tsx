@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { TOAST_EVENT } from '@/lib/toast';
 import { refreshSession } from '@/app/auth/lib/refresh-session';
+import { saveToken, saveStaffToken } from '@/app/auth/lib/token-store';
 
 type ToastItem = { id: number; message: string; phase: 'enter' | 'visible' | 'exit' };
 
@@ -92,9 +93,11 @@ export function ToastContainer() {
                     if (refreshed?.accessToken) {
                       const { accessToken } = refreshed;
                       const uid = JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub;
-                      const saveKey = isOps ? 'fs_staff_uid' : 'fs_uid';
-                      localStorage.setItem(saveKey, uid);
-                      localStorage.setItem(isOps ? 'fs_token_staff' : 'fs_token', accessToken);
+                      if (isOps) {
+                        await saveStaffToken(uid, accessToken);
+                      } else {
+                        await saveToken(uid, accessToken);
+                      }
                       await fetch(isOps ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
                         method: 'POST',
                         headers: { 'content-type': 'application/json' },

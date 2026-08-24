@@ -127,10 +127,14 @@ export class AuthService {
     return { accessToken, newRawRefreshToken, user: safeUser };
   }
 
-  async logout(rawToken: string): Promise<void> {
-    if (!rawToken) return;
-    const hash = this.hashToken(rawToken);
-    await this.prisma.refreshToken.deleteMany({ where: { tokenHash: hash } });
+  async logout(rawToken: string, userId?: string): Promise<void> {
+    // Revoke ALL refresh tokens for this user (not just the one used to logout)
+    if (userId) {
+      await this.prisma.refreshToken.deleteMany({ where: { userId } });
+    } else if (rawToken) {
+      const hash = this.hashToken(rawToken);
+      await this.prisma.refreshToken.deleteMany({ where: { tokenHash: hash } });
+    }
   }
 
   private signToken(user: SafeUser) {

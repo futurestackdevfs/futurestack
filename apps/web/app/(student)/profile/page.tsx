@@ -464,7 +464,7 @@ export default function ProfilePage() {
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => { logout(); router.push('/'); }}
+                    onClick={async () => { await logout(); router.push('/'); }}
                     className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-semibold text-[var(--muted)] bg-[var(--bg)] border border-[var(--border)] hover:text-red-500 hover:border-red-300 dark:hover:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-950/20 transition-all duration-200 cursor-pointer"
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>

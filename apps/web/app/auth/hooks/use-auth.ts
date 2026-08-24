@@ -153,14 +153,16 @@ export function useAuth() {
     } catch {
       // Backend logout is best-effort — always clear local state
     }
-    const isOps = window.location.pathname.startsWith('/ops');
-    if (isOps) {
-      await clearStaffToken();
-      await clearSessionCookie('staff');
-    } else {
-      await clearToken();
-      await clearSessionCookie();
-    }
+    // Clear ALL tokens (both student and staff) — don't rely on current path
+    try { await clearToken(); } catch {}
+    try { await clearSessionCookie(); } catch {}
+    try { await clearStaffToken(); } catch {}
+    try { await clearSessionCookie('staff'); } catch {}
+    // Clean up any residual localStorage keys
+    try { localStorage.removeItem('fs_token'); } catch {}
+    try { localStorage.removeItem('fs_token_staff'); } catch {}
+    try { localStorage.removeItem('fs-admin-id'); } catch {}
+    try { localStorage.removeItem('fs_billing'); } catch {}
     bootstrapped = false;
     emit({ user: null, isAuthenticated: false, isLoading: false });
   }, []);
