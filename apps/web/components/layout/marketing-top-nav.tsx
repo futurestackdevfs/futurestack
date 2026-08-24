@@ -607,38 +607,18 @@ export function TopNav() {
             { href: "/certificates", label: "Certifications" },
             { href: "/live-projects", label: "Live Projects" },
             { href: "/r-and-d", label: "R&D Services" },
-          ].map((link) => {
-            const locked = link.requiresAuth && !isAuthenticated && !isLoading;
-            return (
+          ].map((link) => (
               <div key={link.label} className="px-2">
-                {locked ? (
-                  <button
-                    onClick={() => {
-                      setMobileOpen(false);
-                      if (pathname === '/') {
-                        window.dispatchEvent(new CustomEvent('fs:highlight-login'));
-                      } else {
-                        router.push('/#student-login');
-                      }
-                    }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12.5px] font-medium text-[var(--muted)] opacity-50 cursor-not-allowed select-none border-none bg-transparent text-left"
-                    title="Sign in to view your dashboard"
-                  >
-                    {link.label}
-                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0 ml-auto"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
-                  </button>
-                ) : (
-                  <Link
-                    href={link.href}
-                    onClick={() => setMobileOpen(false)}
-                    className="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12.5px] font-medium text-[var(--text2)] hover:text-[var(--blue)] hover:bg-[var(--blue-dim)] transition-colors"
-                  >
-                    {link.label}
-                  </Link>
-                )}
+                <Link
+                  href={link.href}
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-md text-[12.5px] font-medium text-[var(--text2)] hover:text-[var(--blue)] hover:bg-[var(--blue-dim)] transition-colors"
+                >
+                  {link.label}
+                </Link>
               </div>
-            );
-          })}
+            ))
+          }
         </div>
 
         <div className="border-t border-[var(--border)] mx-3" />
