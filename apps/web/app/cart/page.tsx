@@ -811,21 +811,43 @@ export default function CartPage() {
                 {/* Order summary */}
                 <Card className="p-5 lg:sticky lg:top-[76px]">
                   <div className="font-['Inter_Tight',sans-serif] text-base font-extrabold text-[var(--text)] mb-3.5">Order Summary</div>
-                  <div className="flex flex-col gap-2.5 text-[13px]">
-                    <div className="flex justify-between"><span className="text-[var(--text2)]">Subtotal ({totalCount} items)</span><span className="text-[var(--text)] font-semibold">{formatPrice(subtotal, activeCurrency)}</span></div>
-                    {coupon && (
-                      <div className="flex justify-between">
-                        <span className="text-[var(--text2)]">Promo ({coupon.code})</span>
-                        <span className="text-[var(--green)] font-semibold">−{formatPrice(discountAmount, activeCurrency)}</span>
+
+                  {(() => {
+                    const totalOriginal = items.reduce((sum, item) => sum + (item.originalPrice ?? item.price), 0);
+                    const courseDiscount = Math.max(0, totalOriginal - subtotal);
+                    return (
+                      <div className="flex flex-col gap-2.5 text-[13px]">
+                        {totalOriginal > subtotal && (
+                          <div className="flex justify-between">
+                            <span className="text-[var(--text2)]">Original Price</span>
+                            <span className="text-[var(--text)] font-semibold line-through">{formatPrice(totalOriginal, activeCurrency)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-[var(--text2)]">Subtotal ({totalCount} items)</span>
+                          <span className="text-[var(--text)] font-semibold">{formatPrice(subtotal, activeCurrency)}</span>
+                        </div>
+                        {courseDiscount > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-[var(--green)]">Course Discount</span>
+                            <span className="text-[var(--green)] font-semibold">−{formatPrice(courseDiscount, activeCurrency)}</span>
+                          </div>
+                        )}
+                        {coupon && (
+                          <div className="flex justify-between">
+                            <span className="text-[var(--green)]">Promo ({coupon.code})</span>
+                            <span className="text-[var(--green)] font-semibold">−{formatPrice(discountAmount, activeCurrency)}</span>
+                          </div>
+                        )}
+                        {gstPercent > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-[var(--text2)]">GST ({gstPercent}%)</span>
+                            <span className="text-[var(--text)] font-semibold">{formatPrice(gstAmount, activeCurrency)}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {gstPercent > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-[var(--text2)]">GST ({gstPercent}%)</span>
-                        <span className="text-[var(--text)] font-semibold">{formatPrice(gstAmount, activeCurrency)}</span>
-                      </div>
-                    )}
-                  </div>
+                    );
+                  })()}
 
                   {!coupon ? (
                     <div className="flex flex-col gap-1.5 mt-4">
@@ -849,10 +871,17 @@ export default function CartPage() {
                   )}
 
                   <div className="h-px bg-[var(--border)] my-3.5" />
-                  <div className="flex justify-between items-baseline mb-4">
+                  <div className="flex justify-between items-baseline mb-1">
                     <span className="font-['Inter_Tight',sans-serif] text-[15px] font-bold text-[var(--text)]">Total</span>
                     <span className="font-['Inter_Tight',sans-serif] text-[28px] font-extrabold text-[var(--text)] tracking-[-.01em]">{formatPrice(total, activeCurrency)}</span>
                   </div>
+                  {(() => {
+                    const totalOriginal = items.reduce((sum, item) => sum + (item.originalPrice ?? item.price), 0);
+                    const totalSavings = Math.max(0, totalOriginal - subtotal) + discountAmount;
+                    return totalSavings > 0 ? (
+                      <div className="text-right text-[11px] font-bold text-[var(--green)] mb-3">You save {formatPrice(totalSavings, activeCurrency)} 🎉</div>
+                    ) : <div className="mb-3" />;
+                  })()}
 
                   <button className={primaryBtnCls} onClick={() => goToStep(2)} disabled={processing}>
                     Proceed to Checkout

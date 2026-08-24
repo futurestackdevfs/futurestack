@@ -162,25 +162,8 @@ export class CheckoutService {
       });
     }
 
-    // Live prices from CoursePrice rows — never trust the frontend.
-    // Fall back to the course's base price when no row exists for the currency.
-    const priceRows = await this.prisma.coursePrice.findMany({
-      where: { courseId: { in: kept.map((k) => k.courseId) }, currency },
-    });
-    const priceMap = new Map(priceRows.map((p) => [p.courseId, p.amount]));
-
-    // Non-INR orders MUST have an explicit CoursePrice row — the course's base
-    // `price` is INR. Falling back here would silently charge the INR amount as
-    // USD (e.g. ₹5,000 → $5,000), so fail loudly instead.
-    const missingPriced = kept.filter((k) => !priceMap.has(k.courseId));
-    if (currency !== Currency.INR && missingPriced.length > 0) {
-      throw new BadRequestException(
-        'Pricing is not configured for this course in the selected currency — please retry in INR or contact support',
-      );
-    }
-
-    const coursePrice = (k: { courseId: string; price: number }) =>
-      priceMap.get(k.courseId) ?? k.price;
+    // Live prices from Course — never trust the frontend.
+    const coursePrice = (k: { courseId: string; price: number }) => k.price;
 
     const subtotal = this.round2(
       kept.reduce((sum, k) => sum + Math.round(coursePrice(k) * 100), 0) / 100,

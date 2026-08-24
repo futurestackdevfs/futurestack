@@ -32,29 +32,25 @@ export class WishlistService {
     const items = await this.prisma.wishlistItem.findMany({
       where: { wishlistId: wishlist.id },
       include: {
-        course: { select: { id: true, title: true, thumbnailUrl: true } },
+        course: {
+          select: {
+            id: true,
+            title: true,
+            thumbnailUrl: true,
+            price: true,
+            originalPrice: true,
+          },
+        },
       },
       orderBy: { addedAt: 'asc' },
     });
 
-    const courseIds = items.map((i) => i.courseId);
-    const priceRows =
-      courseIds.length > 0
-        ? await this.prisma.coursePrice.findMany({
-            where: { courseId: { in: courseIds }, currency: 'INR' },
-          })
-        : [];
-    const priceMap = new Map(
-      priceRows.map((p) => [p.courseId, { price: p.amount, originalPrice: p.originalPrice }]),
-    );
-
     return {
       items: items.map((i) => {
-        const row = priceMap.get(i.courseId);
-        const price = row?.price ?? null;
-        const originalPrice = row?.originalPrice ?? null;
+        const price = i.course.price;
+        const originalPrice = i.course.originalPrice ?? null;
         let offPct = 0;
-        if (originalPrice != null && price != null && originalPrice > price) {
+        if (originalPrice != null && originalPrice > price) {
           offPct = Math.min(99, Math.round(((originalPrice - price) / originalPrice) * 100));
         }
         return {

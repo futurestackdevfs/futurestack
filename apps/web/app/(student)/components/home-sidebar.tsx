@@ -8,11 +8,11 @@ import { Achievements } from "./achievements";
 import { CareerGuidanceCard } from "./career-guidance";
 import Link from "next/link";
 
-export function HomeSidebar() {
+export function HomeSidebar({ className }: { className?: string }) {
   const { isAuthenticated, isLoading, user } = useAuth();
 
   return (
-    <aside className="flex flex-col gap-5.5 border-l border-[var(--border)] bg-[var(--surface)] px-2.5 py-3 w-[295px] shrink-0 max-lg:border-l-0 max-lg:border-t max-lg:w-full">
+    <aside className={`flex flex-col gap-5.5 border-l border-[var(--border)] bg-[var(--surface)] px-2.5 py-3 w-[295px] shrink-0 max-lg:border-l-0 max-lg:border-t max-lg:w-full ${className || ""}`}>
       {isLoading ? (
         /* Skeleton while auth resolves */
         <div className="w-full max-w-[280px] rounded-[20px] border-2 border-[var(--border)] p-4 animate-pulse">

@@ -169,7 +169,6 @@ model Course {
   averageRating Float @default(0)
   reviewCount   Int   @default(0)
 
-  coursePrices    CoursePrice[]
   cartItems       CartItem[]
   wishlistItems   WishlistItem[]
   orderItems      OrderItem[]
@@ -401,17 +400,6 @@ model HeroSlide {
   displayOrder Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-}
-
-model CoursePrice {
-  id       String   @id @default(uuid())
-  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId String
-  currency Currency
-  amount   Float
-  originalPrice Float?
-
-  @@unique([courseId, currency])
 }
 
 model Cart {

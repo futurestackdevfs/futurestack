@@ -113,11 +113,11 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
                 <div className="font-['JetBrains_Mono',monospace] text-[8px] text-[#6b7280] dark:text-[#7a859a]">Level</div>
               </div>
             </div>
-            <div className="flex flex-col max-md:flex-row max-md:gap-3 gap-2">
+            {/* <div className="flex flex-col max-md:flex-row max-md:gap-3 gap-2">
               <div className="flex items-center gap-[7px]"><span className="text-sm">⚡</span><div><div className="font-['Syne',sans-serif] text-[13px] font-bold text-[#111827] dark:text-[#e8eaf0] leading-none">1,240</div><div className="font-['JetBrains_Mono',monospace] text-[9px] text-[#6b7280] dark:text-[#7a859a]">Total XP</div></div></div>
               <div className="flex items-center gap-[7px]"><span className="text-sm">🔥</span><div><div className="font-['Syne',sans-serif] text-[13px] font-bold text-[#111827] dark:text-[#e8eaf0] leading-none">14</div><div className="font-['JetBrains_Mono',monospace] text-[9px] text-[#6b7280] dark:text-[#7a859a]">Day Streak</div></div></div>
               <div className="flex items-center gap-[7px]"><span className="text-sm">🏅</span><div><div className="font-['Syne',sans-serif] text-[13px] font-bold text-[#111827] dark:text-[#e8eaf0] leading-none">3</div><div className="font-['JetBrains_Mono',monospace] text-[9px] text-[#6b7280] dark:text-[#7a859a]">Certificates</div></div></div>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

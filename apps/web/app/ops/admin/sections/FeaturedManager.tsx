@@ -464,6 +464,9 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
           <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>
             {featuredHeroSlides.length}/{HERO_SLOT_COUNT} filled — auto-slides every 5s on homepage
           </span>
+          <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>
+            Best: 1920 × 400px · landscape
+          </span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {slots.map((item, i) => (

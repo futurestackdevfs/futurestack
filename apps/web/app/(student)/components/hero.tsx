@@ -72,13 +72,11 @@ export function Hero() {
 
   if (!isLoading && slides.length === 0) {
     return (
-      <section className="relative hidden min-h-[270px] items-center overflow-hidden rounded-2xl border border-white/6 bg-[var(--hero-bg)] shadow-[var(--shadow-lg)] [animation:fadeUp_.5s_ease_both] md:flex">
+      <section className="relative hidden items-center overflow-hidden rounded-2xl border border-white/6 bg-[var(--hero-bg)] shadow-[var(--shadow-lg)] [animation:fadeUp_.5s_ease_both] md:flex" style={{ height: 307 }}>
         <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 60% 50%, rgba(45,126,247,.2) 0%, transparent 60%), radial-gradient(ellipse at 90% 30%, rgba(255,106,26,.14) 0%, transparent 50%)" }}>
           <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-          <div className="relative flex h-[380px] w-full items-center justify-center overflow-hidden rounded-xl">
-            <Image src="/images/mainbanner.png" alt="Technology" fill priority sizes="(max-width: 1200px) 100vw, 1200px" className="object-fill" />
-          </div>
         </div>
+          <img src="/images/mainbanner.png" alt="Technology" className="relative block w-full" style={{ height: 307, objectFit: "fill" }} />
       </section>
     );
   }
@@ -87,7 +85,8 @@ export function Hero() {
 
   return (
     <section
-      className="relative hidden min-h-[270px] items-center overflow-hidden rounded-2xl border border-white/6 bg-[var(--hero-bg)] shadow-[var(--shadow-lg)] [animation:fadeUp_.5s_ease_both] md:flex"
+      className="relative hidden items-center overflow-hidden rounded-2xl border border-white/6 bg-[var(--hero-bg)] shadow-[var(--shadow-lg)] [animation:fadeUp_.5s_ease_both] md:flex"
+      style={{ height: 307 }}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
@@ -95,17 +94,14 @@ export function Hero() {
         <div className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
       </div>
 
-      <div className="relative z-10 flex h-[380px] w-full items-center justify-center overflow-hidden rounded-xl">
+      <div className="relative z-10 h-full w-full overflow-hidden rounded-xl">
         {slides.map((s, i) => (
-          <Image
+          <img
             key={s.id}
             src={s.imageUrl}
             alt={s.title || ""}
-            fill
-            priority={i === 0}
-            sizes="(max-width: 1200px) 100vw, 1200px"
-            className="object-fill transition-opacity duration-700"
-            style={{ opacity: i === current ? 1 : 0 }}
+            className="absolute inset-0 block w-full transition-opacity duration-700"
+            style={{ height: 307, objectFit: "fill", opacity: i === current ? 1 : 0 }}
           />
         ))}
       </div>
