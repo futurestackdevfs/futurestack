@@ -604,11 +604,9 @@ export function TopNav() {
         <div className="py-1">
           {[
             { href: "/courses", label: "Courses" },
-            { href: "/courses", label: "Career Paths" },
             { href: "/certificates", label: "Certifications" },
-            { href: "/live-classes", label: "Live Classes" },
-            { href: "/jobs", label: "Jobs" },
-            { href: "/my-dashboard", label: "My Dashboard", requiresAuth: true },
+            { href: "/live-projects", label: "Live Projects" },
+            { href: "/r-and-d", label: "R&D Services" },
           ].map((link) => {
             const locked = link.requiresAuth && !isAuthenticated && !isLoading;
             return (

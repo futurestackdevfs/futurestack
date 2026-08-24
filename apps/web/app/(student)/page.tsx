@@ -86,7 +86,7 @@ export default function StudentPage() {
         <main className="flex flex-col gap-2.5 flex-[3] min-h-0 pt-1 pb-1">
           <Hero />
           <PopularCourses />
-          <CareerPaths />
+          <div className="hidden md:block"><CareerPaths /></div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 [animation:fadeUp_.5s_.23s_ease_both]">
             {ctaCards.map((card) => (
@@ -141,7 +141,7 @@ export default function StudentPage() {
           </div>
         </main>
 
-        <HomeSidebar />
+        <HomeSidebar className="order-last" />
       </div>
     </div>
   );

@@ -178,7 +178,7 @@ function SubHeading({ children }: { children: React.ReactNode }) {
 
 function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`bg-white dark:bg-[#111520] border border-[var(--border)] dark:border-[#1e2535] rounded-xl p-5 md:p-[22px_24px] shadow-sm mb-4 ${className}`}>
+    <div className={`bg-white dark:bg-[#111520] border border-[var(--border)] dark:border-[#1e2535] rounded-xl p-3 sm:p-5 md:p-[22px_24px] shadow-sm mb-4 ${className}`}>
       {children}
     </div>
   );
@@ -469,7 +469,7 @@ export default function CourseDetailPage() {
 
       {/* ══ BREADCRUMB ══ */}
       <div className="max-w-[1700px] mx-auto px-3 md:px-6 pt-3">
-        <div className="flex items-center gap-[6px] text-[12.5px] text-[#6B7280] dark:text-[#7a859a]">
+        <div className="flex items-center gap-[6px] text-[11px] sm:text-[12.5px] text-[#6B7280] dark:text-[#7a859a] overflow-x-auto">
           <Link href="/" className="hover:text-[#2952CC] transition-colors">Home</Link>
           <span className="text-[#D1D5DB]">/</span>
           <Link href="/courses" className="hover:text-[#2952CC] transition-colors">Courses</Link>
@@ -479,8 +479,8 @@ export default function CourseDetailPage() {
       </div>
 
       {/* ══ CINEMATIC HERO ══ */}
-      <section className="relative overflow-hidden mt-3 bg-[linear-gradient(120deg,#07153D_0%,#0D1F5C_55%,#1e45b8_100%)] py-10 md:py-[56px]">
-        <div className="max-w-[1700px] mx-auto px-3 md:px-6 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-9 lg:gap-14 items-center relative z-[1]">
+      <section className="relative overflow-hidden mt-3 bg-[linear-gradient(120deg,#07153D_0%,#0D1F5C_55%,#1e45b8_100%)] py-6 md:py-10 lg:py-[56px]">
+        <div className="max-w-[1700px] mx-auto px-3 md:px-6 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6 lg:gap-14 items-center relative z-[1]">
           <div>
             <div className="inline-flex items-center gap-1.5 bg-[rgba(255,255,255,.1)] border border-[rgba(255,255,255,.15)] px-3 py-[5px] rounded-[20px] text-[11.5px] font-semibold text-[rgba(255,255,255,.85)] uppercase tracking-[.4px] mb-3.5" style={{ animation: 'fadeUp .5s ease both' }}>
               <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
@@ -536,13 +536,13 @@ export default function CourseDetailPage() {
       <div className="max-w-[1700px] mx-auto px-3 md:px-6 pt-6 md:pt-9 pb-10 md:pb-[60px] grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-5 md:gap-7 items-start">
         <main className="min-w-0">
           {/* Tabs */}
-          <div className="flex gap-0 bg-white dark:bg-[#111520] border border-[var(--border)] dark:border-[#1e2535] rounded-xl p-1 mb-4 shadow-sm">
+          <div className="flex gap-0 bg-white dark:bg-[#111520] border border-[var(--border)] dark:border-[#1e2535] rounded-xl p-1 mb-4 shadow-sm overflow-x-auto">
             {[
               { id: "overview", label: "Overview" },
               { id: "curriculum", label: "Curriculum" },
               { id: "projects", label: "Projects" },
-              { id: "reviews", label: "Reviews" },
-            ].map((tab) => (
+              { id: "reviews", label: "Reviews", hideOnMobile: true },
+            ].filter(tab => !(tab as any).hideOnMobile).map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
@@ -553,6 +553,15 @@ export default function CourseDetailPage() {
                 {tab.label}
               </button>
             ))}
+            {/* Reviews tab - hidden on mobile, shown on desktop */}
+            <button
+              onClick={() => setActiveTab("reviews")}
+              className={`hidden md:flex flex-1 py-[9px] px-3 rounded-[10px] text-[13px] font-semibold text-center transition-all ${activeTab === "reviews"
+                  ? "bg-[linear-gradient(135deg,#1A3BA0_0%,#2952CC_100%)] text-white shadow-[0_2px_8px_rgba(41,82,204,.3)]"
+                  : "text-[#6B7280] dark:text-[#7a859a] hover:bg-[var(--bg)] hover:text-[#111827] dark:hover:text-[#e8eaf0]"
+                }`}>
+              Reviews
+            </button>
           </div>
 
           {/* ══ OVERVIEW ══ */}
@@ -809,10 +818,99 @@ export default function CourseDetailPage() {
               )}
             </SectionCard>
           )}
+
+          {/* ══ REVIEWS - Mobile only (at bottom) ══ */}
+          {activeTab !== "reviews" && (
+            <div className="md:hidden mt-6">
+              <SectionCard>
+                <SectionTitle>Student Reviews</SectionTitle>
+
+                <div className="flex flex-col sm:flex-row gap-5 items-center mb-5 p-4 bg-[#F9FAFB] dark:bg-[#0b0e14] rounded-[10px] border border-[var(--border)] dark:border-[#1e2535]">
+                  <div className="text-center flex-shrink-0">
+                    <div className="text-[42px] font-extrabold text-[#0D1F5C] dark:text-[#e8eaf0] leading-none font-['Instrument_Serif',serif] italic">{course.rating.toFixed(1)}</div>
+                    <StarRating value={course.rating} size={12} />
+                    <div className="text-[12px] text-[#6B7280] dark:text-[#7a859a] mt-1">{displayReviewCount} reviews</div>
+                  </div>
+                  <div className="flex-1 w-full max-w-[340px]">
+                    {[5, 4, 3, 2, 1].map((star, idx) => (
+                      <div key={star} className="flex items-center gap-2 mb-[5px]">
+                        <span className="text-[12px] text-[#4B5563] dark:text-[#7a859a] w-[12px] text-right">{star}</span>
+                        <div className="flex-1 h-[6px] bg-[#E5E7EB] dark:bg-[#1e2535] rounded-[3px] overflow-hidden">
+                          <div className="h-full bg-[linear-gradient(90deg,#F59E0B,#FBBF24)] rounded-[3px]" style={{ width: `${bars[idx]}%` }}></div>
+                        </div>
+                        <span className="text-[11px] text-[#6B7280] dark:text-[#7a859a] w-[30px]">{bars[idx]}%</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {isAuthenticated && (
+                  <>
+                    {myReview && !showReviewForm ? (
+                      <div className="border border-[var(--border)] dark:border-[#1e2535] rounded-2xl p-4 mb-4 bg-[#F9FAFB] dark:bg-[#0b0e14]">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <StarRating value={myReview.rating} size={14} />
+                            <span className="text-[12px] font-bold text-[#111827] dark:text-[#e8eaf0]">Your Review</span>
+                          </div>
+                          <button onClick={() => setShowReviewForm(true)} className="text-[11px] font-bold text-white bg-[linear-gradient(135deg,#0D1F5C,#2952CC)] px-3 py-[3px] rounded-[6px] cursor-pointer transition-all hover:shadow-md hover:-translate-y-px shadow-sm">Edit</button>
+                        </div>
+                        {myReview.comment && <div className="text-[13px] text-[#4B5563] dark:text-[#b0bac9] leading-[1.6]">{myReview.comment}</div>}
+                      </div>
+                    ) : showReviewForm ? (
+                      <ReviewForm
+                        initialRating={myReview?.rating ?? 5}
+                        initialComment={myReview?.comment ?? ''}
+                        isEditing={!!myReview}
+                        onSubmit={handleReviewFormSubmit}
+                        onCancel={() => setShowReviewForm(false)}
+                      />
+                    ) : (
+                      <button onClick={() => setShowReviewForm(true)} className="w-full mb-4 py-[10px] rounded-[10px] bg-[linear-gradient(135deg,#1A3BA0,#2952CC)] text-white text-[13px] font-bold cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 shadow-sm">
+                        ✍ Write a Review
+                      </button>
+                    )}
+                  </>
+                )}
+
+                {reviewsLoading ? (
+                  <div className="text-center py-8 text-[#6B7280] dark:text-[#7a859a] text-[13px]">Loading reviews…</div>
+                ) : reviews.length === 0 ? (
+                  <div className="text-center py-8 text-[#6B7280] dark:text-[#7a859a] text-[13px]">No reviews yet. Be the first!</div>
+                ) : (
+                  <div className="flex flex-col gap-2.5">
+                    {reviews.slice(0, 3).map((review) => (
+                      <div key={review.id} className="border border-[var(--border)] dark:border-[#1e2535] rounded-[10px] p-4 bg-white dark:bg-[#111520] transition-colors hover:border-[#C7D8FF] dark:hover:border-[#2d3358]">
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-9 h-9 rounded-full bg-[linear-gradient(135deg,#1A3BA0,#2952CC)] flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0">
+                            {review.student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[13px] font-bold text-[#111827] dark:text-[#e8eaf0] truncate">{review.student.name}</div>
+                            <div className="flex items-center gap-2">
+                              <StarRating value={review.rating} size={11} />
+                              <span className="text-[11px] text-[#9CA3AF] dark:text-[#7a859a]">{new Date(review.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                            </div>
+                          </div>
+                        </div>
+                        {review.comment && <div className="text-[13px] text-[#4B5563] dark:text-[#b0bac9] leading-[1.65] ml-[45px]">{review.comment}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {reviewsTotal > 3 && (
+                  <button onClick={() => setActiveTab("reviews")} className="w-full mt-4 py-2.5 rounded-[8px] bg-[#EEF2FF] dark:bg-[#1a1f3a] border border-[#C7D8FF] dark:border-[#2d3358] text-[#2952CC] dark:text-[#60a5fa] text-[12px] font-bold cursor-pointer transition-all hover:bg-[#E0E9FF] dark:hover:bg-[#141a30]">
+                    View All {reviewsTotal} Reviews →
+                  </button>
+                )}
+              </SectionCard>
+            </div>
+          )}
         </main>
 
         {/* ══ RIGHT SIDEBAR ══ */}
-        <aside className="lg:sticky lg:top-[76px] flex flex-col gap-4">
+        <aside className="lg:sticky lg:top-[76px] flex flex-col gap-4 order-first lg:order-last">
           {/* Pricing */}
           <div className="bg-white dark:bg-[#111520] border border-[var(--border)] dark:border-[#1e2535] rounded-2xl overflow-hidden shadow-[var(--shadow-lg)] dark:shadow-[var(--shadow-lg)]">
             <div className="p-5 pb-4 border-b border-[var(--border)] dark:border-[#1e2535]">

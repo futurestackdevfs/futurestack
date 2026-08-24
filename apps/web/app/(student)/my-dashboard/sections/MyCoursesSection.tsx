@@ -55,13 +55,6 @@ const CARD_COLORS = [
 
 const EMOJIS = ["⚛️", "🐍", "📊", "🎨", "🧠", "☁️", "📱", "🔧", "🗄️", "🛡️", "📈", "🌐"];
 
-const STATIC_SESSIONS = [
-  { day: "18", dow: "WED", name: "MERN — React Hooks Live Q&A", meta: "10:00 AM · Aakash Verma · 90 min", tag: "Live", tagStyle: { background: "rgba(34,197,94,.15)", color: "var(--green)" } },
-  { day: "20", dow: "FRI", name: "Python — Chapter 6 Quiz", meta: "Due by 11:59 PM · 15 questions", tag: "Quiz", tagStyle: { background: "var(--orange-d)", color: "var(--orange)" } },
-  { day: "22", dow: "SUN", name: "Data Science — Assignment 2", meta: "Submit by midnight · Pandas project", tag: "Submit", tagStyle: { background: "var(--blue-d)", color: "var(--blue2)" } },
-  { day: "25", dow: "WED", name: "Python — OOP Deep Dive Live", meta: "7:00 PM · Priya Joshi · 60 min", tag: "Live", tagStyle: { background: "rgba(34,197,94,.15)", color: "var(--green)" } },
-];
-
 function SkeletonCard() {
   return (
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden animate-pulse flex flex-col">
@@ -110,7 +103,7 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
   return (
     <div className="flex flex-col bg-[var(--bg)] font-['DM_Sans',sans-serif] text-[var(--text)]">
       {/* BREADCRUMB */}
-      <div className="flex items-center gap-[5px] px-[18px] h-[30px] bg-[var(--surface)] border-b border-[var(--border)] font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)] shrink-0">
+      <div className="flex items-center gap-[5px] px-[10px] sm:px-[14px] h-[30px] bg-[var(--surface)] border-b border-[var(--border)] font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)] shrink-0">
         <span>futurestack</span><span className="text-[var(--border2)]">/</span>
         <span className="text-[var(--text2)]">my-courses</span>
         <span className="ml-auto flex items-center gap-[6px]">
@@ -124,57 +117,63 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
       </div>
 
       {/* MAIN BODY */}
-      <div className="p-[16px_18px] flex flex-col gap-[16px]">
+      <div className="p-[12px_10px] sm:p-[14px] flex flex-col gap-[14px]">
         {/* TOOLBAR */}
-        <div className="flex items-center gap-[8px] flex-wrap" style={{ animation: "fadeUp .3s .05s ease both" }}>
-          <div className="flex bg-[var(--bg2)] border border-[var(--border)] rounded-[8px] overflow-hidden shrink-0">
-            {filters.map(f => (
-              <button key={f.key} onClick={() => setFilter(f.key)}
-                className="px-[13px] py-[6px] text-[11.5px] font-semibold border-r border-[var(--border)] last:border-r-0 transition-all font-['DM_Sans',sans-serif] whitespace-nowrap"
-                style={filter === f.key ? { background: "var(--surface)", color: "var(--orange)", boxShadow: "inset 0 0 0 1px rgba(240,90,26,.2)" } : { background: "transparent", color: "var(--text3)" }}>
-                {f.label}
-              </button>
-            ))}
+        <div className="flex flex-col gap-[8px]" style={{ animation: "fadeUp .3s .05s ease both" }}>
+          {/* Filters row */}
+          <div className="flex items-center gap-[6px] overflow-x-auto pb-[2px]">
+            <div className="flex bg-[var(--bg2)] border border-[var(--border)] rounded-[8px] overflow-hidden shrink-0">
+              {filters.map(f => (
+                <button key={f.key} onClick={() => setFilter(f.key)}
+                  className="px-[10px] sm:px-[13px] py-[6px] text-[10px] sm:text-[11.5px] font-semibold border-r border-[var(--border)] last:border-r-0 transition-all font-['DM_Sans',sans-serif] whitespace-nowrap"
+                  style={filter === f.key ? { background: "var(--surface)", color: "var(--orange)", boxShadow: "inset 0 0 0 1px rgba(240,90,26,.2)" } : { background: "transparent", color: "var(--text3)" }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-[6px] bg-[var(--bg2)] border border-[var(--border)] rounded-[7px] px-[10px] h-[30px] w-[160px] transition-all focus-within:border-[var(--blue2)]">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--text3)]"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input
-              type="text"
-              placeholder="Search courses…"
-              value={searchText}
-              onChange={e => setSearchText(e.target.value)}
-              className="bg-transparent border-none outline-none font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text)] w-full placeholder:text-[var(--text3)]"
-            />
-          </div>
-          <div className="flex items-center gap-[5px] ml-auto bg-[var(--bg2)] border border-[var(--border)] rounded-[7px] px-[10px] py-[4px] font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)]">
-            <span>Sort:</span>
-            <select
-              value={sort}
-              onChange={e => setSort(e.target.value)}
-              className="bg-transparent border-none outline-none font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)] cursor-pointer">
-              <option value="progress">Progress %</option>
-              <option value="title">Title A–Z</option>
-            </select>
-          </div>
-          <div className="flex bg-[var(--bg2)] border border-[var(--border)] rounded-[7px] overflow-hidden">
-            <button onClick={() => setView("grid")} className="w-[30px] h-[30px] flex items-center justify-center border-r border-[var(--border)] last:border-r-0 text-xs transition-all"
-              style={view === "grid" ? { background: "var(--surface)", color: "var(--orange)" } : { background: "transparent", color: "var(--text3)" }}>⊞</button>
-            <button onClick={() => setView("list")} className="w-[30px] h-[30px] flex items-center justify-center text-xs transition-all"
-              style={view === "list" ? { background: "var(--surface)", color: "var(--orange)" } : { background: "transparent", color: "var(--text3)" }}>☰</button>
+          {/* Search + Sort + View row */}
+          <div className="flex items-center gap-[6px]">
+            <div className="flex items-center gap-[6px] bg-[var(--bg2)] border border-[var(--border)] rounded-[7px] px-[10px] h-[30px] flex-1 transition-all focus-within:border-[var(--blue2)]">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--text3)]"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input
+                type="text"
+                placeholder="Search courses…"
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+                className="bg-transparent border-none outline-none font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text)] w-full placeholder:text-[var(--text3)]"
+              />
+            </div>
+            <div className="flex items-center gap-[5px] bg-[var(--bg2)] border border-[var(--border)] rounded-[7px] px-[10px] py-[4px] font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)] shrink-0">
+              <span className="hidden sm:inline">Sort:</span>
+              <select
+                value={sort}
+                onChange={e => setSort(e.target.value)}
+                className="bg-transparent border-none outline-none font-['JetBrains_Mono',monospace] text-[10px] text-[var(--text3)] cursor-pointer">
+                <option value="progress">Progress</option>
+                <option value="title">Title</option>
+              </select>
+            </div>
+            <div className="flex bg-[var(--bg2)] border border-[var(--border)] rounded-[7px] overflow-hidden shrink-0">
+              <button onClick={() => setView("grid")} className="w-[30px] h-[30px] flex items-center justify-center border-r border-[var(--border)] last:border-r-0 text-xs transition-all"
+                style={view === "grid" ? { background: "var(--surface)", color: "var(--orange)" } : { background: "transparent", color: "var(--text3)" }}>⊞</button>
+              <button onClick={() => setView("list")} className="w-[30px] h-[30px] flex items-center justify-center text-xs transition-all"
+                style={view === "list" ? { background: "var(--surface)", color: "var(--orange)" } : { background: "transparent", color: "var(--text3)" }}>☰</button>
+            </div>
           </div>
         </div>
 
         {/* COURSE GRID */}
         <div>
-          <div className="flex items-center gap-[8px] mb-[14px]">
-            <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--text3)]">// enrolled</span>
-            <span className="font-['Syne',sans-serif] text-[13px] font-bold text-[var(--text)]">Enrolled Courses</span>
-            <div className="flex-1 h-[1px] bg-[var(--border)]"></div>
-            <Link href="/courses" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[var(--blue2)] px-[8px] py-[2px] border border-[rgba(59,130,246,.2)] rounded-[4px] transition-all whitespace-nowrap hover:bg-[var(--blue-d)] no-underline">Browse Catalog →</Link>
+          <div className="flex items-center gap-[6px] sm:gap-[8px] mb-[12px] flex-wrap">
+            <span className="font-['JetBrains_Mono',monospace] text-[8px] sm:text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--text3)]">// enrolled</span>
+            <span className="font-['Syne',sans-serif] text-[12px] sm:text-[13px] font-bold text-[var(--text)]">Enrolled Courses</span>
+            <div className="flex-1 h-[1px] bg-[var(--border)] hidden sm:block"></div>
+            <Link href="/courses" className="font-['JetBrains_Mono',monospace] text-[9px] sm:text-[9.5px] font-semibold text-[var(--blue2)] px-[6px] sm:px-[8px] py-[2px] border border-[rgba(59,130,246,.2)] rounded-[4px] transition-all whitespace-nowrap hover:bg-[var(--blue-d)] no-underline">Browse Catalog →</Link>
           </div>
 
           {isLoading ? (
-            <div className={`grid gap-[12px] ${view === "grid" ? "grid-cols-3" : "grid-cols-1"}`}>
+            <div className={`grid gap-[10px] sm:gap-[12px] ${view === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`}>
               <SkeletonCard /><SkeletonCard /><SkeletonCard />
             </div>
           ) : enrolledCourses.length === 0 ? (
@@ -197,7 +196,7 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
               </div>
             </div>
           ) : (
-            <div className={`grid gap-[12px] ${view === "grid" ? "grid-cols-3" : "grid-cols-1"}`} style={{ animation: "fadeUp .3s .1s ease both" }}>
+            <div className={`grid gap-[10px] sm:gap-[12px] ${view === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`} style={{ animation: "fadeUp .3s .1s ease both" }}>
               {visibleCourses.map((course, idx) => {
                 const colors = CARD_COLORS[idx % CARD_COLORS.length];
                 const emoji = EMOJIS[idx % EMOJIS.length];
@@ -283,27 +282,7 @@ export default function MyCoursesSection({ enrolledCourses, isLoading, onCourseC
           )}
         </div>
 
-        {/* UPCOMING SESSIONS */}
-        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
-          <div className="flex items-center justify-between px-[14px] py-[10px] border-b border-[var(--border)]">
-            <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--text3)]">Upcoming Sessions</span>
-            <Link href="/courses" className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--blue2)] no-underline">View all →</Link>
-          </div>
-          {STATIC_SESSIONS.map(s => (
-            <div key={s.name} className="flex items-center gap-[10px] px-[14px] py-[10px] border-b border-[var(--border)] last:border-b-0 transition-all hover:bg-[var(--card-h)] cursor-pointer">
-              <div className="text-center shrink-0 w-[32px]">
-                <div className="font-['Syne',sans-serif] text-[15px] font-extrabold text-[var(--text)] leading-none">{s.day}</div>
-                <div className="font-['JetBrains_Mono',monospace] text-[8px] text-[var(--text3)]">{s.dow}</div>
-              </div>
-              <div className="w-[1px] h-[30px] bg-[var(--border)] shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="text-[11.5px] font-semibold text-[var(--text)] whitespace-nowrap overflow-hidden text-ellipsis">{s.name}</div>
-                <div className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)] mt-[1px]">{s.meta}</div>
-              </div>
-              <span className="font-['JetBrains_Mono',monospace] text-[8.5px] font-semibold px-[8px] py-[2px] rounded-[3px] shrink-0" style={s.tagStyle}>{s.tag}</span>
-            </div>
-          ))}
-        </div>
+
       </div>
 
       <style>{`
