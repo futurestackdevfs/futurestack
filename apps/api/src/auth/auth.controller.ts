@@ -191,7 +191,7 @@ export class AuthController {
     const cookieName = this.getCookieName(user.role);
     const rawToken = req.cookies?.[cookieName];
 
-    await this.authService.logout(rawToken ?? '');
+    await this.authService.logout(rawToken ?? '', user.id);
     this.clearRefreshTokenCookie(res, user.role);
 
     return { message: 'Logged out successfully' };
