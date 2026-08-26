@@ -102,6 +102,8 @@ model User {
   videoProgress        VideoProgress[]
   quizAttempts         QuizAttempt[]              // ADDED — fixes missing back-relation
   coursesTaught        Course[]        @relation("CourseTrainer")
+  projectsTaught       Project[]       @relation("ProjectTrainer")
+  projectOrders        ProjectOrder[]
   approvalStatus       ApprovalStatus?
   certificates         Certificate[]
 
@@ -571,5 +573,77 @@ model LeadFollowUp {
   createdAt   DateTime @default(now())
 
   @@index([leadId])
+}
+
+// ─── LIVE PROJECTS ─────────────────────────────────────────────────
+
+model Project {
+  id                  String        @id @default(uuid())
+  name                String        @unique
+  image               String?
+  techLabel           String        @default("")
+  tech                String        @default("")
+  shortDesc           String        @default("")
+  overview            String        @default("")
+  thumbGradient       String        @default("linear-gradient(135deg,#0d1f3c,#0a2a1a)")
+  level               SkillLevel?
+  badge               String        @default("")
+  duration            String        @default("")
+  sessions            String        @default("")
+  seats               Int           @default(0)
+  price               Float         @default(0)
+  originalPrice       Float?
+  rating              Float         @default(0)
+  reviewCount         Int           @default(0)
+  status              CourseStatus  @default(DRAFT)
+  isFeatured          Boolean       @default(false)
+  displayOrder        Int           @default(0)
+  category            String?
+  stack               String[]      @default([])
+  highlights          String[]      @default([])
+  prereqs             String[]      @default([])
+  includes            String[]      @default([])
+  industryUse         String        @default("")
+  tools               String[]      @default([])
+  setupSteps          String[]      @default([])
+  demoVideoUrl        String?
+  walkthroughVideoUrl String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  trainerId           String?
+  trainer             User?         @relation("ProjectTrainer", fields: [trainerId], references: [id])
+
+  curriculum          ProjectCurriculum[]
+  orders              ProjectOrder[]
+}
+
+model ProjectCurriculum {
+  id        String  @id @default(uuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  week      String
+  title     String
+  desc      String
+  order     Int
+
+  @@index([projectId])
+}
+
+model ProjectOrder {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  studentId   String?
+  student     User?    @relation(fields: [studentId], references: [id])
+  name        String
+  phone       String
+  email       String
+  pricePaid   Float
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+  @@index([studentId])
 }
 

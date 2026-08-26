@@ -199,12 +199,18 @@ export default function FeaturedManager({ token }: FeaturedManagerProps) {
   async function removeSlot(section: SectionKey, item: any) {
     setActing(true);
     try {
-      await apiCall(token, featureEndpoint(section, item.id), {
-        method: "PATCH",
-        body: JSON.stringify({ isFeatured: false }),
-      });
-      setFeatured(section, getFeatured(section).filter((f: any) => f.id !== item.id));
-      addToast(`"${item.title}" removed`);
+      if (section === "hero-slides") {
+        await apiCall(token, `/admin/hero-slides/${item.id}`, { method: "DELETE" });
+        setFeatured(section, getFeatured(section).filter((f: any) => f.id !== item.id));
+        addToast(`"${item.title}" deleted permanently (including S3 image)`);
+      } else {
+        await apiCall(token, featureEndpoint(section, item.id), {
+          method: "PATCH",
+          body: JSON.stringify({ isFeatured: false }),
+        });
+        setFeatured(section, getFeatured(section).filter((f: any) => f.id !== item.id));
+        addToast(`"${item.title}" removed`);
+      }
     } catch (e: any) {
       addToast(e.message, "danger");
     }

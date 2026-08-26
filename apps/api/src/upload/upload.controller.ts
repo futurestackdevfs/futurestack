@@ -74,7 +74,7 @@ export class UploadController {
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
     const safeFolder: S3Folder =
-      folder === 'banners' ? 'banners' : folder === 'courses' ? 'courses' : 'courses';
+      folder === 'banners' ? 'banners' : folder === 'courses' ? 'courses' : folder === 'projects' ? 'projects' : 'courses';
     return this.processUpload(file, safeFolder);
   }
 

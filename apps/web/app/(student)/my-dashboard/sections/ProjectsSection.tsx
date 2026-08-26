@@ -62,8 +62,8 @@ export default function ProjectsSection() {
           { ico: "🔒", num: "5", lbl: "Locked", icoBg: "var(--blue-d)", numColor: "var(--text)" },
           { ico: "⭐", num: "94", lbl: "Avg. Score", icoBg: "var(--purple-d)", numColor: "var(--purple)" },
         ].map(s => (
-          <div key={s.lbl} className="bg-[var(--card)] border border-[var(--border)] rounded-[10px] px-[15px] py-[13px] flex items-center gap-3 transition-transform duration-200 hover:-translate-y-[2px] hover:shadow-[var(--sh)]">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[17px] flex-shrink-0" style={{ background: s.icoBg }}>{s.ico}</div>
+          <div key={s.lbl} className="bg-[var(--card)] border border-[var(--border)] rounded-[10px] px-[15px] py-[13px] flex items-center gap-3 transition-transform duration-200 hover:-translate-y-[2px] hover:shadow-[var(--shadow)]">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[17px] shrink-0" style={{ background: s.icoBg }}>{s.ico}</div>
             <div>
               <div className="font-['Syne',sans-serif] text-[22px] font-[800] leading-none" style={{ color: s.numColor }}>{s.num}</div>
               <div className="text-[10.5px] text-[var(--text3)] mt-[2px]">{s.lbl}</div>
@@ -78,7 +78,7 @@ export default function ProjectsSection() {
           <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--text3)]">{"// active"}</span>
           <span className="font-['Syne',sans-serif] text-[13.5px] font-bold text-[var(--text)]">Active Projects</span>
           <span className="flex-1 h-[1px] bg-[var(--border)]" />
-          <Link href="https://github.com" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[var(--blue2)] px-2 py-[2px] border border-[rgba(59,130,246,.25)] rounded-[4px] transition-all duration-[0.15s] whitespace-nowrap hover:bg-[var(--blue-d)] hover:border-[var(--blue2)] no-underline" target="_blank" rel="noopener noreferrer">GitHub Portfolio →</Link>
+          <Link href="/live-projects" className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold text-[var(--blue2)] px-2 py-[2px] border border-[rgba(59,130,246,.25)] rounded-[4px] transition-all duration-[0.15s] whitespace-nowrap hover:bg-[var(--blue-d)] hover:border-[var(--blue2)] no-underline">Browse Live Projects →</Link>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -87,11 +87,11 @@ export default function ProjectsSection() {
             return (
               <div
                 key={p.id}
-                className={`bg-[var(--card)] border border-[var(--border)] rounded-[14px] overflow-hidden transition-all duration-[0.22s] cursor-pointer flex flex-col relative [animation:fadeUp_.3s_ease_both] hover:-translate-y-[4px] hover:shadow-[var(--sh-lg)] hover:border-[var(--border2)] ${locked ? "opacity-60" : ""}`}
+                className={`bg-[var(--card)] border border-[var(--border)] rounded-[14px] overflow-hidden transition-all duration-[0.22s] cursor-pointer flex flex-col relative [animation:fadeUp_.3s_ease_both] hover:-translate-y-[4px] hover:shadow-[var(--shadow-lg)] hover:border-[var(--border2)] ${locked ? "opacity-60" : ""}`}
               >
                 <div className="absolute top-0 left-0 right-0 h-[3px] bg-[var(--border)] z-[1] transition-[background] duration-300 hover:bg-[linear-gradient(90deg,var(--orange),var(--blue2))]" />
                 {/* BANNER */}
-                <div className="h-[90px] flex-shrink-0 flex items-center justify-between px-[18px] relative overflow-hidden" style={{ background: locked ? "linear-gradient(135deg,#08080c,#0c0c14)" : p.bannerBg }}>
+                <div className="h-[90px] shrink-0 flex items-center justify-between px-[18px] relative overflow-hidden" style={{ background: locked ? "linear-gradient(135deg,#08080c,#0c0c14)" : p.bannerBg }}>
                   <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 90" preserveAspectRatio="none">
                     <defs><pattern id={`pp${p.id}`} width="30" height="30" patternUnits="userSpaceOnUse"><path d="M30 0H0V30" fill="none" stroke="rgba(255,255,255,.04)" strokeWidth=".7" /></pattern></defs>
                     <rect width="400" height="90" fill={`url(#pp${p.id})`} />
@@ -152,7 +152,7 @@ export default function ProjectsSection() {
                       <span className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)] flex items-center gap-[3px]">{p.date}</span>
                       {p.gh && <span className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--blue2)] flex items-center gap-[4px]">{p.gh}</span>}
                     </div>
-                    <div className="flex gap-1.5 flex-shrink-0">
+                    <div className="flex gap-1.5 shrink-0">
                       {p.actions.map((a, i) => (
                         <button key={i} className={`px-3 py-[5px] rounded-[6px] text-[11px] font-semibold transition-all duration-[0.15s] whitespace-nowrap ${a.cls}`}>{a.lbl}</button>
                       ))}

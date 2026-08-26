@@ -23,6 +23,7 @@ import { PaymentSettingsModule } from './payment-settings/payment-settings.modul
 import { AdminPaymentsModule } from './admin-payments/admin-payments.module';
 import { SalesModule } from './sales/sales.module';
 import { CoordinatorModule } from './coordinator/coordinator.module';
+import { ProjectsModule } from './projects/projects.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { CoordinatorModule } from './coordinator/coordinator.module';
     AdminPaymentsModule,
     SalesModule,
     CoordinatorModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [
