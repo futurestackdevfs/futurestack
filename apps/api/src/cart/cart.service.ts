@@ -94,33 +94,84 @@ export class CartService {
             sections: { select: { _count: { select: { videos: true } } } },
           },
         },
+        project: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+            thumbGradient: true,
+            price: true,
+            originalPrice: true,
+            shortDesc: true,
+            techLabel: true,
+            trainer: { select: { name: true } },
+          },
+        },
       },
       orderBy: { addedAt: 'asc' },
     });
 
-    const courseIds = items.map((i) => i.courseId);
+    const courseIds = items.filter((i) => i.courseId).map((i) => i.courseId!);
     const videoStats = await this.getVideoStats(courseIds);
 
     const enriched = items.map((item) => {
-      const price = item.course.price;
-      const originalPrice = item.course.originalPrice ?? null;
+      if (item.projectId && item.project) {
+        const p = item.project;
+        const price = p.price;
+        const originalPrice = p.originalPrice ?? null;
+        let offPct = 0;
+        if (originalPrice != null && originalPrice > price) {
+          offPct = Math.min(99, Math.round(((originalPrice - price) / originalPrice) * 100));
+        }
+        return {
+          type: 'project' as const,
+          projectId: item.projectId,
+          courseId: null,
+          title: p.name,
+          image: p.image,
+          thumbGradient: p.thumbGradient,
+          shortDesc: p.shortDesc,
+          techLabel: p.techLabel,
+          trainer: p.trainer?.name ?? 'TBD',
+          rating: 0,
+          reviews: 0,
+          modules: 0,
+          lessons: 0,
+          hours: 0,
+          price,
+          originalPrice,
+          offPct,
+          hasDiscount: offPct > 0,
+          currency,
+        };
+      }
+
+      const c = item.course!;
+      const price = c.price;
+      const originalPrice = c.originalPrice ?? null;
       let offPct = 0;
       if (originalPrice != null && originalPrice > price) {
         offPct = Math.min(99, Math.round(((originalPrice - price) / originalPrice) * 100));
       }
-      const stats = videoStats.get(item.courseId) ?? {
+      const stats = videoStats.get(item.courseId!) ?? {
         totalSeconds: 0,
         videoCount: 0,
       };
       const totalHours = Math.round(stats.totalSeconds / 3600);
       return {
+        type: 'course' as const,
         courseId: item.courseId,
-        title: item.course.title,
-        thumbnail: item.course.thumbnailUrl,
-        category: item.course.category ?? item.course.techStack[0] ?? 'General',
-        rating: item.course.averageRating,
-        reviews: item.course.reviewCount,
-        modules: item.course._count.sections,
+        projectId: null,
+        title: c.title,
+        image: c.thumbnailUrl,
+        thumbGradient: null,
+        shortDesc: null,
+        techLabel: c.category ?? c.techStack[0] ?? 'General',
+        trainer: null,
+        category: c.category ?? c.techStack[0] ?? 'General',
+        rating: c.averageRating,
+        reviews: c.reviewCount,
+        modules: c._count.sections,
         lessons: stats.videoCount,
         hours: totalHours || 1,
         price,
@@ -150,17 +201,18 @@ export class CartService {
       if (applied) {
         coupon = this.presentCoupon(applied);
         try {
+          const courseIdsOnly = enriched.filter((e) => e.type === 'course').map((e) => e.courseId!);
+          const projectIdsOnly = enriched.filter((e) => e.type === 'project').map((e) => e.projectId!);
           const res = await this.couponService.validate({
             code: applied.code,
             userId,
             currency,
             subtotal,
-            courseIds: enriched.map((e) => e.courseId),
+            courseIds: courseIdsOnly,
+            projectIds: projectIdsOnly,
           });
           discountAmount = res.discountAmount;
         } catch (e) {
-          // View-only preview — an expired/no-longer-valid coupon is still shown
-          // (with 0 discount) rather than failing the whole GET.
           if (!(e instanceof BadRequestException)) throw e;
         }
       }
@@ -197,22 +249,41 @@ export class CartService {
     };
   }
 
-  async addItem(userId: string, courseId: string) {
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-      select: { id: true, status: true },
-    });
-    if (!course || course.status !== 'ACTIVE') {
-      throw new NotFoundException('Course not found');
+  async addItem(userId: string, courseId?: string, projectId?: string) {
+    if (!courseId && !projectId) {
+      throw new BadRequestException('Either courseId or projectId is required');
     }
-    await this.assertNotEnrolled(userId, courseId);
 
     const cart = await this.getOrCreateCart(userId);
-    await this.prisma.cartItem.upsert({
-      where: { cartId_courseId: { cartId: cart.id, courseId } },
-      create: { cartId: cart.id, courseId },
-      update: {},
-    });
+
+    if (projectId) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: { id: true, status: true },
+      });
+      if (!project || project.status !== 'ACTIVE') {
+        throw new NotFoundException('Project not found');
+      }
+      await this.prisma.cartItem.upsert({
+        where: { cartId_projectId: { cartId: cart.id, projectId } },
+        create: { cartId: cart.id, projectId },
+        update: {},
+      });
+    } else if (courseId) {
+      const course = await this.prisma.course.findUnique({
+        where: { id: courseId },
+        select: { id: true, status: true },
+      });
+      if (!course || course.status !== 'ACTIVE') {
+        throw new NotFoundException('Course not found');
+      }
+      await this.assertNotEnrolled(userId, courseId);
+      await this.prisma.cartItem.upsert({
+        where: { cartId_courseId: { cartId: cart.id, courseId } },
+        create: { cartId: cart.id, courseId },
+        update: {},
+      });
+    }
 
     return this.getCartView(userId, 'INR');
   }
@@ -227,10 +298,16 @@ export class CartService {
     }
   }
 
-  async removeItem(userId: string, courseId: string) {
+  async removeItem(userId: string, courseIdOrProjectId: string) {
     const cart = await this.getOrCreateCart(userId);
     const result = await this.prisma.cartItem.deleteMany({
-      where: { cartId: cart.id, courseId },
+      where: {
+        cartId: cart.id,
+        OR: [
+          { courseId: courseIdOrProjectId },
+          { projectId: courseIdOrProjectId },
+        ],
+      },
     });
     if (result.count === 0) throw new NotFoundException('Item not in cart');
     return this.getCartView(userId, 'INR');
@@ -290,7 +367,7 @@ export class CartService {
       userId,
       currency: 'INR',
       subtotal: view.subtotal,
-      courseIds: items.map((i) => i.courseId),
+      courseIds: items.filter((i) => i.courseId).map((i) => i.courseId as string),
     });
 
     await this.prisma.cart.update({

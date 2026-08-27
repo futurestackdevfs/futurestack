@@ -1,7 +1,13 @@
-import { IsString, IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class AddCartItemDto {
+  @IsOptional()
   @IsString()
   @IsUUID()
-  courseId: string;
+  courseId?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsUUID()
+  projectId?: string;
 }

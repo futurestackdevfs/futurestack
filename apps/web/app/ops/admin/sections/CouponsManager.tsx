@@ -70,6 +70,9 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
   const [coursesLoading, setCoursesLoading] = useState(true);
   const [coursesError, setCoursesError] = useState("");
   const [coursesSearch, setCoursesSearch] = useState("");
+  const [projects, setProjects] = useState<{ id: string; name: string; techLabel: string }[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
   const [salesByCoupon, setSalesByCoupon] = useState<Record<string, CouponSales | null>>({});
   const [expandedCoupon, setExpandedCoupon] = useState<string | null>(null);
@@ -86,7 +89,6 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
   const [validFrom, setValidFrom] = useState("");
   const [validUntil, setValidUntil] = useState("");
   const [scopeMode, setScopeMode] = useState<"all" | "selected">("all");
-  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
 
   function req(path: string, method: "GET" | "POST" | "PATCH" | "DELETE" = "GET", body?: unknown) {
     return fetch(`/api${path}`, {
@@ -137,6 +139,25 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
     }
   }
 
+  async function loadProjects() {
+    if (!token) return;
+    try {
+      const res = await req("/projects/admin/all");
+      if (!res.ok) throw new Error("Failed to load projects");
+      const body = await res.json();
+      const arr = Array.isArray(body) ? body : body?.items || body?.data || [];
+      setProjects(arr.map((p: { id?: string; name?: string; techLabel?: string }) => ({
+        id: p.id || "",
+        name: p.name || "",
+        techLabel: p.techLabel || "",
+      })));
+    } catch {
+      // silent
+    } finally {
+      setProjectsLoading(false);
+    }
+  }
+
   useEffect(() => {
     let done = false;
     (async () => {
@@ -146,6 +167,9 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
     (async () => {
       await loadCourses();
     })();
+    (async () => {
+      await loadProjects();
+    })();
     return () => {
       done = true;
     };
@@ -153,10 +177,10 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
   }, [token]);
 
   const scopeLabel = useMemo<string>(() => {
-    if (scopeMode === "all") return "All courses";
-    if (selectedCourses.length === 0) return "No courses selected";
-    return `${selectedCourses.length} course${selectedCourses.length > 1 ? "s" : ""}`;
-  }, [scopeMode, selectedCourses]);
+    if (scopeMode === "all") return "All courses & projects";
+    if (selectedItems.length === 0) return "No items selected";
+    return `${selectedItems.length} item${selectedItems.length > 1 ? "s" : ""}`;
+  }, [scopeMode, selectedItems]);
 
   async function createCoupon() {
     if (!token || saving) return;
@@ -171,7 +195,7 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
       discountType,
       value: val,
       currency: discountType === "FLAT" ? currency : null,
-      applicableCourseIds: scopeMode === "selected" ? selectedCourses : [],
+      applicableCourseIds: scopeMode === "selected" ? selectedItems.map((s) => s.replace(/^(course|proj):/, "")) : [],
       perUserLimit: perUserLimit ? parseInt(perUserLimit, 10) : 1,
       isActive,
     };
@@ -187,7 +211,7 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
       if (!res.ok) throw new Error(body.message || "Failed to create coupon");
       addToast(`Coupon ${payload.code} created`);
       setCode(""); setValue(""); setValidFrom(""); setValidUntil(""); setMinOrder(""); setMaxUses("");
-      setSelectedCourses([]); setScopeMode("all"); setPerUserLimit("1");
+      setSelectedItems([]); setScopeMode("all"); setPerUserLimit("1");
       await load();
     } catch (e: unknown) {
       addToast(e instanceof Error ? e.message : "Failed to create coupon", "danger");
@@ -347,7 +371,7 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
           <label className={labelClsMini}>Applies to</label>
           <div className="flex items-center gap-4 mb-2 text-[11.5px]">
             <label className="flex items-center gap-1.5 cursor-pointer" style={{ color: "var(--text2)" }}>
-              <input type="radio" checked={scopeMode === "all"} onChange={() => { setScopeMode("all"); setSelectedCourses([]); }} /> All courses
+              <input type="radio" checked={scopeMode === "all"} onChange={() => { setScopeMode("all"); setSelectedItems([]); }} /> All courses & projects
             </label>
             <label className="flex items-center gap-1.5 cursor-pointer" style={{ color: "var(--text2)" }}>
               <input type="radio" checked={scopeMode === "selected"} onChange={() => setScopeMode("selected")} /> Only selected
@@ -359,16 +383,16 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
             <input
               type="text"
-              placeholder="Search courses, topics, or skills…"
+              placeholder="Search courses, projects, topics, or skills…"
               className="bg-transparent border-none outline-none text-[var(--text)] text-[13px] w-full placeholder:text-[var(--muted)]"
               value={coursesSearch}
               onChange={(e) => setCoursesSearch(e.target.value)}
             />
-            <span className="text-[9.5px] text-[var(--text3)] border border-[var(--border)] rounded px-[5px] py-[1px] shrink-0 hidden sm:inline font-mono bg-[var(--bg)]">{courses.length}</span>
+            <span className="text-[9.5px] text-[var(--text3)] border border-[var(--border)] rounded px-[5px] py-[1px] shrink-0 hidden sm:inline font-mono bg-[var(--bg)]">{courses.length + projects.length}</span>
           </div>
 
-          {coursesLoading ? (
-            <div className="border border-[var(--border)] rounded-lg p-3 text-center font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>Loading courses…</div>
+          {(coursesLoading || projectsLoading) ? (
+            <div className="border border-[var(--border)] rounded-lg p-3 text-center font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>Loading courses & projects…</div>
           ) : coursesError ? (
             <div className="border border-[var(--border)] rounded-lg p-3 text-center font-mono text-[10.5px]" style={{ color: "var(--red)" }}>
               {coursesError}
@@ -376,36 +400,67 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
             </div>
           ) : (
             scopeMode === "selected" && (
-              <div className="border border-[var(--border)] rounded-lg p-2 max-h-[180px] overflow-y-auto">
-                {courses.length === 0 ? (
-                  <div className="text-[11px] p-2" style={{ color: "var(--text3)" }}>No courses loaded.</div>
+              <div className="border border-[var(--border)] rounded-lg p-2 max-h-[240px] overflow-y-auto">
+                {courses.length === 0 && projects.length === 0 ? (
+                  <div className="text-[11px] p-2" style={{ color: "var(--text3)" }}>No courses or projects loaded.</div>
                 ) : (
                   (() => {
                     const q = coursesSearch.trim().toLowerCase();
-                    const filtered = q
+                    const filteredProjects = q
+                      ? projects.filter((p) => p.name.toLowerCase().includes(q) || p.techLabel.toLowerCase().includes(q))
+                      : projects;
+                    const filteredCourses = q
                       ? courses.filter((c) => c.title.toLowerCase().includes(q) || c.trainer.toLowerCase().includes(q))
                       : courses;
-                    if (filtered.length === 0) {
+                    if (filteredProjects.length === 0 && filteredCourses.length === 0) {
                       return (
                         <div className="text-[11px] p-2" style={{ color: "var(--text3)" }}>
-                          No courses match &quot;{coursesSearch.trim()}&quot;
+                          No items match &quot;{coursesSearch.trim()}&quot;
                         </div>
                       );
                     }
-                    return filtered.map((c) => {
-                      const checked = selectedCourses.includes(c.id);
-                      return (
-                        <label key={c.id} className="flex items-center gap-2 px-1.5 py-1 rounded cursor-pointer hover:bg-[#ffffff08] text-[11.5px]" style={{ color: "var(--text2)" }}>
-                          <input type="checkbox" checked={checked} onChange={() =>
-                            setSelectedCourses((prev) => (checked ? prev.filter((x) => x !== c.id) : [...prev, c.id]))
-                          } />
-                          <span className="truncate">
-                            {c.title || c.id}
-                            {c.trainer && <span style={{ color: "var(--text3)" }}> — {c.trainer}</span>}
-                          </span>
-                        </label>
-                      );
-                    });
+                    return (
+                      <>
+                        {filteredProjects.length > 0 && (
+                          <>
+                            <div className="font-mono text-[9px] font-bold uppercase tracking-wider px-1.5 py-1" style={{ color: "var(--text3)" }}>🚀 Projects</div>
+                            {filteredProjects.map((p) => {
+                              const checked = selectedItems.includes(`proj:${p.id}`);
+                              return (
+                                <label key={`proj:${p.id}`} className="flex items-center gap-2 px-1.5 py-1 rounded cursor-pointer hover:bg-[#ffffff08] text-[11.5px]" style={{ color: "var(--text2)" }}>
+                                  <input type="checkbox" checked={checked} onChange={() =>
+                                    setSelectedItems((prev) => (checked ? prev.filter((x) => x !== `proj:${p.id}`) : [...prev, `proj:${p.id}`]))
+                                  } />
+                                  <span className="truncate">
+                                    🚀 {p.name || p.id}
+                                    {p.techLabel && <span style={{ color: "var(--text3)" }}> — {p.techLabel}</span>}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </>
+                        )}
+                        {filteredCourses.length > 0 && (
+                          <>
+                            <div className="font-mono text-[9px] font-bold uppercase tracking-wider px-1.5 py-1 mt-1" style={{ color: "var(--text3)" }}>📚 Courses</div>
+                            {filteredCourses.map((c) => {
+                              const checked = selectedItems.includes(`course:${c.id}`);
+                              return (
+                                <label key={`course:${c.id}`} className="flex items-center gap-2 px-1.5 py-1 rounded cursor-pointer hover:bg-[#ffffff08] text-[11.5px]" style={{ color: "var(--text2)" }}>
+                                  <input type="checkbox" checked={checked} onChange={() =>
+                                    setSelectedItems((prev) => (checked ? prev.filter((x) => x !== `course:${c.id}`) : [...prev, `course:${c.id}`]))
+                                  } />
+                                  <span className="truncate">
+                                    📚 {c.title || c.id}
+                                    {c.trainer && <span style={{ color: "var(--text3)" }}> — {c.trainer}</span>}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </>
+                        )}
+                      </>
+                    );
                   })()
                 )}
               </div>
@@ -444,7 +499,7 @@ export default function CouponsManager({ token, searchQuery = "" }: { token: str
         ) : (
           <div className="divide-y divide-[var(--border)]">
             {filteredCoupons.map((c) => {
-              const scope = c.applicableCourseIds.length === 0 ? "All courses" : `${c.applicableCourseIds.length} course(s)`;
+              const scope = c.applicableCourseIds.length === 0 ? "All courses & projects" : `${c.applicableCourseIds.length} item(s)`;
               const expanded = expandedCoupon === c.id;
               const sales = salesByCoupon[c.id];
               return (

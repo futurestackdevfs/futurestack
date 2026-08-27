@@ -267,16 +267,19 @@ model VideoProgress {
   id                String    @id @default(uuid())
   student           User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId         String
-  video             Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  videoId           String
+  video             Video?    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  videoId           String?
+  projectVideo      ProjectCurriculumVideo? @relation(fields: [projectCurriculumVideoId], references: [id], onDelete: Cascade)
+  projectCurriculumVideoId String?
   uniqueSecsWatched Int       @default(0)
   lastPositionSec   Int       @default(0)
   isCompleted       Boolean   @default(false)
   completedAt       DateTime?
   updatedAt         DateTime  @updatedAt
-  score             Int?                       // optional post-video check score, null if none exists
+  score             Int?
 
   @@unique([studentId, videoId])
+  @@unique([studentId, projectCurriculumVideoId])
 }
 
 enum MessageTag {
@@ -415,14 +418,17 @@ model Cart {
 }
 
 model CartItem {
-  id       String   @id @default(uuid())
-  cart     Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  cartId   String
-  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId String
-  addedAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  cartId    String
+  course    Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId  String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String?
+  addedAt   DateTime @default(now())
 
   @@unique([cartId, courseId])
+  @@unique([cartId, projectId])
 }
 
 model Wishlist {
@@ -616,6 +622,7 @@ model Project {
 
   curriculum          ProjectCurriculum[]
   orders              ProjectOrder[]
+  cartItems           CartItem[]
 }
 
 model ProjectCurriculum {
@@ -627,7 +634,24 @@ model ProjectCurriculum {
   desc      String
   order     Int
 
+  videos    ProjectCurriculumVideo[]
+
   @@index([projectId])
+}
+
+model ProjectCurriculumVideo {
+  id              String           @id @default(uuid())
+  curriculumId    String
+  curriculum      ProjectCurriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  title           String
+  vdoCipherId     String?
+  durationSeconds Int              @default(0)
+  videoStatus     VideoStatus      @default(UPLOADING)
+  isPreview       Boolean          @default(false)
+  order           Int
+  progress        VideoProgress[]
+
+  @@index([curriculumId])
 }
 
 model ProjectOrder {

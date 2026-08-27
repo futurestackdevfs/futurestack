@@ -32,7 +32,7 @@ export class AdminPaymentsService {
       where.status = status as OrderStatus;
     }
 
-    const [total, orders] = await Promise.all([
+    const [total, orders, projectOrders] = await Promise.all([
       this.prisma.order.count({ where }),
       this.prisma.order.findMany({
         where,
@@ -45,6 +45,16 @@ export class AdminPaymentsService {
             include: { course: { select: { id: true, title: true } } },
           },
           _count: { select: { enrollments: true } },
+        },
+      }),
+      this.prisma.projectOrder.findMany({
+        where: status && (VALID_STATUSES as readonly string[]).includes(status)
+          ? { status: status as any }
+          : {},
+        orderBy: { createdAt: 'desc' },
+        include: {
+          student: { select: { id: true, name: true, email: true } },
+          project: { select: { id: true, name: true } },
         },
       }),
     ]);
@@ -95,40 +105,87 @@ export class AdminPaymentsService {
       }
     }
 
-    const mapped = orders.map((o) => ({
-      id: o.id,
-      orderNo: o.id.slice(0, 8).toUpperCase(),
-      status: o.status,
-      currency: o.currency,
-      gatewayType: o.gatewayType,
-      subtotal: o.subtotal,
-      discountAmount: o.discountAmount,
-      totalAmount: o.totalAmount,
-      createdAt: o.createdAt,
-      razorpayOrderId: o.razorpayOrderId,
-      razorpayPaymentId: o.razorpayPaymentId,
+    // Map project orders into the same response shape as course orders
+    const projectMapped = projectOrders.map((po) => ({
+      id: po.id,
+      orderNo: po.id.slice(0, 8).toUpperCase(),
+      status: po.status.toUpperCase(),
+      currency: 'INR',
+      gatewayType: 'RAZORPAY',
+      subtotal: po.pricePaid,
+      discountAmount: 0,
+      totalAmount: po.pricePaid,
+      createdAt: po.createdAt,
+      razorpayOrderId: '',
+      razorpayPaymentId: null,
       billing: {
-        fullName: o.billingFullName,
-        email: o.billingEmail,
-        phone: o.billingPhone,
-        city: o.billingCity,
-        state: o.billingState,
-        pincode: o.billingPincode,
-        address: o.billingAddress,
+        fullName: po.name,
+        email: po.email,
+        phone: po.phone,
+        city: null,
+        state: null,
+        pincode: null,
+        address: null,
       },
-      student: o.user,
-      couponCode: redemptionByOrder.get(o.id) ?? null,
-      enrollmentsCount: o._count.enrollments,
-      items: o.items.map((i) => ({
+      student: po.student
+        ? { id: po.student.id, name: po.student.name, email: po.student.email }
+        : null,
+      couponCode: null,
+      enrollmentsCount: 0,
+      items: [
+        {
+          courseId: po.projectId,
+          title: po.project?.name ?? 'Project',
+          priceAtPurchase: po.pricePaid,
+          type: 'project' as const,
+        },
+      ],
+    }));
+
+    const mapped = orders.map((o) => {
+      const courseItems = o.items.map((i) => ({
         courseId: i.courseId,
         title: i.course.title,
         priceAtPurchase: i.priceAtPurchase,
-      })),
-    }));
+        type: 'course' as const,
+      }));
+      return {
+        id: o.id,
+        orderNo: o.id.slice(0, 8).toUpperCase(),
+        status: o.status,
+        currency: o.currency,
+        gatewayType: o.gatewayType,
+        subtotal: o.subtotal,
+        discountAmount: o.discountAmount,
+        totalAmount: o.totalAmount,
+        createdAt: o.createdAt,
+        razorpayOrderId: o.razorpayOrderId,
+        razorpayPaymentId: o.razorpayPaymentId,
+        billing: {
+          fullName: o.billingFullName,
+          email: o.billingEmail,
+          phone: o.billingPhone,
+          city: o.billingCity,
+          state: o.billingState,
+          pincode: o.billingPincode,
+          address: o.billingAddress,
+        },
+        student: o.user,
+        couponCode: redemptionByOrder.get(o.id) ?? null,
+        enrollmentsCount: o._count.enrollments,
+        items: courseItems,
+      };
+    });
+
+    // Merge both lists sorted by createdAt desc
+    const allOrders = [...mapped, ...projectMapped].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
 
     return {
       summary,
-      orders: mapped,
+      orders: allOrders,
       pagination: {
         page: pageNum,
         perPage: size,

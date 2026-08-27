@@ -15,6 +15,7 @@ import { EntityTable, StatusBadge, YesNoBadge, type ColumnDef } from "./sections
 import { MasterDataModal, type FieldDef } from "./sections/MasterDataModal";
 import { ConfirmDialog, type ConfirmOptions } from "./sections/ConfirmDialog";
 import { CurriculumBuilder } from "./sections/CurriculumBuilder";
+import { ProjectCurriculumBuilder } from "./sections/ProjectCurriculumBuilder";
 import { ResourceManagerModal } from "./sections/ResourceManagerModal";
 import { ProfileModal } from "./sections/ProfileModal";
 import FeaturedManager from "./sections/FeaturedManager";
@@ -192,15 +193,10 @@ const SCHEMAS: Record<string, FieldDef[]> = {
     { key: "industryUse", label: "Industry Relevance", type: "textarea", full: true, placeholder: "Why this project matters in the industry…" },
     { key: "tools", label: "Dev Tools (comma separated)", type: "text", full: true, placeholder: "Node.js v18+, VS Code, MongoDB Atlas, Git" },
     { key: "setupSteps", label: "Setup Steps (one per line)", type: "textarea", full: true, placeholder: "Install Node.js and verify with `node -v`\nClone the starter repository\n…" },
-    { key: "duration", label: "Duration", type: "text", placeholder: "e.g. 6 weeks" },
-    { key: "sessions", label: "Mentor Sessions", type: "text", placeholder: "e.g. 8 sessions" },
     { key: "seats", label: "Available Seats", type: "number", placeholder: "e.g. 10" },
     { key: "price", label: "Price (₹)", type: "number", required: true, placeholder: "e.g. 6999" },
     { key: "discountPercent", label: "Discount (%)", type: "discount", placeholder: "e.g. 30", full: true },
     { key: "trainerId", label: "Trainer", type: "select", required: true, optionsFrom: "instructors" },
-    { key: "thumbGradient", label: "Thumbnail Gradient", type: "text", placeholder: "linear-gradient(135deg,#0d1f3c,#0a2a1a)" },
-    { key: "demoVideoUrl", label: "Demo Video URL", type: "text", placeholder: "videos/p1-demo.mp4" },
-    { key: "walkthroughVideoUrl", label: "Walkthrough Video URL", type: "text", placeholder: "videos/p1-walkthrough.mp4" },
     { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
   ],
 };
@@ -320,6 +316,8 @@ export default function AdminMasterDataPage() {
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [cbOpen, setCbOpen] = useState(false);
   const [cbCourse, setCbCourse] = useState<{ code: string; name: string; id: string } | null>(null);
+  const [pbOpen, setPbOpen] = useState(false);
+  const [pbProject, setPbProject] = useState<{ name: string; id: string } | null>(null);
   const [rmOpen, setRmOpen] = useState(false);
   const [rmCourse, setRmCourse] = useState<{ code: string; name: string; id: string } | null>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<string | number | null>(null);
@@ -651,7 +649,7 @@ export default function AdminMasterDataPage() {
     if (ok) closeModal();
   }
 
-  async function saveRecord(formData: Record<string, any>) {
+  async function saveRecord(formData: Record<string, any>): Promise<{ success: boolean; error?: string } | void> {
     const draftNote =
       currentEntity === "courses" && formData.status === "DRAFT"
         ? '\n\n📝 Note: This course will be saved as DRAFT — it will NOT be visible to students. Set its status to ACTIVE when you want it visible to all.'
@@ -755,6 +753,8 @@ export default function AdminMasterDataPage() {
           } else {
             const err = await res.json().catch(() => ({}));
             addToast(err.message || "Failed to update course", "danger");
+            closeModal();
+            return { success: false, error: err.message || "Failed to update course" };
           }
         } else {
           const res = await fetch("/api/courses", {
@@ -789,13 +789,17 @@ export default function AdminMasterDataPage() {
           } else {
             const err = await res.json().catch(() => ({}));
             addToast(err.message || "Failed to create course", "danger");
+            closeModal();
+            return { success: false, error: err.message || "Failed to create course" };
           }
         }
       } catch (e: any) {
         addToast(e.message || "Network error", "danger");
+        closeModal();
+        return { success: false, error: e.message || "Network error" };
       }
       closeModal();
-      return;
+      return { success: true };
     }
 
     // Projects: API-based CRUD
@@ -813,12 +817,23 @@ export default function AdminMasterDataPage() {
             } else if (Array.isArray(v)) {
               body[k] = v;
             }
-          } else if (k === "price" || k === "seats" || k === "discountPercent") {
+          } else if (k === "price" || k === "seats") {
             body[k] = v === "" || v == null ? null : Number(v);
+          } else if (k === "discountPercent") {
+            // Convert discountPercent to originalPrice
+            const pct = Number(v);
+            const price = Number(formData.price);
+            if (!isNaN(pct) && pct > 0 && pct < 100 && !isNaN(price) && price > 0) {
+              body.originalPrice = Math.round(price / (1 - pct / 100));
+            } else {
+              body.originalPrice = null;
+            }
           } else if (k === "trainerId") {
             body[k] = v || null;
           } else if (k === "status") {
             body[k] = v || "DRAFT";
+          } else if (k === "level") {
+            body[k] = v ? String(v).toUpperCase() : null;
           } else if (k !== "trainer" && k !== "_count" && k !== "curriculumCount" && k !== "orderCount") {
             body[k] = v;
           }
@@ -840,6 +855,7 @@ export default function AdminMasterDataPage() {
           } else {
             const err = await res.json().catch(() => ({}));
             addToast(err.message || "Failed to update project", "danger");
+            return { success: false, error: err.message || "Failed to update project" };
           }
         } else {
           const res = await fetch("/api/projects", {
@@ -855,13 +871,15 @@ export default function AdminMasterDataPage() {
           } else {
             const err = await res.json().catch(() => ({}));
             addToast(err.message || "Failed to create project", "danger");
+            return { success: false, error: err.message || "Failed to create project" };
           }
         }
       } catch (e: any) {
         addToast(e.message || "Network error", "danger");
+        return { success: false, error: e.message || "Network error" };
       }
       closeModal();
-      return;
+      return { success: true };
     }
 
     if (formData.id) {
@@ -980,6 +998,23 @@ export default function AdminMasterDataPage() {
     setCbCourse(null);
   }
 
+  /* ── Project Curriculum Builder ── */
+  function openProjectCurriculumBuilder(project: any) {
+    setPbProject({ name: project.name, id: project.id });
+    setPbOpen(true);
+  }
+
+  function saveProjectCurriculum() {
+    addToast(`Project curriculum saved`);
+    setPbOpen(false);
+    setPbProject(null);
+  }
+
+  function closeProjectCurriculumBuilder() {
+    setPbOpen(false);
+    setPbProject(null);
+  }
+
   /* ── Expandable Course Curriculum ── */
   async function handleToggleExpand(courseId: string | number) {
     if (expandedCourseId === courseId) {
@@ -988,28 +1023,21 @@ export default function AdminMasterDataPage() {
     }
     setExpandedCourseId(courseId);
     if (!token) return;
-    console.log('[expand] fetching /api/courses/' + courseId, {token: token?.slice(0,10) + '...'});
     try {
       const res = await fetch(`/api/courses/${courseId}`, {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       });
-      console.log('[expand] status:', res.status, res.statusText);
       if (res.ok) {
         const data = await res.json();
-        console.log('[expand] data sections:', data.sections?.length ?? 0, data.sections);
         const sections = (data.sections || []).map((s: any) => ({
           id: s.id, title: s.title || "", order: s.order ?? 0,
           videos: (s.videos || []).map((v: any) => ({ id: v.id, title: v.title || "", durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0 })),
           quizzes: (s.quizzes || []).map((q: any) => ({ id: q.id, title: q.title || "", totalQuestions: q.totalQuestions ?? 0, order: q.order ?? 0 })),
         }));
-        console.log('[expand] mapped sections:', sections);
         setExpandedCurriculums((prev) => ({ ...prev, [courseId]: sections }));
-      } else {
-        const errBody = await res.json().catch(() => ({}));
-        console.warn('[expand] fetch not ok:', res.status, errBody);
       }
-    } catch (e) {
-      console.warn('[expand] fetch error:', e);
+    } catch {
+      // Silently handle curriculum fetch errors
     }
   }
 
@@ -1352,7 +1380,7 @@ export default function AdminMasterDataPage() {
                   <EntityTable
                     columns={COLUMNS[currentEntity]} data={filteredData}
                     onEdit={openEditModal} onDelete={deleteRecord}
-                    onManageCurriculum={currentEntity === "courses" ? openCurriculumBuilder : undefined}
+                    onManageCurriculum={currentEntity === "courses" ? openCurriculumBuilder : currentEntity === "projects" ? openProjectCurriculumBuilder : undefined}
                     onManageResources={currentEntity === "courses" ? openResourceManager : undefined}
                     emptyMessage={`No ${ENTITY_NAMES[currentEntity].toLowerCase()}s found.`}
                     expandedId={currentEntity === "courses" ? expandedCourseId : undefined}
@@ -1413,6 +1441,16 @@ export default function AdminMasterDataPage() {
         token={token || ""}
         onSave={saveCurriculum}
         onClose={closeCurriculumBuilder}
+      />
+
+      {/* Project Curriculum Builder Modal */}
+      <ProjectCurriculumBuilder
+        open={pbOpen}
+        projectId={pbProject?.id || ""}
+        projectName={pbProject?.name || ""}
+        token={token || ""}
+        onSave={saveProjectCurriculum}
+        onClose={closeProjectCurriculumBuilder}
       />
 
       {/* Resource Manager Modal */}

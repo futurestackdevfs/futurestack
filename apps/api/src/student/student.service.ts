@@ -430,7 +430,7 @@ export class StudentService {
     }
 
     return {
-      videoId: updated.videoId,
+      videoId: updated.videoId ?? updated.projectCurriculumVideoId ?? '',
       uniqueSecsWatched: updated.uniqueSecsWatched,
       lastPositionSec: updated.lastPositionSec,
       isCompleted: updated.isCompleted,
@@ -538,6 +538,245 @@ export class StudentService {
       title: video.title,
       durationSeconds: video.durationSeconds,
       initialPosition: progress?.lastPositionSec ?? 0,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // PROJECT VIDEO PROGRESS
+  // ─────────────────────────────────────────────────────────────
+
+  async getStudentProjects(studentId: string) {
+    const orders = await this.prisma.projectOrder.findMany({
+      where: { studentId },
+      include: {
+        project: {
+          include: {
+            trainer: {
+              select: { name: true, careerPath: true },
+            },
+            curriculum: {
+              include: {
+                videos: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Get progress for all project videos
+    const allVideoIds = orders.flatMap((o) =>
+      o.project.curriculum.flatMap((c) => c.videos.map((v) => v.id)),
+    );
+
+    const progressRecords = await this.prisma.videoProgress.findMany({
+      where: {
+        studentId,
+        projectCurriculumVideoId: { in: allVideoIds },
+      },
+    });
+
+    const progressMap = new Map(
+      progressRecords.map((p) => [p.projectCurriculumVideoId, p]),
+    );
+
+    return orders.map((order) => {
+      const project = order.project;
+      const allVideos = project.curriculum.flatMap((c) => c.videos);
+      const completedVideos = allVideos.filter(
+        (v) => progressMap.get(v.id)?.isCompleted,
+      ).length;
+      const totalVideos = allVideos.length;
+      const progressPercent =
+        totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
+
+      return {
+        id: project.id,
+        name: project.name,
+        image: project.image,
+        shortDesc: project.shortDesc,
+        tech: project.stack,
+        level: project.level,
+        badge: project.badge,
+        duration: project.duration,
+        trainer: project.trainer?.name || 'TBA',
+        trainerRole: project.trainer?.careerPath || '',
+        progressPercent,
+        completedVideos,
+        totalVideos,
+        status: order.status,
+        pricePaid: order.pricePaid,
+        purchasedAt: order.createdAt,
+      };
+    });
+  }
+
+  async updateProjectVideoProgress(
+    studentId: string,
+    projectVideoId: string,
+    positionSec: number,
+  ) {
+    const projectVideo = await this.prisma.projectCurriculumVideo.findUnique({
+      where: { id: projectVideoId },
+      include: { curriculum: { include: { project: true } } },
+    });
+
+    if (!projectVideo) {
+      throw new NotFoundException('Project video not found');
+    }
+
+    const clampedPosition = Math.max(
+      0,
+      Math.min(positionSec, projectVideo.durationSeconds),
+    );
+
+    const existing = await this.prisma.videoProgress.findUnique({
+      where: { studentId_projectCurriculumVideoId: { studentId, projectCurriculumVideoId: projectVideoId } },
+    });
+
+    const newUniqueSecsWatched = Math.max(
+      existing?.uniqueSecsWatched ?? 0,
+      clampedPosition,
+    );
+    const wasCompleted = existing?.isCompleted ?? false;
+    const isNowCompleted = newUniqueSecsWatched >= projectVideo.durationSeconds;
+    const justCompleted = isNowCompleted && !wasCompleted;
+
+    const updated = await this.prisma.videoProgress.upsert({
+      where: { studentId_projectCurriculumVideoId: { studentId, projectCurriculumVideoId: projectVideoId } },
+      create: {
+        studentId,
+        projectCurriculumVideoId: projectVideoId,
+        uniqueSecsWatched: newUniqueSecsWatched,
+        lastPositionSec: clampedPosition,
+        isCompleted: isNowCompleted,
+        completedAt: isNowCompleted ? new Date() : null,
+      },
+      update: {
+        uniqueSecsWatched: newUniqueSecsWatched,
+        lastPositionSec: clampedPosition,
+        isCompleted: isNowCompleted,
+        ...(justCompleted ? { completedAt: new Date() } : {}),
+      },
+    });
+
+    return {
+      videoId: updated.projectCurriculumVideoId,
+      uniqueSecsWatched: updated.uniqueSecsWatched,
+      lastPositionSec: updated.lastPositionSec,
+      isCompleted: updated.isCompleted,
+      completedAt: updated.completedAt,
+      justCompleted,
+    };
+  }
+
+  async getProjectVideoOtp(studentId: string, projectVideoId: string) {
+    const projectVideo = await this.prisma.projectCurriculumVideo.findUnique({
+      where: { id: projectVideoId },
+      include: { curriculum: { include: { project: true } } },
+    });
+
+    if (!projectVideo) throw new NotFoundException('Project video not found');
+
+    if (projectVideo.videoStatus !== 'READY') {
+      throw new BadRequestException(
+        'This video is not yet available for playback',
+      );
+    }
+
+    // Fetch saved progress position for resume
+    const progress = await this.prisma.videoProgress.findUnique({
+      where: { studentId_projectCurriculumVideoId: { studentId, projectCurriculumVideoId: projectVideoId } },
+      select: { lastPositionSec: true },
+    });
+
+    // Fetch student info for watermark
+    const student = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      select: { name: true, email: true },
+    });
+
+    const { otp, playbackInfo } = await this.vdoCipherService.getPlaybackOtp(
+      projectVideo.vdoCipherId!,
+      { name: student!.name, email: student!.email },
+    );
+
+    return {
+      otp,
+      playbackInfo,
+      videoId: projectVideo.id,
+      title: projectVideo.title,
+      durationSeconds: projectVideo.durationSeconds,
+      initialPosition: progress?.lastPositionSec ?? 0,
+    };
+  }
+
+  async getProjectProgress(studentId: string, projectId: string) {
+    // Get all curriculum videos for the project
+    const curriculum = await this.prisma.projectCurriculum.findMany({
+      where: { projectId },
+      include: {
+        videos: {
+          orderBy: { order: 'asc' },
+        },
+      },
+      orderBy: { order: 'asc' },
+    });
+
+    const allVideoIds = curriculum.flatMap((c) => c.videos.map((v) => v.id));
+
+    // Get all progress records for these videos
+    const progressRecords = await this.prisma.videoProgress.findMany({
+      where: {
+        studentId,
+        projectCurriculumVideoId: { in: allVideoIds },
+      },
+    });
+
+    const progressMap = new Map(
+      progressRecords.map((p) => [p.projectCurriculumVideoId, p]),
+    );
+
+    let completedCount = 0;
+    let totalDuration = 0;
+    let watchedDuration = 0;
+
+    const curriculumWithProgress = curriculum.map((c) => ({
+      id: c.id,
+      week: c.week,
+      title: c.title,
+      desc: c.desc,
+      order: c.order,
+      videos: c.videos.map((v) => {
+        const prog = progressMap.get(v.id);
+        totalDuration += v.durationSeconds;
+        watchedDuration += prog?.uniqueSecsWatched ?? 0;
+        if (prog?.isCompleted) completedCount++;
+        return {
+          id: v.id,
+          title: v.title,
+          durationSeconds: v.durationSeconds,
+          isCompleted: prog?.isCompleted ?? false,
+          uniqueSecsWatched: prog?.uniqueSecsWatched ?? 0,
+          lastPositionSec: prog?.lastPositionSec ?? 0,
+        };
+      }),
+    }));
+
+    const totalVideos = allVideoIds.length;
+    const progressPercent = totalVideos > 0
+      ? Math.round((completedCount / totalVideos) * 100)
+      : 0;
+
+    return {
+      projectId,
+      totalVideos,
+      completedVideos: completedCount,
+      progressPercent,
+      totalDuration,
+      watchedDuration,
+      curriculum: curriculumWithProgress,
     };
   }
 

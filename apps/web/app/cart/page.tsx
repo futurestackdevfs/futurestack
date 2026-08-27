@@ -15,8 +15,15 @@ interface PaymentSettings {
 type Currency = "INR" | "USD";
 
 interface CartItem {
-  courseId: string;
+  type: "course" | "project";
+  courseId: string | null;
+  projectId: string | null;
   title: string;
+  image?: string | null;
+  thumbGradient?: string | null;
+  shortDesc?: string | null;
+  techLabel?: string;
+  trainer?: string | null;
   category: string;
   rating: number;
   reviews: number;
@@ -95,7 +102,7 @@ interface PayNotice {
 interface SuccessData {
   amount: number;
   currency: Currency;
-  items: { courseId: string; title: string; price: number }[];
+  items: { courseId?: string; projectId?: string; title: string; price: number }[];
 }
 
 interface BillingDetails {
@@ -344,7 +351,11 @@ export default function CartPage() {
     isLoading: cartLoading,
     error: cartError,
     mutate,
-  } = useSWR<CartView>(`/api/cart?currency=${activeCurrency}`, cartFetcher);
+  } = useSWR<CartView>(`/api/cart?currency=${activeCurrency}`, cartFetcher, {
+    revalidateOnMount: true,
+    revalidateOnFocus: true,
+    dedupingInterval: 0,
+  });
 
   const items = cart?.items ?? [];
   const totalCount = items.length;
@@ -631,7 +642,7 @@ export default function CartPage() {
             setSuccess({
               amount: orderData.amount,
               currency: orderData.currency,
-              items: items.map(i => ({ courseId: i.courseId, title: i.title, price: i.price })),
+              items: items.map(i => ({ courseId: i.courseId ?? undefined, title: i.title, price: i.price })),
             });
           } catch (e) {
             payOutcomeRef.current = "idle";
@@ -740,36 +751,50 @@ export default function CartPage() {
                         : 0;
                       const finalPrice = Math.max(0, item.price - itemOff);
                       return (
-                      <div key={item.courseId} className={`flex items-center gap-4 sm:gap-5 px-4 sm:px-6 py-4 sm:py-5 animate-[fadeUp_.3s_ease_both] ${i > 0 ? "border-t border-[var(--border)]" : ""}`}>
+                      <div key={item.courseId ?? item.projectId} className={`flex items-center gap-4 sm:gap-5 px-4 sm:px-6 py-4 sm:py-5 animate-[fadeUp_.3s_ease_both] ${i > 0 ? "border-t border-[var(--border)]" : ""}`}>
                         <div
-                          className="w-[60px] h-[56px] sm:w-[68px] sm:h-[64px] shrink-0 rounded-xl flex items-center justify-center text-[20px] sm:text-[24px] font-extrabold text-white shadow-[0_3px_10px_rgba(0,0,0,.18)]"
-                          style={{ background: i % 2 === 0 ? "linear-gradient(135deg,#0d1f3c,#0a2a1a)" : "linear-gradient(135deg,#7a2a0a,#3a0a0a)" }}
+                          className="w-[60px] h-[56px] sm:w-[68px] sm:h-[64px] shrink-0 rounded-xl flex items-center justify-center text-[20px] sm:text-[24px] font-extrabold text-white shadow-[0_3px_10px_rgba(0,0,0,.18)] overflow-hidden"
+                          style={{ background: item.thumbGradient || (i % 2 === 0 ? "linear-gradient(135deg,#0d1f3c,#0a2a1a)" : "linear-gradient(135deg,#7a2a0a,#3a0a0a)") }}
                         >
-                          {item.title.charAt(0).toUpperCase()}
+                          {item.image ? (
+                            <img src={item.image} alt={item.title} className="min-w-full min-h-full object-cover" />
+                          ) : (
+                            item.title.charAt(0).toUpperCase()
+                          )}
                         </div>
 
                         <div className="flex-1 min-w-0 flex flex-col gap-2">
                           <h3 className="font-['Inter_Tight',sans-serif] text-[15px] sm:text-[16px] font-bold text-[var(--text)] leading-snug line-clamp-2">{item.title}</h3>
 
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] font-extrabold uppercase tracking-[.08em] text-[var(--orange)] bg-[var(--orange-d)] px-2 py-0.5 rounded-[6px]">{item.category}</span>
+                            <span className="text-[10px] font-extrabold uppercase tracking-[.08em] text-[var(--orange)] bg-[var(--orange-d)] px-2 py-0.5 rounded-[6px]">{item.techLabel || item.category}</span>
+                            {item.type === "project" && <span className="text-[9px] font-bold text-[var(--blue)] bg-[rgba(59,130,246,.1)] px-1.5 py-0.5 rounded-[4px]">PROJECT</span>}
                           </div>
 
                           <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11.5px] text-[var(--text2)] mt-0.5">
-                            <span className="flex items-center gap-1">
-                              <span className="text-[var(--amber)] text-[12px]">★</span>
-                              <span className="font-bold text-[var(--text)]">{Number(item.rating).toFixed(1)}</span>
-                              <span className="text-[var(--muted)]">({item.reviews})</span>
-                            </span>
-                            <span className="w-px h-3.5 bg-[var(--border2)]" />
-                            <span className="flex items-center gap-1">⏱ {item.hours} hrs</span>
-                            <span className="w-px h-3.5 bg-[var(--border2)]" />
-                            <span className="flex items-center gap-1">▦ {item.modules} modules</span>
-                            <span className="w-px h-3.5 bg-[var(--border2)]" />
-                            <span className="flex items-center gap-1">▶ {item.lessons} lessons</span>
+                            {item.type === "project" ? (
+                              <>
+                                {item.trainer && <span className="flex items-center gap-1">👨‍🏫 {item.trainer}</span>}
+                                {item.shortDesc && <span className="text-[var(--muted)] line-clamp-1">{item.shortDesc}</span>}
+                              </>
+                            ) : (
+                              <>
+                                <span className="flex items-center gap-1">
+                                  <span className="text-[var(--amber)] text-[12px]">★</span>
+                                  <span className="font-bold text-[var(--text)]">{Number(item.rating).toFixed(1)}</span>
+                                  <span className="text-[var(--muted)]">({item.reviews})</span>
+                                </span>
+                                <span className="w-px h-3.5 bg-[var(--border2)]" />
+                                <span className="flex items-center gap-1">⏱ {item.hours} hrs</span>
+                                <span className="w-px h-3.5 bg-[var(--border2)]" />
+                                <span className="flex items-center gap-1">▦ {item.modules} modules</span>
+                                <span className="w-px h-3.5 bg-[var(--border2)]" />
+                                <span className="flex items-center gap-1">▶ {item.lessons} lessons</span>
+                              </>
+                            )}
                           </div>
 
-                          <span className="inline-flex items-center gap-1.5 mt-0.5 text-[10px] font-bold text-[var(--green)] bg-[var(--green-d)] px-2.5 py-1 rounded-full w-fit">🎓 Certificate included</span>
+                          {item.type === "course" && <span className="inline-flex items-center gap-1.5 mt-0.5 text-[10px] font-bold text-[var(--green)] bg-[var(--green-d)] px-2.5 py-1 rounded-full w-fit">🎓 Certificate included</span>}
                         </div>
 
                         <div className="flex flex-col items-end gap-3 shrink-0">
@@ -794,7 +819,7 @@ export default function CartPage() {
                             <span className="font-['Inter_Tight',sans-serif] text-lg sm:text-xl font-extrabold text-[var(--text)] tracking-[-.01em]">{formatPrice(item.price, activeCurrency)}</span>
                           )}
                           <button
-                            onClick={() => removeItem(item.courseId)}
+                            onClick={() => removeItem(item.courseId ?? item.projectId!)}
                             className="flex items-center gap-1 text-[11px] font-bold text-[var(--muted)] hover:text-[var(--red)] bg-transparent border-none cursor-pointer transition-colors duration-150 p-1 -m-1 rounded-md hover:bg-[var(--red-d)]"
                             aria-label={`Remove ${item.title}`}
                           >
@@ -1104,7 +1129,7 @@ export default function CartPage() {
 
             <div className="flex flex-col gap-3 w-full max-w-[420px] mb-7">
               {successItems.map((item, i) => (
-                <div key={item.courseId} className="animate-[fadeUp_.45s_ease_both]"
+                <div key={item.courseId ?? item.projectId ?? i} className="animate-[fadeUp_.45s_ease_both]"
                   style={{ animationDelay: `${0.3 + i * 0.14}s` }}>
                   <Card className="flex items-center gap-4 px-4 py-3.5 text-left">
                     <div
@@ -1125,7 +1150,7 @@ export default function CartPage() {
 
             <Card className="px-6 py-4 w-full max-w-[420px] mb-6 text-left animate-[fadeUp_.45s_ease_both_.3s]">
               <div className="flex justify-between text-[12px] py-1.5"><span className="text-[var(--muted)]">Amount Paid</span><span className="text-[var(--text)] font-bold">{formatPrice(successAmount, successCurrency)}</span></div>
-              <div className="flex justify-between text-[12px] py-1.5"><span className="text-[var(--muted)]">Courses Enrolled</span><span className="text-[var(--text)] font-bold">{successItems.length}</span></div>
+              <div className="flex justify-between text-[12px] py-1.5"><span className="text-[var(--muted)]">Items Enrolled</span><span className="text-[var(--text)] font-bold">{successItems.length}</span></div>
             </Card>
 
             <div className="flex flex-col sm:flex-row gap-3 w-full max-w-[420px] animate-[fadeUp_.45s_ease_both_.45s]">

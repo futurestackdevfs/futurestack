@@ -2,6 +2,7 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -11,35 +12,35 @@ import { CourseStatus, SkillLevel } from '@prisma/client';
 
 export class CreateProjectDto {
   @IsString()
+  @IsNotEmpty()
   name: string;
 
   @IsOptional()
   @IsString()
   image?: string;
 
-  @IsOptional()
   @IsString()
-  techLabel?: string;
+  @IsNotEmpty()
+  techLabel: string;
 
-  @IsOptional()
   @IsString()
-  tech?: string;
+  @IsNotEmpty()
+  tech: string;
 
-  @IsOptional()
   @IsString()
-  shortDesc?: string;
+  @IsNotEmpty()
+  shortDesc: string;
 
-  @IsOptional()
   @IsString()
-  overview?: string;
+  @IsNotEmpty()
+  overview: string;
 
   @IsOptional()
   @IsString()
   thumbGradient?: string;
 
-  @IsOptional()
   @IsEnum(SkillLevel)
-  level?: SkillLevel;
+  level: SkillLevel;
 
   @IsOptional()
   @IsString()
@@ -117,9 +118,8 @@ export class CreateProjectDto {
   @IsString()
   trainerId?: string;
 
-  @IsOptional()
   @IsEnum(CourseStatus)
-  status?: CourseStatus;
+  status: CourseStatus;
 
   @IsOptional()
   @IsBoolean()

@@ -88,7 +88,10 @@ export class CheckoutService {
       where: { userId },
       include: {
         items: {
-          include: { course: { select: { status: true, price: true } } },
+          include: {
+            course: { select: { status: true, price: true } },
+            project: { select: { id: true, name: true, status: true, price: true, trainerId: true } },
+          },
         },
       },
     });
@@ -96,44 +99,55 @@ export class CheckoutService {
     if (!cart || cart.items.length === 0)
       throw new BadRequestException('Cart is empty');
 
-    // Re-check every item: still ACTIVE? still not already enrolled? Drop the
-    // failing ones and surface them so the frontend can show the user.
-    const dropped: { courseId: string; reason: string }[] = [];
-    const kept: { itemId: string; courseId: string; price: number }[] = [];
+    // Re-check every item: still ACTIVE? Drop the failing ones.
+    const dropped: { courseId?: string; projectId?: string; reason: string }[] = [];
+    const keptCourses: { itemId: string; courseId: string; price: number }[] = [];
+    const keptProjects: { itemId: string; projectId: string; projectName: string; price: number; trainerId: string | null }[] = [];
 
     for (const item of cart.items) {
-      if (item.course.status !== 'ACTIVE') {
-        dropped.push({
-          courseId: item.courseId,
-          reason: 'Course is no longer available',
+      if (item.courseId) {
+        if (!item.course || item.course.status !== 'ACTIVE') {
+          dropped.push({ courseId: item.courseId, reason: 'Course is no longer available' });
+          continue;
+        }
+        const enrolled = await this.prisma.enrollment.findUnique({
+          where: {
+            studentId_courseId: { studentId: userId, courseId: item.courseId },
+          },
+          select: { id: true },
         });
-        continue;
-      }
-      const enrolled = await this.prisma.enrollment.findUnique({
-        where: {
-          studentId_courseId: { studentId: userId, courseId: item.courseId },
-        },
-        select: { id: true },
-      });
-      if (enrolled) {
-        dropped.push({
-          courseId: item.courseId,
-          reason: 'You are already enrolled in this course',
+        if (enrolled) {
+          dropped.push({ courseId: item.courseId, reason: 'You are already enrolled in this course' });
+          continue;
+        }
+        keptCourses.push({ itemId: item.id, courseId: item.courseId, price: item.course.price });
+      } else if (item.projectId) {
+        if (!item.project || item.project.status !== 'ACTIVE') {
+          dropped.push({ projectId: item.projectId, reason: 'Project is no longer available' });
+          continue;
+        }
+        keptProjects.push({
+          itemId: item.id,
+          projectId: item.projectId,
+          projectName: item.project.name,
+          price: item.project.price,
+          trainerId: item.project.trainerId,
         });
-        continue;
       }
-      kept.push({
-        itemId: item.id,
-        courseId: item.courseId,
-        price: item.course.price,
-      });
     }
 
+    const kept = keptCourses;
+
     if (dropped.length > 0) {
+      const courseIds = dropped.filter((d) => d.courseId).map((d) => d.courseId!);
+      const projectIds = dropped.filter((d) => d.projectId).map((d) => d.projectId!);
       await this.prisma.cartItem.deleteMany({
         where: {
           cartId: cart.id,
-          courseId: { in: dropped.map((d) => d.courseId) },
+          OR: [
+            ...(courseIds.length > 0 ? [{ courseId: { in: courseIds } }] : []),
+            ...(projectIds.length > 0 ? [{ projectId: { in: projectIds } }] : []),
+          ],
         },
       });
       throw new ConflictException({
@@ -162,11 +176,13 @@ export class CheckoutService {
       });
     }
 
-    // Live prices from Course — never trust the frontend.
+    // Live prices from Course/Project — never trust the frontend.
     const coursePrice = (k: { courseId: string; price: number }) => k.price;
+    const projectPrice = (p: { price: number }) => p.price;
 
     const subtotal = this.round2(
-      kept.reduce((sum, k) => sum + Math.round(coursePrice(k) * 100), 0) / 100,
+      (kept.reduce((sum, k) => sum + Math.round(coursePrice(k) * 100), 0) +
+        keptProjects.reduce((sum, p) => sum + Math.round(projectPrice(p) * 100), 0)) / 100,
     );
 
     // Re-validate the applied coupon from scratch — it may have expired since
@@ -187,6 +203,7 @@ export class CheckoutService {
             currency,
             subtotal,
             courseIds: kept.map((k) => k.courseId),
+            projectIds: keptProjects.map((p) => p.projectId),
           });
           couponId = result.coupon.id;
           discountAmount = result.discountAmount;
@@ -261,6 +278,22 @@ export class CheckoutService {
           currency,
         })),
       });
+      // Create pending ProjectOrder records for each project in the cart.
+      // These are activated (status → 'active') on payment success and
+      // deleted on Razorpay failure or user cancellation.
+      if (keptProjects.length > 0) {
+        await tx.projectOrder.createMany({
+          data: keptProjects.map((p) => ({
+            projectId: p.projectId,
+            studentId: userId,
+            name: dto.fullName ?? '',
+            email: dto.email ?? '',
+            phone: dto.phone ?? '',
+            pricePaid: p.price,
+            status: 'pending',
+          })),
+        });
+      }
       return created;
     });
 
@@ -275,8 +308,13 @@ export class CheckoutService {
       });
       razorpayOrderId = created.id;
     } catch (e) {
-      // Roll back the local Order so we never leave an orphaned CREATED order.
-      await this.prisma.order.delete({ where: { id: order.id } });
+      // Roll back the local Order and any pending ProjectOrders created above.
+      await this.prisma.$transaction([
+        this.prisma.projectOrder.deleteMany({
+          where: { studentId: userId, status: 'pending' },
+        }),
+        this.prisma.order.delete({ where: { id: order.id } }),
+      ]);
       if (e instanceof ServiceUnavailableException) throw e;
       this.logger.error(
         `Razorpay order creation failed: ${this.describeError(e)}`,
@@ -374,47 +412,56 @@ export class CheckoutService {
       const settings = await this.paymentSettings.getSettings();
 
       const enrollments = await Promise.all(
-        order.items.map(async (item) => {
-          const course = await tx.course.findUnique({
-            where: { id: item.courseId },
-            select: {
-              id: true,
-              trainer: { select: { id: true, trainerSharePercent: true } },
-            },
-          });
-
-          const created = await tx.enrollment.create({
-            data: {
-              studentId: order.userId,
-              courseId: item.courseId,
-              amountPaid: item.priceAtPurchase,
-              orderId: order.id,
-            },
-          });
-
-          if (course?.trainer) {
-            const sharePct = resolveTrainerSharePercent(
-              course.trainer.trainerSharePercent,
-              settings.trainerSharePercent,
-            );
-            const { trainerShare, platformCut } = computeTrainerShare(
-              item.priceAtPurchase,
-              sharePct,
-            );
-            await tx.revenueLedger.create({
-              data: {
-                trainerId: course.trainer.id,
-                enrollmentId: created.id,
-                gross: item.priceAtPurchase,
-                platformCut,
-                trainerShare,
+        order.items
+          .filter((item) => item.courseId)
+          .map(async (item) => {
+            const course = await tx.course.findUnique({
+              where: { id: item.courseId! },
+              select: {
+                id: true,
+                trainer: { select: { id: true, trainerSharePercent: true } },
               },
             });
-          }
 
-          return created;
-        }),
+            const created = await tx.enrollment.create({
+              data: {
+                studentId: order.userId,
+                courseId: item.courseId!,
+                amountPaid: item.priceAtPurchase,
+                orderId: order.id,
+              },
+            });
+
+            if (course?.trainer) {
+              const sharePct = resolveTrainerSharePercent(
+                course.trainer.trainerSharePercent,
+                settings.trainerSharePercent,
+              );
+              const { trainerShare, platformCut } = computeTrainerShare(
+                item.priceAtPurchase,
+                sharePct,
+              );
+              await tx.revenueLedger.create({
+                data: {
+                  trainerId: course.trainer.id,
+                  enrollmentId: created.id,
+                  gross: item.priceAtPurchase,
+                  platformCut,
+                  trainerShare,
+                },
+              });
+            }
+
+            return created;
+          }),
       );
+
+      // Activate any pending ProjectOrders for this student — they were
+      // created with status 'pending' when the Order was initialised.
+      await tx.projectOrder.updateMany({
+        where: { studentId: order.userId, status: 'pending' },
+        data: { status: 'active' },
+      });
 
       if (order.couponId) {
         await tx.coupon.update({
@@ -550,6 +597,12 @@ export class CheckoutService {
       where: { id: order.id, status: 'CREATED' },
       data: { status: 'CANCELLED' },
     });
+    // Also clean up any pending ProjectOrders created alongside this order.
+    if (updated.count > 0) {
+      await this.prisma.projectOrder.deleteMany({
+        where: { studentId: order.userId, status: 'pending' },
+      });
+    }
     return { cancelled: updated.count > 0 };
   }
 

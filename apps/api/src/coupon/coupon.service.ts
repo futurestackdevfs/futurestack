@@ -62,7 +62,8 @@ export class CouponService {
     }
 
     if (coupon.applicableCourseIds.length > 0) {
-      const applies = input.courseIds.some((id) =>
+      const allIds = [...input.courseIds, ...(input.projectIds ?? [])];
+      const applies = allIds.some((id) =>
         coupon.applicableCourseIds.includes(id),
       );
       if (!applies)

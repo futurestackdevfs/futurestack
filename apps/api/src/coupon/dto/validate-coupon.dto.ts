@@ -14,4 +14,6 @@ export class ValidateCouponDto {
   subtotal: number;
   /** Course ids currently in the cart. */
   courseIds: string[];
+  /** Project ids currently in the cart. */
+  projectIds?: string[];
 }

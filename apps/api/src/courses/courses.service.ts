@@ -1226,7 +1226,7 @@ export class CoursesService {
 
   async deleteCourse(id: string) {
     this.invalidateCatalog();
-    await this.findCourseOrFail(id);
+    const course = await this.findCourseOrFail(id);
     const activeCount = await this.prisma.enrollment.count({
       where: { courseId: id, status: 'active' },
     });
@@ -1236,6 +1236,9 @@ export class CoursesService {
       );
     }
     await this.prisma.course.delete({ where: { id } });
+    if (course.thumbnailUrl) {
+      try { await this.s3Service.deleteByUrl(course.thumbnailUrl); } catch {}
+    }
     return { message: 'Course deleted' };
   }
 
@@ -1424,6 +1427,9 @@ export class CoursesService {
     });
     if (!resource) throw new NotFoundException('Resource not found');
     await this.prisma.courseResource.delete({ where: { id } });
+    if (resource.fileUrl) {
+      try { await this.s3Service.deleteByUrl(resource.fileUrl); } catch {}
+    }
     return { message: 'Resource deleted' };
   }
 

@@ -31,7 +31,7 @@ export class CartController {
   @Post('items')
   addItem(@Req() req: Request, @Body() dto: AddCartItemDto) {
     const user = req.user as { id: string };
-    return this.cartService.addItem(user.id, dto.courseId);
+    return this.cartService.addItem(user.id, dto.courseId, dto.projectId);
   }
 
   @Auth(Role.STUDENT)

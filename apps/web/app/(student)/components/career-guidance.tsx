@@ -78,7 +78,7 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
 
       <button
         onClick={() => openLead("fab")}
-        className="fixed right-6 bottom-6 z-[900] flex items-center gap-2 rounded-full border-none px-4 py-3 text-[13px] font-bold text-white cursor-pointer shadow-[0_10px_30px_rgba(255,106,26,.4)] hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(255,106,26,.5)]"
+        className="fixed right-6 bottom-[39px] z-[900] flex items-center gap-2 rounded-full border-none px-4 py-3 text-[13px] font-bold text-white cursor-pointer shadow-[0_10px_30px_rgba(255,106,26,.4)] hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(255,106,26,.5)]"
         style={{ background: "linear-gradient(135deg, var(--orange) 0%, var(--orange2) 100%)", display: hidden ? "none" : undefined }}
       >
         <span className="relative flex h-[26px] w-[26px] items-center justify-center rounded-full bg-white/20 text-[14px]">

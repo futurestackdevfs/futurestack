@@ -90,6 +90,7 @@ export function CoordinatorSidebar({ activeView, onSwitchView, badges = {} }: Co
         </div>
       ))}
 
+      {/* Footer */}
       <div className="mt-auto px-3.5 py-2.5 font-mono text-[9px]" style={{ color: "var(--text3)", borderTop: "1px solid var(--border)" }}>
         v1.0.0 · BUILD 2026.08.20
       </div>

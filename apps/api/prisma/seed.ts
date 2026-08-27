@@ -330,28 +330,51 @@ async function main() {
     console.log('Projects already seeded (%d found) — skipped.', existingCount);
   } else {
     // Find first TRAINER user to assign as default trainer
-    const trainerId = '19576396-04f5-4ae7-914b-7ff98548ce1c';
+    const trainer = await prisma.user.findFirst({
+      where: { role: 'TRAINER' },
+      select: { id: true },
+    });
+    const trainerId = trainer?.id ?? null;
 
     for (const p of PROJECTS_SEED) {
       const { curriculum, ...projectData } = p;
       const project = await prisma.project.create({
         data: {
           ...projectData,
-          trainerId: trainerId,
+          trainerId,
           status: 'ACTIVE' as CourseStatus,
         },
       });
 
       if (curriculum && curriculum.length > 0) {
-        await prisma.projectCurriculum.createMany({
-          data: curriculum.map((c, i) => ({
-            projectId: project.id,
-            week: c.week,
-            title: c.title,
-            desc: c.desc,
-            order: i,
-          })),
-        });
+        for (let i = 0; i < curriculum.length; i++) {
+          const c = curriculum[i];
+          const curriculumItem = await prisma.projectCurriculum.create({
+            data: {
+              projectId: project.id,
+              week: c.week,
+              title: c.title,
+              desc: c.desc,
+              order: i,
+            },
+          });
+
+          // Create sample video records for each curriculum week
+          const videoTitles = [
+            `${c.title} - Part 1`,
+            `${c.title} - Part 2`,
+          ];
+          await prisma.projectCurriculumVideo.createMany({
+            data: videoTitles.map((title, vi) => ({
+              curriculumId: curriculumItem.id,
+              title,
+              vdoCipherId: null,
+              durationSeconds: 0,
+              videoStatus: 'UPLOADING',
+              order: vi,
+            })),
+          });
+        }
       }
 
       console.log('  ✓ Project: %s', project.name);

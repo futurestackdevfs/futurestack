@@ -13,7 +13,9 @@ function decodeJwt(t?: string): { sub?: string; role?: string } | null {
 
 async function loadSessionToken(): Promise<string | null> {
   const { loadToken, loadStaffToken } = await import('@/app/auth/lib/token-store');
-  return (await loadToken()) ?? (await loadStaffToken());
+  const isOps = typeof window !== 'undefined' && window.location.pathname.startsWith('/ops');
+  // Only load the token for the current portal — never cross-load
+  return isOps ? await loadStaffToken() : await loadToken();
 }
 
 export async function fetcher<T = unknown>(url: string): Promise<T> {

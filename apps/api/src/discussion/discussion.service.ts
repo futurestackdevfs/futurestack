@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { S3Service } from '../upload/s3.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
@@ -12,7 +13,10 @@ import { Role, MessageTag } from '@prisma/client';
 
 @Injectable()
 export class DiscussionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly s3Service: S3Service,
+  ) {}
 
   private isStaff(role: Role): boolean {
     return role !== Role.STUDENT;
@@ -184,6 +188,11 @@ export class DiscussionService {
       throw new ForbiddenException('Only staff can post announcements.');
     }
 
+    // Delete old attachment from S3 if replaced
+    if (dto.attachmentUrl && dto.attachmentUrl !== message.attachmentUrl && message.attachmentUrl) {
+      try { await this.s3Service.deleteByUrl(message.attachmentUrl); } catch {}
+    }
+
     return this.prisma.courseDiscussion.update({
       where: { id: messageId },
       data: {
@@ -207,6 +216,11 @@ export class DiscussionService {
       throw new ForbiddenException(
         'You do not have permission to delete this message.',
       );
+    }
+
+    // Delete attachment from S3 if present
+    if (message.attachmentUrl) {
+      try { await this.s3Service.deleteByUrl(message.attachmentUrl); } catch {}
     }
 
     return this.prisma.courseDiscussion.delete({
