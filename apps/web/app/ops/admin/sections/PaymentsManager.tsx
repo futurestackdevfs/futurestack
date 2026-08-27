@@ -27,7 +27,7 @@ interface PaymentOrder {
   student: { id: string; name: string; email: string } | null;
   couponCode: string | null;
   enrollmentsCount: number;
-  items: { courseId: string; title: string; priceAtPurchase: number }[];
+  items: { courseId: string; title: string; priceAtPurchase: number; type?: string }[];
 }
 
 interface PaymentsSummary {
@@ -94,13 +94,19 @@ const PER_PAGE = 10;
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; color: string; bg: string }> = {
+    // Course order statuses
     PAID: { label: "Paid", color: "var(--green)", bg: "var(--green-d)" },
     FAILED: { label: "Failed", color: "var(--red)", bg: "var(--red-d)" },
     EXPIRED: { label: "Expired", color: "var(--amber)", bg: "rgba(217,119,6,.12)" },
     CANCELLED: { label: "Cancelled", color: "var(--text3)", bg: "var(--bg2)" },
     CREATED: { label: "Pending", color: "var(--blue)", bg: "var(--blue-d)" },
+    // Project order statuses
+    ACTIVE: { label: "Active", color: "#a78bfa", bg: "rgba(139,92,246,.15)" },
+    PENDING: { label: "Pending", color: "var(--blue)", bg: "var(--blue-d)" },
+    COMPLETED: { label: "Completed", color: "var(--green)", bg: "var(--green-d)" },
+    INACTIVE: { label: "Inactive", color: "var(--text3)", bg: "var(--bg2)" },
   };
-  const s = map[status] ?? { label: status, color: "var(--text3)", bg: "var(--bg2)" };
+  const s = map[status?.toUpperCase()] ?? { label: status, color: "var(--text3)", bg: "var(--bg2)" };
   return (
     <span
       className="font-mono text-[9.5px] font-bold px-2 py-[3px] rounded-full whitespace-nowrap"
@@ -481,7 +487,7 @@ export default function PaymentsManager({ token, searchQuery = "" }: { token: st
               <table className="w-full text-left min-w-[880px]" style={{ borderCollapse: "collapse", fontSize: 12 }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(148,163,184,.05)" }}>
-                    {["Order", "Date", "Student", "Courses", "Subtotal", "Discount", "Total", "Status", "Payment"].map((h) => (
+                    {["Order", "Date", "Student", "Items", "Subtotal", "Discount", "Total", "Status", "Payment"].map((h) => (
                       <th
                         key={h}
                         className="font-mono text-[9px] font-bold uppercase tracking-[.08em] text-[var(--text3)] px-2.5 py-[7px]"
@@ -636,16 +642,38 @@ function OrderRow({
           <span className="font-mono text-[10.5px] font-bold" style={{ color: "var(--blue)" }}>{order.orderNo}</span>
           <div className="font-mono text-[8.5px] text-[var(--muted)] max-w-[120px] truncate">{order.id}</div>
         </td>
-        <td className="px-2.5 py-[7px] font-mono text-[10px] whitespace-nowrap" style={{ color: "var(--text2)" }}>
-          {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+        <td className="px-2.5 py-[7px] whitespace-nowrap">
+          <div className="font-mono text-[10px]" style={{ color: "var(--text2)" }}>
+            {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+          </div>
+          <div className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>
+            {new Date(order.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}
+          </div>
         </td>
         <td className="px-2.5 py-[7px]">
           <div className="text-[11.5px] font-semibold" style={{ color: "var(--text)" }}>{order.student?.name ?? "—"}</div>
           <div className="font-mono text-[9px] max-w-[160px] truncate" style={{ color: "var(--text3)" }}>{order.student?.email ?? ""}</div>
         </td>
         <td className="px-2.5 py-[7px]">
-          <span className="font-mono text-[10.5px] tabular-nums" style={{ color: "var(--text2)" }}>{order.items.length}</span>
-          <div className="font-mono text-[8.5px]" style={{ color: "var(--muted)" }}>{order.enrollmentsCount} enrolled</div>
+          {order.items.length === 0 ? (
+            <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>—</span>
+          ) : (
+            <div className="flex flex-wrap gap-1">
+              {Array.from(new Set(order.items.map((it) => (it.type?.toLowerCase() === "project" ? "project" : "course")))).map((t) => (
+                <span
+                  key={t}
+                  className="font-mono text-[9px] font-bold px-2 py-[2px] rounded-full whitespace-nowrap uppercase tracking-wide"
+                  style={{
+                    background: t === "project" ? "rgba(139,92,246,.15)" : "rgba(59,130,246,.13)",
+                    color: t === "project" ? "#a78bfa" : "#60a5fa",
+                    border: `1px solid ${t === "project" ? "rgba(139,92,246,.3)" : "rgba(59,130,246,.25)"}`,
+                  }}
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
         </td>
         <td className="px-2.5 py-[7px] font-mono text-[10.5px] tabular-nums whitespace-nowrap" style={{ color: "var(--text2)" }}>
           {formatMoney(order.subtotal, order.currency)}
@@ -667,7 +695,11 @@ function OrderRow({
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, fontSize: 12 }}>
               <div>
                 <div className="font-mono text-[9px] font-bold uppercase tracking-[.08em] mb-1" style={{ color: "var(--text3)" }}>
-                  Courses
+                  {order.items.every((it) => it.type === "project")
+                    ? "Projects"
+                    : order.items.every((it) => it.type === "course")
+                    ? "Courses"
+                    : "Items"}
                 </div>
                 {order.items.length === 0 && <div style={{ color: "var(--text3)" }}>No items</div>}
                 {order.items.map((it, i) => (
@@ -681,9 +713,9 @@ function OrderRow({
                 <div className="font-mono text-[9px] font-bold uppercase tracking-[.08em] mb-1" style={{ color: "var(--text3)" }}>
                   Details
                 </div>
-                <DetailRow label="Razorpay order" value={order.razorpayOrderId} mono />
-                <DetailRow label="Payment id" value={order.razorpayPaymentId ?? "—"} mono />
-                <DetailRow label="Gateway" value={order.gatewayType} />
+                <DetailRow label="Razorpay order" value={order.razorpayOrderId || "—"} mono />
+                <DetailRow label="Payment id" value={order.razorpayPaymentId || "—"} mono />
+                <DetailRow label="Gateway" value={order.gatewayType || "—"} />
                 <DetailRow label="Coupon" value={order.couponCode ?? "—"} />
                 <DetailRow label="Currency" value={order.currency} />
                 <DetailRow label="Customer" value={order.billing.fullName ?? order.student?.email ?? "—"} />

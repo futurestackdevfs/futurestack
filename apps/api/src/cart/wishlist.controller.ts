@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -28,6 +29,7 @@ export class WishlistController {
   @Post('items')
   addItem(@Req() req: Request, @Body() dto: AddCartItemDto) {
     const user = req.user as { id: string };
+    if (!dto.courseId) throw new BadRequestException('courseId is required for wishlist');
     return this.wishlistService.addItem(user.id, dto.courseId);
   }
 

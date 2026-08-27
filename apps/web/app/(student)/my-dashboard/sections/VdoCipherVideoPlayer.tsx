@@ -10,6 +10,7 @@ interface VdoCipherVideoPlayerProps {
   isCompleted?: boolean
   onProgress?: (positionSec: number) => void
   onComplete?: () => void
+  type?: "course" | "project"
 }
 
 interface PlayerData {
@@ -55,6 +56,7 @@ export default function VdoCipherVideoPlayer({
   isCompleted = false,
   onProgress,
   onComplete,
+  type = "course",
 }: VdoCipherVideoPlayerProps) {
   const [token, setToken] = useState<string | null>(null)
   const [playerData, setPlayerData] = useState<PlayerData | null>(null)
@@ -102,7 +104,10 @@ export default function VdoCipherVideoPlayer({
       lastHeartbeatAtRef.current = now
 
       try {
-        const res = await fetch(`/api/student/videos/${videoId}/progress`, {
+        const progressEndpoint = type === "project"
+          ? `/api/student/project-videos/${videoId}/progress`
+          : `/api/student/videos/${videoId}/progress`;
+        const res = await fetch(progressEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -122,8 +127,8 @@ export default function VdoCipherVideoPlayer({
           completedRef.current = true
           onComplete()
         }
-      } catch (err) {
-        console.warn("Progress heartbeat failed:", err)
+      } catch {
+        // Progress heartbeat failed - silently ignore
       }
     },
     [videoId, durationSeconds, onComplete]
@@ -137,7 +142,10 @@ export default function VdoCipherVideoPlayer({
     let cancelled = false
     const load = async () => {
       try {
-        const res = await fetch(`/api/student/videos/${videoId}/otp`, {
+        const otpEndpoint = type === "project"
+          ? `/api/student/project-videos/${videoId}/otp`
+          : `/api/student/videos/${videoId}/otp`;
+        const res = await fetch(otpEndpoint, {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (cancelled) return
@@ -147,7 +155,7 @@ export default function VdoCipherVideoPlayer({
           return
         }
         if (res.status === 403) {
-          setError("You are not enrolled in this course.")
+          setError(type === "project" ? "You have not purchased this project." : "You are not enrolled in this course.")
           return
         }
         if (!res.ok) throw new Error("Failed to load video")

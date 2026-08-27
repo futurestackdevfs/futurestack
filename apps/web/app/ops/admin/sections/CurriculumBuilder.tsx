@@ -165,7 +165,7 @@ export function CurriculumBuilder({
         tempIdCounter.current = 0;
         isDirty.current = false;
       })
-      .catch((e) => { console.warn("[curriculum] fetch failed:", e); setFetchError(e.message || "Failed to load curriculum"); })
+      .catch((e) => { setFetchError(e.message || "Failed to load curriculum"); })
       .finally(() => setLoading(false));
   }, [open, courseId, token]);
 
@@ -447,8 +447,7 @@ export function CurriculumBuilder({
       await refreshSections();
       isDirty.current = false;
       onSave();
-    } catch (e) {
-      console.warn('[curriculum] save failed:', e);
+    } catch {
       await askConfirm({
         title: 'Save Failed',
         message: 'Failed to save curriculum. Please try again.',
@@ -635,8 +634,7 @@ export function CurriculumBuilder({
                                       // Mark as saved so handleSave won't POST it again
                                       originalSections.current = [...originalSections.current, { ...section, id: realId, videos: [], quizzes: [] }];
                                       targetSectionId = realId;
-                                    } catch (e) {
-                                      console.warn('[upload] failed to create section first:', e);
+                                    } catch {
                                       return;
                                     }
                                   }

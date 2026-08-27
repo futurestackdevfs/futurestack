@@ -835,95 +835,161 @@ export class AdminService {
   }
 
   private async handleVideoReady(payload: VdoCipherWebhookPayload) {
+    // Check course videos first
     const video = await this.prisma.video.findFirst({
       where: { vdoCipherId: payload.payload.id },
     });
-    if (!video) {
-      this.logger.warn(
-        `Video not found for vdoCipherId: ${payload.payload.id}`,
-      );
+    if (video) {
+      await this.prisma.video.update({
+        where: { id: video.id },
+        data: {
+          videoStatus: 'READY',
+          ...(payload.payload.length
+            ? { durationSeconds: payload.payload.length }
+            : {}),
+        },
+      });
+      this.logger.log(`Video ${video.id} marked as READY`);
       return { received: true };
     }
 
-    await this.prisma.video.update({
-      where: { id: video.id },
-      data: {
-        videoStatus: 'READY',
-        ...(payload.payload.length
-          ? { durationSeconds: payload.payload.length }
-          : {}),
-      },
+    // Check project curriculum videos
+    const projectVideo = await this.prisma.projectCurriculumVideo.findFirst({
+      where: { vdoCipherId: payload.payload.id },
     });
+    if (projectVideo) {
+      await this.prisma.projectCurriculumVideo.update({
+        where: { id: projectVideo.id },
+        data: {
+          videoStatus: 'READY',
+          ...(payload.payload.length
+            ? { durationSeconds: payload.payload.length }
+            : {}),
+        },
+      });
+      this.logger.log(`Project video ${projectVideo.id} marked as READY`);
+      return { received: true };
+    }
 
-    this.logger.log(`Video ${video.id} marked as READY`);
+    this.logger.warn(
+      `Video not found for vdoCipherId: ${payload.payload.id}`,
+    );
     return { received: true };
   }
 
   private async handleVideoUpdated(payload: VdoCipherWebhookPayload) {
+    // Check course videos first
     const video = await this.prisma.video.findFirst({
       where: { vdoCipherId: payload.payload.id },
     });
-    if (!video) {
-      this.logger.warn(
-        `Video not found for vdoCipherId: ${payload.payload.id}`,
-      );
+    if (video) {
+      await this.prisma.video.update({
+        where: { id: video.id },
+        data: {
+          ...(payload.payload.title ? { title: payload.payload.title } : {}),
+          ...(payload.payload.length
+            ? { durationSeconds: payload.payload.length }
+            : {}),
+        },
+      });
+      this.logger.log(`Video ${video.id} metadata updated`);
       return { received: true };
     }
 
-    await this.prisma.video.update({
-      where: { id: video.id },
-      data: {
-        ...(payload.payload.title ? { title: payload.payload.title } : {}),
-        ...(payload.payload.length
-          ? { durationSeconds: payload.payload.length }
-          : {}),
-      },
+    // Check project curriculum videos
+    const projectVideo = await this.prisma.projectCurriculumVideo.findFirst({
+      where: { vdoCipherId: payload.payload.id },
     });
+    if (projectVideo) {
+      await this.prisma.projectCurriculumVideo.update({
+        where: { id: projectVideo.id },
+        data: {
+          ...(payload.payload.title ? { title: payload.payload.title } : {}),
+          ...(payload.payload.length
+            ? { durationSeconds: payload.payload.length }
+            : {}),
+        },
+      });
+      this.logger.log(`Project video ${projectVideo.id} metadata updated`);
+      return { received: true };
+    }
 
-    this.logger.log(`Video ${video.id} metadata updated`);
+    this.logger.warn(
+      `Video not found for vdoCipherId: ${payload.payload.id}`,
+    );
     return { received: true };
   }
 
   private async handleVideoDeleted(payload: VdoCipherWebhookPayload) {
+    // Check course videos first
     const video = await this.prisma.video.findFirst({
       where: { vdoCipherId: payload.payload.id },
     });
-    if (!video) {
-      this.logger.warn(
-        `Video not found for vdoCipherId: ${payload.payload.id}`,
+    if (video) {
+      await this.prisma.video.update({
+        where: { id: video.id },
+        data: { videoStatus: 'UPLOADING' },
+      });
+      this.logger.log(
+        `Video ${video.id} reset to UPLOADING after deletion on VdoCipher`,
       );
       return { received: true };
     }
 
-    await this.prisma.video.update({
-      where: { id: video.id },
-      data: { videoStatus: 'UPLOADING' },
+    // Check project curriculum videos
+    const projectVideo = await this.prisma.projectCurriculumVideo.findFirst({
+      where: { vdoCipherId: payload.payload.id },
     });
+    if (projectVideo) {
+      await this.prisma.projectCurriculumVideo.update({
+        where: { id: projectVideo.id },
+        data: { videoStatus: 'UPLOADING' },
+      });
+      this.logger.log(
+        `Project video ${projectVideo.id} reset to UPLOADING after deletion on VdoCipher`,
+      );
+      return { received: true };
+    }
 
-    this.logger.log(
-      `Video ${video.id} reset to UPLOADING after deletion on VdoCipher`,
+    this.logger.warn(
+      `Video not found for vdoCipherId: ${payload.payload.id}`,
     );
     return { received: true };
   }
 
   private async handleVideoError(payload: VdoCipherWebhookPayload) {
+    // Check course videos first
     const video = await this.prisma.video.findFirst({
       where: { vdoCipherId: payload.payload.id },
     });
-    if (!video) {
-      this.logger.warn(
-        `Video not found for vdoCipherId: ${payload.payload.id}`,
+    if (video) {
+      await this.prisma.video.update({
+        where: { id: video.id },
+        data: { videoStatus: 'FAILED' },
+      });
+      this.logger.error(
+        `Video ${video.id} failed: ${payload.payload.error ?? 'Unknown error'}`,
       );
       return { received: true };
     }
 
-    await this.prisma.video.update({
-      where: { id: video.id },
-      data: { videoStatus: 'FAILED' },
+    // Check project curriculum videos
+    const projectVideo = await this.prisma.projectCurriculumVideo.findFirst({
+      where: { vdoCipherId: payload.payload.id },
     });
+    if (projectVideo) {
+      await this.prisma.projectCurriculumVideo.update({
+        where: { id: projectVideo.id },
+        data: { videoStatus: 'FAILED' },
+      });
+      this.logger.error(
+        `Project video ${projectVideo.id} failed: ${payload.payload.error ?? 'Unknown error'}`,
+      );
+      return { received: true };
+    }
 
-    this.logger.error(
-      `Video ${video.id} failed: ${payload.payload.error ?? 'Unknown error'}`,
+    this.logger.warn(
+      `Video not found for vdoCipherId: ${payload.payload.id}`,
     );
     return { received: true };
   }

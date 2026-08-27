@@ -15,6 +15,7 @@ import { EntityTable, StatusBadge, YesNoBadge, type ColumnDef } from "./sections
 import { MasterDataModal, type FieldDef } from "./sections/MasterDataModal";
 import { ConfirmDialog, type ConfirmOptions } from "./sections/ConfirmDialog";
 import { CurriculumBuilder } from "./sections/CurriculumBuilder";
+import { ProjectCurriculumBuilder } from "./sections/ProjectCurriculumBuilder";
 import { ResourceManagerModal } from "./sections/ResourceManagerModal";
 import { ProfileModal } from "./sections/ProfileModal";
 import FeaturedManager from "./sections/FeaturedManager";
@@ -74,14 +75,14 @@ const ROLE_META: Record<string, { id: string; label: string; icon: string; color
 };
 
 const DB: { [key: string]: any[] } = {
-  courses: [], instructors: [], feeplans: [], certs: [], departments: [], admins: [],
+  courses: [], instructors: [], feeplans: [], certs: [], departments: [], admins: [], projects: [],
 };
 
 /* ───────────────────────────────────────────────
    SCHEMAS
 ─────────────────────────────────────────────── */
 const ENTITY_ICONS: Record<string, string> = {
-  courses: "📚", instructors: "🎓", feeplans: "💳", certs: "🏅", departments: "🏢",
+  courses: "📚", instructors: "🎓", feeplans: "💳", certs: "🏅", departments: "🏢", projects: "🚀",
 };
 
 // Course.skillLevel enum (BEGINNER/…) ↔ display label
@@ -110,7 +111,7 @@ const CAREER_PATHS = [
 ];
 
 const ENTITY_NAMES: Record<string, string> = {
-  courses: "Course", instructors: "Instructor", feeplans: "Fee Plan", certs: "Certification Template", departments: "Department",
+  courses: "Course", instructors: "Instructor", feeplans: "Fee Plan", certs: "Certification Template", departments: "Department", projects: "Live Project",
 };
 
 const SCHEMAS: Record<string, FieldDef[]> = {
@@ -175,6 +176,28 @@ const SCHEMAS: Record<string, FieldDef[]> = {
     { key: "roles", label: "Roles (comma separated)", type: "text", full: true, placeholder: "e.g. Sales Exec, Sales Lead, Sales Manager" },
     { key: "headcount", label: "Headcount", type: "number", placeholder: "e.g. 12" },
     { key: "status", label: "Status", type: "select", required: true, options: ["Active", "Inactive"] },
+  ],
+  projects: [
+    { key: "name", label: "Project Name", type: "text", required: true, placeholder: "e.g. Full-Stack E-Commerce Platform", full: true },
+    { key: "image", label: "Project Image", type: "file", full: true },
+    { key: "techLabel", label: "Tech Label", type: "text", required: true, placeholder: "e.g. MERN Stack", full: true },
+    { key: "tech", label: "Tech Filter Key", type: "select", required: true, options: ["mern", "java", "frontend", "node", "python", "data", "aiml", "devops", "cloud", "iot"], allowCustom: true },
+    { key: "category", label: "Category", type: "select", options: ["Web Development", "Data Science", "AI / ML", "DevOps", "Cloud", "Emerging Tech"], allowCustom: true },
+    { key: "level", label: "Level", type: "select", required: true, options: ["Beginner", "Intermediate", "Advanced"] },
+    { key: "shortDesc", label: "Short Description", type: "textarea", required: true, full: true, placeholder: "One-liner shown on the project card…" },
+    { key: "overview", label: "Full Overview", type: "textarea", required: true, full: true, placeholder: "Detailed project description shown in the detail modal…" },
+    { key: "stack", label: "Tech Stack (comma separated)", type: "text", full: true, placeholder: "React, Node.js, MongoDB, Stripe API" },
+    { key: "highlights", label: "What You'll Build (one per line)", type: "textarea", full: true, placeholder: "Product catalog with search, filters and categories\nCart, checkout and order management flow\n…" },
+    { key: "prereqs", label: "Prerequisites (one per line)", type: "textarea", full: true, placeholder: "Basic JavaScript and ES6 syntax\nFamiliarity with HTML/CSS\n…" },
+    { key: "includes", label: "What's Included (one per line)", type: "textarea", full: true, placeholder: "6 weeks of guided build time\n8 one-to-one mentor sessions\n…" },
+    { key: "industryUse", label: "Industry Relevance", type: "textarea", full: true, placeholder: "Why this project matters in the industry…" },
+    { key: "tools", label: "Dev Tools (comma separated)", type: "text", full: true, placeholder: "Node.js v18+, VS Code, MongoDB Atlas, Git" },
+    { key: "setupSteps", label: "Setup Steps (one per line)", type: "textarea", full: true, placeholder: "Install Node.js and verify with `node -v`\nClone the starter repository\n…" },
+    { key: "seats", label: "Available Seats", type: "number", placeholder: "e.g. 10" },
+    { key: "price", label: "Price (₹)", type: "number", required: true, placeholder: "e.g. 6999" },
+    { key: "discountPercent", label: "Discount (%)", type: "discount", placeholder: "e.g. 30", full: true },
+    { key: "trainerId", label: "Trainer", type: "select", required: true, optionsFrom: "instructors" },
+    { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
   ],
 };
 
@@ -253,6 +276,32 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     { key: "headcount", label: "Headcount", mono: true },
     { key: "status", label: "Status", render: (v) => <StatusBadge status={v} /> },
   ],
+  projects: [
+    { key: "name", label: "Project Name", strong: true },
+    { key: "techLabel", label: "Tech", mono: true },
+    { key: "level", label: "Level" },
+    { key: "duration", label: "Duration" },
+    { key: "seats", label: "Seats", mono: true },
+    {
+      key: "price",
+      label: "Price",
+      render: (v, r) => {
+        const price = Number(v ?? 0);
+        const orig = r.originalPrice != null && Number(r.originalPrice) > price ? Number(r.originalPrice) : null;
+        if (orig == null) return <span className="font-mono text-[10.5px]" style={{ color: "var(--text2)" }}>₹{price.toLocaleString()}</span>;
+        const off = Math.round(((orig - price) / orig) * 100);
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-[10.5px] text-[var(--muted)] line-through">₹{orig.toLocaleString()}</span>
+            <span className="font-mono text-[10.5px] font-bold" style={{ color: "var(--text)" }}>₹{price.toLocaleString()}</span>
+            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "var(--green-d)", color: "var(--green)" }}>-{off}%</span>
+          </div>
+        );
+      },
+    },
+    { key: "trainer", label: "Trainer", render: (v, r) => <span className="font-mono text-[10px]">{r.trainer?.name || "—"}</span> },
+    { key: "status", label: "Status", render: (v) => <StatusBadge status={v === "ACTIVE" ? "Active" : v === "DRAFT" ? "Draft" : v === "ARCHIVED" ? "Archived" : v} /> },
+  ],
 };
 
 const CURRICULUM_SEED: Record<string, CurriculumEntry> = {};
@@ -267,6 +316,8 @@ export default function AdminMasterDataPage() {
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [cbOpen, setCbOpen] = useState(false);
   const [cbCourse, setCbCourse] = useState<{ code: string; name: string; id: string } | null>(null);
+  const [pbOpen, setPbOpen] = useState(false);
+  const [pbProject, setPbProject] = useState<{ name: string; id: string } | null>(null);
   const [rmOpen, setRmOpen] = useState(false);
   const [rmCourse, setRmCourse] = useState<{ code: string; name: string; id: string } | null>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<string | number | null>(null);
@@ -341,7 +392,8 @@ export default function AdminMasterDataPage() {
       fetch("/api/admin/stats", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => null),
       fetch("/api/courses", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => []),
       fetch("/api/admin/trainers/approved", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => []),
-    ]).then(([statsData, coursesData, trainersData]) => {
+      fetch("/api/projects/admin/all", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => []),
+    ]).then(([statsData, coursesData, trainersData, projectsData]) => {
       if (cancelled) return;
       if (statsData && typeof statsData.totalCourses === "number") setStats(statsData);
 
@@ -386,6 +438,42 @@ export default function AdminMasterDataPage() {
         status: "Active",
       }));
       setDb((prev) => ({ ...prev, instructors: mappedInstructors }));
+
+      const mappedProjects = (Array.isArray(projectsData) ? projectsData : []).map((p: any) => ({
+        id: p.id,
+        name: p.name || "",
+        emoji: p.emoji || "🚀",
+        techLabel: p.techLabel || "",
+        tech: p.tech || "",
+        category: p.category || "",
+        level: p.level || "",
+        badge: p.badge || "",
+        duration: p.duration || "",
+        sessions: p.sessions || "",
+        seats: p.seats ?? 0,
+        price: p.price ?? 0,
+        originalPrice: p.originalPrice ?? null,
+        rating: p.rating ?? 0,
+        reviewCount: p.reviewCount ?? 0,
+        status: p.status || "DRAFT",
+        trainerId: p.trainerId || "",
+        trainer: p.trainer || null,
+        shortDesc: p.shortDesc || "",
+        overview: p.overview || "",
+        thumbGradient: p.thumbGradient || "",
+        stack: Array.isArray(p.stack) ? p.stack : [],
+        highlights: Array.isArray(p.highlights) ? p.highlights : [],
+        prereqs: Array.isArray(p.prereqs) ? p.prereqs : [],
+        includes: Array.isArray(p.includes) ? p.includes : [],
+        industryUse: p.industryUse || "",
+        tools: Array.isArray(p.tools) ? p.tools : [],
+        setupSteps: Array.isArray(p.setupSteps) ? p.setupSteps : [],
+        demoVideoUrl: p.demoVideoUrl || "",
+        walkthroughVideoUrl: p.walkthroughVideoUrl || "",
+        curriculumCount: p._count?.curriculum ?? 0,
+        orderCount: p._count?.orders ?? 0,
+      }));
+      setDb((prev) => ({ ...prev, projects: mappedProjects }));
     });
     return () => { cancelled = true; };
   }, [token, refreshKey]);
@@ -488,6 +576,7 @@ export default function AdminMasterDataPage() {
 
   const tabs: EntityTab[] = useMemo(() => [
     { key: "courses", icon: "📚", label: "Courses", count: db.courses.length },
+    { key: "projects", icon: "🚀", label: "Projects", count: db.projects.length },
     { key: "instructors", icon: "🎓", label: "Instructors", count: db.instructors.length },
     { key: "feeplans", icon: "💳", label: "Fee Plans", count: db.feeplans.length },
     { key: "certs", icon: "🏅", label: "Certifications", count: db.certs.length },
@@ -560,7 +649,7 @@ export default function AdminMasterDataPage() {
     if (ok) closeModal();
   }
 
-  async function saveRecord(formData: Record<string, any>) {
+  async function saveRecord(formData: Record<string, any>): Promise<{ success: boolean; error?: string } | void> {
     const draftNote =
       currentEntity === "courses" && formData.status === "DRAFT"
         ? '\n\n📝 Note: This course will be saved as DRAFT — it will NOT be visible to students. Set its status to ACTIVE when you want it visible to all.'
@@ -664,6 +753,8 @@ export default function AdminMasterDataPage() {
           } else {
             const err = await res.json().catch(() => ({}));
             addToast(err.message || "Failed to update course", "danger");
+            closeModal();
+            return { success: false, error: err.message || "Failed to update course" };
           }
         } else {
           const res = await fetch("/api/courses", {
@@ -698,13 +789,97 @@ export default function AdminMasterDataPage() {
           } else {
             const err = await res.json().catch(() => ({}));
             addToast(err.message || "Failed to create course", "danger");
+            closeModal();
+            return { success: false, error: err.message || "Failed to create course" };
           }
         }
       } catch (e: any) {
         addToast(e.message || "Network error", "danger");
+        closeModal();
+        return { success: false, error: e.message || "Network error" };
       }
       closeModal();
-      return;
+      return { success: true };
+    }
+
+    // Projects: API-based CRUD
+    if (currentEntity === "projects" && token) {
+      try {
+        const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+        const arrayFields = ["stack", "highlights", "prereqs", "includes", "tools", "setupSteps"] as const;
+        const body: Record<string, any> = {};
+        for (const [k, v] of Object.entries(formData)) {
+          if (k === "id") continue;
+          if (arrayFields.includes(k as any)) {
+            if (typeof v === "string") {
+              body[k] = v.split("\n").map((s: string) => s.trim()).filter(Boolean);
+            } else if (Array.isArray(v)) {
+              body[k] = v;
+            }
+          } else if (k === "price" || k === "seats") {
+            body[k] = v === "" || v == null ? null : Number(v);
+          } else if (k === "discountPercent") {
+            // Convert discountPercent to originalPrice
+            const pct = Number(v);
+            const price = Number(formData.price);
+            if (!isNaN(pct) && pct > 0 && pct < 100 && !isNaN(price) && price > 0) {
+              body.originalPrice = Math.round(price / (1 - pct / 100));
+            } else {
+              body.originalPrice = null;
+            }
+          } else if (k === "trainerId") {
+            body[k] = v || null;
+          } else if (k === "status") {
+            body[k] = v || "DRAFT";
+          } else if (k === "level") {
+            body[k] = v ? String(v).toUpperCase() : null;
+          } else if (k !== "trainer" && k !== "_count" && k !== "curriculumCount" && k !== "orderCount") {
+            body[k] = v;
+          }
+        }
+
+        if (formData.id) {
+          const res = await fetch(`/api/projects/${formData.id}`, {
+            method: "PATCH", headers, body: JSON.stringify(body),
+          });
+          if (res.ok) {
+            const updated = await res.json();
+            setDb((prev) => ({
+              ...prev,
+              projects: prev.projects.map((r: any) =>
+                r.id === formData.id ? { ...r, ...body, trainer: updated.trainer || r.trainer } : r
+              ),
+            }));
+            addToast("Project updated successfully");
+          } else {
+            const err = await res.json().catch(() => ({}));
+            addToast(err.message || "Failed to update project", "danger");
+            return { success: false, error: err.message || "Failed to update project" };
+          }
+        } else {
+          const res = await fetch("/api/projects", {
+            method: "POST", headers, body: JSON.stringify(body),
+          });
+          if (res.ok) {
+            const created = await res.json();
+            setDb((prev) => ({
+              ...prev,
+              projects: [{ ...created, trainer: created.trainer || null, curriculumCount: 0, orderCount: 0 }, ...prev.projects],
+            }));
+            addToast("Project created successfully");
+          } else {
+            const err = await res.json().catch(() => ({}));
+            addToast(err.message || "Failed to create project", "danger");
+            return { success: false, error: err.message || "Failed to create project" };
+          }
+        }
+      } catch (e: any) {
+        addToast(e.message || "Network error", "danger");
+        return { success: false, error: e.message || "Network error" };
+      }
+      closeModal();
+      return { success: true };
     }
 
     if (formData.id) {
@@ -765,6 +940,28 @@ export default function AdminMasterDataPage() {
       return;
     }
 
+    if (currentEntity === "projects" && token) {
+      try {
+        const res = await fetch(`/api/projects/${record.id}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        });
+        if (res.ok) {
+          setDb((prev) => ({
+            ...prev,
+            projects: prev.projects.filter((r: any) => r.id !== record.id),
+          }));
+          addToast(`Project "${record.name}" deleted`, "danger");
+        } else {
+          const err = await res.json().catch(() => ({}));
+          addToast(err.message || "Failed to delete project", "danger");
+        }
+      } catch (e: any) {
+        addToast(e.message || "Network error", "danger");
+      }
+      return;
+    }
+
     setDb((prev) => ({
       ...prev,
       [currentEntity]: prev[currentEntity].filter((r: any) => r.id !== record.id),
@@ -801,6 +998,23 @@ export default function AdminMasterDataPage() {
     setCbCourse(null);
   }
 
+  /* ── Project Curriculum Builder ── */
+  function openProjectCurriculumBuilder(project: any) {
+    setPbProject({ name: project.name, id: project.id });
+    setPbOpen(true);
+  }
+
+  function saveProjectCurriculum() {
+    addToast(`Project curriculum saved`);
+    setPbOpen(false);
+    setPbProject(null);
+  }
+
+  function closeProjectCurriculumBuilder() {
+    setPbOpen(false);
+    setPbProject(null);
+  }
+
   /* ── Expandable Course Curriculum ── */
   async function handleToggleExpand(courseId: string | number) {
     if (expandedCourseId === courseId) {
@@ -809,28 +1023,21 @@ export default function AdminMasterDataPage() {
     }
     setExpandedCourseId(courseId);
     if (!token) return;
-    console.log('[expand] fetching /api/courses/' + courseId, {token: token?.slice(0,10) + '...'});
     try {
       const res = await fetch(`/api/courses/${courseId}`, {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       });
-      console.log('[expand] status:', res.status, res.statusText);
       if (res.ok) {
         const data = await res.json();
-        console.log('[expand] data sections:', data.sections?.length ?? 0, data.sections);
         const sections = (data.sections || []).map((s: any) => ({
           id: s.id, title: s.title || "", order: s.order ?? 0,
           videos: (s.videos || []).map((v: any) => ({ id: v.id, title: v.title || "", durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0 })),
           quizzes: (s.quizzes || []).map((q: any) => ({ id: q.id, title: q.title || "", totalQuestions: q.totalQuestions ?? 0, order: q.order ?? 0 })),
         }));
-        console.log('[expand] mapped sections:', sections);
         setExpandedCurriculums((prev) => ({ ...prev, [courseId]: sections }));
-      } else {
-        const errBody = await res.json().catch(() => ({}));
-        console.warn('[expand] fetch not ok:', res.status, errBody);
       }
-    } catch (e) {
-      console.warn('[expand] fetch error:', e);
+    } catch {
+      // Silently handle curriculum fetch errors
     }
   }
 
@@ -1130,7 +1337,7 @@ export default function AdminMasterDataPage() {
                     🗄 Master Data Management
                   </span>
                   <span className="font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
-                    role::lms_administrator · 5 entities · last_sync: just now
+                    role::lms_administrator · 6 entities · last_sync: just now
                   </span>
                 </div>
                 <div className="flex gap-1.5">
@@ -1165,6 +1372,7 @@ export default function AdminMasterDataPage() {
                     {currentEntity === "feeplans" && " & Discounts"}
                     {currentEntity === "certs" && " Templates"}
                     {currentEntity === "departments" && " / Roles"}
+                    {currentEntity === "projects" && " & Curriculum"}
                   </span>
                   <span className="font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>{filteredData.length} records</span>
                 </div>
@@ -1172,7 +1380,7 @@ export default function AdminMasterDataPage() {
                   <EntityTable
                     columns={COLUMNS[currentEntity]} data={filteredData}
                     onEdit={openEditModal} onDelete={deleteRecord}
-                    onManageCurriculum={currentEntity === "courses" ? openCurriculumBuilder : undefined}
+                    onManageCurriculum={currentEntity === "courses" ? openCurriculumBuilder : currentEntity === "projects" ? openProjectCurriculumBuilder : undefined}
                     onManageResources={currentEntity === "courses" ? openResourceManager : undefined}
                     emptyMessage={`No ${ENTITY_NAMES[currentEntity].toLowerCase()}s found.`}
                     expandedId={currentEntity === "courses" ? expandedCourseId : undefined}
@@ -1233,6 +1441,16 @@ export default function AdminMasterDataPage() {
         token={token || ""}
         onSave={saveCurriculum}
         onClose={closeCurriculumBuilder}
+      />
+
+      {/* Project Curriculum Builder Modal */}
+      <ProjectCurriculumBuilder
+        open={pbOpen}
+        projectId={pbProject?.id || ""}
+        projectName={pbProject?.name || ""}
+        token={token || ""}
+        onSave={saveProjectCurriculum}
+        onClose={closeProjectCurriculumBuilder}
       />
 
       {/* Resource Manager Modal */}

@@ -66,13 +66,7 @@ async function bootstrap() {
       tokenType = 'staff';
     } else {
       token = await loadToken();
-      if (!token) {
-        // A logged-in staff member visiting the main site is still
-        // authenticated — fall back to the staff token so the student
-        // sign-in popup doesn't nag them on every page load.
-        token = await loadStaffToken();
-        if (token) tokenType = 'staff';
-      }
+      // No staff fallback — staff tokens are only valid on /ops/* paths.
     }
 
     if (!token) {
@@ -148,21 +142,28 @@ export function useAuth() {
   }, []);
 
   const logout = useCallback(async () => {
+    const isOps = window.location.pathname.startsWith('/ops');
     try {
       await authApi.logout();
     } catch {
       // Backend logout is best-effort — always clear local state
     }
-    // Clear ALL tokens (both student and staff) — don't rely on current path
-    try { await clearToken(); } catch {}
-    try { await clearSessionCookie(); } catch {}
-    try { await clearStaffToken(); } catch {}
-    try { await clearSessionCookie('staff'); } catch {}
-    // Clean up any residual localStorage keys
-    try { localStorage.removeItem('fs_token'); } catch {}
-    try { localStorage.removeItem('fs_token_staff'); } catch {}
-    try { localStorage.removeItem('fs-admin-id'); } catch {}
-    try { localStorage.removeItem('fs_billing'); } catch {}
+    // Only clear the token for the current portal — never touch the other
+    if (isOps) {
+      // Logging out from ops portal → clear staff token only
+      try { await clearStaffToken(); } catch {}
+      try { await clearSessionCookie('staff'); } catch {}
+      try { localStorage.removeItem('fs_token_staff'); } catch {}
+      try { localStorage.removeItem('fs_staff_uid'); } catch {}
+    } else {
+      // Logging out from student portal → clear student token only
+      try { await clearToken(); } catch {}
+      try { await clearSessionCookie(); } catch {}
+      try { localStorage.removeItem('fs_token'); } catch {}
+      try { localStorage.removeItem('fs_uid'); } catch {}
+      try { localStorage.removeItem('fs-admin-id'); } catch {}
+      try { localStorage.removeItem('fs_billing'); } catch {}
+    }
     bootstrapped = false;
     emit({ user: null, isAuthenticated: false, isLoading: false });
   }, []);

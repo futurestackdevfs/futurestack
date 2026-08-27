@@ -13,6 +13,8 @@ interface VideoUploadDialogProps {
   initialTitle?: string
   initialOrder?: number
   videoId?: string
+  uploadEndpoint?: string
+  uploadBody?: Record<string, any>
 }
 
 interface UploadMetadata {
@@ -22,7 +24,7 @@ interface UploadMetadata {
   contentType: string
 }
 
-export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token, initialTitle = '', initialOrder = 1, videoId }: VideoUploadDialogProps) {
+export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token, initialTitle = '', initialOrder = 1, videoId, uploadEndpoint, uploadBody }: VideoUploadDialogProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [step, setStep] = useState<'idle' | 'select' | 'uploading'>('idle')
   const [formData, setFormData] = useState<UploadMetadata>({ title: '', order: 1, filename: '', contentType: '' })
@@ -87,25 +89,25 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
 
     try {
       // Get upload credentials from backend
-      const response = await fetch('/api/admin/videos/upload-credentials', {
+      const endpoint = uploadEndpoint || '/api/admin/videos/upload-credentials'
+      const body = uploadBody || {
+        title: formData.title,
+        filename: formData.filename,
+        contentType: formData.contentType,
+        sectionId,
+        order: formData.order,
+        ...(videoId ? { videoId } : {}),
+      }
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          title: formData.title,
-          filename: formData.filename,
-          contentType: formData.contentType,
-          sectionId,
-          order: formData.order,
-          ...(videoId ? { videoId } : {}),
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!response.ok) {
-        const errBody = await response.text()
-        console.error('[upload-credentials] sectionId:', JSON.stringify(sectionId), '| status:', response.status, '| body:', errBody)
         throw new Error('Failed to get upload credentials')
       }
 

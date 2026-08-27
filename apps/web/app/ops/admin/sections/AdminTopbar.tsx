@@ -345,6 +345,40 @@ export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, on
 
       {/* Right */}
       <div className="ml-auto flex items-center gap-1.5">
+        {/* Go to Website */}
+        <a
+          href="/"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            fontFamily: "var(--mono)",
+            fontSize: 10,
+            color: "var(--text3)",
+            border: "1px solid var(--border)",
+            borderRadius: 3,
+            background: "var(--bg)",
+            height: 22,
+            padding: "0 8px",
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            textDecoration: "none",
+            transition: "all .2s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = "var(--orange)"; e.currentTarget.style.borderColor = "var(--orange)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text3)"; e.currentTarget.style.borderColor = "var(--border)"; }}
+        >
+          <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+          </svg>
+          Website
+          <svg width="8" height="8" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
+          </svg>
+        </a>
+
         {/* Live pill */}
         <div
           style={{

@@ -85,6 +85,47 @@ export class StudentController {
   }
 
   // ────────────────────────────────────────────────
+  // PROJECT VIDEO PROGRESS
+  // ────────────────────────────────────────────────
+
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Auth(Role.STUDENT)
+  @Post('project-videos/:videoId/progress')
+  async updateProjectVideoProgress(
+    @Req() req: Request,
+    @Param('videoId') videoId: string,
+    @Body() dto: UpdateVideoProgressDto,
+  ) {
+    const user = req.user as { id: string };
+    return this.studentService.updateProjectVideoProgress(
+      user.id,
+      videoId,
+      dto.positionSec,
+    );
+  }
+
+  @Auth(Role.STUDENT)
+  @Get('project-videos/:videoId/otp')
+  async getProjectVideoOtp(@Param('videoId') videoId: string, @Req() req: Request) {
+    const user = req.user as { id: string };
+    return this.studentService.getProjectVideoOtp(user.id, videoId);
+  }
+
+  @Auth(Role.STUDENT)
+  @Get('projects/:projectId/progress')
+  async getProjectProgress(@Param('projectId') projectId: string, @Req() req: Request) {
+    const user = req.user as { id: string };
+    return this.studentService.getProjectProgress(user.id, projectId);
+  }
+
+  @Auth(Role.STUDENT)
+  @Get('my-projects')
+  async getStudentProjects(@Req() req: Request) {
+    const user = req.user as { id: string };
+    return this.studentService.getStudentProjects(user.id);
+  }
+
+  // ────────────────────────────────────────────────
   // PROFILE endpoints
   // ────────────────────────────────────────────────
 

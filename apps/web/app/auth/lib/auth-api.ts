@@ -21,7 +21,10 @@ function decodeJwtRole(t?: string): string | undefined {
 }
 
 function isAuthenticated(): boolean {
-  return typeof window !== 'undefined' && (!!localStorage.getItem('fs_uid') || !!localStorage.getItem('fs_staff_uid'));
+  if (typeof window === 'undefined') return false;
+  const isOps = window.location.pathname.startsWith('/ops');
+  // Only check the token for the current portal
+  return isOps ? !!localStorage.getItem('fs_staff_uid') : !!localStorage.getItem('fs_uid');
 }
 
 async function request<T>(

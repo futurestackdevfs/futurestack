@@ -29,7 +29,7 @@ interface MasterDataModalProps {
   editing: boolean;
   extraOptions?: Record<string, { label: string; value: string }[]>;
   token?: string;
-  onSave: (formData: Record<string, any>) => void;
+  onSave: (formData: Record<string, any>) => Promise<{ success: boolean; error?: string } | void>;
   onClose: () => void;
 }
 
@@ -48,6 +48,7 @@ export function MasterDataModal({
 }: MasterDataModalProps) {
   const [form, setForm] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [apiError, setApiError] = useState<string | null>(null);
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [units, setUnits] = useState<Record<string, "hr" | "min">>({});
   const [customMode, setCustomMode] = useState<Record<string, boolean>>({});
@@ -56,6 +57,7 @@ export function MasterDataModal({
   useEffect(() => {
     setForm({ ...data });
     setErrors({});
+    setApiError(null);
     // Pre-existing values not in a custom-enabled select's options → "Others" mode
     const custom: Record<string, boolean> = {};
     for (const field of fields) {
@@ -72,7 +74,8 @@ export function MasterDataModal({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/upload/image?folder=courses", {
+      const folder = entity === "projects" ? "projects" : "courses";
+      const res = await fetch(`/api/upload/image?folder=${folder}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
@@ -99,27 +102,40 @@ export function MasterDataModal({
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
     for (const field of fields) {
-      if (field.required && !form[field.key]) {
-        newErrors[field.key] = `${field.label} is required`;
+      if (field.required) {
+        const val = form[field.key];
+        const isEmpty = val === undefined || val === null || (typeof val === "string" && val.trim() === "");
+        if (isEmpty) {
+          newErrors[field.key] = `${field.label} is required`;
+        }
       }
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
 
-  function handleSubmit() {
-    if (validate()) {
-      onSave(form);
-    } else {
-      // Scroll the first missing field into view so the admin can fill it in
+  async function handleSubmit() {
+    setApiError(null);
+    if (!validate()) {
       setTimeout(() => {
-        const firstMissing = fields.find((f) => f.required && !form[f.key]);
+        const firstMissing = fields.find((f) => {
+          if (!f.required) return false;
+          const val = form[f.key];
+          return val === undefined || val === null || (typeof val === "string" && val.trim() === "");
+        });
         if (firstMissing) {
           document
             .querySelector(`[data-field-key="${firstMissing.key}"]`)
             ?.scrollIntoView({ behavior: "smooth", block: "center" });
         }
       }, 0);
+      return;
+    }
+    const result = await onSave(form);
+    if (result && !result.success && result.error) {
+      setApiError(result.error);
+    } else if (result && result.success) {
+      onClose();
     }
   }
 
@@ -185,6 +201,17 @@ export function MasterDataModal({
 
         {/* Body */}
         <div className="p-4 overflow-y-auto flex-1">
+          {apiError && (
+            <div className="mb-3 px-3 py-2 rounded text-[11px] font-semibold flex items-center gap-2" style={{ background: "var(--red-d, rgba(239,68,68,.1))", border: "1px solid var(--red)", color: "var(--red)" }}>
+              <span>⚠</span>
+              <span>{apiError}</span>
+              <button
+                onClick={() => setApiError(null)}
+                className="ml-auto text-[10px] opacity-70 hover:opacity-100 cursor-pointer bg-transparent border-none"
+                style={{ color: "var(--red)" }}
+              >✕</button>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {fields.map((field) => (
               <div

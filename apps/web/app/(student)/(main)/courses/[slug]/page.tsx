@@ -412,7 +412,6 @@ export default function CourseDetailPage() {
   const displayReviewCount = reviewCount || course?.students || 0;
 
   const freePreviewVideo = course?.sections?.[0]?.videos?.[0] ?? null;
-  const projectCount = course ? Math.min(4, course.sections.length) : 0;
 
   if (isLoading) {
     return (
@@ -443,17 +442,10 @@ export default function CourseDetailPage() {
   const bars = ratingDistribution(course.rating);
 
   const faqs = [
-    { q: "What does my one-time purchase include?", a: `Your one-time purchase unlocks all ${course.totalLessons} lessons, ${projectCount} graded enterprise projects, a verified certificate, and 2 live mentor sessions per month for the duration of the course.` },
+    { q: "What does my one-time purchase include?", a: `Your one-time purchase unlocks all ${course.totalLessons} lessons, a verified certificate, and 2 live mentor sessions per month for the duration of the course.` },
     { q: "Is this a one-time payment or a subscription?", a: `It's a single one-time payment of ${fmtINR(course.price)}. There are no recurring charges, no renewals, and no auto-billing — you pay once and keep lifetime access to everything below.` },
     { q: "Do I need prior experience?", a: `This course is rated ${course.level}. You should be comfortable with basic concepts, but no prior ${course.category} experience is required — the course builds it from the ground up.` },
     { q: "Is the certificate recognised by employers?", a: "Yes. Future Stack certificates are verified and digitally signed by the instructor, with a credential ID you can share on LinkedIn and with employers." },
-  ];
-
-  const projectColors = [
-    "linear-gradient(135deg,#1A3BA0,#4A72E8)",
-    "linear-gradient(135deg,#0D9488,#14B8A6)",
-    "linear-gradient(135deg,#7C3AED,#A78BFA)",
-    "linear-gradient(135deg,#DB2777,#F472B6)",
   ];
 
   return (
@@ -541,27 +533,18 @@ export default function CourseDetailPage() {
               { id: "overview", label: "Overview" },
               { id: "curriculum", label: "Curriculum" },
               { id: "projects", label: "Projects" },
-              { id: "reviews", label: "Reviews", hideOnMobile: true },
-            ].filter(tab => !(tab as any).hideOnMobile).map((tab) => (
+              { id: "reviews", label: "Reviews" },
+            ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 py-[9px] px-3 rounded-[10px] text-[13px] font-semibold text-center transition-all ${activeTab === tab.id
+                className={`flex-1 py-[9px] px-3 rounded-[10px] text-[13px] font-semibold text-center transition-all whitespace-nowrap ${activeTab === tab.id
                     ? "bg-[linear-gradient(135deg,#1A3BA0_0%,#2952CC_100%)] text-white shadow-[0_2px_8px_rgba(41,82,204,.3)]"
                     : "text-[#6B7280] dark:text-[#7a859a] hover:bg-[var(--bg)] hover:text-[#111827] dark:hover:text-[#e8eaf0]"
                   }`}>
                 {tab.label}
               </button>
             ))}
-            {/* Reviews tab - hidden on mobile, shown on desktop */}
-            <button
-              onClick={() => setActiveTab("reviews")}
-              className={`hidden md:flex flex-1 py-[9px] px-3 rounded-[10px] text-[13px] font-semibold text-center transition-all ${activeTab === "reviews"
-                  ? "bg-[linear-gradient(135deg,#1A3BA0_0%,#2952CC_100%)] text-white shadow-[0_2px_8px_rgba(41,82,204,.3)]"
-                  : "text-[#6B7280] dark:text-[#7a859a] hover:bg-[var(--bg)] hover:text-[#111827] dark:hover:text-[#e8eaf0]"
-                }`}>
-              Reviews
-            </button>
           </div>
 
           {/* ══ OVERVIEW ══ */}
@@ -700,32 +683,27 @@ export default function CourseDetailPage() {
           {/* ══ PROJECTS ══ */}
           {activeTab === "projects" && (
             <SectionCard>
-              <SectionTitle>Hands-On Projects</SectionTitle>
-              <p className="text-[13.5px] text-[#4B5563] dark:text-[#7a859a] mb-[18px]">Apply your skills with {projectCount} real-world enterprise projects. Included with your purchase.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {course.sections.slice(0, projectCount).map((section, i) => {
-                  const locked = i > 0;
-                  return (
-                    <div key={section.id} className={`border border-[var(--border)] dark:border-[#1e2535] rounded-[10px] overflow-hidden transition-all hover:border-[#C7D8FF] dark:hover:border-[#2d3358] hover:shadow-md ${locked ? "opacity-60" : ""}`}>
-                      <div className="h-[90px] relative overflow-hidden">
-                        <div className={`w-full h-full ${locked ? "blur-[4px] scale-105" : ""}`} style={{ background: projectColors[i % projectColors.length] }}></div>
-                        {locked && (
-                          <div className="absolute inset-0 bg-[rgba(7,21,61,.6)] flex items-center justify-center">
-                            <svg width="28" height="28" fill="none" stroke="#fff" strokeWidth="1.5" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                          </div>
-                        )}
-                      </div>
-                      <div className="p-3">
-                        <div className="text-[13px] font-bold text-[#111827] dark:text-[#e8eaf0]">Project: {section.title}</div>
-                        <div className="text-[12px] text-[#6B7280] dark:text-[#7a859a] leading-[1.5] mt-1">Build a real-world {section.title.toLowerCase()} implementation.</div>
-                        <div className="flex gap-1.5 mt-2 flex-wrap">
-                          <span className="text-[11px] px-2 py-[2px] rounded-[4px] bg-[#F3F4F6] dark:bg-[#0b0e14] text-[#4B5563] dark:text-[#7a859a] font-mono">{locked ? "🔒 Subscriber" : "Free"}</span>
-                          <span className="text-[11px] px-2 py-[2px] rounded-[4px] bg-[#F3F4F6] dark:bg-[#0b0e14] text-[#4B5563] dark:text-[#7a859a] font-mono">{course.level}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <SectionTitle>Projects</SectionTitle>
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="w-16 h-16 rounded-full bg-[#F3F4F6] dark:bg-[#1e2535] flex items-center justify-center mb-4">
+                  <svg width="28" height="28" fill="none" stroke="#9CA3AF" strokeWidth="1.5" viewBox="0 0 24 24">
+                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+                  </svg>
+                </div>
+                <div className="text-[15px] font-bold text-[#374151] dark:text-[#b0bac9] mb-1.5">No projects yet</div>
+                <div className="text-[13px] text-[#6B7280] dark:text-[#7a859a] mb-5 max-w-[280px]">
+                  Projects for this course will appear here once available.
+                </div>
+                <Link
+                  href="/live-projects"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-[10px] bg-[linear-gradient(135deg,#1A3BA0,#2952CC)] text-white text-[13px] font-bold shadow-[0_2px_8px_rgba(41,82,204,.3)] hover:shadow-[0_4px_14px_rgba(41,82,204,.4)] hover:-translate-y-0.5 transition-all no-underline"
+                >
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                  Browse Projects
+                </Link>
               </div>
             </SectionCard>
           )}
@@ -818,95 +796,6 @@ export default function CourseDetailPage() {
               )}
             </SectionCard>
           )}
-
-          {/* ══ REVIEWS - Mobile only (at bottom) ══ */}
-          {activeTab !== "reviews" && (
-            <div className="md:hidden mt-6">
-              <SectionCard>
-                <SectionTitle>Student Reviews</SectionTitle>
-
-                <div className="flex flex-col sm:flex-row gap-5 items-center mb-5 p-4 bg-[#F9FAFB] dark:bg-[#0b0e14] rounded-[10px] border border-[var(--border)] dark:border-[#1e2535]">
-                  <div className="text-center flex-shrink-0">
-                    <div className="text-[42px] font-extrabold text-[#0D1F5C] dark:text-[#e8eaf0] leading-none font-['Instrument_Serif',serif] italic">{course.rating.toFixed(1)}</div>
-                    <StarRating value={course.rating} size={12} />
-                    <div className="text-[12px] text-[#6B7280] dark:text-[#7a859a] mt-1">{displayReviewCount} reviews</div>
-                  </div>
-                  <div className="flex-1 w-full max-w-[340px]">
-                    {[5, 4, 3, 2, 1].map((star, idx) => (
-                      <div key={star} className="flex items-center gap-2 mb-[5px]">
-                        <span className="text-[12px] text-[#4B5563] dark:text-[#7a859a] w-[12px] text-right">{star}</span>
-                        <div className="flex-1 h-[6px] bg-[#E5E7EB] dark:bg-[#1e2535] rounded-[3px] overflow-hidden">
-                          <div className="h-full bg-[linear-gradient(90deg,#F59E0B,#FBBF24)] rounded-[3px]" style={{ width: `${bars[idx]}%` }}></div>
-                        </div>
-                        <span className="text-[11px] text-[#6B7280] dark:text-[#7a859a] w-[30px]">{bars[idx]}%</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {isAuthenticated && (
-                  <>
-                    {myReview && !showReviewForm ? (
-                      <div className="border border-[var(--border)] dark:border-[#1e2535] rounded-2xl p-4 mb-4 bg-[#F9FAFB] dark:bg-[#0b0e14]">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <StarRating value={myReview.rating} size={14} />
-                            <span className="text-[12px] font-bold text-[#111827] dark:text-[#e8eaf0]">Your Review</span>
-                          </div>
-                          <button onClick={() => setShowReviewForm(true)} className="text-[11px] font-bold text-white bg-[linear-gradient(135deg,#0D1F5C,#2952CC)] px-3 py-[3px] rounded-[6px] cursor-pointer transition-all hover:shadow-md hover:-translate-y-px shadow-sm">Edit</button>
-                        </div>
-                        {myReview.comment && <div className="text-[13px] text-[#4B5563] dark:text-[#b0bac9] leading-[1.6]">{myReview.comment}</div>}
-                      </div>
-                    ) : showReviewForm ? (
-                      <ReviewForm
-                        initialRating={myReview?.rating ?? 5}
-                        initialComment={myReview?.comment ?? ''}
-                        isEditing={!!myReview}
-                        onSubmit={handleReviewFormSubmit}
-                        onCancel={() => setShowReviewForm(false)}
-                      />
-                    ) : (
-                      <button onClick={() => setShowReviewForm(true)} className="w-full mb-4 py-[10px] rounded-[10px] bg-[linear-gradient(135deg,#1A3BA0,#2952CC)] text-white text-[13px] font-bold cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 shadow-sm">
-                        ✍ Write a Review
-                      </button>
-                    )}
-                  </>
-                )}
-
-                {reviewsLoading ? (
-                  <div className="text-center py-8 text-[#6B7280] dark:text-[#7a859a] text-[13px]">Loading reviews…</div>
-                ) : reviews.length === 0 ? (
-                  <div className="text-center py-8 text-[#6B7280] dark:text-[#7a859a] text-[13px]">No reviews yet. Be the first!</div>
-                ) : (
-                  <div className="flex flex-col gap-2.5">
-                    {reviews.slice(0, 3).map((review) => (
-                      <div key={review.id} className="border border-[var(--border)] dark:border-[#1e2535] rounded-[10px] p-4 bg-white dark:bg-[#111520] transition-colors hover:border-[#C7D8FF] dark:hover:border-[#2d3358]">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="w-9 h-9 rounded-full bg-[linear-gradient(135deg,#1A3BA0,#2952CC)] flex items-center justify-center text-[12px] font-bold text-white flex-shrink-0">
-                            {review.student.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[13px] font-bold text-[#111827] dark:text-[#e8eaf0] truncate">{review.student.name}</div>
-                            <div className="flex items-center gap-2">
-                              <StarRating value={review.rating} size={11} />
-                              <span className="text-[11px] text-[#9CA3AF] dark:text-[#7a859a]">{new Date(review.createdAt).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
-                            </div>
-                          </div>
-                        </div>
-                        {review.comment && <div className="text-[13px] text-[#4B5563] dark:text-[#b0bac9] leading-[1.65] ml-[45px]">{review.comment}</div>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {reviewsTotal > 3 && (
-                  <button onClick={() => setActiveTab("reviews")} className="w-full mt-4 py-2.5 rounded-[8px] bg-[#EEF2FF] dark:bg-[#1a1f3a] border border-[#C7D8FF] dark:border-[#2d3358] text-[#2952CC] dark:text-[#60a5fa] text-[12px] font-bold cursor-pointer transition-all hover:bg-[#E0E9FF] dark:hover:bg-[#141a30]">
-                    View All {reviewsTotal} Reviews →
-                  </button>
-                )}
-              </SectionCard>
-            </div>
-          )}
         </main>
 
         {/* ══ RIGHT SIDEBAR ══ */}
@@ -933,8 +822,7 @@ export default function CourseDetailPage() {
             <div className="p-4 border-b border-[var(--border)] dark:border-[#1e2535]">
               <div className="text-[11.5px] uppercase tracking-[.6px] text-[#6B7280] dark:text-[#7a859a] font-bold mb-3">Everything Included</div>
               {[
-                { title: `Full course access — all ${course.totalLessons} lessons`, sub: "Instant unlock across all devices" },
-                { title: `${projectCount} real-world enterprise projects`, sub: "Graded with mentor feedback" },
+                { title: "Full course access — all lessons", sub: "Instant unlock across all devices" },
                 { title: "Verified digital certificate", sub: "LinkedIn & resume ready" },
                 { title: "Live mentor sessions — 2 per month", sub: `Direct Q&A with ${course.mentorName}` },
                 { title: "Lifetime access", sub: "Pay once, no renewals, no auto-billing" },

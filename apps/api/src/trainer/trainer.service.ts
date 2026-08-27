@@ -253,8 +253,10 @@ export class TrainerService {
 
     const completedMap = new Map<string, number>();
     for (const p of videoProgress) {
-      const key = `${p.studentId}_${p.video.section.courseId}`;
-      completedMap.set(key, (completedMap.get(key) || 0) + 1);
+      if (p.video) {
+        const key = `${p.studentId}_${p.video.section.courseId}`;
+        completedMap.set(key, (completedMap.get(key) || 0) + 1);
+      }
     }
 
     const certMap = new Set(
