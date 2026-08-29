@@ -16,8 +16,8 @@ export interface SectionContext {
 export const SECTION_ORDER = [
   "overview",
   "courses",
-  "schedule",
-  "assignments",
+  // "schedule",
+  // "assignments",
   "certificates",
   "projects",
   "discussion",
@@ -34,20 +34,8 @@ export const SECTION_CONFIG: SectionDef[] = [
     badge: (ctx: SectionContext) => ctx.isLoading ? "…" : ctx.courseCount.toString(),
     badgeCls: "bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]",
   },
-  {
-    id: "schedule",
-    icon: "📅",
-    label: "Schedule",
-    badge: "2 Live",
-    badgeCls: "bg-green-500/10 text-green-600 dark:text-green-500",
-  },
-  {
-    id: "assignments",
-    icon: "📝",
-    label: "Assignments",
-    badge: "3 Due",
-    badgeCls: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a]",
-  },
+  // { id: "schedule", icon: "📅", label: "Schedule", badge: "2 Live", badgeCls: "bg-green-500/10 text-green-600 dark:text-green-500" },
+  // { id: "assignments", icon: "📝", label: "Assignments", badge: "3 Due", badgeCls: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a]" },
   { id: "certificates", icon: "🏅", label: "Certificates" },
   { id: "projects", icon: "📁", label: "Projects" },
 ];

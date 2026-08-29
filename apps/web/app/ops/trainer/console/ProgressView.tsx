@@ -8,13 +8,15 @@ interface ProgressViewProps {
   students: TrainerStudent[];
   searchQuery: string;
   onSetFlag: (id: number, flag: StudentFlag) => void;
-  onFlagToCoordinator: (id: number) => void;
+  onFlagToCoordinator: (id: number, reason?: string) => void;
 }
 
 const FLAG_FILTERS: (StudentFlag | "All")[] = ["All", "On Track", "Falling Behind", "Ready for Next Module", "Needs Re-attempt"];
 
 export default function ProgressView({ students, searchQuery, onSetFlag, onFlagToCoordinator }: ProgressViewProps) {
   const [flagFilter, setFlagFilter] = useState<StudentFlag | "All">("All");
+  const [flagModal, setFlagModal] = useState<{ open: boolean; studentId: number; studentName: string }>({ open: false, studentId: 0, studentName: "" });
+  const [flagReason, setFlagReason] = useState("");
 
   const filtered = useMemo(() => {
     let list = students;
@@ -32,6 +34,12 @@ export default function ProgressView({ students, searchQuery, onSetFlag, onFlagT
     reattempt: students.filter((s) => s.flag === "Needs Re-attempt").length,
     flagged: students.filter((s) => s.flaggedToCoordinator).length,
   }), [students]);
+
+  function handleFlagSubmit() {
+    onFlagToCoordinator(flagModal.studentId, flagReason || undefined);
+    setFlagModal({ open: false, studentId: 0, studentName: "" });
+    setFlagReason("");
+  }
 
   return (
     <div className="p-4 pb-7">
@@ -86,9 +94,12 @@ export default function ProgressView({ students, searchQuery, onSetFlag, onFlagT
                 </Td>
                 <Td>
                   {s.flaggedToCoordinator ? (
-                    <span className="font-mono text-[9px] font-bold" style={{ color: "var(--purple)" }}>⚑ Flagged</span>
+                    <div className="flex flex-col">
+                      <span className="font-mono text-[9px] font-bold" style={{ color: "var(--purple)" }}>⚑ Flagged</span>
+                      {s.flagReason && <span className="text-[8px] truncate max-w-[120px]" style={{ color: "var(--text3)" }} title={s.flagReason}>{s.flagReason}</span>}
+                    </div>
                   ) : (
-                    <ActionBtn color="var(--purple)" onClick={() => onFlagToCoordinator(s.id)}>⚑ Flag to Coordinator</ActionBtn>
+                    <ActionBtn color="var(--purple)" onClick={() => setFlagModal({ open: true, studentId: s.id, studentName: s.name })}>⚑ Flag to Coordinator</ActionBtn>
                   )}
                 </Td>
               </tr>
@@ -99,6 +110,38 @@ export default function ProgressView({ students, searchQuery, onSetFlag, onFlagT
           </tbody>
         </table>
       </Panel>
+
+      {/* Flag Reason Modal */}
+      {flagModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setFlagModal({ open: false, studentId: 0, studentName: "" })}>
+          <div className="rounded-lg p-4 max-w-sm w-full mx-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-mono text-[11px] font-bold" style={{ color: "var(--text)" }}>⚑ Flag {flagModal.studentName}</span>
+              <button onClick={() => setFlagModal({ open: false, studentId: 0, studentName: "" })} className="text-[12px] cursor-pointer" style={{ color: "var(--text3)" }}>✕</button>
+            </div>
+            <textarea
+              value={flagReason}
+              onChange={(e) => setFlagReason(e.target.value)}
+              placeholder="Reason for flagging (optional)"
+              rows={3}
+              className="w-full font-mono text-[10px] p-2 rounded outline-none resize-none"
+              style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+            />
+            <div className="flex justify-end gap-2 mt-3">
+              <button
+                onClick={() => { setFlagModal({ open: false, studentId: 0, studentName: "" }); setFlagReason(""); }}
+                className="font-mono text-[9px] font-bold px-3 py-1.5 rounded cursor-pointer"
+                style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+              >Cancel</button>
+              <button
+                onClick={handleFlagSubmit}
+                className="font-mono text-[9px] font-bold px-3 py-1.5 rounded cursor-pointer"
+                style={{ background: "var(--purple)", color: "#fff", border: "1px solid var(--purple)" }}
+              >Flag Student</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

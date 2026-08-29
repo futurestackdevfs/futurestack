@@ -15,6 +15,8 @@ import LeadsView from "./console/LeadsView";
 import FollowupsView from "./console/FollowupsView";
 import ConvertedView from "./console/ConvertedView";
 import RevenueView from "./console/RevenueView";
+import TargetsView from "./console/TargetsView";
+import EnrollmentsView from "./console/EnrollmentsView";
 import type { SalesDashboard } from "./lib/types";
 
 const EMPTY_DASHBOARD: SalesDashboard = {
@@ -102,6 +104,7 @@ export default function SalesConsolePage() {
     leads: dashboard.snapshot.newLeads + dashboard.snapshot.interested,
     followups: dashboard.pipeline.filter((p) => p.status === "Interested").length,
     converted: dashboard.kpi.converted,
+    enrollments: dashboard.kpi.converted,
   }), [dashboard]);
 
   if (sessionLoading) return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", color: "var(--text3)" }} className="font-mono text-[11px]">Checking session…</div>;
@@ -141,18 +144,16 @@ export default function SalesConsolePage() {
                 <FollowupsView searchQuery={searchQuery} onNewSale={() => setSaleOpen(true)} onToast={addToast} refreshSignal={refreshKey} onMutate={onMutate} />
               )}
               {view === "converted" && (
-                <ConvertedView pipeline={dashboard.pipeline} searchQuery={searchQuery} refreshSignal={refreshKey} onToast={addToast} />
+                <ConvertedView pipeline={dashboard.pipeline} searchQuery={searchQuery} refreshSignal={refreshKey} onToast={addToast} onMutate={onMutate} />
               )}
               {view === "revenue" && (
                 <RevenueView dashboard={dashboard} />
               )}
               {view === "targets" && (
-                <div className="flex items-center justify-center h-full">
-                  <div className="flex flex-col items-center gap-3 text-center">
-                    <div className="text-[22px] font-bold" style={{ color: "var(--text)" }}>Coming Soon</div>
-                    <div className="font-mono text-[11px]" style={{ color: "var(--text3)" }}>Sales targets are in the works</div>
-                  </div>
-                </div>
+                <TargetsView refreshSignal={refreshKey} userRole={user?.role} />
+              )}
+              {view === "enrollments" && (
+                <EnrollmentsView searchQuery={searchQuery} refreshSignal={refreshKey} onToast={addToast} />
               )}
             </>
           )}

@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import { INR } from "../lib/data";
-import type { TrainerBatch, TrainerSession, TrainerStudent } from "../lib/data";
-import type { ProjectSubmission, CurriculumFeedback, RevenueEnrollment, PayoutRecord } from "../lib/data";
+import { useMemo, useState } from "react";
+import type { TrainerBatch, TrainerStudent } from "../lib/data";
+import type { ProjectSubmission, RevenueEnrollment, PayoutRecord } from "../lib/data";
 
 /* Discussion API type */
 interface DiscussionAuthor {
@@ -24,15 +23,15 @@ import { KpiRow, Pill, ViewHeader, ProgressBar } from "../sections/ui";
 interface DashboardHomeProps {
   userName: string;
   batches: TrainerBatch[];
-  sessions: TrainerSession[];
   students: TrainerStudent[];
   submissions: ProjectSubmission[];
   doubts: DiscussionMessage[];
-  feedback: CurriculumFeedback[];
   enrollments: RevenueEnrollment[];
   payouts: PayoutRecord[];
+  reviews: { id: string; rating: number; studentName: string; courseTitle: string }[];
   onNavigate: (view: string) => void;
   sharePct?: number;
+  profileComplete?: boolean;
 }
 
 function Card({ icon, title, onOpen, children }: { icon: string; title: string; onOpen: () => void; children: React.ReactNode }) {
@@ -63,14 +62,13 @@ function StatPair({ label, value, color }: { label: string; value: string | numb
 }
 
 export default function DashboardHome({
-  userName, batches, sessions, students, submissions, doubts, feedback, enrollments, payouts, onNavigate, sharePct = 50,
+  userName, batches, students, submissions, doubts, enrollments, payouts, reviews, onNavigate, sharePct = 50, profileComplete = true,
 }: DashboardHomeProps) {
-  const today = new Date().toISOString().slice(0, 10);
+  const [showFlagInfo, setShowFlagInfo] = useState(false);
 
   const stats = useMemo(() => {
     const running = batches.filter((b) => b.status === "Running");
     const enrolledTotal = batches.reduce((s, b) => s + b.enrolled, 0);
-    const todaySessions = sessions.filter((s) => s.date === today && s.status !== "Cancelled");
     const behind = students.filter((s) => s.flag === "Falling Behind");
     const ready = students.filter((s) => s.flag === "Ready for Next Module");
     const reattempt = students.filter((s) => s.flag === "Needs Re-attempt");
@@ -79,6 +77,11 @@ export default function DashboardHome({
     const revisionSubs = submissions.filter((s) => s.status === "Revision Requested");
     const approvedSubs = submissions.filter((s) => s.status === "Approved");
     const openDoubts = doubts.filter((d) => !d.isAnswered);
+    const totalReviews = reviews.length;
+    const uniqueReviewers = new Set(reviews.map((r) => r.studentName)).size;
+    const avgRating = totalReviews > 0
+      ? (reviews.reduce((s, r) => s + r.rating, 0) / totalReviews).toFixed(1)
+      : "—";
     const collected = enrollments.reduce((s, e) => {
       if (e.paymentMode === "Full") return s + e.courseFee;
       if (e.paymentMode === "EMI") return s + Math.round(e.courseFee * 0.5);
@@ -87,68 +90,54 @@ export default function DashboardHome({
     const myShare = Math.round(collected * (sharePct / 100));
     const paidOut = payouts.filter((p) => p.status === "Paid").reduce((s, p) => s + p.amount, 0);
     return {
-      running, enrolledTotal, todaySessions, behind, ready, reattempt,
+      running, enrolledTotal, behind, ready, reattempt,
       newSubs, pendingSubs, revisionSubs, approvedSubs,
-      openDoubts,
+      openDoubts, totalReviews, uniqueReviewers, avgRating,
       collected, myShare, paidOut, pendingPayout: myShare - paidOut,
     };
-  }, [batches, sessions, students, submissions, doubts, enrollments, payouts, today]);
-
-  const nextSession = sessions
-    .filter((s) => s.status === "Scheduled")
-    .sort((a, b) => a.date.localeCompare(b.date))[0];
+  }, [batches, students, submissions, doubts, enrollments, payouts, reviews]);
 
   return (
     <div className="p-4 pb-7">
       <ViewHeader icon="🎓" title={`Welcome back, ${userName.split(" ")[0]}`} meta={`role::trainer · ${batches.length} courses · ${stats.enrolledTotal} students`} />
 
+      {!profileComplete && (
+        <div className="mb-4 px-4 py-3 rounded-lg flex items-center gap-3" style={{ background: "linear-gradient(135deg, var(--amber-d), var(--orange-d))", border: "1px solid var(--amber)" }}>
+          <span className="text-[20px]">⚠️</span>
+          <div className="flex-1">
+            <div className="text-[12px] font-bold" style={{ color: "var(--amber)" }}>Complete your profile to start adding courses</div>
+            <div className="text-[10.5px]" style={{ color: "var(--text3)" }}>Please fill in at least 5 of your profile fields (phone, DOB, city, qualification, etc.) to unlock course management.</div>
+          </div>
+          <button
+            onClick={() => onNavigate("profile")}
+            className="shrink-0 px-3 py-1.5 rounded text-[10px] font-bold cursor-pointer"
+            style={{ background: "var(--amber)", color: "#fff", border: "none" }}
+          >Complete Profile →</button>
+        </div>
+      )}
+
       <KpiRow items={[
         { label: "Active Courses", value: stats.running.length, delta: `${batches.length - stats.running.length} upcoming`, color: "var(--purple)" },
         { label: "Enrolled Students", value: stats.enrolledTotal, delta: `${stats.behind.length} falling behind`, color: "var(--blue)" },
-        { label: "Sessions Today", value: stats.todaySessions.length, delta: nextSession ? `next: ${nextSession.date}` : "none scheduled", color: "var(--orange)" },
-        { label: "Reviews Pending", value: stats.newSubs.length + stats.pendingSubs.length, delta: `${stats.newSubs.length} new submissions`, color: "var(--red)" },
+        { label: "Total Reviews", value: stats.totalReviews, delta: `by ${stats.uniqueReviewers} students`, color: "var(--green)" },
         { label: "Open Doubts", value: stats.openDoubts.length, delta: "unanswered", color: "var(--amber)" },
       ]} />
 
       <div className="grid grid-cols-2 gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))" }}>
         {/* Assigned courses */}
         <Card icon="📅" title="Assigned Courses" onOpen={() => onNavigate("batches")}>
-          {batches.map((b) => (
+          {batches.slice(0, 5).map((b) => (
             <div key={b.id} className="flex items-center gap-2 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
               <div className="flex-1 min-w-0">
                 <div className="font-mono text-[10px] font-bold truncate" style={{ color: "var(--text)" }}>{b.code}</div>
-                <div className="text-[9.5px] truncate" style={{ color: "var(--text3)" }}>{b.course} · {b.enrolled} students</div>
+                <div className="text-[9.5px] truncate" style={{ color: "var(--text3)" }}>{b.course}</div>
               </div>
-              <ProgressBar pct={b.progressPct} />
-              <Pill value={b.status} />
+              <div className="text-right shrink-0">
+                <div className="text-[10px] font-mono font-bold" style={{ color: "var(--blue)" }}>{b.enrolled} students</div>
+                {b.lastUpdated && <div className="text-[8.5px] font-mono" style={{ color: "var(--text3)" }}>updated {b.lastUpdated}</div>}
+              </div>
             </div>
           ))}
-          <StatPair label="Next session" value={batches.find((b) => b.status === "Running")?.nextSession || "—"} color="var(--orange)" />
-        </Card>
-
-        {/* Session management */}
-        <Card icon="🎥" title="Session Management" onOpen={() => onNavigate("sessions")}>
-          {stats.todaySessions.length > 0 ? stats.todaySessions.map((s) => (
-            <div key={s.id} className="rounded p-2 mb-2" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold" style={{ color: "var(--text)" }}>Today · {s.topic}</span>
-                <Pill value={s.status} />
-              </div>
-              <div className="font-mono text-[9.5px] mt-1" style={{ color: "var(--text3)" }}>{s.batchCode} · {s.time}</div>
-              <div className="font-mono text-[9.5px] truncate" style={{ color: "var(--blue)" }}>{s.link}</div>
-              <div className="flex gap-1 mt-1.5 flex-wrap">
-                {s.materials.map((m, i) => (
-                  <span key={i} className="font-mono text-[8.5px] px-1.5 py-0.5 rounded" style={{ background: "var(--blue-d)", color: "var(--blue)" }}>
-                    📎 {m.kind}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )) : (
-            <div className="font-mono text-[10px] py-2" style={{ color: "var(--text3)" }}>No session today.</div>
-          )}
-          <StatPair label="Upcoming sessions" value={sessions.filter((s) => s.status === "Scheduled").length} color="var(--blue)" />
-          <StatPair label="Completed this month" value={sessions.filter((s) => s.status === "Completed").length} color="var(--green)" />
         </Card>
 
         {/* Student progress */}
@@ -163,6 +152,12 @@ export default function DashboardHome({
               <Pill value={s.flag} />
             </div>
           ))}
+          <button
+            onClick={() => setShowFlagInfo(true)}
+            className="mt-2 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold cursor-pointer"
+            style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text3)" }}
+            title="What do these flags mean?"
+          >i</button>
         </Card>
 
         {/* Project review queue */}
@@ -197,15 +192,59 @@ export default function DashboardHome({
           ))}
         </Card>
 
-        {/* Curriculum feedback */}
-        <Card icon="📝" title="Curriculum Feedback" onOpen={() => onNavigate("feedback")}>
-          <StatPair label="Outdated material flagged" value={feedback.filter((f) => f.kind === "Outdated Material").length} color="var(--red)" />
-          <StatPair label="Confusing topics" value={feedback.filter((f) => f.kind === "Confusing Topic").length} color="var(--amber)" />
-          <StatPair label="Content suggestions" value={feedback.filter((f) => f.kind === "Content Suggestion").length} color="var(--blue)" />
-          <StatPair label="Drafts not yet submitted" value={feedback.filter((f) => f.status === "Draft").length} color="var(--purple)" />
+        {/* Trainer reviews */}
+        <Card icon="⭐" title="Trainer Reviews" onOpen={() => onNavigate("ratings")}>
+          <div className="flex items-center gap-3 mb-2 pb-2" style={{ borderBottom: "1px solid var(--border)" }}>
+            <span className="font-mono text-[22px] font-extrabold" style={{ color: "var(--text)" }}>{stats.avgRating}</span>
+            <div>
+              <div className="text-[10px]" style={{ color: "var(--text3)" }}>{stats.totalReviews} reviews · {stats.uniqueReviewers} students</div>
+            </div>
+          </div>
+          {reviews.slice(0, 2).map((r) => (
+            <div key={r.id} className="py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold" style={{ color: "var(--text)" }}>{r.studentName}</span>
+                <span className="font-mono text-[9px] font-bold" style={{ color: "var(--amber)" }}>{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+              </div>
+              <div className="text-[9px] truncate" style={{ color: "var(--text3)" }}>{r.courseTitle}</div>
+            </div>
+          ))}
+          {reviews.length === 0 && (
+            <div className="font-mono text-[10px] py-2" style={{ color: "var(--text3)" }}>No reviews yet</div>
+          )}
         </Card>
 
       </div>
+
+      {/* Flag Info Popup */}
+      {showFlagInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setShowFlagInfo(false)}>
+          <div className="rounded-lg p-4 max-w-xs w-full mx-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="font-mono text-[11px] font-bold" style={{ color: "var(--text)" }}>Student Flags</span>
+              <button onClick={() => setShowFlagInfo(false)} className="text-[12px] cursor-pointer" style={{ color: "var(--text3)" }}>✕</button>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-start gap-2">
+                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded shrink-0" style={{ background: "var(--red-d)", color: "var(--red)" }}>Falling Behind</span>
+                <span className="text-[10px]" style={{ color: "var(--text3)" }}>Progress less than 30%</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded shrink-0" style={{ background: "var(--green-d)", color: "var(--green)" }}>Ready for Next Module</span>
+                <span className="text-[10px]" style={{ color: "var(--text3)" }}>Progress ≥ 70% and 70%+ modules done</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded shrink-0" style={{ background: "var(--blue-d)", color: "var(--blue)" }}>On Track</span>
+                <span className="text-[10px]" style={{ color: "var(--text3)" }}>Progress between 30% – 69%</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="font-mono text-[9px] px-1.5 py-0.5 rounded shrink-0" style={{ background: "var(--amber-d)", color: "var(--amber)" }}>Needs Re-attempt</span>
+                <span className="text-[10px]" style={{ color: "var(--text3)" }}>Flagged by trainer for module re-attempt</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

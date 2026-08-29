@@ -947,11 +947,13 @@ export class CoursesService {
     } = {
       id: true,
       title: true,
+      code: true,
       description: true,
       category: true,
       techStack: true,
       skillLevel: true,
       createdAt: true,
+      updatedAt: true,
     };
     if (!lean) {
       (leanSelect as any).thumbnailUrl = true;
@@ -1025,6 +1027,7 @@ export class CoursesService {
         category,
         trackNames: course.tracks.map((tc) => tc.track.title),
         title: course.title,
+        code: course.code,
         description: course.description ?? '',
         hours: totalHours || 20,
         students: `${((course._count.enrollments / 1000) * 10).toFixed(1).replace('.0', '')}k`,
@@ -1052,6 +1055,7 @@ export class CoursesService {
         whatYoullLearn: course.whatYoullLearn,
         careerTitle: course.careerTitle,
         careerBody: course.careerBody,
+        updatedAt: course.updatedAt,
       };
     });
 

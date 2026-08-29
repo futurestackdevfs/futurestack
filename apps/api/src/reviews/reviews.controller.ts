@@ -16,13 +16,15 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 
-@Controller('courses/:courseId/reviews')
+@Controller()
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}
 
+  // ─── COURSE REVIEWS ──────────────────────────────────────
+
   @Auth(Role.STUDENT)
-  @Post()
-  async createReview(
+  @Post('courses/:courseId/reviews')
+  async createCourseReview(
     @Req() req: Request,
     @Param('courseId') courseId: string,
     @Body() dto: CreateReviewDto,
@@ -32,8 +34,8 @@ export class ReviewsController {
   }
 
   @Auth(Role.STUDENT)
-  @Put(':reviewId')
-  async updateReview(
+  @Put('courses/:courseId/reviews/:reviewId')
+  async updateCourseReview(
     @Req() req: Request,
     @Param('reviewId') reviewId: string,
     @Body() dto: CreateReviewDto,
@@ -42,7 +44,7 @@ export class ReviewsController {
     return this.reviewsService.updateReview(user.id, reviewId, dto);
   }
 
-  @Get()
+  @Get('courses/:courseId/reviews')
   async getCourseReviews(
     @Param('courseId') courseId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
@@ -52,9 +54,18 @@ export class ReviewsController {
   }
 
   @Auth(Role.STUDENT)
-  @Get('me')
-  async getMyReview(@Req() req: Request, @Param('courseId') courseId: string) {
+  @Get('courses/:courseId/reviews/me')
+  async getMyCourseReview(@Req() req: Request, @Param('courseId') courseId: string) {
     const user = req.user as { id: string };
     return this.reviewsService.getStudentReview(user.id, courseId);
+  }
+
+  // ─── TRAINER ─────────────────────────────────────────────
+
+  @Auth(Role.TRAINER)
+  @Get('trainer/project-reviews')
+  async getTrainerProjectReviews(@Req() req: Request) {
+    const user = req.user as { id: string };
+    return this.reviewsService.getTrainerProjectReviews(user.id);
   }
 }

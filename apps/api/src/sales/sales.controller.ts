@@ -71,6 +71,18 @@ export class SalesController {
     );
   }
 
+  /* ── All enrollments (orders) for this salesperson ── */
+
+  @Get('orders')
+  listMyOrders(@Req() req: AuthenticatedRequest) {
+    return this.salesService.listMyOrders(req.user.id, req.user.role);
+  }
+
+  @Get('orders/:id')
+  getOrderDetail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.salesService.getOrderDetail(req.user.id, req.user.role, id);
+  }
+
   /* ── Lead management ── */
 
   @Get('leads')

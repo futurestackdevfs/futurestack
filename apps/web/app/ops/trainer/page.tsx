@@ -2,7 +2,6 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
 import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken, clearStaffToken } from "@/app/auth/lib/token-store";
 import { OpsStatusbar } from "@/app/ops/components/OpsStatusbar";
@@ -11,21 +10,19 @@ import { TrainerTopbar } from "./sections/TrainerTopbar";
 import { TrainerSidebar } from "./sections/TrainerSidebar";
 import DashboardHome from "./console/DashboardHome";
 import BatchesView from "./console/BatchesView";
-import { type CourseFormValues } from "./sections/CourseModal";
-import SessionsView from "./console/SessionsView";
+import MyProjectsView from "./console/MyProjectsView";
 import ProgressView from "./console/ProgressView";
 import ReviewsView from "./console/ReviewsView";
 import StudentRatingsView from "./console/StudentRatingsView";
 import DoubtsView from "./console/DoubtsView";
-import FeedbackView from "./console/FeedbackView";
 import RevenueView from "./console/RevenueView";
+import TrainerProfileView from "./console/TrainerProfileView";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
-import { loadLocal, saveLocal } from "./lib/store";
 import {
-  type TrainerBatch, type TrainerSession, type TrainerStudent,
-  type ProjectSubmission, type CurriculumFeedback,
+  type TrainerBatch, type TrainerStudent,
+  type ProjectSubmission,
   type RevenueEnrollment, type PayoutRecord,
-  type StudentFlag, type SubmissionStatus,
+  type StudentFlag,
 } from "./lib/data";
 
 /* ───────────────────────────────────────────────
@@ -33,11 +30,12 @@ import {
 ─────────────────────────────────────────────── */
 
 interface TrainerCourseRaw {
-  id: string; title: string; mentorName?: string;
+  id: string; title: string; code?: string; mentorName?: string;
   category?: string; level?: string; price?: number;
   students?: number; hours?: number; totalLessons?: number;
   totalVideos?: number; totalQuizzes?: number;
   sections?: any[]; modules?: number;
+  updatedAt?: string;
 }
 
 interface DiscussionAuthor {
@@ -85,16 +83,16 @@ export default function TrainerDashboardPage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
 
-  /* Console data — see data.ts for seed defaults */
+  /* Console data */
   const [batches, setBatches] = useState<TrainerBatch[]>([]);
-  const [sessions, setSessions] = useState<TrainerSession[]>([]);
   const [students, setStudents] = useState<TrainerStudent[]>([]);
   const [submissions, setSubmissions] = useState<ProjectSubmission[]>([]);
   const [doubts, setDoubts] = useState<DiscussionMessage[]>([]);
-  const [feedback, setFeedback] = useState<CurriculumFeedback[]>([]);
   const [enrollments, setEnrollments] = useState<RevenueEnrollment[]>([]);
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
+  const [reviews, setReviews] = useState<{ id: string; rating: number; studentName: string; courseTitle: string }[]>([]);
   const [sharePct, setSharePct] = useState(50);
+  const [profileComplete, setProfileComplete] = useState(false);
 
   /* ── session + user auth ── */
   useEffect(() => {
@@ -112,6 +110,20 @@ export default function TrainerDashboardPage() {
       finally { setSessionLoading(false); }
     })();
   }, []);
+
+  /* ── fetch profile completeness ── */
+  useEffect(() => {
+    if (!user) return;
+    opsFetch("/api/trainer/profile")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        const required = [data.phone, data.dob, data.city, data.qualification, data.experience, data.careerPath, data.bio];
+        const filled = required.filter((v) => v && String(v).trim()).length;
+        setProfileComplete(filled >= 5);
+      })
+      .catch(() => {});
+  }, [user]);
 
   /* ── fetch data (admin pattern: Promise.all with token) ── */
   useEffect(() => {
@@ -133,11 +145,12 @@ export default function TrainerDashboardPage() {
       if (cancelled) return;
 
       const myCourses: TrainerCourseRaw[] = cards;
-      /* enrich with detail */
+      /* enrich with detail — merge card data (has code) with detail data */
       const withDetails = await Promise.all(
         myCourses.map((c) =>
           opsFetch(`/api/courses/public/${c.id}`)
             .then((r) => (r.ok ? r.json() : null))
+            .then((detail) => detail ? { ...detail, code: detail.code ?? c.code } : null)
             .catch(() => null),
         ),
       );
@@ -147,7 +160,7 @@ export default function TrainerDashboardPage() {
       /* Map to batches for dashboard (courses become the "batches") */
       const fromApi = enriched.map((c, i) => ({
         id: i + 1,
-        code: c.title?.slice(0, 2).toUpperCase() + "-" + (c.id?.slice(0, 4) ?? i),
+        code: c.code || "—",
         course: c.title ?? "Untitled",
         schedule: "—",
         enrolled: c.students ?? 0,
@@ -156,6 +169,9 @@ export default function TrainerDashboardPage() {
         currentModule: `${c.modules ?? 0} modules`,
         nextSession: "—",
         status: "Running" as const,
+        lastUpdated: c.updatedAt
+          ? new Date(c.updatedAt).toISOString().slice(0, 16).replace("T", " ")
+          : new Date().toISOString().slice(0, 16).replace("T", " "),
       }));
 
       /* Fetch discussions for all courses */
@@ -174,11 +190,15 @@ export default function TrainerDashboardPage() {
         } catch { /* skip */ }
       }
 
-      /* Load localStorage-persisted data for entities without backend APIs */
-      const localSessions = loadLocal<TrainerSession[]>(user.id, "sessions", []);
-      const localStudents = loadLocal<TrainerStudent[]>(user.id, "students", []);
-      const localSubmissions = loadLocal<ProjectSubmission[]>(user.id, "submissions", []);
-      const localFeedback = loadLocal<CurriculumFeedback[]>(user.id, "feedback", []);
+      /* Students from trainer API */
+      const studentsData = await opsFetch("/api/trainer/students")
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+
+      /* Reviews from trainer API */
+      const reviewsData = await opsFetch("/api/trainer/reviews")
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
 
       /* Revenue & payouts from trainer API */
       const trainerData = await opsFetch("/api/trainer/revenue")
@@ -215,11 +235,10 @@ export default function TrainerDashboardPage() {
 
       if (cancelled) return;
       setBatches(fromApi);
-      setSessions(localSessions);
-      setStudents(localStudents);
-      setSubmissions(localSubmissions);
+      setStudents(studentsData ?? []);
+      setSubmissions([]);
       setDoubts(allDiscussions);
-      setFeedback(localFeedback);
+      setReviews(Array.isArray(reviewsData) ? reviewsData : []);
       setDataLoading(false);
     })();
 
@@ -232,87 +251,23 @@ export default function TrainerDashboardPage() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3500);
   }
 
-  /* ── mutations shared across views (persist to localStorage) ── */
-  function updateSessionStatus(id: number, status: TrainerSession["status"]) {
-    setSessions((prev) => {
-      const next = prev.map((s) => s.id === id ? { ...s, status } : s);
-      if (user) saveLocal(user.id, "sessions", next);
-      return next;
-    });
-    addToast(`Session ${status === "Cancelled" ? "cancelled" : `marked ${status.toLowerCase()}`}`, status === "Cancelled" ? "danger" : "success");
-  }
-
+  /* ── mutations ── */
   function setStudentFlag(id: number, flag: StudentFlag) {
-    setStudents((prev) => {
-      const next = prev.map((s) => s.id === id ? { ...s, flag } : s);
-      if (user) saveLocal(user.id, "students", next);
-      return next;
-    });
+    setStudents((prev) => prev.map((s) => s.id === id ? { ...s, flag } : s));
     addToast("Student readiness updated");
   }
 
-  function flagToCoordinator(id: number) {
-    setStudents((prev) => {
-      const next = prev.map((s) => s.id === id ? { ...s, flaggedToCoordinator: true } : s);
-      if (user) saveLocal(user.id, "students", next);
-      return next;
-    });
+  function flagToCoordinator(id: number, reason?: string) {
     const st = students.find((s) => s.id === id);
-    addToast(`${st?.name || "Student"} flagged to Coordinator`);
-  }
+    if (!st) return;
 
-  function reviewSubmission(id: number, status: SubmissionStatus, feedbackText: string) {
-    setSubmissions((prev) => {
-      const next = prev.map((s) => s.id === id ? { ...s, status, feedback: feedbackText } : s);
-      if (user) saveLocal(user.id, "submissions", next);
-      return next;
-    });
-    addToast(status === "Approved" ? "Project approved" : "Revision requested");
-  }
+    opsFetch("/api/trainer/flag-student", {
+      method: "POST",
+      body: JSON.stringify({ studentId: String(id), reason }),
+    }).then((r) => r.ok ? r.json() : null).catch(() => null);
 
-  function genCourseCode(title: string, existing: any[]): string {
-    const prefix = (title.match(/[a-zA-Z0-9]/g) ?? []).join('').toUpperCase().slice(0, 3) || 'CRS';
-    const maxSeq = existing
-      .filter(c => c.code?.startsWith(`CRS-${prefix}-`))
-      .reduce((max, c) => Math.max(max, parseInt(c.code.split('-').pop() ?? '0', 10)), 0);
-    return `CRS-${prefix}-${String(maxSeq + 1).padStart(3, '0')}`;
-  }
-
-  function addCourse(input: CourseFormValues) {
-    const stored = user ? loadLocal<any[]>(user.id, "courses", []) : [];
-    const autoCode = genCourseCode(input.title || "Untitled Course", stored);
-    const newCourse: TrainerBatch = {
-      id: Date.now(),
-      code: autoCode,
-      course: input.title || "Untitled Course",
-      schedule: input.level || "—",
-      enrolled: 0,
-      startDate: input.category || "—",
-      progressPct: 0,
-      currentModule: input.price ? `₹${input.price}` : "—",
-      nextSession: "—",
-      status: "Running" as const,
-    };
-    setBatches((prev) => [newCourse, ...prev]);
-    if (user) {
-      saveLocal(user.id, "courses", [{ ...input, code: autoCode, id: newCourse.id }, ...stored]);
-    }
-    addToast("Course added");
-  }
-
-  function updateCourse(id: number, input: CourseFormValues) {
-    setBatches((prev) => prev.map((b) => b.id === id ? {
-      ...b,
-      course: input.title || b.course,
-      schedule: input.level || b.schedule,
-      startDate: input.category || b.startDate,
-      currentModule: input.price ? `₹${input.price}` : b.currentModule,
-    } : b));
-    if (user) {
-      const stored = loadLocal<any[]>(user.id, "courses", []);
-      saveLocal(user.id, "courses", stored.map((c) => c.id === id ? { ...c, ...input, code: c.code || genCourseCode(input.title || c.code || '', stored) } : c));
-    }
-    addToast("Course updated");
+    setStudents((prev) => prev.map((s) => s.id === id ? { ...s, flaggedToCoordinator: true, flagReason: reason } : s));
+    addToast(`${st.name} flagged to Coordinator`);
   }
 
   /* ── Discussion API actions ── */
@@ -393,27 +348,6 @@ export default function TrainerDashboardPage() {
     return res;
   }
 
-  function addFeedback(item: Omit<CurriculumFeedback, "id" | "raisedAt" | "status">) {
-    setFeedback((prev) => {
-      const next = [
-        { ...item, id: Math.max(0, ...prev.map((f) => f.id)) + 1, raisedAt: new Date().toISOString().slice(0, 10), status: "Draft" as const },
-        ...prev,
-      ];
-      if (user) saveLocal(user.id, "feedback", next);
-      return next;
-    });
-    addToast("Feedback saved as draft");
-  }
-
-  function submitFeedbackDraft(id: number) {
-    setFeedback((prev) => {
-      const next = prev.map((f) => f.id === id ? { ...f, status: "Submitted" as const } : f);
-      if (user) saveLocal(user.id, "feedback", next);
-      return next;
-    });
-    addToast("Feedback submitted to Content Manager");
-  }
-
   const badges = useMemo(() => ({
     reviews: submissions.filter((s) => s.status === "New" || s.status === "Pending Review").length,
     doubts: doubts.filter((d) => !d.isAnswered).length,
@@ -449,17 +383,18 @@ export default function TrainerDashboardPage() {
               {view === "dashboard" && (
                 <DashboardHome
                   userName={user.name}
-                  batches={batches} sessions={sessions} students={students}
-                  submissions={submissions} doubts={doubts} feedback={feedback}
-                  enrollments={enrollments} payouts={payouts}
+                  batches={batches} students={students}
+                  submissions={submissions} doubts={doubts}
+                  enrollments={enrollments} payouts={payouts} reviews={reviews}
                   onNavigate={setView}
                   sharePct={sharePct}
+                  profileComplete={profileComplete}
                 />
               )}
-              {view === "batches" && <BatchesView batches={batches} sessions={sessions} searchQuery={searchQuery} onAddCourse={addCourse} onEditCourse={updateCourse} />}
-              {view === "sessions" && <SessionsView sessions={sessions} searchQuery={searchQuery} onUpdateStatus={updateSessionStatus} />}
+              {view === "batches" && <BatchesView batches={batches} searchQuery={searchQuery} profileComplete={profileComplete} onNavigateProfile={() => setView("profile")} />}
+              {view === "projects" && <MyProjectsView searchQuery={searchQuery} profileComplete={profileComplete} onNavigateProfile={() => setView("profile")} />}
               {view === "progress" && <ProgressView students={students} searchQuery={searchQuery} onSetFlag={setStudentFlag} onFlagToCoordinator={flagToCoordinator} />}
-              {view === "reviews" && <ReviewsView submissions={submissions} searchQuery={searchQuery} onReview={reviewSubmission} />}
+              {view === "reviews" && <ReviewsView searchQuery={searchQuery} />}
               {view === "doubts" && (
                 <DoubtsView
                   messages={doubts}
@@ -475,19 +410,9 @@ export default function TrainerDashboardPage() {
                   onDeleteReply={handleDeleteReply}
                 />
               )}
-              {view === "feedback" && <FeedbackView feedback={feedback} searchQuery={searchQuery} onAdd={addFeedback} onSubmitDraft={submitFeedbackDraft} />}
               {view === "revenue" && <RevenueView enrollments={enrollments} payouts={payouts} batches={batches} searchQuery={searchQuery} addToast={addToast} sharePct={sharePct} />}
               {view === "ratings" && <StudentRatingsView searchQuery={searchQuery} />}
-              {["grading","mentees","content-library","reports","session-history"].includes(view) && (
-                <div className="flex items-center justify-center h-full">
-                  <div className="flex flex-col items-center gap-3 text-center">
-                    <div className="text-[22px] font-bold" style={{ color: "var(--text)" }}>Coming Soon</div>
-                    <Link href="/" className="font-mono text-[12px] font-semibold underline underline-offset-2 transition-colors" style={{ color: "var(--blue)", textDecoration: "none" }}>
-                      ← Go to Home
-                    </Link>
-                  </div>
-                </div>
-              )}
+              {view === "profile" && <TrainerProfileView userName={user.name} />}
             </>
           )}
         </main>

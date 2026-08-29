@@ -264,6 +264,26 @@ export default function SalesDashboardContent({ onAddStaff, addLabel, searchQuer
               + Add {addLabel}
             </button>
           )}
+          <div className="relative group">
+            <button className="font-mono text-[9.5px] font-bold px-2.5 py-1.5 rounded cursor-pointer"
+              style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text2)" }}>
+              ⬇ Export
+            </button>
+            <div className="hidden group-hover:block absolute right-0 top-full mt-1 z-50 rounded border shadow-lg"
+              style={{ background: "var(--surface)", borderColor: "var(--border)", minWidth: 160 }}>
+              {[
+                { label: "Revenue CSV", url: "/api/admin/reports/revenue.csv" },
+                { label: "Leads CSV", url: "/api/admin/reports/leads.csv" },
+                { label: "Conversions CSV", url: "/api/admin/reports/conversions.csv" },
+              ].map((item) => (
+                <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"
+                  className="block px-3 py-2 font-mono text-[10px] no-underline hover:bg-[var(--panel)]"
+                  style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          </div>
           <input placeholder="Search leads…" value={search} onChange={(e) => setSearch(e.target.value)}
             className="font-mono text-[10.5px] px-2.5 py-1.5 rounded outline-none w-48"
             style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }} />

@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, Res, Header } from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
@@ -115,6 +116,66 @@ export class AdminController {
   @Post('videos/vdocipher-webhook')
   async handleVdoCipherWebhook(@Body() payload: VdoCipherWebhookPayload) {
     return this.adminService.handleVdoCipherWebhook(payload);
+  }
+
+  // ── ENROLLMENT MANAGEMENT ────────────────────────────────────────
+
+  @Auth(Role.ADMIN, Role.COORDINATOR)
+  @Get('enrollments')
+  async listEnrollments(
+    @Query('page') page?: string,
+    @Query('perPage') perPage?: string,
+    @Query('q') q?: string,
+  ) {
+    return this.adminService.listEnrollments(
+      parseInt(page ?? '1') || 1,
+      parseInt(perPage ?? '20') || 20,
+      q,
+    );
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Auth(Role.ADMIN)
+  @Post('enrollments')
+  async manualEnroll(
+    @Body() dto: { studentId: string; courseId: string; amountPaid: number },
+  ) {
+    return this.adminService.manualEnroll(dto.studentId, dto.courseId, dto.amountPaid);
+  }
+
+  @Auth(Role.ADMIN)
+  @Delete('enrollments/:id')
+  async unenroll(@Param('id') id: string) {
+    return this.adminService.unenroll(id);
+  }
+
+  // ── CSV EXPORTS ──────────────────────────────────────────────────
+
+  @Auth(Role.ADMIN, Role.COORDINATOR)
+  @Get('reports/revenue.csv')
+  @Header('Content-Type', 'text/csv')
+  async exportRevenueCsv(@Res() res: Response) {
+    const csv = await this.adminService.exportRevenueCsv();
+    res.setHeader('Content-Disposition', 'attachment; filename="revenue-report.csv"');
+    res.send(csv);
+  }
+
+  @Auth(Role.ADMIN, Role.COORDINATOR)
+  @Get('reports/leads.csv')
+  @Header('Content-Type', 'text/csv')
+  async exportLeadsCsv(@Res() res: Response) {
+    const csv = await this.adminService.exportLeadsCsv();
+    res.setHeader('Content-Disposition', 'attachment; filename="leads-report.csv"');
+    res.send(csv);
+  }
+
+  @Auth(Role.ADMIN, Role.COORDINATOR)
+  @Get('reports/conversions.csv')
+  @Header('Content-Type', 'text/csv')
+  async exportConversionsCsv(@Res() res: Response) {
+    const csv = await this.adminService.exportConversionsCsv();
+    res.setHeader('Content-Disposition', 'attachment; filename="conversions-report.csv"');
+    res.send(csv);
   }
 
   @Throttle({ default: { limit: 30, ttl: 60_000 } })

@@ -81,11 +81,12 @@ function ReceiptModal({ receipt, onClose }: { receipt: SaleReceipt; onClose: () 
   );
 }
 
-export default function ConvertedView({ pipeline, searchQuery, refreshSignal, onToast }: {
+export default function ConvertedView({ pipeline, searchQuery, refreshSignal, onToast, onMutate }: {
   pipeline: SalesLead[];
   searchQuery: string;
   refreshSignal?: number;
   onToast?: (msg: string, type?: "success" | "danger") => void;
+  onMutate?: () => void;
 }) {
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [pending, setPending] = useState<PendingOrder[]>([]);
@@ -166,6 +167,7 @@ export default function ConvertedView({ pipeline, searchQuery, refreshSignal, on
       setReceipt(data);
       setPending((prev) => prev.filter((o) => o.id !== order.id));
       onToast?.(`Payment confirmed — ${data.courseName}`, "success");
+      onMutate?.();
     } catch (err) {
       onToast?.(err instanceof Error ? err.message : "Payment confirmation failed", "danger");
     } finally {

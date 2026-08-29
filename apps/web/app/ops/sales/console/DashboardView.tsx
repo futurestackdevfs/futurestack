@@ -74,7 +74,7 @@ export default function DashboardView({ dashboard, onNewSale, onRefresh }: {
         { label: "Converted", value: kpi.converted, delta: `+${kpi.convertedWeek} this week`, color: "var(--green)" },
         { label: "Conv. Rate", value: `${kpi.convRate}%`, delta: `${kpi.convDelta >= 0 ? "+" : ""}${kpi.convDelta} pts`, color: convDeltaColor },
         { label: "Follow-ups", value: followUps.length, delta: "upcoming this week", color: "var(--amber)" },
-        { label: "Pipeline ₹", value: fmtRupee(pipeline.reduce((s, l) => s + l.budget, 0)), delta: `${pipeline.length} active`, color: "var(--purple)" },
+        { label: "Pipeline ₹", value: fmtRupee(visiblePipeline.filter((l) => l.status !== "Dropped").reduce((s, l) => s + l.budget, 0)), delta: `${visiblePipeline.length} active`, color: "var(--purple)" },
       ]} />
 
       <div className="flex gap-4">

@@ -25,24 +25,16 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { icon: "▣", label: "Dashboard", view: "dashboard" },
       { icon: "📅", label: "My Courses", view: "batches" },
-      { icon: "🎥", label: "Sessions", view: "sessions" },
+      { icon: "📦", label: "My Projects", view: "projects" },
       { icon: "📈", label: "Student Progress", view: "progress", badgeKey: "behind", badgeColor: { color: "var(--amber)", bg: "var(--amber-d)" } },
-
-      { icon: "▤", label: "Content Library", view: "content-library" },
     ],
   },
   {
     group: "Review & Support",
     items: [
       { icon: "📦", label: "Project Reviews", view: "reviews", badgeKey: "reviews", badgeColor: { color: "var(--red)", bg: "var(--red-d)" } },
-      { icon: "⭐", label: "Student Ratings", view: "ratings" },
+      { icon: "⭐", label: "Course Reviews", view: "ratings" },
       { icon: "❓", label: "Doubts", view: "doubts", badgeKey: "doubts", badgeColor: { color: "var(--blue)", bg: "var(--blue-d)" } },
-    ],
-  },
-  {
-    group: "Curriculum",
-    items: [
-      { icon: "📝", label: "Curriculum Feedback", view: "feedback" },
     ],
   },
   {
@@ -52,17 +44,9 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    group: "Assessment",
+    group: "Account",
     items: [
-      { icon: "📝", label: "Grading Queue", view: "grading", badgeKey: "grading", badgeColor: { color: "var(--red)", bg: "var(--red-d)" } },
-      { icon: "🛠", label: "Mentees", view: "mentees", badgeKey: "mentees", badgeColor: { color: "var(--blue)", bg: "var(--blue-d)" } },
-    ],
-  },
-  {
-    group: "Reports",
-    items: [
-      { icon: "▤", label: "Reports", view: "reports" },
-      { icon: "▧", label: "Session History", view: "session-history" },
+      { icon: "⚙", label: "Settings", view: "profile" },
     ],
   },
 ];

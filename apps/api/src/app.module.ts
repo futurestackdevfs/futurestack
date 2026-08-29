@@ -22,6 +22,8 @@ import { CheckoutModule } from './checkout/checkout.module';
 import { PaymentSettingsModule } from './payment-settings/payment-settings.module';
 import { AdminPaymentsModule } from './admin-payments/admin-payments.module';
 import { SalesModule } from './sales/sales.module';
+import { SalesTargetsModule } from './sales-targets/sales-targets.module';
+import { InvoicesModule } from './invoices/invoices.module';
 import { CoordinatorModule } from './coordinator/coordinator.module';
 import { ProjectsModule } from './projects/projects.module';
 
@@ -59,6 +61,8 @@ import { ProjectsModule } from './projects/projects.module';
     PaymentSettingsModule,
     AdminPaymentsModule,
     SalesModule,
+    SalesTargetsModule,
+    InvoicesModule,
     CoordinatorModule,
     ProjectsModule,
   ],

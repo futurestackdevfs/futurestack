@@ -1,152 +1,128 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { ProjectSubmission, SubmissionStatus } from "../lib/data";
-import { KpiRow, Panel, Th, Td, Pill, ActionBtn, ViewHeader } from "../sections/ui";
+import { useState, useEffect, useMemo } from "react";
+import { opsFetch } from "@/app/ops/lib/ops-fetch";
+import { StarRating } from "@/components/StarRating";
+import { KpiRow, Panel, Th, Td, ViewHeader } from "../sections/ui";
 
-interface ReviewsViewProps {
-  submissions: ProjectSubmission[];
-  searchQuery: string;
-  onReview: (id: number, status: SubmissionStatus, feedback: string) => void;
+interface ProjectReview {
+  id: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
+  studentName: string;
+  studentAvatar?: string | null;
+  projectName: string;
 }
 
-const STATUS_FILTERS: (SubmissionStatus | "All")[] = ["All", "New", "Pending Review", "Revision Requested", "Approved"];
+function initials(name?: string) {
+  if (!name) return "?";
+  return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+}
 
-export default function ReviewsView({ submissions, searchQuery, onReview }: ReviewsViewProps) {
-  const [statusFilter, setStatusFilter] = useState<SubmissionStatus | "All">("All");
-  const [reviewing, setReviewing] = useState<ProjectSubmission | null>(null);
-  const [feedbackText, setFeedbackText] = useState("");
+export default function ReviewsView({ searchQuery }: { searchQuery: string }) {
+  const [reviews, setReviews] = useState<ProjectReview[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await opsFetch("/api/trainer/project-reviews").then((r) => (r.ok ? r.json() : null));
+        if (!cancelled) setReviews(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setReviews([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const filtered = useMemo(() => {
-    let list = submissions;
-    if (statusFilter !== "All") list = list.filter((s) => s.status === statusFilter);
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter((s) => [s.student, s.project, s.batchCode, s.status].some((v) => v.toLowerCase().includes(q)));
-    }
-    return list;
-  }, [submissions, searchQuery, statusFilter]);
+    if (!searchQuery) return reviews;
+    const q = searchQuery.toLowerCase();
+    return reviews.filter((r) =>
+      [r.studentName, r.projectName, r.comment].some((v) => v?.toLowerCase().includes(q))
+    );
+  }, [reviews, searchQuery]);
 
-  const counts = useMemo(() => ({
-    newSubs: submissions.filter((s) => s.status === "New").length,
-    pending: submissions.filter((s) => s.status === "Pending Review").length,
-    revision: submissions.filter((s) => s.status === "Revision Requested").length,
-    approved: submissions.filter((s) => s.status === "Approved").length,
-  }), [submissions]);
+  const avgRating = reviews.length > 0
+    ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
+    : "—";
+  const uniqueStudents = new Set(reviews.map((r) => r.studentName)).size;
 
-  function openReview(sub: ProjectSubmission) {
-    setReviewing(sub);
-    setFeedbackText(sub.feedback);
-  }
+  const distribution = useMemo(() => {
+    const dist = [0, 0, 0, 0, 0];
+    reviews.forEach((r) => { dist[r.rating - 1]++; });
+    return dist.reverse();
+  }, [reviews]);
 
-  function submitReview(status: SubmissionStatus) {
-    if (!reviewing) return;
-    onReview(reviewing.id, status, feedbackText);
-    setReviewing(null);
-    setFeedbackText("");
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-40 font-mono text-[11px]" style={{ color: "var(--text3)" }}>
+        Loading project reviews…
+      </div>
+    );
   }
 
   return (
     <div className="p-4 pb-7">
-      <ViewHeader icon="📦" title="Project Review Queue" meta={`role::trainer · ${submissions.length} submissions`} />
+      <ViewHeader icon="⭐" title="Project Reviews" meta={`role::trainer · ${reviews.length} reviews`} />
 
       <KpiRow items={[
-        { label: "New Submissions", value: counts.newSubs, delta: "awaiting first look", color: "var(--purple)" },
-        { label: "Pending Reviews", value: counts.pending, delta: "in review", color: "var(--amber)" },
-        { label: "Revisions Requested", value: counts.revision, delta: "back with students", color: "var(--red)" },
-        { label: "Approved", value: counts.approved, delta: "completed", color: "var(--green)" },
+        { label: "Total Reviews", value: reviews.length, delta: `by ${uniqueStudents} students`, color: "var(--green)" },
+        { label: "Average Rating", value: avgRating, delta: "out of 5", color: "var(--amber)" },
+        { label: "5-Star Reviews", value: distribution[0], delta: `${reviews.length > 0 ? Math.round(distribution[0] / reviews.length * 100) : 0}%`, color: "var(--purple)" },
       ]} />
 
-      <div className="flex gap-1.5 mb-3">
-        {STATUS_FILTERS.map((f) => (
-          <button key={f}
-            onClick={() => setStatusFilter(f)}
-            className="font-mono text-[9.5px] font-semibold px-2.5 py-1 rounded cursor-pointer"
-            style={statusFilter === f
-              ? { background: "var(--orange)", color: "#fff", border: "1px solid var(--orange)" }
-              : { background: "var(--surface)", color: "var(--text2)", border: "1px solid var(--border)" }}
-          >{f}</button>
-        ))}
+      {/* Rating distribution */}
+      <div className="mb-4 p-4 rounded" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+        <div className="font-mono text-[10.5px] font-bold mb-3" style={{ color: "var(--text2)" }}>RATING DISTRIBUTION</div>
+        {distribution.map((count, i) => {
+          const star = 5 - i;
+          const pct = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
+          return (
+            <div key={star} className="flex items-center gap-2 mb-1.5">
+              <span className="font-mono text-[10px] w-6 text-right" style={{ color: "var(--text3)" }}>{star}★</span>
+              <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: "var(--panel)" }}>
+                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--amber)" }} />
+              </div>
+              <span className="font-mono text-[10px] w-8" style={{ color: "var(--text3)" }}>{count}</span>
+            </div>
+          );
+        })}
       </div>
 
-      <Panel title="📦 Submissions" count={`${filtered.length} submissions`}>
-        <table className="w-full border-collapse" style={{ fontSize: 11 }}>
-          <thead>
-            <tr><Th>Student</Th><Th>Project</Th><Th>Module</Th><Th>Batch</Th><Th>Submitted</Th><Th>Status</Th><Th>Feedback</Th><Th>Actions</Th></tr>
-          </thead>
-          <tbody>
-            {filtered.map((s) => (
-              <tr key={s.id}>
-                <Td color="var(--text)"><b>{s.student}</b></Td>
-                <Td color="var(--text)">{s.project}</Td>
-                <Td mono>{s.module}</Td>
-                <Td mono>{s.batchCode}</Td>
-                <Td mono>{s.submittedAt}</Td>
-                <Td><Pill value={s.status} /></Td>
-                <Td>
-                  <span className="text-[10px] block truncate max-w-[220px]" style={{ color: "var(--text3)" }} title={s.feedback}>
-                    {s.feedback || "—"}
-                  </span>
-                </Td>
-                <Td>
-                  {s.status === "Approved" ? (
-                    <span className="font-mono text-[9px]" style={{ color: "var(--green)" }}>✓ Done</span>
-                  ) : (
-                    <ActionBtn color="var(--orange)" solid onClick={() => openReview(s)}>✎ Review</ActionBtn>
-                  )}
-                </Td>
-              </tr>
+      <Panel title="⭐ Project Reviews" count={`${filtered.length} reviews`}>
+        {filtered.length > 0 ? (
+          <div className="space-y-3">
+            {filtered.map((r) => (
+              <div key={r.id} className="p-3 rounded" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#4db33d] to-[#2d7ef7] flex items-center justify-center text-[11px] font-bold text-white shrink-0">
+                    {initials(r.studentName)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono text-[11px] font-bold" style={{ color: "var(--text)" }}>{r.studentName}</div>
+                    <div className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>
+                      {r.projectName} · {new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                    </div>
+                  </div>
+                  <StarRating value={r.rating} size={13} />
+                </div>
+                {r.comment && (
+                  <p className="text-[11px] leading-[1.6]" style={{ color: "var(--text2)" }}>{r.comment}</p>
+                )}
+              </div>
             ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={8} className="text-center font-mono text-[11px] py-6" style={{ color: "var(--text3)" }}>No submissions found</td></tr>
-            )}
-          </tbody>
-        </table>
-      </Panel>
-
-      {/* Review modal */}
-      {reviewing && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.55)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setReviewing(null); }}
-        >
-          <div className="rounded-lg p-5 w-full max-w-md" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-extrabold text-[13px]" style={{ color: "var(--text)" }}>Review Submission</span>
-              <button onClick={() => setReviewing(null)} className="font-mono text-[12px] cursor-pointer border-none" style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }}>✕</button>
-            </div>
-            <div className="font-mono text-[10px] mb-3" style={{ color: "var(--text3)" }}>
-              {reviewing.student} · {reviewing.project} · {reviewing.batchCode}
-            </div>
-            <label className="font-mono text-[9.5px] uppercase tracking-wider mb-1 block" style={{ color: "var(--text3)" }}>
-              Written Feedback (actionable)
-            </label>
-            <textarea
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              rows={5}
-              placeholder="What works, what must change, and how to fix it…"
-              className="w-full font-mono text-[11px] px-2.5 py-1.5 rounded outline-none resize-y"
-              style={{ border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)" }}
-            />
-            <div className="flex gap-2 mt-3">
-              <button onClick={() => setReviewing(null)}
-                className="flex-1 font-mono text-[10.5px] font-semibold py-1.5 rounded cursor-pointer"
-                style={{ border: "1px solid var(--border)", color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, var(--panel))" }}
-              >Cancel</button>
-              <button onClick={() => submitReview("Revision Requested")}
-                disabled={!feedbackText.trim()}
-                className="flex-1 font-mono text-[10.5px] font-semibold py-1.5 rounded cursor-pointer"
-                style={{ background: "var(--btn-bg, var(--red))", color: "var(--btn-text, #fff)", border: "none", opacity: feedbackText.trim() ? 1 : 0.5 }}
-              >↩ Request Revision</button>
-              <button onClick={() => submitReview("Approved")}
-                className="flex-1 font-mono text-[10.5px] font-semibold py-1.5 rounded cursor-pointer"
-                style={{ background: "var(--btn-bg, var(--green))", color: "var(--btn-text, #fff)", border: "none" }}
-              >✓ Approve</button>
-            </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-center py-8 font-mono text-[11px]" style={{ color: "var(--text3)" }}>
+            No project reviews yet
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }

@@ -52,6 +52,19 @@ export class TrainerController {
     return this.trainerService.getReviews(req.user.id);
   }
 
+  @Get('projects')
+  getProjects(@Req() req: AuthenticatedRequest) {
+    return this.trainerService.getProjects(req.user.id);
+  }
+
+  @Post('flag-student')
+  flagStudent(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { studentId: string; reason?: string },
+  ) {
+    return this.trainerService.flagStudent(req.user.id, body.studentId, body.reason);
+  }
+
   // ────────────────────────────────────────────────
   // PROFILE endpoints
   // ────────────────────────────────────────────────

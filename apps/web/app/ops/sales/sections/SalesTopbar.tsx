@@ -17,6 +17,8 @@ const VIEW_LABELS: Record<string, string> = {
   "followups": "sales / follow-ups",
   "converted": "sales / converted",
   "revenue": "sales / revenue",
+  "targets": "sales / targets",
+  "enrollments": "sales / my-enrollments",
 };
 
 export function SalesTopbar({ user, currentView, onSearch, onNewSale, onSignOut }: SalesTopbarProps) {
