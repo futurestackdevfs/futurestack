@@ -352,4 +352,63 @@ export class ProjectsService {
       data: { status },
     });
   }
+
+  // ── CURRICULUM SECTION / VIDEO CRUD ────────────────────────────
+
+  async addSection(projectId: string, dto: { week: string; title: string; desc: string }) {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const maxOrder = await this.prisma.projectCurriculum.aggregate({
+      where: { projectId },
+      _max: { order: true },
+    });
+
+    return this.prisma.projectCurriculum.create({
+      data: {
+        projectId,
+        week: dto.week || '',
+        title: dto.title,
+        desc: dto.desc || '',
+        order: (maxOrder._max.order ?? -1) + 1,
+      },
+    });
+  }
+
+  async deleteSection(sectionId: string) {
+    const section = await this.prisma.projectCurriculum.findUnique({ where: { id: sectionId } });
+    if (!section) throw new NotFoundException('Section not found');
+
+    await this.prisma.projectCurriculum.delete({ where: { id: sectionId } });
+    return { success: true };
+  }
+
+  async addVideo(sectionId: string, dto: { title: string; vdoCipherId?: string; durationSeconds?: number; isPreview?: boolean }) {
+    const section = await this.prisma.projectCurriculum.findUnique({ where: { id: sectionId } });
+    if (!section) throw new NotFoundException('Section not found');
+
+    const maxOrder = await this.prisma.projectCurriculumVideo.aggregate({
+      where: { curriculumId: sectionId },
+      _max: { order: true },
+    });
+
+    return this.prisma.projectCurriculumVideo.create({
+      data: {
+        curriculumId: sectionId,
+        title: dto.title,
+        vdoCipherId: dto.vdoCipherId || null,
+        durationSeconds: dto.durationSeconds || 0,
+        isPreview: dto.isPreview || false,
+        order: (maxOrder._max.order ?? -1) + 1,
+      },
+    });
+  }
+
+  async deleteVideo(videoId: string) {
+    const video = await this.prisma.projectCurriculumVideo.findUnique({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+
+    await this.prisma.projectCurriculumVideo.delete({ where: { id: videoId } });
+    return { success: true };
+  }
 }

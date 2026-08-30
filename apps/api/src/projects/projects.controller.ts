@@ -66,6 +66,32 @@ export class ProjectsController {
     return this.projectsService.updateOrderStatus(orderId, status);
   }
 
+  // ── CURRICULUM SECTION / VIDEO CRUD (static routes BEFORE :id) ─
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post('curriculum/sections/:sectionId/videos')
+  addVideoToSection(
+    @Param('sectionId') sectionId: string,
+    @Body() dto: { title: string; vdoCipherId?: string; durationSeconds?: number; isPreview?: boolean },
+  ) {
+    return this.projectsService.addVideo(sectionId, dto);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Delete('curriculum/videos/:videoId')
+  deleteCurriculumVideo(@Param('videoId') videoId: string) {
+    return this.projectsService.deleteVideo(videoId);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Delete('curriculum/sections/:sectionId')
+  deleteCurriculumSection(@Param('sectionId') sectionId: string) {
+    return this.projectsService.deleteSection(sectionId);
+  }
+
   // ── PROJECT REVIEWS (static routes BEFORE :id) ─────────────────
 
   @Auth(Role.STUDENT)
@@ -160,6 +186,16 @@ export class ProjectsController {
     @Body() dto: UpdateCurriculumDto,
   ) {
     return this.projectsService.replaceCurriculum(id, dto);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post(':id/curriculum/sections')
+  addSection(
+    @Param('id') id: string,
+    @Body() dto: { week: string; title: string; desc: string },
+  ) {
+    return this.projectsService.addSection(id, dto);
   }
 
   // ── DEMO VIDEO UPLOAD ───────────────────────────────────────────
