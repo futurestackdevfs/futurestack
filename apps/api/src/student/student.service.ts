@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CertificatesService } from '../certificates/certificates.service';
@@ -873,9 +874,18 @@ export class StudentService {
     });
     if (!user) throw new NotFoundException('User not found');
 
+    if (dto.email && dto.email !== user.email) {
+      const existing = await this.prisma.user.findUnique({
+        where: { email: dto.email },
+      });
+      if (existing) throw new ConflictException('Email is already in use');
+    }
+
     const updated = await this.prisma.user.update({
       where: { id: studentId },
       data: {
+        name: dto.name,
+        email: dto.email,
         bio: dto.bio,
         phone: dto.phone,
         dob: dto.dob ? new Date(dto.dob) : undefined,

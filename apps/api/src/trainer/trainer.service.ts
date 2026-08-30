@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3Service } from '../upload/s3.service';
 import { resolveTrainerSharePercent, computeTrainerShare } from '../payment-settings/share.util';
@@ -458,9 +458,18 @@ export class TrainerService {
     });
     if (!user) throw new NotFoundException('User not found');
 
+    if (dto.email && dto.email !== user.email) {
+      const existing = await this.prisma.user.findUnique({
+        where: { email: dto.email },
+      });
+      if (existing) throw new ConflictException('Email is already in use');
+    }
+
     const updated = await this.prisma.user.update({
       where: { id: trainerId },
       data: {
+        name: dto.name,
+        email: dto.email,
         bio: dto.bio,
         phone: dto.phone,
         dob: dto.dob ? new Date(dto.dob) : undefined,

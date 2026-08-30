@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth/hooks/use-auth';
 import { showToast } from '@/lib/toast';
@@ -10,6 +10,8 @@ import Image from 'next/image';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ProfileForm {
+  name: string;
+  email: string;
   phone: string;
   dob: string;
   city: string;
@@ -26,6 +28,8 @@ interface Stats {
 }
 
 const emptyForm = (): ProfileForm => ({
+  name: '',
+  email: '',
   phone: '',
   dob: '',
   city: '',
@@ -35,57 +39,6 @@ const emptyForm = (): ProfileForm => ({
   skills: '',
   bio: '',
 });
-
-// ─── Popup ────────────────────────────────────────────────────────────────────
-
-function CantEditPopup({ onClose }: { onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/30 backdrop-blur-sm [animation:fadeIn_.15s_ease] px-4" onClick={onClose}>
-      <div ref={ref} className="bg-[var(--surface)] rounded-xl border border-[var(--border)] shadow-2xl max-w-sm w-full p-5 [animation:slideUp_.2s_ease]">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="size-8 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-500"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-[var(--text)]">Cannot Edit</h3>
-            <p className="text-[11px] text-[var(--muted)]">This field is managed by your account provider.</p>
-          </div>
-        </div>
-        <p className="text-[13px] text-[var(--muted)] leading-relaxed mb-4">
-          Name and email address cannot be changed here. Please contact support if you need to update this information.
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg text-xs font-semibold text-[var(--btn-text,#fff)] bg-[var(--btn-bg,#111827)] border border-[var(--border)] hover:bg-[var(--btn-bg-hover,#000)] transition-all duration-200 cursor-pointer"
-          >
-            Got it
-          </button>
-          <a
-            href="mailto:support@futurestack.com"
-            className="flex-1 px-4 py-2 rounded-lg text-xs font-bold text-center no-underline transition-all duration-200 cursor-pointer"
-            style={{ background: "var(--btn-bg, linear-gradient(to right, #3b82f6, #f97316))", color: "var(--btn-text, #ffffff)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, linear-gradient(to right, #2563eb, #f97316))"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, linear-gradient(to right, #3b82f6, #f97316))"; }}
-          >
-            Contact Support
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Avatar ────────────────────────────────────────────────────────────────────
 
@@ -124,7 +77,6 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [animate, setAnimate] = useState(false);
-  const [showPopup, setShowPopup] = useState<'name' | 'email' | null>(null);
   const [resettingPassword, setResettingPassword] = useState(false);
 
   useEffect(() => { setAnimate(true); }, []);
@@ -142,6 +94,8 @@ export default function ProfilePage() {
       setAvatarUrl(data.avatarUrl);
       setStats(data.stats);
       setForm({
+        name: data.name ?? '',
+        email: data.email ?? '',
         phone: data.phone ?? '',
         dob: data.dob ?? '',
         city: data.city ?? '',
@@ -176,6 +130,8 @@ export default function ProfilePage() {
     setSaving(true);
     try {
       const payload: UpdateProfilePayload = {
+        name: form.name || undefined,
+        email: form.email || undefined,
         phone: form.phone || undefined,
         dob: form.dob || undefined,
         city: form.city || undefined,
@@ -191,6 +147,24 @@ export default function ProfilePage() {
         bio: form.bio || undefined,
       };
       await userApi.updateProfile(user.role, payload);
+      // Refresh JWT so name/email changes propagate to auth context & certificates
+      try {
+        const refreshed = await authApi.refreshToken(user.role);
+        if (refreshed?.accessToken) {
+          const decoded = JSON.parse(atob(refreshed.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+          const { saveToken } = await import('@/app/auth/lib/token-store');
+          await saveToken(decoded.sub, refreshed.accessToken);
+          window.dispatchEvent(new CustomEvent('fs:auth', {
+            detail: {
+              user: { ...refreshed.user, id: decoded.sub },
+              isAuthenticated: true,
+              isLoading: false,
+            },
+          }));
+        }
+      } catch {
+        // If refresh fails, the old token still works — just name/email may be stale until next login
+      }
       showToast('Profile saved successfully!');
       router.push('/my-dashboard');
     } catch (err: unknown) {
@@ -223,7 +197,8 @@ export default function ProfilePage() {
     );
   }
 
-  const initials = user.name.split(' ').map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
+  const displayName = form.name || user.name;
+  const initials = displayName.split(' ').map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
   const joined = new Date().getFullYear();
 
   const inputClass = "w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3.5 py-2.5 text-sm text-[var(--text)] outline-none transition-all duration-200 focus:border-[var(--blue2)] focus:shadow-[0_0_0_3px_var(--blue-d)] focus:bg-[var(--surface)] placeholder:text-[var(--text3)] hover:border-[var(--border2)]";
@@ -232,15 +207,13 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
-      {showPopup && <CantEditPopup onClose={() => setShowPopup(null)} />}
-
       {/* Hero */}
       <div className="bg-gradient-to-br from-blue-600/5 via-transparent to-orange-600/5 border-b border-[var(--border)]">
         <div className="max-w-6xl mx-auto px-6 py-10">
           <div className="flex items-center gap-5" style={animate ? { animation: 'fadeUp .5s ease both' } : {}}>
             <AvatarDisplay currentUrl={avatarUrl} initials={initials} />
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-[var(--text)] truncate">{user.name}</h1>
+              <h1 className="text-2xl font-bold text-[var(--text)] truncate">{displayName}</h1>
               <p className="text-sm text-[var(--muted)] mt-0.5">
                 {user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase()}
                 <span className="mx-2 text-[var(--border2)]">·</span>
@@ -301,23 +274,25 @@ export default function ProfilePage() {
                     <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className={labelClass}>Full Name</label>
-                        <div
-                          onClick={() => setShowPopup('name')}
-                          className="flex items-center gap-2 w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3.5 py-2.5 text-sm text-[var(--text)] cursor-pointer group"
-                        >
-                          <span className="flex-1 truncate">{user.name}</span>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--text3)] group-hover:text-amber-500 transition-colors"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                        </div>
+                        <input
+                          type="text"
+                          name="name"
+                          value={form.name}
+                          onChange={handleChange}
+                          placeholder="Enter your full name"
+                          className={inputClass}
+                        />
                       </div>
                       <div>
                         <label className={labelClass}>Email</label>
-                        <div
-                          onClick={() => setShowPopup('email')}
-                          className="flex items-center gap-2 w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3.5 py-2.5 text-sm text-[var(--text)] cursor-pointer group"
-                        >
-                          <span className="flex-1 truncate">{user.email}</span>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--text3)] group-hover:text-amber-500 transition-colors"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                        </div>
+                        <input
+                          type="email"
+                          name="email"
+                          value={form.email}
+                          onChange={handleChange}
+                          placeholder="Enter your email"
+                          className={inputClass}
+                        />
                       </div>
                       <div>
                         <label className={labelClass}>Phone</label>
