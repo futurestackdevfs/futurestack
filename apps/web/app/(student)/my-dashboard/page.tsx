@@ -447,7 +447,7 @@ export default function MyDashboardPage() {
         <span className="text-[var(--border2)] hidden sm:inline">│</span>
         <span className="flex items-center gap-1 text-[var(--orange)]">🔥 14-day streak</span>
         <span className="text-[var(--border2)] hidden sm:inline">│</span>
-        <span className="flex items-center gap-1 text-[var(--blue2)]">⚡ 1,240 XP · Level 6</span>
+        {/* <span className="flex items-center gap-1 text-[var(--blue2)]">⚡ 1,240 XP · Level 6</span> */}
         <span className="text-[var(--border2)] hidden sm:inline">│</span>
         <span className="flex items-center gap-1 hidden sm:flex">📅 Next live: Wed 10:00 AM</span>
         <span className="ml-auto flex items-center gap-2 hidden sm:flex">

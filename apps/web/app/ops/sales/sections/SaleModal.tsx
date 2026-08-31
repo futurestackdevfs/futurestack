@@ -39,6 +39,7 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
   const [newStudent, setNewStudent] = useState<NewStudentForm>(EMPTY_STUDENT);
   const [courseId, setCourseId] = useState("");
   const [batchMode, setBatchMode] = useState<"Online" | "Offline">("Online");
+  const [createAccount, setCreateAccount] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"UPI" | "Card" | "Net Banking" | "Cash" | "Other">("UPI");
   const [discountPct, setDiscountPct] = useState(0);
   const [discountReason, setDiscountReason] = useState("");
@@ -121,10 +122,12 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
   async function handleSubmit() {
     setError("");
     if (!courseId) { setError("Choose a course"); return; }
-    if (mode === "existing" && !selectedStudent) { setError("Choose a student"); return; }
-    if (mode === "new" && (!newStudent.name.trim() || !newStudent.email.trim())) {
-      setError("Name and email are required for a new student");
-      return;
+    if (createAccount) {
+      if (mode === "existing" && !selectedStudent) { setError("Choose a student"); return; }
+      if (mode === "new" && (!newStudent.name.trim() || !newStudent.email.trim())) {
+        setError("Name and email are required for a new student");
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -132,15 +135,16 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
       const r = await opsFetch("/api/sales/sale", {
         method: "POST",
         body: JSON.stringify({
-          isNewStudent: mode === "new",
-          studentId: selectedStudent?.id,
+          createAccount,
+          isNewStudent: createAccount && mode === "new",
+          studentId: createAccount && mode === "existing" ? selectedStudent?.id : undefined,
           leadId: selectedLead?.id,
           sendEmail,
-          name: mode === "new" ? newStudent.name.trim() : undefined,
-          email: mode === "new" ? newStudent.email.trim() : undefined,
-          phone: (mode === "new" ? newStudent.phone : selectedStudent?.phone) ?? "",
-          city: (mode === "new" ? newStudent.city : selectedStudent?.city) ?? "",
-          qualification: mode === "new" ? newStudent.qualification : undefined,
+          name: createAccount && mode === "new" ? newStudent.name.trim() : undefined,
+          email: createAccount && mode === "new" ? newStudent.email.trim() : undefined,
+          phone: (createAccount && mode === "new" ? newStudent.phone : selectedStudent?.phone) ?? "",
+          city: (createAccount && mode === "new" ? newStudent.city : selectedStudent?.city) ?? "",
+          qualification: createAccount && mode === "new" ? newStudent.qualification : undefined,
           courseId,
           discountPct,
           discountReason: discountPct > 0 ? discountReason : undefined,
@@ -163,6 +167,7 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
         finalAmt: data.finalAmt,
         leadConverted: data.leadConverted,
         isNewStudent: data.isNewStudent,
+        createAccount: data.createAccount,
         tempPassword: data.tempPassword ?? null,
         emailSent: data.emailSent,
       });
@@ -256,6 +261,12 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
               </div>
             )}
 
+            {!result?.createAccount && (
+              <div className="rounded p-3 mb-3 font-mono text-[9px]" style={{ background: "var(--blue-d)", border: "1px solid var(--blue)", color: "var(--blue)" }}>
+                ℹ No account created — student can register on their own later.
+              </div>
+            )}
+
             <div className="rounded p-3 mb-3 font-mono text-[9px]" style={{ background: "var(--blue-d)", border: "1px solid var(--blue)", color: "var(--blue)" }}>
               → Confirm payment from the <b>Converted</b> tab once the payment is received — receipt will be generated + emailed.
             </div>
@@ -271,66 +282,113 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
         ) : (
           /* ── Form ── */
           <div className="p-4">
-            {/* Student toggle */}
-            <div className="flex items-center gap-1 rounded mb-3 p-0.5" style={{ border: "1px solid var(--border)", background: "var(--panel)" }}>
-              {(["new", "existing"] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => setMode(m)}
-                  className="flex-1 py-1.5 rounded font-mono text-[9px] font-bold cursor-pointer"
-                  style={{ background: mode === m ? "var(--orange)" : "transparent", color: mode === m ? "#fff" : "var(--text2)", border: "none" }}
-                >
-                  {m === "new" ? "NEW STUDENT" : "EXISTING STUDENT"}
-                </button>
-              ))}
-            </div>
-
-            {mode === "new" ? (
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <input ref={inputRef} value={newStudent.name} onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                  placeholder="Full name *" className="col-span-2 rounded px-2.5 py-1.5 text-[11px] outline-none"
-                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
-                <input value={newStudent.email} onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                  placeholder="Email *" className="col-span-2 rounded px-2.5 py-1.5 text-[11px] outline-none"
-                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
-                <input value={newStudent.phone} onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
-                  placeholder="Phone" className="rounded px-2.5 py-1.5 text-[11px] outline-none"
-                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
-                <input value={newStudent.city} onChange={(e) => setNewStudent({ ...newStudent, city: e.target.value })}
-                  placeholder="City" className="rounded px-2.5 py-1.5 text-[11px] outline-none"
-                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
-                <select value={newStudent.qualification} onChange={(e) => setNewStudent({ ...newStudent, qualification: e.target.value })}
-                  className="col-span-2 rounded px-2.5 py-1.5 text-[11px] outline-none cursor-pointer"
-                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
-                  {["High School", "Diploma", "Undergraduate", "Postgraduate", "Other"].map((q) => <option key={q} value={q}>{q}</option>)}
-                </select>
-              </div>
-            ) : (
-              <div className="mb-3">
-                <input
-                  value={studentSearch}
-                  onChange={(e) => { setStudentSearch(e.target.value); handleStudentSearch(e.target.value); }}
-                  placeholder="Search student by name or email…"
-                  className="w-full rounded px-2.5 py-1.5 text-[11px] outline-none mb-1.5"
-                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
-                />
-                <div className="rounded max-h-[110px] overflow-y-auto flex flex-col" style={{ border: "1px solid var(--border)" }}>
-                  {students.length === 0 ? (
-                    <div className="px-2.5 py-2 font-mono text-[9px]" style={{ color: "var(--text3)" }}>{studentSearch ? "No matches" : "Type to search…"}</div>
-                  ) : (
-                    students.map((s) => (
-                      <button key={s.id} onClick={() => { setSelectedStudent(s); setStudentSearch(s.name); setStudents([]); }}
-                        className="text-left px-2.5 py-1.5 text-[10.5px] cursor-pointer"
-                        style={{ background: selectedStudent?.id === s.id ? "var(--orange-d)" : "transparent", color: "var(--text)", border: "none" }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--panel)"; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = selectedStudent?.id === s.id ? "var(--orange-d)" : "transparent"; }}
-                      >
-                        <span className="font-semibold">{s.name}</span> <span className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>{s.email}</span>
-                      </button>
-                    ))
-                  )}
+            {/* Batch mode + payment */}
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div>
+                <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--text3)" }}>SALE MODE</div>
+                <div className="flex items-center gap-1 rounded p-0.5" style={{ border: "1px solid var(--border)", background: "var(--panel)" }}>
+                  {(["Online", "Offline"] as const).map((b) => (
+                    <button key={b} onClick={() => setBatchMode(b)} className="flex-1 py-1 rounded font-mono text-[8.5px] font-bold cursor-pointer"
+                      style={{ background: batchMode === b ? "var(--orange)" : "transparent", color: batchMode === b ? "#fff" : "var(--text2)", border: "none" }}>{b}</button>
+                  ))}
                 </div>
               </div>
+              <div>
+                <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--text3)" }}>PAYMENT</div>
+                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as any)} className="w-full rounded px-2 py-1.5 text-[11px] outline-none cursor-pointer"
+                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
+                  {["UPI", "Card", "Net Banking", "Cash", "Other"].map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Create Account Toggle */}
+            <div className="mb-3 rounded px-3 py-2.5" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-[11px] font-bold" style={{ color: "var(--text)" }}>Create Student Account</div>
+                  <div className="font-mono text-[8.5px] mt-0.5" style={{ color: "var(--text3)" }}>
+                    {createAccount ? "Student will get login credentials via email" : "Sale recorded without account — student can register later"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCreateAccount(!createAccount)}
+                  className="relative w-10 h-5 rounded-full cursor-pointer transition-colors shrink-0 ml-3"
+                  style={{ background: createAccount ? "var(--orange)" : "var(--border)" }}
+                >
+                  <span
+                    className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform"
+                    style={{ left: createAccount ? "22px" : "2px" }}
+                  />
+                </button>
+              </div>
+            </div>
+
+            {/* Student form — only when createAccount is ON */}
+            {createAccount && (
+              <>
+                {/* Student toggle */}
+                <div className="flex items-center gap-1 rounded mb-3 p-0.5" style={{ border: "1px solid var(--border)", background: "var(--panel)" }}>
+                  {(["new", "existing"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setMode(m)}
+                      className="flex-1 py-1.5 rounded font-mono text-[9px] font-bold cursor-pointer"
+                      style={{ background: mode === m ? "var(--orange)" : "transparent", color: mode === m ? "#fff" : "var(--text2)", border: "none" }}
+                    >
+                      {m === "new" ? "NEW STUDENT" : "EXISTING STUDENT"}
+                    </button>
+                  ))}
+                </div>
+
+                {mode === "new" ? (
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <input ref={inputRef} value={newStudent.name} onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                      placeholder="Full name *" className="col-span-2 rounded px-2.5 py-1.5 text-[11px] outline-none"
+                      style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
+                    <input value={newStudent.email} onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                      placeholder="Email *" className="col-span-2 rounded px-2.5 py-1.5 text-[11px] outline-none"
+                      style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
+                    <input value={newStudent.phone} onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
+                      placeholder="Phone" className="rounded px-2.5 py-1.5 text-[11px] outline-none"
+                      style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
+                    <input value={newStudent.city} onChange={(e) => setNewStudent({ ...newStudent, city: e.target.value })}
+                      placeholder="City" className="rounded px-2.5 py-1.5 text-[11px] outline-none"
+                      style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
+                    <select value={newStudent.qualification} onChange={(e) => setNewStudent({ ...newStudent, qualification: e.target.value })}
+                      className="col-span-2 rounded px-2.5 py-1.5 text-[11px] outline-none cursor-pointer"
+                      style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
+                      {["High School", "Diploma", "Undergraduate", "Postgraduate", "Other"].map((q) => <option key={q} value={q}>{q}</option>)}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="mb-3">
+                    <input
+                      value={studentSearch}
+                      onChange={(e) => { setStudentSearch(e.target.value); handleStudentSearch(e.target.value); }}
+                      placeholder="Search student by name or email…"
+                      className="w-full rounded px-2.5 py-1.5 text-[11px] outline-none mb-1.5"
+                      style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+                    />
+                    <div className="rounded max-h-[110px] overflow-y-auto flex flex-col" style={{ border: "1px solid var(--border)" }}>
+                      {students.length === 0 ? (
+                        <div className="px-2.5 py-2 font-mono text-[9px]" style={{ color: "var(--text3)" }}>{studentSearch ? "No matches" : "Type to search…"}</div>
+                      ) : (
+                        students.map((s) => (
+                          <button key={s.id} onClick={() => { setSelectedStudent(s); setStudentSearch(s.name); setStudents([]); }}
+                            className="text-left px-2.5 py-1.5 text-[10.5px] cursor-pointer"
+                            style={{ background: selectedStudent?.id === s.id ? "var(--orange-d)" : "transparent", color: "var(--text)", border: "none" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--panel)"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = selectedStudent?.id === s.id ? "var(--orange-d)" : "transparent"; }}
+                          >
+                            <span className="font-semibold">{s.name}</span> <span className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>{s.email}</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Link to lead (optional) */}
@@ -381,26 +439,6 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
               </select>
             </div>
 
-            {/* Batch mode + payment */}
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div>
-                <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--text3)" }}>BATCH MODE</div>
-                <div className="flex items-center gap-1 rounded p-0.5" style={{ border: "1px solid var(--border)", background: "var(--panel)" }}>
-                  {(["Online", "Offline"] as const).map((b) => (
-                    <button key={b} onClick={() => setBatchMode(b)} className="flex-1 py-1 rounded font-mono text-[8.5px] font-bold cursor-pointer"
-                      style={{ background: batchMode === b ? "var(--orange)" : "transparent", color: batchMode === b ? "#fff" : "var(--text2)", border: "none" }}>{b}</button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--text3)" }}>PAYMENT</div>
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as any)} className="w-full rounded px-2 py-1.5 text-[11px] outline-none cursor-pointer"
-                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
-                  {["UPI", "Card", "Net Banking", "Cash", "Other"].map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-            </div>
-
             {/* Discount */}
             <div className="mb-3">
               <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--text3)" }}>DISCOUNT %</div>
@@ -445,7 +483,7 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
               className="w-full py-2 rounded font-mono text-[10.5px] font-bold cursor-pointer disabled:opacity-50"
               style={{ background: "var(--orange)", color: "#fff", border: "1px solid var(--orange)" }}
             >
-              {submitting ? "RECORDING…" : "CONFIRM SALE & GENERATE RECEIPT"}
+              {submitting ? "RECORDING…" : "✓ CONFIRM SALE"}
             </button>
           </div>
         )}

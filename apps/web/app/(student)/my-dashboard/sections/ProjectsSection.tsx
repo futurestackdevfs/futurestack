@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { loadToken } from "@/app/auth/lib/token-store";
+import { StarRating } from "@/components/StarRating";
 import ProjectLearningView from "./ProjectLearningView";
 
 interface StudentProject {
@@ -44,31 +45,57 @@ export default function ProjectsSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-
-  const fetchProjects = useCallback(async () => {
-    const token = await loadToken();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/student/my-projects", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setProjects(data);
-    } catch (e: any) {
-      setError(e.message || "Failed to load projects");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
+  const [reviewIds, setReviewIds] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+    let cancelled = false;
+    (async () => {
+      const token = await loadToken();
+      if (!token) { setLoading(false); return; }
+      try {
+        const res = await fetch("/api/student/my-projects", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setProjects(data);
+
+        const reviewed = new Set<string>();
+        const idMap = new Map<string, string>();
+        await Promise.all(
+          data.map(async (p: StudentProject) => {
+            try {
+              const r = await fetch(`/api/projects/${p.id}/reviews/me`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (r.ok) {
+                const body = await r.json();
+                if (body && body.id) {
+                  reviewed.add(p.id);
+                  idMap.set(p.id, body.id);
+                }
+              }
+            } catch {}
+          })
+        );
+        if (!cancelled) {
+          setReviewedIds(reviewed);
+          setReviewIds(idMap);
+        }
+      } catch (e: any) {
+        setError(e.message || "Failed to load projects");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // If a project is selected, show learning view
   if (activeProjectId) {
@@ -78,6 +105,34 @@ export default function ProjectsSection() {
         onBack={() => setActiveProjectId(null)}
       />
     );
+  }
+
+  async function submitReview(projectId: string) {
+    const token = await loadToken();
+    if (!token) return;
+    setReviewSubmitting(true);
+    try {
+      const existingReviewId = reviewIds.get(projectId);
+      const url = existingReviewId
+        ? `/api/projects/${projectId}/reviews/${existingReviewId}`
+        : `/api/projects/${projectId}/reviews`;
+      const res = await fetch(url, {
+        method: existingReviewId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ rating: reviewRating, comment: reviewComment || undefined }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.id) {
+          setReviewIds((prev) => new Map(prev).set(projectId, data.id));
+        }
+        setReviewedIds((prev) => new Set(prev).add(projectId));
+        setReviewingId(null);
+        setReviewComment("");
+      }
+    } catch {} finally {
+      setReviewSubmitting(false);
+    }
   }
 
   const deployed = projects.filter((p) => p.progressPercent >= 100).length;
@@ -137,12 +192,13 @@ export default function ProjectsSection() {
                 : p.progressPercent > 0
                   ? "linear-gradient(90deg,var(--orange),var(--orange2))"
                   : "linear-gradient(90deg,var(--blue),var(--blue2))";
+              const isReviewing = reviewingId === p.id;
+              const isReviewed = reviewedIds.has(p.id);
 
               return (
                 <div
                   key={p.id}
-                  onClick={() => setActiveProjectId(p.id)}
-                  className="bg-[var(--card)] border border-[var(--border)] rounded-[14px] overflow-hidden transition-all duration-[0.22s] flex flex-col relative [animation:fadeUp_.3s_ease_both] hover:-translate-y-[4px] hover:shadow-[var(--shadow-lg)] hover:border-[var(--border2)] cursor-pointer"
+                  className="bg-[var(--card)] border border-[var(--border)] rounded-[14px] overflow-hidden transition-all duration-[0.22s] flex flex-col relative [animation:fadeUp_.3s_ease_both] hover:-translate-y-[4px] hover:shadow-[var(--shadow-lg)] hover:border-[var(--border2)]"
                 >
                   <div className="absolute top-0 left-0 right-0 h-[3px] bg-[var(--border)] z-[1] transition-[background] duration-300 hover:bg-[linear-gradient(90deg,var(--orange),var(--blue2))]" />
                   {/* BANNER */}
@@ -161,7 +217,7 @@ export default function ProjectsSection() {
                     <span className={`relative z-[1] font-['JetBrains_Mono',monospace] text-[8px] font-bold px-[10px] py-[3px] rounded-[20px] uppercase tracking-[.06em] backdrop-blur-[8px] ${st.cls}`}>{`● ${st.label}`}</span>
                   </div>
                   {/* BODY */}
-                  <div className="px-[15px] py-[13px] flex-1 flex flex-col">
+                  <div className="px-[15px] py-[13px] flex-1 flex flex-col" onClick={() => { if (!isReviewing) setActiveProjectId(p.id); }}>
                     <div className="font-['JetBrains_Mono',monospace] text-[8.5px] text-[var(--text3)] uppercase tracking-[.06em] mb-[4px]">{p.trainer} · {p.trainerRole}</div>
                     <div className="font-['Syne',sans-serif] text-[14px] font-[800] text-[var(--text)] mb-[4px] leading-[1.3]">{p.name}</div>
                     {p.shortDesc && <div className="text-[11.5px] text-[var(--text3)] leading-[1.55] mb-[11px] line-clamp-2">{p.shortDesc}</div>}
@@ -196,13 +252,46 @@ export default function ProjectsSection() {
                       </div>
                     </div>
 
+                    {/* INLINE REVIEW FORM */}
+                    {isReviewing && (
+                      <div className="mb-3 p-3 rounded-[8px] border border-[var(--orange)] bg-[var(--bg)]" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <StarRating value={reviewRating} onChange={setReviewRating} size={18} interactive />
+                          <span className="text-[10px] font-bold text-[var(--text)]">{reviewRating}/5</span>
+                        </div>
+                        <textarea
+                          value={reviewComment}
+                          onChange={(e) => setReviewComment(e.target.value)}
+                          placeholder="Write a comment... (optional)"
+                          rows={2}
+                          maxLength={1000}
+                          className="w-full text-[10px] px-2 py-1.5 rounded-[5px] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] outline-none resize-none mb-2 placeholder:text-[var(--text3)]"
+                        />
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => { setReviewingId(null); setReviewComment(""); }}
+                            className="flex-1 px-2 py-[5px] rounded-[5px] text-[9px] font-semibold border border-[var(--border)] bg-[var(--card)] text-[var(--text3)] cursor-pointer"
+                          >Cancel</button>
+                          <button
+                            onClick={() => submitReview(p.id)}
+                            disabled={reviewSubmitting}
+                            className="flex-1 px-2 py-[5px] rounded-[5px] text-[9px] font-bold border-none text-white cursor-pointer disabled:opacity-50"
+                            style={{ background: "var(--orange)" }}
+                          >{reviewSubmitting ? "…" : isReviewed ? "Update" : "Submit"}</button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* footer */}
                     <div className="mt-auto flex items-center justify-between pt-[11px] border-t border-[var(--border)] gap-2">
-                      <div className="flex gap-2.5">
-                        <span className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)] flex items-center gap-[3px]">
-                          ⏱ {p.duration || "N/A"}
-                        </span>
-                      </div>
+                      {isReviewed ? (
+                        <span className="text-[9.5px] font-semibold text-[var(--green)]">✓ Reviewed</span>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setReviewingId(isReviewing ? null : p.id); setReviewRating(5); setReviewComment(""); }}
+                          className="text-[9.5px] font-semibold text-[var(--muted)] hover:text-[var(--orange)] transition-colors cursor-pointer bg-transparent border-none p-0"
+                        >★ Write a Review</button>
+                      )}
                       <div className="flex gap-1.5 shrink-0">
                         {p.progressPercent >= 100 ? (
                           <span className="px-3 py-[5px] rounded-[6px] text-[11px] font-semibold bg-[var(--green-d)] text-[var(--green)] border border-[rgba(22,163,74,.2)]">

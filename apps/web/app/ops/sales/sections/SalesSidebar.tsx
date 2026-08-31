@@ -30,6 +30,12 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    group: "Sales",
+    items: [
+      { icon: "📋", label: "My Enrollments", view: "enrollments", badgeKey: "enrollments", badgeColor: { color: "var(--green)", bg: "var(--green-d)" } },
+    ],
+  },
+  {
     group: "Reports",
     items: [
       { icon: "💰", label: "Revenue", view: "revenue" },

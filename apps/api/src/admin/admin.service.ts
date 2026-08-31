@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -137,12 +138,17 @@ export class AdminService {
         id: true,
         name: true,
         email: true,
+        phone: true,
         bio: true,
+        city: true,
+        qualification: true,
         yearsExperience: true,
         rating: true,
         avatarUrl: true,
+        trainerSharePercent: true,
+        skills: true,
         createdAt: true,
-        _count: { select: { coursesTaught: true } },
+        _count: { select: { coursesTaught: true, projectsTaught: true } },
       },
       orderBy: { name: 'asc' },
     });
@@ -1046,5 +1052,165 @@ export class AdminService {
     );
 
     return { received: true };
+  }
+
+  // ── ENROLLMENT MANAGEMENT ────────────────────────────────────────
+
+  async listEnrollments(page = 1, perPage = 20, search?: string) {
+    const skip = (page - 1) * perPage;
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { student: { name: { contains: search, mode: 'insensitive' } } },
+        { student: { email: { contains: search, mode: 'insensitive' } } },
+        { course: { title: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [enrollments, total] = await Promise.all([
+      this.prisma.enrollment.findMany({
+        skip,
+        take: perPage,
+        where,
+        orderBy: { enrolledAt: 'desc' },
+        include: {
+          student: { select: { id: true, name: true, email: true } },
+          course: { select: { id: true, title: true } },
+          order: { select: { id: true, status: true } },
+        },
+      }),
+      this.prisma.enrollment.count({ where }),
+    ]);
+
+    return {
+      enrollments: enrollments.map((e) => ({
+        id: e.id,
+        studentName: e.student.name,
+        studentEmail: e.student.email,
+        studentId: e.studentId,
+        courseTitle: e.course.title,
+        courseId: e.courseId,
+        amountPaid: e.amountPaid,
+        status: e.status,
+        enrolledAt: e.enrolledAt.toISOString(),
+        orderId: e.orderId,
+        orderStatus: e.order?.status ?? null,
+      })),
+      total,
+      page,
+      perPage,
+      pageCount: Math.ceil(total / perPage),
+    };
+  }
+
+  async manualEnroll(studentId: string, courseId: string, amountPaid: number) {
+    const student = await this.prisma.user.findUnique({
+      where: { id: studentId },
+      select: { id: true, role: true },
+    });
+    if (!student || student.role !== Role.STUDENT) {
+      throw new BadRequestException('Invalid student');
+    }
+
+    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
+    if (!course) throw new BadRequestException('Course not found');
+
+    const existing = await this.prisma.enrollment.findUnique({
+      where: { studentId_courseId: { studentId, courseId } },
+    });
+    if (existing) throw new ConflictException('Student is already enrolled in this course');
+
+    const enrollment = await this.prisma.enrollment.create({
+      data: { studentId, courseId, amountPaid, status: 'active' },
+      include: {
+        student: { select: { id: true, name: true, email: true } },
+        course: { select: { id: true, title: true } },
+      },
+    });
+
+    return {
+      id: enrollment.id,
+      studentName: enrollment.student.name,
+      courseTitle: enrollment.course.title,
+      amountPaid: enrollment.amountPaid,
+      status: enrollment.status,
+      enrolledAt: enrollment.enrolledAt.toISOString(),
+    };
+  }
+
+  async unenroll(enrollmentId: string) {
+    const enrollment = await this.prisma.enrollment.findUnique({
+      where: { id: enrollmentId },
+    });
+    if (!enrollment) throw new NotFoundException('Enrollment not found');
+
+    await this.prisma.enrollment.delete({ where: { id: enrollmentId } });
+    return { message: 'Enrollment removed' };
+  }
+
+  // ── CSV EXPORTS ──────────────────────────────────────────────────
+
+  async exportRevenueCsv(): Promise<string> {
+    const orders = await this.prisma.order.findMany({
+      where: { status: OrderStatus.PAID },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { name: true, email: true } },
+        items: { include: { course: { select: { title: true } } } },
+        salesperson: { select: { name: true } },
+      },
+    });
+
+    const header = 'Date,Order ID,Student,Course,Amount,GST,Salesperson\n';
+    const rows = orders.map((o) => {
+      const date = o.createdAt.toISOString().slice(0, 10);
+      const student = o.user?.name ?? '—';
+      const course = o.items[0]?.course?.title ?? '—';
+      const salesperson = o.salesperson?.name ?? '—';
+      return `${date},${o.id},${student},${course},${o.totalAmount},${o.gstAmount},${salesperson}`;
+    }).join('\n');
+
+    return header + rows;
+  }
+
+  async exportLeadsCsv(): Promise<string> {
+    const leads = await this.prisma.lead.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        salesperson: { select: { name: true } },
+      },
+    });
+
+    const header = 'Date,Name,Email,Phone,Course,Status,Source,Score,Budget,Salesperson\n';
+    const rows = leads.map((l) => {
+      const date = l.createdAt.toISOString().slice(0, 10);
+      const salesperson = l.salesperson?.name ?? '—';
+      return `${date},${l.name},${l.email ?? ''},${l.phone ?? ''},${l.course ?? ''},${l.status},${l.source ?? ''},${l.score},${l.budget},${salesperson}`;
+    }).join('\n');
+
+    return header + rows;
+  }
+
+  async exportConversionsCsv(): Promise<string> {
+    const orders = await this.prisma.order.findMany({
+      where: { status: OrderStatus.PAID },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { name: true, email: true } },
+        items: { include: { course: { select: { title: true } } } },
+        salesperson: { select: { name: true } },
+      },
+    });
+
+    const header = 'Converted Date,Student,Course,Amount,Payment Method,Salesperson\n';
+    const rows = orders.map((o) => {
+      const date = o.updatedAt.toISOString().slice(0, 10);
+      const student = o.user?.name ?? '—';
+      const course = o.items[0]?.course?.title ?? '—';
+      const salesperson = o.salesperson?.name ?? '—';
+      return `${date},${student},${course},${o.totalAmount},${o.paymentMethod ?? '—'},${salesperson}`;
+    }).join('\n');
+
+    return header + rows;
   }
 }

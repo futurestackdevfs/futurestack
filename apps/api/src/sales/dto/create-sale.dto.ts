@@ -12,6 +12,11 @@ import {
 } from 'class-validator';
 
 export class CreateSaleDto {
+  /** When true, create a login account for the student; when false, record sale without account */
+  @IsOptional()
+  @IsBoolean()
+  createAccount?: boolean;
+
   /** true = new student (account created), false = link to existing studentId */
   @IsOptional()
   @IsBoolean()

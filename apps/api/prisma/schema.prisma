@@ -79,9 +79,13 @@ model User {
   mustChangePassword   Boolean         @default(false)
   avatarUrl            String?
   emailVerified        Boolean         @default(false)
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   lastLoginAt          DateTime?
+
+  // Flag to coordinator
+  flaggedToCoordinator Boolean         @default(false)
+  flagReason           String?
 
   // Extended profile fields (nullable — students + trainers both use these)
   bio                  String?
@@ -123,6 +127,8 @@ model User {
   salesOrders        Order[]         @relation("OrderSalesperson")
   leads              Lead[]          @relation("LeadSalesperson")
   leadAsStudent      Lead[]          @relation("LeadStudent")
+  salesTargets       SalesTarget[]   @relation("SalesTargets")
+  invoices           Invoice[]       @relation("Invoices")
 }
 
 model Track {
@@ -147,6 +153,7 @@ model Course {
   isFeatured   Boolean       @default(false)
   displayOrder Int           @default(0)
   createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
 
   trainerId    String?
   trainer      User?         @relation("CourseTrainer", fields: [trainerId], references: [id])
@@ -174,6 +181,7 @@ model Course {
   cartItems       CartItem[]
   wishlistItems   WishlistItem[]
   orderItems      OrderItem[]
+  salesTargets    SalesTarget[]
 }
 
 model CourseResource {
@@ -300,8 +308,8 @@ model CourseDiscussion {
   isPinned      Boolean       @default(false)
   isAnswered    Boolean       @default(false)
   attachmentUrl String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
   replies       CourseDiscussionReply[]
   upvotes       DiscussionUpvote[]
 }
@@ -384,8 +392,11 @@ model Review {
   rating    Int
   comment   String?
   
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId  String
+  course    Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId  String?
+  
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String?
   
   student   User     @relation("StudentReviews", fields: [studentId], references: [id], onDelete: Cascade)
   studentId String
@@ -394,6 +405,7 @@ model Review {
   updatedAt DateTime @updatedAt
 
   @@unique([courseId, studentId])
+  @@unique([projectId, studentId])
 }
 
 model HeroSlide {
@@ -475,7 +487,7 @@ model CouponRedemption {
   coupon    Coupon   @relation(fields: [couponId], references: [id])
   couponId  String
   userId    String
-  orderId   String   @unique
+    orderId         String   @unique
   createdAt DateTime @default(now())
 
   @@unique([couponId, userId])
@@ -510,6 +522,7 @@ model Order {
 items             OrderItem[]
   enrollments       Enrollment[]
   leads             Lead[]
+  invoices          Invoice[]
   salesperson       User?           @relation("OrderSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
   salespersonId     String?
   createdAt         DateTime        @default(now())
@@ -622,6 +635,7 @@ model Project {
 
   curriculum          ProjectCurriculum[]
   orders              ProjectOrder[]
+  reviews             Review[]
   cartItems           CartItem[]
 }
 
@@ -669,5 +683,52 @@ model ProjectOrder {
 
   @@index([projectId])
   @@index([studentId])
+}
+
+// ─── SALES TARGETS ──────────────────────────────────────────────────
+
+model SalesTarget {
+  id              String   @id @default(uuid())
+  salespersonId   String
+  salesperson     User     @relation("SalesTargets", fields: [salespersonId], references: [id], onDelete: Cascade)
+  courseId         String?
+  course          Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  period          String   // "monthly" | "quarterly" | "yearly"
+  targetAmount    Float    @default(0)
+  currentAmount   Float    @default(0)
+  startDate       DateTime
+  endDate         DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([salespersonId])
+}
+
+// ─── INVOICES ───────────────────────────────────────────────────────
+
+model Invoice {
+  id              String   @id @default(uuid())
+  invoiceNumber   String   @unique
+  orderId         String   @unique
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation("Invoices", fields: [userId], references: [id], onDelete: Cascade)
+  subtotal        Float
+  gstPercent      Float    @default(0)
+  gstAmount       Float    @default(0)
+  discountAmount  Float    @default(0)
+  totalAmount     Float
+  billingFullName String?
+  billingEmail    String?
+  billingPhone    String?
+  billingAddress  String?
+  billingCity     String?
+  billingState    String?
+  billingPincode  String?
+  issuedAt        DateTime @default(now())
+  dueAt           DateTime?
+
+  @@index([orderId])
+  @@index([userId])
 }
 

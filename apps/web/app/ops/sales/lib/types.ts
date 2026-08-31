@@ -161,6 +161,7 @@ export interface SaleResult {
   finalAmt?: number;
   leadConverted?: boolean;
   isNewStudent?: boolean;
+  createAccount?: boolean;
   tempPassword?: string | null;
   emailSent?: boolean;
 }

@@ -23,7 +23,6 @@ export default function RevenueChart({ monthly, yearly }: RevenueChartProps) {
     if (chartRef.current) chartRef.current.destroy();
 
     const series = range === "monthly" ? monthly : yearly;
-    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
 
     const gridColor = getComputedStyle(document.documentElement).getPropertyValue("--border").trim() || "rgba(120,120,120,.15)";
     const textColor = getComputedStyle(document.documentElement).getPropertyValue("--text3").trim() || "#888";

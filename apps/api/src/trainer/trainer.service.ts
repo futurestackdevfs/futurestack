@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3Service } from '../upload/s3.service';
 import { resolveTrainerSharePercent, computeTrainerShare } from '../payment-settings/share.util';
@@ -237,7 +237,7 @@ export class TrainerService {
     const studentIds = enrollments.map((e) => e.studentId);
     const courseIds = enrollments.map((e) => e.courseId);
 
-    const [videoProgress, certificates] = await Promise.all([
+    const [videoProgress, lastActivities] = await Promise.all([
       this.prisma.videoProgress.findMany({
         where: {
           studentId: { in: studentIds },
@@ -246,8 +246,16 @@ export class TrainerService {
         },
         include: { video: { include: { section: true } } },
       }),
-      this.prisma.certificate.findMany({
-        where: { studentId: { in: studentIds }, courseId: { in: courseIds } },
+      this.prisma.videoProgress.findMany({
+        where: {
+          studentId: { in: studentIds },
+          video: { section: { courseId: { in: courseIds } } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        select: {
+          studentId: true,
+          updatedAt: true,
+        },
       }),
     ]);
 
@@ -259,9 +267,12 @@ export class TrainerService {
       }
     }
 
-    const certMap = new Set(
-      certificates.map((c) => `${c.studentId}_${c.courseId}`),
-    );
+    const lastActiveMap = new Map<string, Date>();
+    for (const la of lastActivities) {
+      if (!lastActiveMap.has(la.studentId)) {
+        lastActiveMap.set(la.studentId, la.updatedAt);
+      }
+    }
 
     return enrollments.map((e) => {
       const totalVideos = e.course.sections.reduce(
@@ -273,12 +284,40 @@ export class TrainerService {
       const progressPercent =
         totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
 
+      const modulesDone = e.course.sections.reduce((sum, s) => {
+        const sectionVideos = s._count.videos;
+        const completedInSection = videoProgress.filter(
+          (p) =>
+            p.studentId === e.studentId &&
+            p.video?.section.courseId === e.courseId &&
+            p.video?.sectionId === s.id &&
+            p.isCompleted,
+        ).length;
+        return sum + (completedInSection >= sectionVideos && sectionVideos > 0 ? 1 : 0);
+      }, 0);
+      const totalModules = e.course.sections.length;
+
+      let flag: string = 'On Track';
+      if (progressPercent < 30) {
+        flag = 'Falling Behind';
+      } else if (progressPercent >= 70 && modulesDone >= totalModules * 0.7) {
+        flag = 'Ready for Next Module';
+      }
+
+      const lastActive = lastActiveMap.get(e.studentId);
+
       return {
-        studentName: e.student.name,
-        courseTitle: e.course.title,
-        enrolledAt: e.enrolledAt,
-        progressPercent,
-        hasCertificate: certMap.has(key),
+        id: parseInt(e.id.slice(0, 8), 16) || Math.floor(Math.random() * 10000),
+        name: e.student.name,
+        email: e.student.email,
+        batchCode: e.course.code ?? e.course.title.slice(0, 8).toUpperCase(),
+        progressPct: progressPercent,
+        modulesDone,
+        totalModules,
+        lastActive: lastActive ? lastActive.toISOString().slice(0, 10) : e.enrolledAt.toISOString().slice(0, 10),
+        flag,
+        flaggedToCoordinator: e.student.flaggedToCoordinator,
+        flagReason: e.student.flagReason,
       };
     });
   }
@@ -309,6 +348,44 @@ export class TrainerService {
     }));
   }
 
+  async getProjects(trainerId: string) {
+    const projects = await this.prisma.project.findMany({
+      where: { trainerId },
+      include: {
+        _count: { select: { orders: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return projects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      tech: p.tech,
+      category: p.category,
+      level: p.level,
+      status: p.status,
+      price: p.price,
+      enrolled: p._count.orders,
+      duration: p.duration,
+      updatedAt: p.updatedAt,
+    }));
+  }
+
+  async flagStudent(trainerId: string, studentId: string, reason?: string) {
+    const student = await this.prisma.user.findUnique({ where: { id: studentId } });
+    if (!student) throw new NotFoundException('Student not found');
+
+    await this.prisma.user.update({
+      where: { id: studentId },
+      data: {
+        flaggedToCoordinator: true,
+        flagReason: reason || null,
+      },
+    });
+
+    return { success: true, message: `${student.name} flagged to coordinator` };
+  }
+
   async getReviews(trainerId: string) {
     const reviews = await this.prisma.review.findMany({
       where: { course: { trainerId } },
@@ -326,7 +403,7 @@ export class TrainerService {
       createdAt: r.createdAt,
       studentName: r.student.name,
       studentAvatar: r.student.avatarUrl,
-      courseTitle: r.course.title,
+      courseTitle: r.course?.title ?? '',
     }));
   }
 
@@ -381,9 +458,18 @@ export class TrainerService {
     });
     if (!user) throw new NotFoundException('User not found');
 
+    if (dto.email && dto.email !== user.email) {
+      const existing = await this.prisma.user.findUnique({
+        where: { email: dto.email },
+      });
+      if (existing) throw new ConflictException('Email is already in use');
+    }
+
     const updated = await this.prisma.user.update({
       where: { id: trainerId },
       data: {
+        name: dto.name,
+        email: dto.email,
         bio: dto.bio,
         phone: dto.phone,
         dob: dto.dob ? new Date(dto.dob) : undefined,

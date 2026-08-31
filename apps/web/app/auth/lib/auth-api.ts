@@ -176,6 +176,8 @@ export type ProfileData = {
 };
 
 export type UpdateProfilePayload = {
+  name?: string;
+  email?: string;
   bio?: string;
   phone?: string;
   dob?: string;

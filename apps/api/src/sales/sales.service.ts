@@ -61,6 +61,53 @@ function scoreFor(status: PipelineStatus): number {
         : 10;
 }
 
+/** Auto-compute lead score based on source, budget, follow-ups, and recency. */
+function computeLeadScore(
+  status: PipelineStatus,
+  source?: string | null,
+  budget?: number,
+  followUpCount?: number,
+  lastContact?: Date | null,
+): number {
+  let score = scoreFor(status);
+
+  // Source bonus
+  const sourceBonus: Record<string, number> = {
+    referral: 12,
+    'walk-in': 10,
+    linkedin: 8,
+    website: 5,
+    career_guidance: 5,
+    fab: 5,
+    sidebar_card: 5,
+    demo: 7,
+  };
+  if (source) {
+    score += sourceBonus[source.toLowerCase()] ?? 3;
+  }
+
+  // Budget indicator
+  if (budget && budget > 50000) score += 8;
+  else if (budget && budget > 25000) score += 5;
+  else if (budget && budget > 10000) score += 2;
+
+  // Follow-up activity
+  if (followUpCount && followUpCount > 5) score += 10;
+  else if (followUpCount && followUpCount > 2) score += 5;
+  else if (followUpCount && followUpCount > 0) score += 2;
+
+  // Recency — last contact within 1 day = +8, 3 days = +5, 7 days = +2
+  if (lastContact) {
+    const daysSince = Math.floor((Date.now() - lastContact.getTime()) / 86400000);
+    if (daysSince <= 1) score += 8;
+    else if (daysSince <= 3) score += 5;
+    else if (daysSince <= 7) score += 2;
+    else if (daysSince > 30) score -= 5;
+  }
+
+  return Math.max(0, Math.min(100, score));
+}
+
 const MONTH_LABELS = [
   'Jan',
   'Feb',
@@ -515,7 +562,7 @@ export class SalesService {
 
   async createLead(userId: string, dto: CreateLeadDto) {
     const status = dto.status ?? 'New';
-    const score = dto.score ?? scoreFor(status);
+    const score = dto.score ?? computeLeadScore(status, dto.source, dto.budget ?? 0, 0, null);
     if (dto.email) {
       const dup = await this.prisma.lead.findFirst({
         where: { email: dto.email },
@@ -587,7 +634,16 @@ export class SalesService {
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.budget !== undefined) data.budget = dto.budget;
     if (dto.score !== undefined) data.score = dto.score;
-    else if (dto.status !== undefined) data.score = scoreFor(dto.status);
+    else if (dto.status !== undefined || dto.source !== undefined || dto.budget !== undefined) {
+      const followUpCount = await this.prisma.leadFollowUp.count({ where: { leadId: id } });
+      data.score = computeLeadScore(
+        (dto.status ?? existing.status) as PipelineStatus,
+        dto.source ?? existing.source,
+        dto.budget ?? existing.budget,
+        followUpCount,
+        dto.lastContact ? new Date(dto.lastContact) : existing.lastContact,
+      );
+    }
     if (dto.source !== undefined) data.source = dto.source;
     if (dto.notes !== undefined) data.notes = dto.notes;
     if (dto.nextFollowUp !== undefined)
@@ -686,8 +742,24 @@ export class SalesService {
       let studentEmail: string | null = null;
       let isNew = false;
       let tempPassword: string | null = null;
+      const createAcct = dto.createAccount !== false; // default true for backward compat
 
-      if (dto.isNewStudent) {
+      if (!createAcct) {
+        // No account — create a minimal placeholder user for FK reference
+        const placeholderEmail = `pending-${Date.now()}@futurestack.in`;
+        const user = await tx.user.create({
+          data: {
+            email: placeholderEmail,
+            name: dto.name || 'Pending Student',
+            phone: dto.phone,
+            city: dto.city,
+            role: Role.STUDENT,
+            isActive: false,
+            emailVerified: false,
+          },
+        });
+        studentId = user.id;
+      } else if (dto.isNewStudent) {
         if (!dto.name || !dto.email) {
           throw new BadRequestException(
             'Name and email are required for a new student',
@@ -757,8 +829,8 @@ export class SalesService {
           status: OrderStatus.CREATED,
           razorpayOrderId: `MANUAL-${orderId}`,
           paymentMethod: dto.paymentMethod,
-          billingFullName: isNew ? dto.name : undefined,
-          billingEmail: isNew ? dto.email : undefined,
+          billingFullName: createAcct && isNew ? dto.name : dto.name ?? undefined,
+          billingEmail: createAcct && isNew ? dto.email : undefined,
           billingPhone: dto.phone,
           billingCity: dto.city,
           batchMode: dto.batchMode,
@@ -825,12 +897,13 @@ export class SalesService {
         finalAmt: totalAmount,
         leadConverted,
         isNewStudent: isNew,
+        createAccount: createAcct,
         tempPassword,
       };
     });
 
     let emailSent = false;
-    if (dto.sendEmail && result.studentEmail) {
+    if (dto.sendEmail && result.studentEmail && result.createAccount) {
       await this.mailService.sendSaleProcessingEmail(result.studentEmail, {
         studentName: result.studentName ?? 'Student',
         courseName: result.courseName,
@@ -1005,6 +1078,100 @@ export class SalesService {
     return (
       this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:3000'
     );
+  }
+
+  async listMyOrders(userId: string, role: Role) {
+    const where: Prisma.OrderWhereInput = {};
+    if (role !== Role.ADMIN) where.salespersonId = userId;
+    const orders = await this.prisma.order.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true } },
+        items: {
+          include: {
+            course: { select: { id: true, title: true, price: true, code: true } },
+          },
+        },
+        enrollments: { select: { id: true, status: true, enrolledAt: true } },
+      },
+    });
+    return orders.map((o) => ({
+      id: o.id,
+      status: o.status,
+      student: o.user
+        ? { id: o.user.id, name: o.user.name, email: o.user.email, phone: o.user.phone }
+        : null,
+      course: o.items[0]?.course
+        ? { id: o.items[0].course.id, title: o.items[0].course.title, price: o.items[0].course.price, code: o.items[0].course.code }
+        : null,
+      items: o.items.map((it) => ({
+        courseTitle: it.course.title,
+        priceAtPurchase: it.priceAtPurchase,
+      })),
+      subtotal: o.subtotal,
+      discountAmount: o.discountAmount,
+      gstPercent: o.gstPercent,
+      gstAmount: o.gstAmount,
+      totalAmount: o.totalAmount,
+      batchMode: o.batchMode,
+      paymentMethod: o.paymentMethod,
+      razorpayOrderId: o.razorpayOrderId,
+      enrollment: o.enrollments[0]
+        ? { id: o.enrollments[0].id, status: o.enrollments[0].status, enrolledAt: o.enrollments[0].enrolledAt.toISOString() }
+        : null,
+      createdAt: o.createdAt.toISOString(),
+      updatedAt: o.updatedAt.toISOString(),
+    }));
+  }
+
+  async getOrderDetail(userId: string, role: Role, orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: { select: { id: true, name: true, email: true, phone: true, city: true } },
+        items: {
+          include: {
+            course: {
+              select: { id: true, title: true, price: true, code: true, description: true },
+            },
+          },
+        },
+        enrollments: { select: { id: true, status: true, enrolledAt: true } },
+      },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (role !== Role.ADMIN && order.salespersonId !== userId) {
+      throw new NotFoundException('Order not found');
+    }
+    return {
+      id: order.id,
+      status: order.status,
+      student: order.user
+        ? { id: order.user.id, name: order.user.name, email: order.user.email, phone: order.user.phone, city: order.user.city }
+        : null,
+      course: order.items[0]?.course
+        ? { id: order.items[0].course.id, title: order.items[0].course.title, price: order.items[0].course.price, code: order.items[0].course.code, description: order.items[0].course.description }
+        : null,
+      items: order.items.map((it) => ({
+        courseTitle: it.course.title,
+        priceAtPurchase: it.priceAtPurchase,
+      })),
+      subtotal: order.subtotal,
+      discountAmount: order.discountAmount,
+      gstPercent: order.gstPercent,
+      gstAmount: order.gstAmount,
+      totalAmount: order.totalAmount,
+      batchMode: order.batchMode,
+      paymentMethod: order.paymentMethod,
+      razorpayOrderId: order.razorpayOrderId,
+      enrollment: order.enrollments[0]
+        ? { id: order.enrollments[0].id, status: order.enrollments[0].status, enrolledAt: order.enrollments[0].enrolledAt.toISOString() }
+        : null,
+      salespersonId: order.salespersonId,
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: order.updatedAt.toISOString(),
+    };
   }
 
   private slugify(text: string): string {

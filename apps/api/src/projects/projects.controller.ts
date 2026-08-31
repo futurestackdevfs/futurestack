@@ -10,11 +10,15 @@ import {
   Post,
   Put,
   Query,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { ProjectsService } from './projects.service';
+import { ReviewsService } from '../reviews/reviews.service';
+import { CreateReviewDto } from '../reviews/dto/create-review.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { UpdateCurriculumDto } from './dto/update-curriculum.dto';
@@ -23,7 +27,10 @@ import { CreateProjectOrderDto } from './dto/create-order.dto';
 
 @Controller('projects')
 export class ProjectsController {
-  constructor(private readonly projectsService: ProjectsService) {}
+  constructor(
+    private readonly projectsService: ProjectsService,
+    private readonly reviewsService: ReviewsService,
+  ) {}
 
   // ── PUBLIC ──────────────────────────────────────────────────────
 
@@ -57,6 +64,79 @@ export class ProjectsController {
     @Body('status') status: string,
   ) {
     return this.projectsService.updateOrderStatus(orderId, status);
+  }
+
+  // ── CURRICULUM SECTION / VIDEO CRUD (static routes BEFORE :id) ─
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post('curriculum/sections/:sectionId/videos')
+  addVideoToSection(
+    @Param('sectionId') sectionId: string,
+    @Body() dto: { title: string; vdoCipherId?: string; durationSeconds?: number; isPreview?: boolean },
+  ) {
+    return this.projectsService.addVideo(sectionId, dto);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Delete('curriculum/videos/:videoId')
+  deleteCurriculumVideo(@Param('videoId') videoId: string) {
+    return this.projectsService.deleteVideo(videoId);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Delete('curriculum/sections/:sectionId')
+  deleteCurriculumSection(@Param('sectionId') sectionId: string) {
+    return this.projectsService.deleteSection(sectionId);
+  }
+
+  // ── PROJECT REVIEWS (static routes BEFORE :id) ─────────────────
+
+  @Auth(Role.STUDENT)
+  @Post(':id/reviews')
+  createProjectReview(
+    @Req() req: Request,
+    @Param('id') projectId: string,
+    @Body() dto: CreateReviewDto,
+  ) {
+    const user = req.user as { id: string };
+    return this.reviewsService.createProjectReview(user.id, projectId, dto);
+  }
+
+  @Auth(Role.STUDENT)
+  @Put(':id/reviews/:reviewId')
+  updateProjectReview(
+    @Req() req: Request,
+    @Param('reviewId') reviewId: string,
+    @Body() dto: CreateReviewDto,
+  ) {
+    const user = req.user as { id: string };
+    return this.reviewsService.updateReview(user.id, reviewId, dto);
+  }
+
+  @Get(':id/reviews')
+  getProjectReviews(
+    @Param('id') projectId: string,
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+  ) {
+    return this.reviewsService.getProjectReviews(
+      projectId,
+      parseInt(page) || 1,
+      parseInt(limit) || 10,
+    );
+  }
+
+  @Auth(Role.STUDENT)
+  @Get(':id/reviews/me')
+  getMyProjectReview(
+    @Req() req: Request,
+    @Param('id') projectId: string,
+  ) {
+    const user = req.user as { id: string };
+    return this.reviewsService.getStudentProjectReview(user.id, projectId);
   }
 
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -106,6 +186,16 @@ export class ProjectsController {
     @Body() dto: UpdateCurriculumDto,
   ) {
     return this.projectsService.replaceCurriculum(id, dto);
+  }
+
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post(':id/curriculum/sections')
+  addSection(
+    @Param('id') id: string,
+    @Body() dto: { week: string; title: string; desc: string },
+  ) {
+    return this.projectsService.addSection(id, dto);
   }
 
   // ── DEMO VIDEO UPLOAD ───────────────────────────────────────────
