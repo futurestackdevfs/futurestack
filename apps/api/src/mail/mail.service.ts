@@ -410,4 +410,71 @@ export class MailService {
       );
     }
   }
+
+  /**
+   * Sent when a refund has been processed for a student. Includes the refund
+   * amount and order reference. Failures are logged, never thrown.
+   */
+  async sendRefundProcessedEmail(
+    to: string,
+    data: {
+      studentName: string;
+      courseName: string;
+      refundAmount: number;
+      orderId: string;
+    },
+  ): Promise<void> {
+    try {
+      const text = [
+        `Hi ${data.studentName},`,
+        ``,
+        `Your refund has been processed.`,
+        ``,
+        `Course:       ${data.courseName}`,
+        `Refund amount: ₹${data.refundAmount.toLocaleString('en-IN')}`,
+        `Order ID:     ${data.orderId}`,
+        ``,
+        `The refund will be credited to your original payment method within 5-7 business days.`,
+        ``,
+        `If you have any questions, reply to this email.`,
+        ``,
+        `— FutureStack Team`,
+      ].join('\n');
+
+      const html = this.fsShell(
+        'Refund Processed',
+        'Your refund has been initiated',
+        `
+        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${data.studentName}</strong>,</p>
+        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">Your refund for <strong>${data.courseName}</strong> has been processed successfully.</p>
+
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:18px 20px;margin:0 0 22px">
+          <div style="font-size:12px;font-weight:bold;color:#166534;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Refund Details</div>
+          <table style="border-collapse:collapse;font-size:14px">
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Course</td><td style="padding:4px 0;font-weight:600;color:#111827">${data.courseName}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Refund amount</td><td style="padding:4px 0;font-weight:700;color:#166534">₹${data.refundAmount.toLocaleString('en-IN')}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Order ID</td><td style="padding:4px 0;font-family:monospace;font-size:12px;color:#111827">${data.orderId}</td></tr>
+          </table>
+        </div>
+
+        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 18px">The refund will be credited to your original payment method within <strong>5-7 business days</strong>.</p>
+
+        <p style="font-size:14px;color:#374151;margin:0">If you have any questions, reply to this email.</p>
+        <p style="font-size:14px;color:#374151;margin:0">— <strong>FutureStack Team</strong></p>
+      `,
+      );
+
+      await this.client.inboxes.messages.send(this.inboxId, {
+        to,
+        subject: `Refund processed for ${data.courseName} — ₹${data.refundAmount.toLocaleString('en-IN')}`,
+        text,
+        html,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send refund processed email to ${to}`,
+        error,
+      );
+    }
+  }
 }

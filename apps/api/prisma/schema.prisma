@@ -52,6 +52,14 @@ enum OrderStatus {
   FAILED
   CANCELLED
   EXPIRED
+  REFUND_REQUESTED
+  REFUNDED
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSED
+  REJECTED
 }
 
 enum GatewayType {
@@ -129,6 +137,8 @@ model User {
   leadAsStudent      Lead[]          @relation("LeadStudent")
   salesTargets       SalesTarget[]   @relation("SalesTargets")
   invoices           Invoice[]       @relation("Invoices")
+  refundsInitiated   Refund[]        @relation("RefundInitiator")
+  refunds            Refund[]        @relation("RefundStudent")
 }
 
 model Track {
@@ -182,6 +192,7 @@ model Course {
   wishlistItems   WishlistItem[]
   orderItems      OrderItem[]
   salesTargets    SalesTarget[]
+  refunds         Refund[]
 }
 
 model CourseResource {
@@ -523,6 +534,7 @@ items             OrderItem[]
   enrollments       Enrollment[]
   leads             Lead[]
   invoices          Invoice[]
+  refunds           Refund[]
   salesperson       User?           @relation("OrderSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
   salespersonId     String?
   createdAt         DateTime        @default(now())
@@ -533,10 +545,16 @@ model OrderItem {
   id              String   @id @default(uuid())
   order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderId         String
-  course          Course   @relation(fields: [courseId], references: [id])
-  courseId        String
+  course          Course?  @relation(fields: [courseId], references: [id])
+  courseId        String?
+  project         Project? @relation(fields: [projectId], references: [id])
+  projectId       String?
   priceAtPurchase Float
   currency        Currency
+  status          String?  // for projects: pending | active | refunded
+
+  @@index([courseId])
+  @@index([projectId])
 }
 
 /// Singleton — controls which payment gateways/currencies are available at
@@ -635,8 +653,10 @@ model Project {
 
   curriculum          ProjectCurriculum[]
   orders              ProjectOrder[]
+  orderItems          OrderItem[]
   reviews             Review[]
   cartItems           CartItem[]
+  refunds             Refund[]
 }
 
 model ProjectCurriculum {
@@ -669,20 +689,23 @@ model ProjectCurriculumVideo {
 }
 
 model ProjectOrder {
-  id          String   @id @default(uuid())
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  studentId   String?
-  student     User?    @relation(fields: [studentId], references: [id])
-  name        String
-  phone       String
-  email       String
-  pricePaid   Float
-  status      String   @default("pending")
-  createdAt   DateTime @default(now())
+  id                 String    @id @default(uuid())
+  projectId          String
+  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  studentId          String?
+  student            User?     @relation(fields: [studentId], references: [id])
+  name               String
+  phone              String
+  email              String
+  pricePaid          Float
+  status             String    @default("pending")
+  razorpayOrderId    String?
+  razorpayPaymentId  String?
+  createdAt          DateTime  @default(now())
 
   @@index([projectId])
   @@index([studentId])
+  @@index([razorpayPaymentId])
 }
 
 // ─── SALES TARGETS ──────────────────────────────────────────────────
@@ -730,5 +753,31 @@ model Invoice {
 
   @@index([orderId])
   @@index([userId])
+}
+
+// ─── REFUNDS ─────────────────────────────────────────────────────
+
+model Refund {
+  id              String       @id @default(uuid())
+  order           Order?       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId         String?
+  student         User         @relation("RefundStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId       String
+  course          Course?      @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  courseId        String?
+  project         Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId       String?
+  amount          Float
+  reason          String
+  status          RefundStatus @default(PENDING)
+  razorpayRefundId String?
+  initiatedBy     User         @relation("RefundInitiator", fields: [initiatedById], references: [id], onDelete: Cascade)
+  initiatedById   String
+  processedAt     DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([orderId])
+  @@index([studentId])
+  @@index([status])
 }
 

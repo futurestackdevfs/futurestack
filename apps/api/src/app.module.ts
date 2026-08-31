@@ -26,6 +26,7 @@ import { SalesTargetsModule } from './sales-targets/sales-targets.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { CoordinatorModule } from './coordinator/coordinator.module';
 import { ProjectsModule } from './projects/projects.module';
+import { RefundModule } from './refund/refund.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { ProjectsModule } from './projects/projects.module';
     InvoicesModule,
     CoordinatorModule,
     ProjectsModule,
+    RefundModule,
   ],
   controllers: [AppController],
   providers: [

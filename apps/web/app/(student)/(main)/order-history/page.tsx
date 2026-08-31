@@ -38,6 +38,14 @@ function slugify(str: string): string {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+function actualPaid(item: OrderHistoryItem["items"][number], order: OrderHistoryItem): number {
+  if (!order.subtotal || order.subtotal === 0) return item.priceAtPurchase;
+  const nonProjectItems = order.items.filter((it) => !it.project);
+  if (nonProjectItems.length === 1 && order.items.length === 1) return order.totalAmount;
+  const share = item.priceAtPurchase / order.subtotal;
+  return Math.round(share * order.totalAmount * 100) / 100;
+}
+
 // Load the brand logo as a base64 data URL so it can be embedded in the PDF.
 async function loadLogo(): Promise<string | null> {
   try {
@@ -258,7 +266,7 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
     pdf.setLineWidth(0.2);
     pdf.line(M, ry + rowH, W - M, ry + rowH);
 
-    const title = pdf.splitTextToSize(item.course.title, colQty - colItem - 6);
+    const title = pdf.splitTextToSize(item.project?.name ?? item.course?.title ?? 'Item', colQty - colItem - 6);
     setC(NAVY);
     bold();
     pdf.setFontSize(8.5);
@@ -268,10 +276,10 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
     pdf.setFontSize(8.5);
     setC(SLATE);
     pdf.text("1", colQty, ry + rowH / 2 + 1, { align: "right" });
-    pdf.text(fmt(item.priceAtPurchase), colRate, ry + rowH / 2 + 1, { align: "right" });
+    pdf.text(fmt(actualPaid(item, order)), colRate, ry + rowH / 2 + 1, { align: "right" });
     bold();
     setC(NAVY);
-    pdf.text(fmt(item.priceAtPurchase), colAmt, ry + rowH / 2 + 1, { align: "right" });
+    pdf.text(fmt(actualPaid(item, order)), colAmt, ry + rowH / 2 + 1, { align: "right" });
     normal();
     ry += rowH;
   });
@@ -332,7 +340,7 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
   pdf.text(`Payment Gateway: ${order.gatewayType === "DOMESTIC" ? "Razorpay (Domestic)" : "Razorpay (International)"}`, M + 4, ny + 6.5);
   pdf.text(`Transaction ID: ${order.razorpayPaymentId ?? "—"}`, M + 4, ny + 11.5);
   pdf.text(`Order Reference: ${order.razorpayOrderId ?? orderNumber(order.id)}`, M + 4, ny + 16.5);
-  pdf.text(`Course${order.items.length > 1 ? "s" : ""} Purchased: ${order.items.map((it) => it.course.title).join(", ").slice(0, 96)}`, M + 4, ny + 21.5);
+  pdf.text(`Item${order.items.length > 1 ? "s" : ""} Purchased: ${order.items.map((it) => it.project?.name ?? it.course?.title ?? 'Item').join(", ").slice(0, 96)}`, M + 4, ny + 21.5);
   ny += 38;
 
   setC(SLATE);
@@ -478,26 +486,55 @@ export default function OrderHistoryPage() {
                   {/* Body */}
                   <div className="p-5 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-5">
                     <div className="space-y-2.5">
-                      {order.items.map((item) => (
-                        <div key={item.course.id} className="flex items-center gap-3">
-                          {item.course.thumbnailUrl ? (
-                            <img src={item.course.thumbnailUrl} alt={item.course.title} className="size-11 rounded-lg object-cover border border-[var(--border)] shrink-0" />
-                          ) : (
-                            <div className="size-11 rounded-lg bg-[var(--bg)] border border-[var(--border)] flex items-center justify-center shrink-0">
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted)]"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                      {order.items.map((item, idx) => {
+                        const isProject = !!item.project;
+                        return (
+                          <div key={isProject ? item.project!.id : item.course?.id ?? idx} className="flex items-center gap-3">
+                            {isProject ? (
+                              <div className="size-11 rounded-lg bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-[var(--border)] flex items-center justify-center shrink-0">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-purple-500"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                              </div>
+                            ) : item.course?.thumbnailUrl ? (
+                              <img src={item.course.thumbnailUrl} alt={item.course?.title ?? ""} className="size-11 rounded-lg object-cover border border-[var(--border)] shrink-0" />
+                            ) : (
+                              <div className="size-11 rounded-lg bg-[var(--bg)] border border-[var(--border)] flex items-center justify-center shrink-0">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted)]"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              {isProject ? (
+                                <>
+                                  <div className="text-[13px] font-semibold text-[var(--text)] truncate">{item.project!.name}</div>
+                                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--text3)]">
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400">Project</span>
+                                    {order.status === "PAID" ? (
+                                      <span>Purchased at {money(actualPaid(item, order), order.currency)}</span>
+                                    ) : (
+                                      <span className="text-red-500 font-semibold">Payment Failed</span>
+                                    )}
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => goToCourse(item.course?.title ?? "")}
+                                    className="block text-[13px] font-semibold text-[var(--text)] hover:text-[var(--blue2)] transition-colors text-left border-none bg-transparent p-0 cursor-pointer truncate w-full"
+                                  >
+                                    {item.course?.title}
+                                  </button>
+                                  <div className="text-[11px] text-[var(--text3)]">
+                                    {order.status === "PAID" ? (
+                                      <span>Purchased at {money(actualPaid(item, order), order.currency)}</span>
+                                    ) : (
+                                      <span className="text-red-500 font-semibold">Payment Failed</span>
+                                    )}
+                                  </div>
+                                </>
+                              )}
                             </div>
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <button
-                              onClick={() => goToCourse(item.course.title)}
-                              className="block text-[13px] font-semibold text-[var(--text)] hover:text-[var(--blue2)] transition-colors text-left border-none bg-transparent p-0 cursor-pointer truncate w-full"
-                            >
-                              {item.course.title}
-                            </button>
-                            <div className="text-[11px] text-[var(--text3)]">Purchased at {money(item.priceAtPurchase, order.currency)}</div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {order.discountAmount > 0 && (
                         <div className="flex items-center gap-2 pt-2 text-[11px] text-[var(--muted)] border-t border-dashed border-[var(--border2)]">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600"><path d="M20 12 8 12 10 9M8 12l2 3" /></svg>
@@ -521,7 +558,7 @@ export default function OrderHistoryPage() {
                         )}
                         {downloading === order.id ? "Preparing…" : order.status === "PAID" ? "Download Invoice" : "Invoice Unavailable"}
                       </button>
-                      {order.items.length > 0 && (
+                      {order.items.some((it) => it.course) && (
                         <button
                           onClick={() => router.push("/my-dashboard")}
                           className="px-4 py-2 rounded-lg text-xs font-semibold text-[var(--text2)] bg-[var(--bg)] border border-[var(--border2)] hover:border-[var(--blue)] hover:text-[var(--blue)] transition-all duration-200 cursor-pointer"

@@ -421,11 +421,11 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
                         <ActionBtn color="var(--orange)" onClick={() => openEditModal(record)}>EDIT</ActionBtn>
                         {activeTab === "courses" ? (
                           <>
-                            <ActionBtn color="var(--blue)" onClick={() => setCbOpen(true) || setCbCourse({ id: record.id, code: record.code, name: record.title })}>CURRICULUM</ActionBtn>
-                            <ActionBtn color="var(--green)" onClick={() => setRmOpen(true) || setRmCourse({ id: record.id, code: record.code, name: record.title })}>RESOURCES</ActionBtn>
+                            <ActionBtn color="var(--blue)" onClick={() => { setCbOpen(true); setCbCourse({ id: record.id, code: record.code, name: record.title }); }}>CURRICULUM</ActionBtn>
+                            <ActionBtn color="var(--green)" onClick={() => { setRmOpen(true); setRmCourse({ id: record.id, code: record.code, name: record.title }); }}>RESOURCES</ActionBtn>
                           </>
                         ) : (
-                          <ActionBtn color="var(--blue)" onClick={() => setPbOpen(true) || setPbProject({ id: record.id, name: record.name })}>CURRICULUM</ActionBtn>
+                          <ActionBtn color="var(--blue)" onClick={() => { setPbOpen(true); setPbProject({ id: record.id, name: record.name }); }}>CURRICULUM</ActionBtn>
                         )}
                         <ActionBtn color="var(--red)" onClick={() => setDeleting(record)}>✕</ActionBtn>
                       </div>

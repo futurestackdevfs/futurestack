@@ -358,7 +358,7 @@ export class CartService {
     const cart = await this.getOrCreateCart(userId);
     const items = await this.prisma.cartItem.findMany({
       where: { cartId: cart.id },
-      select: { courseId: true },
+      select: { courseId: true, projectId: true },
     });
     const view = await this.getCartView(userId, 'INR');
 
@@ -368,6 +368,7 @@ export class CartService {
       currency: 'INR',
       subtotal: view.subtotal,
       courseIds: items.filter((i) => i.courseId).map((i) => i.courseId as string),
+      projectIds: items.filter((i) => i.projectId).map((i) => i.projectId as string),
     });
 
     await this.prisma.cart.update({

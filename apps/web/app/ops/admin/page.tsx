@@ -21,6 +21,7 @@ import { ProfileModal } from "./sections/ProfileModal";
 import FeaturedManager from "./sections/FeaturedManager";
 import PaymentSettingsManager from "./sections/PaymentSettingsManager";
 import PaymentsManager from "./sections/PaymentsManager";
+import RefundsManager from "./sections/RefundsManager";
 import EnrollmentsManager from "./sections/EnrollmentsManager";
 import AdminDashboardContent from "./console/AdminDashboardContent";
 import SalesDashboardContent from "./console/SalesDashboardContent";
@@ -1327,6 +1328,11 @@ export default function AdminMasterDataPage() {
         ) : view === "payments" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
             <PaymentsManager key={`payments-${refreshNonce}`} token={token || ""} searchQuery={searchQuery} />
+          </main>
+
+        ) : view === "refunds" ? (
+          <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
+            <RefundsManager key={`refunds-${refreshNonce}`} token={token || ""} searchQuery={searchQuery} />
           </main>
 
         ) : view === "enrollments" ? (

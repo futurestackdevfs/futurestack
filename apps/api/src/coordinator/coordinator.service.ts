@@ -454,7 +454,7 @@ export class CoordinatorService {
         createdAt: o.createdAt,
         student: o.user,
         items: o.items.map((i) => ({
-          title: i.course.title,
+          title: i.course?.title ?? null,
           price: i.priceAtPurchase,
         })),
         enrollmentsCount: o._count.enrollments,

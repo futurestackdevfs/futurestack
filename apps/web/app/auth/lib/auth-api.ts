@@ -217,7 +217,8 @@ export type OrderHistoryItem = {
   items: {
     priceAtPurchase: number;
     currency: 'INR' | 'USD';
-    course: { id: string; title: string; thumbnailUrl: string | null };
+    course: { id: string; title: string; thumbnailUrl: string | null } | null;
+    project?: { id: string; name: string } | null;
   }[];
 };
 

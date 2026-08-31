@@ -812,9 +812,12 @@ export class StudentService {
         createdAt: true,
         items: {
           select: {
+            id: true,
             priceAtPurchase: true,
             currency: true,
+            status: true,
             course: { select: { id: true, title: true, thumbnailUrl: true } },
+            project: { select: { id: true, name: true } },
           },
         },
       },

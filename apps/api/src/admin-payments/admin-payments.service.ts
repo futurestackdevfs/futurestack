@@ -12,6 +12,8 @@ const VALID_STATUSES = [
   'FAILED',
   'CANCELLED',
   'EXPIRED',
+  'REFUND_REQUESTED',
+  'REFUNDED',
 ] as const;
 
 /** Currency detect + display parsing kept minimal — raw values are passed
@@ -32,7 +34,7 @@ export class AdminPaymentsService {
       where.status = status as OrderStatus;
     }
 
-    const [total, orders, projectOrders] = await Promise.all([
+    const [total, orders] = await Promise.all([
       this.prisma.order.count({ where }),
       this.prisma.order.findMany({
         where,
@@ -42,19 +44,12 @@ export class AdminPaymentsService {
         include: {
           user: { select: { id: true, name: true, email: true } },
           items: {
-            include: { course: { select: { id: true, title: true } } },
+            include: {
+              course: { select: { id: true, title: true } },
+              project: { select: { id: true, name: true } },
+            },
           },
           _count: { select: { enrollments: true } },
-        },
-      }),
-      this.prisma.projectOrder.findMany({
-        where: status && (VALID_STATUSES as readonly string[]).includes(status)
-          ? { status: status as any }
-          : {},
-        orderBy: { createdAt: 'desc' },
-        include: {
-          student: { select: { id: true, name: true, email: true } },
-          project: { select: { id: true, name: true } },
         },
       }),
     ]);
@@ -85,6 +80,8 @@ export class AdminPaymentsService {
       failed: number;
       cancelled: number;
       expired: number;
+      refundRequested: number;
+      refunded: number;
       totalRevenue: number;
     } = {
       total: 0,
@@ -93,61 +90,30 @@ export class AdminPaymentsService {
       failed: 0,
       cancelled: 0,
       expired: 0,
+      refundRequested: 0,
+      refunded: 0,
       totalRevenue: 0,
     };
 
     for (const g of grouped) {
       const key = g.status.toLowerCase();
-      summary[key] = g._count._all;
+      if (key in summary) {
+        (summary as any)[key] = g._count._all;
+      }
       summary.total += g._count._all;
       if (g.status === OrderStatus.PAID) {
         summary.totalRevenue = g._sum.totalAmount ?? 0;
       }
     }
 
-    // Map project orders into the same response shape as course orders
-    const projectMapped = projectOrders.map((po) => ({
-      id: po.id,
-      orderNo: po.id.slice(0, 8).toUpperCase(),
-      status: po.status.toUpperCase(),
-      currency: 'INR',
-      gatewayType: 'RAZORPAY',
-      subtotal: po.pricePaid,
-      discountAmount: 0,
-      totalAmount: po.pricePaid,
-      createdAt: po.createdAt,
-      razorpayOrderId: '',
-      razorpayPaymentId: null,
-      billing: {
-        fullName: po.name,
-        email: po.email,
-        phone: po.phone,
-        city: null,
-        state: null,
-        pincode: null,
-        address: null,
-      },
-      student: po.student
-        ? { id: po.student.id, name: po.student.name, email: po.student.email }
-        : null,
-      couponCode: null,
-      enrollmentsCount: 0,
-      items: [
-        {
-          courseId: po.projectId,
-          title: po.project?.name ?? 'Project',
-          priceAtPurchase: po.pricePaid,
-          type: 'project' as const,
-        },
-      ],
-    }));
-
     const mapped = orders.map((o) => {
-      const courseItems = o.items.map((i) => ({
-        courseId: i.courseId,
-        title: i.course.title,
+      const items = o.items.map((i) => ({
+        courseId: i.courseId ?? i.projectId,
+        title: i.course?.title ?? i.project?.name ?? 'Item',
         priceAtPurchase: i.priceAtPurchase,
-        type: 'course' as const,
+        type: i.projectId ? 'project' as const : 'course' as const,
+        orderItemId: i.id,
+        itemStatus: i.status ?? null,
       }));
       return {
         id: o.id,
@@ -173,19 +139,13 @@ export class AdminPaymentsService {
         student: o.user,
         couponCode: redemptionByOrder.get(o.id) ?? null,
         enrollmentsCount: o._count.enrollments,
-        items: courseItems,
+        items,
       };
     });
 
-    // Merge both lists sorted by createdAt desc
-    const allOrders = [...mapped, ...projectMapped].sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
-
     return {
       summary,
-      orders: allOrders,
+      orders: mapped,
       pagination: {
         page: pageNum,
         perPage: size,
@@ -248,7 +208,7 @@ export class AdminPaymentsService {
       // reconciles exactly with the admin "Revenue (Paid)" KPI (totalAmount).
       const ratio = order.totalAmount / order.subtotal;
       for (const item of order.items) {
-        const trainer = item.course.trainer;
+        const trainer = item.course?.trainer;
         if (!trainer) continue;
         const cur =
           map.get(trainer.id) ??
