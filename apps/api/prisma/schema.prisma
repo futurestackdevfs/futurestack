@@ -115,7 +115,6 @@ model User {
   quizAttempts         QuizAttempt[]              // ADDED — fixes missing back-relation
   coursesTaught        Course[]        @relation("CourseTrainer")
   projectsTaught       Project[]       @relation("ProjectTrainer")
-  projectOrders        ProjectOrder[]
   approvalStatus       ApprovalStatus?
   certificates         Certificate[]
 
@@ -652,7 +651,6 @@ model Project {
   trainer             User?         @relation("ProjectTrainer", fields: [trainerId], references: [id])
 
   curriculum          ProjectCurriculum[]
-  orders              ProjectOrder[]
   orderItems          OrderItem[]
   reviews             Review[]
   cartItems           CartItem[]
@@ -686,26 +684,6 @@ model ProjectCurriculumVideo {
   progress        VideoProgress[]
 
   @@index([curriculumId])
-}
-
-model ProjectOrder {
-  id                 String    @id @default(uuid())
-  projectId          String
-  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  studentId          String?
-  student            User?     @relation(fields: [studentId], references: [id])
-  name               String
-  phone              String
-  email              String
-  pricePaid          Float
-  status             String    @default("pending")
-  razorpayOrderId    String?
-  razorpayPaymentId  String?
-  createdAt          DateTime  @default(now())
-
-  @@index([projectId])
-  @@index([studentId])
-  @@index([razorpayPaymentId])
 }
 
 // ─── SALES TARGETS ──────────────────────────────────────────────────

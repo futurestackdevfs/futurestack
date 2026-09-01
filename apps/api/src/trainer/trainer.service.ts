@@ -352,7 +352,7 @@ export class TrainerService {
     const projects = await this.prisma.project.findMany({
       where: { trainerId },
       include: {
-        _count: { select: { orders: true } },
+        _count: { select: { orderItems: true } },
       },
       orderBy: { updatedAt: 'desc' },
     });
@@ -365,7 +365,7 @@ export class TrainerService {
       level: p.level,
       status: p.status,
       price: p.price,
-      enrolled: p._count.orders,
+      enrolled: p._count.orderItems,
       duration: p.duration,
       updatedAt: p.updatedAt,
     }));

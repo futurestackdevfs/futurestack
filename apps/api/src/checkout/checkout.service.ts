@@ -227,7 +227,7 @@ export class CheckoutService {
     const totalBeforeGst = this.round2(subtotal - discountAmount);
 
     // Distribute the coupon discount proportionally across projects so that
-    // ProjectOrder.pricePaid reflects the actual amount paid (after discount).
+    // OrderItem.priceAtPurchase reflects the original price (before discount).
     // This prevents Razorpay refund failures where the refund amount exceeds
     // the captured payment.
     const discountedPrices = keptProjects.map((p) => {
@@ -622,15 +622,30 @@ export class CheckoutService {
   @Cron('0 * * * *')
   async expireStaleOrders() {
     const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    const result = await this.prisma.order.updateMany({
+
+    const staleOrders = await this.prisma.order.findMany({
       where: {
         status: 'CREATED',
         createdAt: { lt: cutoff },
       },
-      data: { status: 'EXPIRED' },
+      select: { id: true },
     });
-    if (result.count > 0) {
-      this.logger.log(`Expired ${result.count} stale order(s)`);
-    }
+
+    if (staleOrders.length === 0) return;
+
+    const staleIds = staleOrders.map((o) => o.id);
+
+    await this.prisma.$transaction([
+      this.prisma.order.updateMany({
+        where: { id: { in: staleIds } },
+        data: { status: 'EXPIRED' },
+      }),
+      this.prisma.orderItem.updateMany({
+        where: { orderId: { in: staleIds }, projectId: { not: null }, status: 'pending' },
+        data: { status: 'cancelled' },
+      }),
+    ]);
+
+    this.logger.log(`Expired ${staleIds.length} stale order(s)`);
   }
 }

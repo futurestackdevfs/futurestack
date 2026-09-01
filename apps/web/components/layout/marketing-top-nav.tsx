@@ -391,7 +391,7 @@ export function TopNav() {
         {[
           { href: "/certificates", label: "Certifications" },
           { href: "/live-projects", label: "Live Projects" },
-          { href: "/r-and-d", label: "R&D Services" },
+          { href: "/research-and-development", label: "R&D Services" },
           { href: "/my-dashboard", label: "My Dashboard", requiresAuth: true },
         ].map((link, i) => {
           const locked = link.requiresAuth && !isAuthenticated && !isLoading;
@@ -606,7 +606,7 @@ export function TopNav() {
             { href: "/courses", label: "Courses" },
             { href: "/certificates", label: "Certifications" },
             { href: "/live-projects", label: "Live Projects" },
-            { href: "/r-and-d", label: "R&D Services" },
+            { href: "/research-and-development", label: "R&D Services" },
           ].map((link) => (
               <div key={link.label} className="px-2">
                 <Link

@@ -1093,6 +1093,7 @@ export class SalesService {
         items: {
           include: {
             course: { select: { id: true, title: true, price: true, code: true } },
+            project: { select: { id: true, name: true } },
           },
         },
         enrollments: { select: { id: true, status: true, enrolledAt: true } },
@@ -1107,8 +1108,12 @@ export class SalesService {
       course: o.items[0]?.course
         ? { id: o.items[0].course.id, title: o.items[0].course.title, price: o.items[0].course.price, code: o.items[0].course.code }
         : null,
+      project: o.items[0]?.project
+        ? { id: o.items[0].project.id, name: o.items[0].project.name }
+        : null,
       items: o.items.map((it) => ({
         courseTitle: it.course?.title ?? null,
+        projectName: it.project?.name ?? null,
         priceAtPurchase: it.priceAtPurchase,
       })),
       subtotal: o.subtotal,

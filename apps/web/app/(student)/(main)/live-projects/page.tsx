@@ -246,7 +246,7 @@ export default function LiveProjectsPage() {
 function ProjectCard({ project: p, onDetail, onBuy }: { project: Project; onDetail: (id: string) => void; onBuy: (id: string) => void }) {
   const off = Math.round((1 - p.price / p.oldPrice) * 100);
   return (
-    <div className="bg-[var(--card)] border border-[var(--border)] rounded-[12px] sm:rounded-[13px] overflow-hidden shadow-[var(--shadow)] flex flex-col transition-all duration-200 hover:-translate-y-[3px] hover:shadow-[var(--shadow-lg)] hover:border-[rgba(37,99,235,.3)]">
+    <div onClick={() => onDetail(p.id)} className="bg-[var(--card)] border border-[var(--border)] rounded-[12px] sm:rounded-[13px] overflow-hidden shadow-[var(--shadow)] flex flex-col transition-all duration-200 hover:-translate-y-[3px] hover:shadow-[var(--shadow-lg)] hover:border-[rgba(37,99,235,.3)] cursor-pointer">
       {/* Thumb */}
       <div className="relative h-[80px] sm:h-[92px] flex items-center justify-center overflow-hidden" style={{ background: p.thumbGradient }}>
         <span className={`absolute top-2 left-2 text-[8px] sm:text-[9px] font-bold tracking-widest uppercase px-1.5 sm:px-2 py-[2px] sm:py-[3px] rounded-[3px] sm:rounded-[4px] z-10 ${badgeColor(p.level)}`}>{p.badge}</span>
@@ -260,9 +260,9 @@ function ProjectCard({ project: p, onDetail, onBuy }: { project: Project; onDeta
 
       {/* Body */}
       <div className="p-2.5 sm:p-3 flex flex-col gap-1.5 sm:gap-2 flex-1">
-        <button onClick={() => onDetail(p.id)} className="text-left bg-transparent border-none p-0 cursor-pointer text-[12px] sm:text-[13.5px] font-bold text-[var(--text)] leading-[1.35] hover:text-[var(--orange)] hover:underline transition-colors font-inherit">
+        <p className="text-[12px] sm:text-[13.5px] font-bold text-[var(--text)] leading-[1.35] hover:text-[var(--orange)] transition-colors">
           {p.name}
-        </button>
+        </p>
         <p className="text-[10px] sm:text-[11px] text-[var(--muted)] leading-[1.5] line-clamp-2">{p.shortDesc}</p>
 
         {/* Tech chips */}
@@ -301,7 +301,7 @@ function ProjectCard({ project: p, onDetail, onBuy }: { project: Project; onDeta
             <span className="text-[13px] sm:text-[15.5px] font-extrabold text-[var(--text)]">₹{p.price.toLocaleString("en-IN")}</span>
             <span className="text-[9px] sm:text-[10.5px] text-[var(--muted)] line-through">₹{p.oldPrice.toLocaleString("en-IN")}</span>
           </div>
-          <button onClick={() => onBuy(p.id)} className="bg-[var(--orange)] text-white border-none py-1.5 sm:py-[7px] px-2.5 sm:px-3 rounded-[6px] sm:rounded-[8px] font-bold text-[10px] sm:text-[11.5px] shadow-[0_4px_14px_rgba(255,106,26,.3)] cursor-pointer hover:bg-[var(--orange2)] hover:-translate-y-[1px] transition-all">
+          <button onClick={(e) => { e.stopPropagation(); onBuy(p.id); }} className="bg-[var(--orange)] text-white border-none py-1.5 sm:py-[7px] px-2.5 sm:px-3 rounded-[6px] sm:rounded-[8px] font-bold text-[10px] sm:text-[11.5px] shadow-[0_4px_14px_rgba(255,106,26,.3)] cursor-pointer hover:bg-[var(--orange2)] hover:-translate-y-[1px] transition-all">
             Buy Project
           </button>
         </div>
@@ -317,7 +317,7 @@ function DetailModal({ project: p, onClose, onBuy }: { project: Project; onClose
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center sm:p-5 bg-black/60 backdrop-blur-[3px] opacity-100 pointer-events-auto transition-opacity overflow-hidden" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-[var(--surface)] rounded-t-[18px] sm:rounded-[18px] w-full sm:w-[860px] max-w-[calc(100vw-16px)] max-h-[92vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden shadow-[var(--shadow-lg)] border border-[var(--border)] transform translate-y-0 transition-transform">
+      <div className="bg-[var(--surface)] rounded-t-[18px] sm:rounded-[18px] w-full sm:w-[95vw] max-w-[calc(100vw-16px)] max-h-[95vh] sm:max-h-[95vh] overflow-y-auto overflow-x-hidden shadow-[var(--shadow-lg)] border border-[var(--border)] transform translate-y-0 transition-transform">
         {/* Hero */}
         <div className="relative p-4 sm:p-6 pb-4 sm:pb-5 text-white overflow-hidden" style={{ background: p.thumbGradient }}>
           {p.image && (

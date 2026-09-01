@@ -51,15 +51,15 @@ export function Footer() {
             </div>
 
             {[
-              { title: "Platform", links: ["Courses", "Career Paths", "Certifications", "Live Projects"] },
-              { title: "Company", links: ["About Us", "Careers", "Blog", "Contact"] },
-              { title: "Support", links: ["Help Center", "FAQs", "Community", "Refund Policy"] },
+              { title: "Platform", links: [{ label: "Courses", href: "/courses" }, { label: "R&D Services", href: "/research-and-development" }, { label: "Certifications", href: "#" }, { label: "Live Projects", href: "/live-projects" }] },
+              { title: "Company", links: [{ label: "About Us", href: "/about" }, { label: "Careers", href: "#" }, { label: "Blog", href: "#" }, { label: "Contact", href: "#" }] },
+              { title: "Support", links: [{ label: "Help Center", href: "#" }, { label: "FAQs", href: "#" }, { label: "Community", href: "#" }, { label: "Refund Policy", href: "#" }] },
             ].map((group) => (
               <div key={group.title} className="footer-link-col">
                 <h4 className="footer-col-title">{group.title}</h4>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {group.links.map((link) => (
-                    <a key={link} href="#" className="footer-link">{link}</a>
+                    <a key={link.label} href={link.href} className="footer-link">{link.label}</a>
                   ))}
                 </div>
               </div>
