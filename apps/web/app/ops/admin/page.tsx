@@ -29,6 +29,7 @@ import TrainerDashboardContent from "./console/TrainerDashboardContent";
 import CoordinatorDashboardContent from "./console/CoordinatorDashboardContent";
 import SupportDashboardContent from "./console/SupportDashboardContent";
 import ContentMgrDashboardContent from "./console/ContentMgrDashboardContent";
+import BlogManager from "./sections/BlogManager";
 import UsersDashboardContent from "./console/UsersDashboardContent";
 import CreateStaffModal from "./sections/CreateStaffModal";
 
@@ -1411,6 +1412,7 @@ export default function AdminMasterDataPage() {
             {view === "coordinator" && <CoordinatorDashboardContent key={`coordinator-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["coordinator"])} addLabel="Coordinator" />}
             {view === "support" && <SupportDashboardContent key={`support-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["support"])} addLabel="Support" />}
             {view === "content-manager" && <ContentMgrDashboardContent key={`content-manager-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["content-manager"])} addLabel="Content Manager" />}
+            {view === "articles" && <BlogManager key={`blog-${refreshNonce}`} />}
           </main>
         )}
       </div>

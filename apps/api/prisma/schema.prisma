@@ -759,3 +759,21 @@ model Refund {
   @@index([status])
 }
 
+// ─── BLOG ───────────────────────────────────────────────────────────
+
+model BlogPost {
+  id              String   @id @default(cuid())
+  title           String
+  slug            String   @unique
+  content         String   @db.Text
+  metaDescription String
+  tags            String[]
+  sourceTopic     String?
+  status          String   @default("draft")
+  publishedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, publishedAt])
+}
+

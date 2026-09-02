@@ -27,6 +27,7 @@ const roles: RoleCard[] = [
   { icon: "🎓", label: "Trainer", bg: "var(--purple-d)", color: "var(--purple)", view: "trainer" },
   { icon: "📝", label: "Content Manager", bg: "var(--pink-d)", color: "var(--pink)", view: "content-manager" },
   { icon: "⚙", label: "Platform Admin", bg: "rgba(219,39,119,.1)", color: "#db2777", view: "admin-dashboard" },
+  { icon: "📝", label: "Articles", bg: "var(--purple-d)", color: "var(--purple)", view: "articles" },
 ];
 
 const adminNav: NavItem[] = [
