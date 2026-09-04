@@ -138,6 +138,10 @@ model User {
   invoices           Invoice[]       @relation("Invoices")
   refundsInitiated   Refund[]        @relation("RefundInitiator")
   refunds            Refund[]        @relation("RefundStudent")
+
+  supportTickets     SupportTicket[]        @relation("TicketAuthor")
+  assignedTickets    SupportTicket[]        @relation("TicketAssignee")
+  supportMessages    SupportTicketMessage[]
 }
 
 model Track {
@@ -775,5 +779,76 @@ model BlogPost {
   updatedAt       DateTime @updatedAt
 
   @@index([status, publishedAt])
+}
+
+// ─── Support / help-desk tickets ─────────────────────────────────────
+
+enum TicketStatus {
+  OPEN      // waiting on an agent
+  PENDING   // waiting on the student
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketCategory {
+  PAYMENT
+  REFUND
+  COURSE_ACCESS
+  VIDEO
+  CERTIFICATE
+  ACCOUNT
+  BUG
+  LIVE_SESSION
+  OTHER
+}
+
+model SupportTicket {
+  id            String         @id @default(uuid())
+  number        Int            @unique @default(autoincrement()) // human ref: SUP-0XXXX
+  subject       String
+  category      TicketCategory
+  topic         String?        // sub-topic id chosen in the guided wizard
+  context       Json?          // { orderId?, courseId?, lessonId?, browser? }
+  priority      TicketPriority @default(NORMAL)
+  status        TicketStatus   @default(OPEN)
+
+  student       User           @relation("TicketAuthor", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId     String
+  assignee      User?          @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assigneeId    String?
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  lastMessageAt DateTime       @default(now())
+  resolvedAt    DateTime?
+  closedAt      DateTime?
+
+  messages      SupportTicketMessage[]
+
+  @@index([status])
+  @@index([assigneeId])
+  @@index([studentId])
+  @@index([lastMessageAt])
+}
+
+model SupportTicketMessage {
+  id             String        @id @default(uuid())
+  ticket         SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId       String
+  author         User          @relation(fields: [authorId], references: [id])
+  authorId       String
+  body           String
+  attachmentUrl  String?
+  isInternalNote Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+
+  @@index([ticketId])
 }
 

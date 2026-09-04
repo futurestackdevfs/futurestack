@@ -41,7 +41,7 @@ const FOCUS_AREAS = [
   {
     index: "06",
     title: "Emerging Technology",
-    desc: "An always-on exploration bench for whatever comes next \u2014 robotics, AR/VR and new materials, kept close to production teams.",
+    desc: "An always-on exploration bench for whatever comes next — robotics, AR/VR and new materials, kept close to production teams.",
     tags: ["Robotics", "AR/VR", "Materials R&D"],
     img: "https://images.pexels.com/photos/3520697/pexels-photo-3520697.jpeg?auto=compress&cs=tinysrgb&w=700",
   },
@@ -90,11 +90,39 @@ const CASE_STUDIES = [
 
 export default function RndInnovationLabPage() {
   const [email, setEmail] = useState("");
+  const [expanded, setExpanded] = useState(false);
+  const [details, setDetails] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleStart(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitted(true);
+    if (!email.trim()) return;
+    setExpanded(true);
+  }
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (sending) return;
+    setSending(true);
+    setError("");
+    try {
+      const res = await fetch("/api/contact/rnd-inquiry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), details: details.trim() || undefined }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message || "Couldn't send your message — please try again.");
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't send your message — please try again.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -111,7 +139,7 @@ export default function RndInnovationLabPage() {
               Where bold thinking becomes working hardware.
             </h1>
             <p className="text-[15px] leading-[1.75] text-[var(--text2)] max-w-[520px] mb-8">
-              Future Stack R&D turns early ideas into working prototypes \u2014 across AI, industrial IoT, embedded systems and digital twins. Borrow the bench, or let us build alongside your team.
+              Future Stack R&D turns early ideas into working prototypes — across AI, industrial IoT, embedded systems and digital twins. Borrow the bench, or let us build alongside your team.
             </p>
             <div className="flex gap-3 flex-wrap mb-10">
               <a href="#focus" className="inline-flex items-center gap-2 font-semibold text-[13.5px] px-6 py-3 rounded-[10px] text-white bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] shadow-[0_10px_28px_-10px_rgba(255,106,26,.35)] hover:-translate-y-0.5 hover:shadow-[0_14px_34px_-10px_rgba(255,106,26,.35)] transition-all">
@@ -129,7 +157,7 @@ export default function RndInnovationLabPage() {
             </div>
           </div>
 
-          {/* Hero visual \u2014 digital twin SVG illustration */}
+          {/* Hero visual — digital twin SVG illustration */}
           <div className="relative">
             <div className="relative rounded-[22px] overflow-hidden border border-white/10 shadow-[var(--shadow-lg)] bg-gradient-to-br from-[#0c1220] to-[#141024]" style={{ aspectRatio: "4/4.6" }}>
               <svg viewBox="0 0 400 460" preserveAspectRatio="xMidYMid slice" className="w-full h-full" aria-hidden="true">
@@ -243,7 +271,7 @@ export default function RndInnovationLabPage() {
                   </div>
                 </div>
                 <div>
-                  <b className="block text-[12.5px] font-bold text-white">Digital twin \u00b7 Mill 04</b>
+                  <b className="block text-[12.5px] font-bold text-white">Digital twin · Mill 04</b>
                   <span className="text-[10.5px] text-white/70">Physical and virtual state in sync</span>
                 </div>
               </div>
@@ -307,17 +335,17 @@ export default function RndInnovationLabPage() {
               </div>
               <h2 className="text-[clamp(22px,2.8vw,28px)] font-bold mb-3" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Borrow our R&D bench for your project</h2>
               <p className="text-[14.5px] text-[var(--text2)] leading-[1.75] mb-5 max-w-[520px]">
-                We don&apos;t only build our own products \u2014 we lend the same engineers, prototyping lab and process to companies who need R&D firepower without hiring a full in-house team.
+                We don&apos;t only build our own products — we lend the same engineers, prototyping lab and process to companies who need R&D firepower without hiring a full in-house team.
               </p>
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 list-none">
                 {[
                   "Dedicated engineers across AI, embedded and mechanical design",
-                  "In-house prototyping lab \u2014 PCB fab, 3D printing, sensor rigs",
+                  "In-house prototyping lab — PCB fab, 3D printing, sensor rigs",
                   "NDA-first engagement with clear client IP ownership",
-                  "Flexible models \u2014 fixed scope, staff augmentation or retainer",
+                  "Flexible models — fixed scope, staff augmentation or retainer",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-2.5 text-[13px] text-[var(--text2)] leading-[1.5]">
-                    <span className="shrink-0 w-[18px] h-[18px] rounded-md bg-[var(--blue-d)] text-[var(--blue)] flex items-center justify-center text-[11px] font-bold mt-px">\u2713</span>
+                    <span className="shrink-0 w-[18px] h-[18px] rounded-md bg-[var(--blue-d)] text-[var(--blue)] flex items-center justify-center text-[11px] font-bold mt-px">✓</span>
                     {item}
                   </li>
                 ))}
@@ -408,18 +436,19 @@ export default function RndInnovationLabPage() {
           <div className="relative rounded-[26px] overflow-hidden p-7 sm:p-10 md:p-14 bg-gradient-to-br from-[#0c1120] to-[#141024] border border-white/10">
             <div className="absolute inset-0 bg-[radial-gradient(480px_280px_at_90%_0%,rgba(255,106,26,.35),transparent_65%),radial-gradient(420px_260px_at_5%_100%,rgba(28,134,214,.30),transparent_60%)]" />
             <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,.12) 1px, transparent 1px)", backgroundSize: "26px 26px", maskImage: "radial-gradient(ellipse 80% 80% at 50% 50%, #000 20%, transparent 85%)" }} />
-            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-8">
+            <div className={`relative z-10 flex gap-8 ${expanded && !submitted ? "flex-col" : "flex-col sm:flex-row sm:items-center sm:justify-between"}`}>
               <div className="min-w-0">
                 <h2 className="text-white text-[clamp(22px,2.8vw,30px)] font-bold mb-2 max-w-[480px]" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Have an R&D problem worth solving?</h2>
-                <p className="text-white/65 text-[13.5px] max-w-[420px]">Tell us what you&apos;re stuck on. We&apos;ll reply within two business days to set up a discovery call \u2014 no obligation, no sales deck.</p>
+                <p className="text-white/65 text-[13.5px] max-w-[420px]">Tell us what you&apos;re stuck on. We&apos;ll reply within two business days to set up a discovery call — no obligation, no sales deck.</p>
               </div>
+
               {submitted ? (
                 <div className="inline-flex items-center gap-2 font-semibold text-[13.5px] px-6 py-3 rounded-[10px] text-white bg-[var(--green)] shrink-0">
                   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                  Sent \u2014 we&apos;ll be in touch
+                  Sent — we&apos;ll be in touch
                 </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5 shrink-0 w-full sm:w-auto">
+              ) : !expanded ? (
+                <form onSubmit={handleStart} className="flex flex-col sm:flex-row gap-2.5 shrink-0 w-full sm:w-auto">
                   <input
                     type="email"
                     value={email}
@@ -431,6 +460,31 @@ export default function RndInnovationLabPage() {
                   <button type="submit" className="inline-flex items-center justify-center gap-2 font-semibold text-[13.5px] px-6 py-3 rounded-[10px] text-white bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] shadow-[0_10px_28px_-10px_rgba(255,106,26,.35)] hover:-translate-y-0.5 hover:shadow-[0_14px_34px_-10px_rgba(255,106,26,.35)] transition-all cursor-pointer whitespace-nowrap">
                     Start the conversation
                   </button>
+                </form>
+              ) : (
+                <form onSubmit={handleSend} className="w-full max-w-[560px]">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-white/85 bg-white/8 border border-white/18 rounded-full pl-1 pr-3 py-1">
+                      <span className="w-5 h-5 rounded-full bg-[var(--blue)] text-white flex items-center justify-center text-[9px] font-bold">✓</span>
+                      {email}
+                    </span>
+                    <button type="button" onClick={() => setExpanded(false)} className="text-[11.5px] font-semibold text-white/50 hover:text-white/80 cursor-pointer">change</button>
+                  </div>
+                  <label htmlFor="rnd-details" className="block text-[11.5px] font-semibold text-white/60 mb-1.5">Add additional details <span className="font-normal text-white/40">(optional)</span></label>
+                  <textarea
+                    id="rnd-details"
+                    value={details}
+                    onChange={(e) => setDetails(e.target.value)}
+                    placeholder="What are you stuck on? Timeline, domain, what you've already tried…"
+                    rows={4}
+                    className="w-full bg-white/8 border border-white/18 rounded-[10px] px-4 py-3 text-[13px] text-white outline-none placeholder:text-white/40 focus:border-[var(--blue)] transition-colors resize-none"
+                  />
+                  {error && <p className="text-[12px] text-[#ff8a8a] mt-2">{error}</p>}
+                  <div className="flex justify-end mt-3">
+                    <button type="submit" disabled={sending} className="inline-flex items-center justify-center gap-2 font-semibold text-[13.5px] px-6 py-3 rounded-[10px] text-white bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] shadow-[0_10px_28px_-10px_rgba(255,106,26,.35)] hover:-translate-y-0.5 hover:shadow-[0_14px_34px_-10px_rgba(255,106,26,.35)] transition-all cursor-pointer whitespace-nowrap disabled:opacity-60 disabled:hover:translate-y-0">
+                      {sending ? "Sending…" : "Start the conversation"}
+                    </button>
+                  </div>
                 </form>
               )}
             </div>

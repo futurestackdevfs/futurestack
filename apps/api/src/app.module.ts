@@ -29,6 +29,8 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { CoordinatorModule } from './coordinator/coordinator.module';
 import { ProjectsModule } from './projects/projects.module';
 import { RefundModule } from './refund/refund.module';
+import { SupportModule } from './support/support.module';
+import { ContactModule } from './contact/contact.module';
 
 @Module({
   imports: [
@@ -70,6 +72,8 @@ import { RefundModule } from './refund/refund.module';
     CoordinatorModule,
     ProjectsModule,
     RefundModule,
+    SupportModule,
+    ContactModule,
   ],
   controllers: [AppController],
   providers: [

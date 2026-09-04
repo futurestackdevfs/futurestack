@@ -62,7 +62,7 @@ const ctaCards: CtaCardProps[] = [
     stats: [{ num: "50+", lbl: "Live Projects" }, { num: "12", lbl: "Domains" }],
     btnLabel: "View Projects",
     btnClass: "btn-blue",
-    link: "/projects",
+    link: "/live-projects",
   },
   {
     type: "cta-jobs",
@@ -73,7 +73,7 @@ const ctaCards: CtaCardProps[] = [
     stats: [{ num: "2K+", lbl: "Hiring Partners" }, { num: "85%", lbl: "Placement Rate" }],
     btnLabel: "View Jobs",
     btnClass: "btn-green",
-    link: "/jobs",
+    link: "/careers",
   },
 ];
 
