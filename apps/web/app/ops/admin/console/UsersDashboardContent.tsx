@@ -274,7 +274,7 @@ export default function UsersDashboardContent({ searchQuery = "" }: { searchQuer
                       }}>{u.isActive ? "Active" : "Inactive"}</span>
                     </td>
                     <td className="px-3 py-2 font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>{u.createdAt?.slice(0, 10) || "—"}</td>
-                    <td className="px-3 py-2 font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>{u.lastLoginAt?.slice(0, 10) || "Never"}</td>
+                    <td className="px-3 py-2 font-mono text-[9.5px] whitespace-nowrap" style={{ color: "var(--text3)" }}>{u.lastLoginAt ? u.lastLoginAt.slice(0, 16).replace("T", " ") : "Never"}</td>
                     <td className="px-3 py-2">
                       {u.role === "TRAINER" ? (
                         <div className="flex items-center gap-1.5">

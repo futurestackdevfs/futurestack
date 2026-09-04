@@ -55,6 +55,13 @@ export class CreateCourseDto {
   @IsString()
   careerBody?: string;
 
+  // Career path / learning track this course belongs to. If the track title
+  // doesn't exist yet it's created; passing "" clears the course's track.
+  // Handled via setCourseCareerPath(), not a column on Course.
+  @IsOptional()
+  @IsString()
+  careerPath?: string;
+
   @IsOptional()
   @IsEnum(CourseStatus)
   status?: CourseStatus;

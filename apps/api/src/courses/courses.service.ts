@@ -831,7 +831,11 @@ export class CoursesService {
         `A course with the title "${dto.title}" already exists`,
       );
     const code = dto.code ?? (await this.generateCourseCode(dto.title));
-    const course = await this.prisma.course.create({ data: { ...dto, code } });
+    const { careerPath, ...data } = dto;
+    const course = await this.prisma.course.create({ data: { ...data, code } });
+    if (careerPath?.trim()) {
+      await this.setCourseCareerPath(course.id, careerPath);
+    }
     return course;
   }
 
@@ -1216,7 +1220,7 @@ export class CoursesService {
           `A course with the title "${dto.title}" already exists`,
         );
     }
-    const { price, originalPrice, ...rest } = dto;
+    const { price, originalPrice, careerPath, ...rest } = dto;
     const course = await this.prisma.course.update({
       where: { id },
       data: {
@@ -1225,6 +1229,9 @@ export class CoursesService {
         ...(originalPrice !== undefined ? { originalPrice } : {}),
       },
     });
+    if (careerPath !== undefined) {
+      await this.setCourseCareerPath(id, careerPath);
+    }
     return course;
   }
 

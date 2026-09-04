@@ -40,17 +40,25 @@ export function EntityTable({
 }: EntityTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
 
-  const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
+  // Defensive: callers occasionally hand us a paginated envelope ({ data, total })
+  // or an error object instead of a plain array.
+  const rows: any[] = Array.isArray(data)
+    ? data
+    : Array.isArray((data as any)?.data)
+      ? (data as any).data
+      : [];
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
 
   // Clamp the page if the data shrinks (filtering, deletion, entity switch)
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
-  const isEmpty = data.length === 0;
+  const isEmpty = rows.length === 0;
   const colSpan = columns.length + 1 + (onToggleExpand ? 1 : 0);
   const pageStart = (currentPage - 1) * pageSize;
-  const pageRows = data.slice(pageStart, pageStart + pageSize);
+  const pageRows = rows.slice(pageStart, pageStart + pageSize);
 
   function getPageNumbers(): (number | "...")[] {
     if (totalPages <= 5) return Array.from({ length: totalPages }, (_, i) => i + 1);

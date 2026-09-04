@@ -1,10 +1,22 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import useSWR, { useSWRConfig } from "swr";
 import { authFetch } from "@/app/auth/lib/auth-fetch";
+import { useAuth } from "@/app/auth/hooks/use-auth";
+import { showToast } from "@/lib/toast";
+
+/** Signed-out users get a friendly prompt + the login form highlighted. */
+function promptLogin(router: ReturnType<typeof useRouter>, pathname: string | null) {
+  showToast("Please sign in to buy this project");
+  if (pathname === "/") {
+    window.dispatchEvent(new CustomEvent("fs:highlight-login"));
+  } else {
+    router.push("/#student-login");
+  }
+}
 
 /* ─── DATA ──────────────────────────────────────────────────────── */
 
@@ -149,14 +161,21 @@ export default function LiveProjectsPage() {
   }, []);
 
   const router = useRouter();
+  const pathname = usePathname();
+  const { isAuthenticated } = useAuth();
 
   const openBuy = useCallback((id: string) => {
+    if (!isAuthenticated) {
+      closeDetail();
+      promptLogin(router, pathname);
+      return;
+    }
     closeDetail();
     setTimeout(() => {
       setBuyProject(projects.find((p) => p.id === id) ?? null);
       document.body.style.overflow = "hidden";
     }, 100);
-  }, [closeDetail, projects]);
+  }, [closeDetail, projects, isAuthenticated, router, pathname]);
 
   const closeBuy = useCallback(() => {
     setBuyProject(null);
@@ -469,8 +488,16 @@ function BuyModal({ project: p, onClose }: { project: Project; onClose: () => vo
   const [added, setAdded] = useState(false);
   const [error, setError] = useState("");
   const { mutate } = useSWRConfig();
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
 
   async function addToCart() {
+    if (!isAuthenticated) {
+      onClose();
+      promptLogin(router, pathname);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -478,6 +505,11 @@ function BuyModal({ project: p, onClose }: { project: Project; onClose: () => vo
         method: "POST",
         body: JSON.stringify({ projectId: p.id }),
       });
+      if (res.status === 401) {
+        onClose();
+        promptLogin(router, pathname);
+        return;
+      }
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(body.message || "Failed to add to cart");

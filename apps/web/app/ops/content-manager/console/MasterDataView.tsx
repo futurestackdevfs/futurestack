@@ -201,14 +201,6 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
   async function saveRecord(formData: Record<string, any>): Promise<{ success: boolean; error?: string } | void> {
     if (activeTab === "courses" && token) {
       const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
-      const persistCareerPath = async (courseId: string) => {
-        if (formData.careerPath === undefined) return;
-        try {
-          await fetch(`/api/courses/${courseId}/career-path`, {
-            method: "PUT", headers, body: JSON.stringify({ title: formData.careerPath || null }),
-          });
-        } catch {}
-      };
 
       let whatYoullLearn: string[] | undefined;
       if (typeof formData.whatYoullLearn === "string") whatYoullLearn = formData.whatYoullLearn.split("\n").filter(Boolean);
@@ -233,6 +225,8 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
       if (techStack !== undefined) body.techStack = techStack;
       if (formData.careerTitle !== undefined) body.careerTitle = formData.careerTitle;
       if (formData.careerBody !== undefined) body.careerBody = formData.careerBody;
+      // Backend creates the Track if the title is new; "" clears it.
+      if (formData.careerPath !== undefined) body.careerPath = formData.careerPath || "";
       if (formData.thumbnailUrl !== undefined) body.thumbnailUrl = formData.thumbnailUrl;
       if (formData.status !== undefined) body.status = formData.status;
       if (formData.category) body.category = formData.category;
@@ -246,8 +240,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
           const err = await res.json().catch(() => ({ message: `${res.status}` }));
           return { success: false, error: err.message || "Save failed" };
         }
-        const saved = await res.json();
-        if (!formData.id) await persistCareerPath(saved.id);
+        await res.json();
         await loadData();
         onToast(formData.id ? "Course updated" : "Course created", "success");
         setModalOpen(false);
