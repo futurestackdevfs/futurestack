@@ -123,15 +123,15 @@ export class ReviewsService {
     dto: CreateReviewDto,
   ) {
     // Check if student purchased the project
-    const order = await this.prisma.projectOrder.findFirst({
+    const orderItem = await this.prisma.orderItem.findFirst({
       where: {
         projectId,
-        studentId,
-        status: { not: 'cancelled' },
+        order: { userId: studentId },
+        status: { not: 'refunded' },
       },
     });
 
-    if (!order) {
+    if (!orderItem) {
       throw new BadRequestException(
         'You must have purchased this project to leave a review.',
       );

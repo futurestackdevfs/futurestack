@@ -547,9 +547,14 @@ export class StudentService {
   // ─────────────────────────────────────────────────────────────
 
   async getStudentProjects(studentId: string) {
-    const orders = await this.prisma.projectOrder.findMany({
-      where: { studentId },
+    const orderItems = await this.prisma.orderItem.findMany({
+      where: {
+        projectId: { not: null },
+        order: { userId: studentId },
+        status: 'active',
+      },
       include: {
+        order: { select: { createdAt: true } },
         project: {
           include: {
             trainer: {
@@ -563,12 +568,12 @@ export class StudentService {
           },
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { order: { createdAt: 'desc' } },
     });
 
     // Get progress for all project videos
-    const allVideoIds = orders.flatMap((o) =>
-      o.project.curriculum.flatMap((c) => c.videos.map((v) => v.id)),
+    const allVideoIds = orderItems.flatMap((oi) =>
+      oi.project!.curriculum.flatMap((c) => c.videos.map((v) => v.id)),
     );
 
     const progressRecords = await this.prisma.videoProgress.findMany({
@@ -582,8 +587,8 @@ export class StudentService {
       progressRecords.map((p) => [p.projectCurriculumVideoId, p]),
     );
 
-    return orders.map((order) => {
-      const project = order.project;
+    return orderItems.map((orderItem) => {
+      const project = orderItem.project!;
       const allVideos = project.curriculum.flatMap((c) => c.videos);
       const completedVideos = allVideos.filter(
         (v) => progressMap.get(v.id)?.isCompleted,
@@ -606,9 +611,9 @@ export class StudentService {
         progressPercent,
         completedVideos,
         totalVideos,
-        status: order.status,
-        pricePaid: order.pricePaid,
-        purchasedAt: order.createdAt,
+        status: orderItem.status || 'active',
+        pricePaid: orderItem.priceAtPurchase,
+        purchasedAt: orderItem.order.createdAt,
       };
     });
   }
@@ -812,9 +817,12 @@ export class StudentService {
         createdAt: true,
         items: {
           select: {
+            id: true,
             priceAtPurchase: true,
             currency: true,
+            status: true,
             course: { select: { id: true, title: true, thumbnailUrl: true } },
+            project: { select: { id: true, name: true } },
           },
         },
       },

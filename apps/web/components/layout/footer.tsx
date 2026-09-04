@@ -28,12 +28,13 @@ export function Footer() {
           gap: 40px;
         }
         @media (min-width: 640px) { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (min-width: 900px) { .footer-grid { grid-template-columns: 1fr repeat(3, 1fr) 1fr; } }
+        @media (min-width: 900px) { .footer-grid { grid-template-columns: 1.35fr repeat(3, 1fr) 1fr; } }
         .footer-brand-col { grid-column: 1; }
         @media (min-width: 900px) { .footer-brand-col { grid-column: 1; } }
         .footer-link-col { }
+        @media (min-width: 900px) { .footer-link-col { padding-left: 24px; } }
         .footer-sub-col { }
-        @media (min-width: 900px) { .footer-sub-col { } }
+        @media (min-width: 900px) { .footer-sub-col { margin-left: -20px; } }
         .footer-col-title {
           font-size: 14px; font-weight: 700; letter-spacing: .06em;
           text-transform: uppercase; color: var(--muted); margin: 0 0 14px;
@@ -51,15 +52,15 @@ export function Footer() {
             </div>
 
             {[
-              { title: "Platform", links: ["Courses", "Career Paths", "Certifications", "Live Projects"] },
-              { title: "Company", links: ["About Us", "Careers", "Blog", "Contact"] },
-              { title: "Support", links: ["Help Center", "FAQs", "Community", "Refund Policy"] },
+              { title: "Platform", links: [{ label: "Courses", href: "/courses" }, { label: "R&D Services", href: "/research-and-development" }, { label: "Certifications", href: "#" }, { label: "Live Projects", href: "/live-projects" }] },
+              { title: "Company", links: [{ label: "About Us", href: "/about" }, { label: "Careers", href: "/careers" }, { label: "Blog", href: "#" }, { label: "Contact", href: "#" }] },
+              { title: "Support", links: [{ label: "Help Center", href: "/support" }, { label: "FAQs", href: "/faq" }, { label: "Community", href: "#" }, { label: "Refund Policy", href: "#" }] },
             ].map((group) => (
               <div key={group.title} className="footer-link-col">
                 <h4 className="footer-col-title">{group.title}</h4>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {group.links.map((link) => (
-                    <a key={link} href="#" className="footer-link">{link}</a>
+                    <a key={link.label} href={link.href} className="footer-link">{link.label}</a>
                   ))}
                 </div>
               </div>

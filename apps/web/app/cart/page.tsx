@@ -910,7 +910,7 @@ export default function CartPage() {
 
                   <button className={primaryBtnCls} onClick={() => goToStep(2)} disabled={processing}>
                     Proceed to Checkout
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" transform="rotate(180)"><path d="M6 12h12" /><path d="M13 5l7 7-7 7" /></svg>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 12h12" /><path d="M13 5l7 7-7 7" /></svg>
                   </button>
                   <div className="flex items-center justify-center gap-1.5 text-[11px] text-[var(--muted)] mt-2">🔒 Secure checkout · 256-bit SSL encrypted</div>
                   {payError && <div className="text-[11px] text-[var(--red)] text-center mt-2">{payError}</div>}

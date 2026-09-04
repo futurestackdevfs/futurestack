@@ -21,6 +21,7 @@ import { ProfileModal } from "./sections/ProfileModal";
 import FeaturedManager from "./sections/FeaturedManager";
 import PaymentSettingsManager from "./sections/PaymentSettingsManager";
 import PaymentsManager from "./sections/PaymentsManager";
+import RefundsManager from "./sections/RefundsManager";
 import EnrollmentsManager from "./sections/EnrollmentsManager";
 import AdminDashboardContent from "./console/AdminDashboardContent";
 import SalesDashboardContent from "./console/SalesDashboardContent";
@@ -28,6 +29,7 @@ import TrainerDashboardContent from "./console/TrainerDashboardContent";
 import CoordinatorDashboardContent from "./console/CoordinatorDashboardContent";
 import SupportDashboardContent from "./console/SupportDashboardContent";
 import ContentMgrDashboardContent from "./console/ContentMgrDashboardContent";
+import BlogManager from "./sections/BlogManager";
 import UsersDashboardContent from "./console/UsersDashboardContent";
 import CreateStaffModal from "./sections/CreateStaffModal";
 
@@ -1329,6 +1331,11 @@ export default function AdminMasterDataPage() {
             <PaymentsManager key={`payments-${refreshNonce}`} token={token || ""} searchQuery={searchQuery} />
           </main>
 
+        ) : view === "refunds" ? (
+          <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
+            <RefundsManager key={`refunds-${refreshNonce}`} token={token || ""} searchQuery={searchQuery} />
+          </main>
+
         ) : view === "enrollments" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
             <EnrollmentsManager searchQuery={searchQuery} />
@@ -1405,6 +1412,7 @@ export default function AdminMasterDataPage() {
             {view === "coordinator" && <CoordinatorDashboardContent key={`coordinator-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["coordinator"])} addLabel="Coordinator" />}
             {view === "support" && <SupportDashboardContent key={`support-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["support"])} addLabel="Support" />}
             {view === "content-manager" && <ContentMgrDashboardContent key={`content-manager-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["content-manager"])} addLabel="Content Manager" />}
+            {view === "articles" && <BlogManager key={`blog-${refreshNonce}`} />}
           </main>
         )}
       </div>

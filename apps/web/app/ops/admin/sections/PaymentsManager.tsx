@@ -37,6 +37,8 @@ interface PaymentsSummary {
   failed: number;
   cancelled: number;
   expired: number;
+  refundRequested: number;
+  refunded: number;
   totalRevenue: number;
 }
 
@@ -88,6 +90,8 @@ const TABS: Tab[] = [
   { key: "expired", label: "Expired", value: "EXPIRED" },
   { key: "created", label: "Pending", value: "CREATED" },
   { key: "cancelled", label: "Cancelled", value: "CANCELLED" },
+  { key: "refund-requested", label: "Refund Requested", value: "REFUND_REQUESTED" },
+  { key: "refunded", label: "Refunded", value: "REFUNDED" },
 ];
 
 const PER_PAGE = 10;
@@ -100,6 +104,8 @@ function StatusBadge({ status }: { status: string }) {
     EXPIRED: { label: "Expired", color: "var(--amber)", bg: "rgba(217,119,6,.12)" },
     CANCELLED: { label: "Cancelled", color: "var(--text3)", bg: "var(--bg2)" },
     CREATED: { label: "Pending", color: "var(--blue)", bg: "var(--blue-d)" },
+    REFUND_REQUESTED: { label: "Refund Requested", color: "#d97706", bg: "rgba(217,119,6,.12)" },
+    REFUNDED: { label: "Refunded", color: "var(--purple)", bg: "rgba(139,92,246,.15)" },
     // Project order statuses
     ACTIVE: { label: "Active", color: "#a78bfa", bg: "rgba(139,92,246,.15)" },
     PENDING: { label: "Pending", color: "var(--blue)", bg: "var(--blue-d)" },
@@ -144,6 +150,7 @@ export default function PaymentsManager({ token, searchQuery = "" }: { token: st
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
+  const [refundModal, setRefundModal] = useState<{ open: boolean; order: PaymentOrder | null }>({ open: false, order: null });
 
   const filteredOrders = useMemo<PaymentOrder[]>(() => {
     const rows = data?.orders ?? [];
@@ -320,6 +327,8 @@ export default function PaymentsManager({ token, searchQuery = "" }: { token: st
             {kpi("Expired", summary?.expired ?? 0, "var(--amber)")}
             {kpi("Cancelled", summary?.cancelled ?? 0, "var(--text3)")}
             {kpi("Pending", summary?.created ?? 0, "var(--blue)")}
+            {kpi("Refund Req.", summary?.refundRequested ?? 0, "#d97706")}
+            {kpi("Refunded", summary?.refunded ?? 0, "var(--purple)")}
           </div>
 
           {/* Trainer share breakdown */}
@@ -516,6 +525,7 @@ export default function PaymentsManager({ token, searchQuery = "" }: { token: st
                         order={o}
                         open={open}
                         onToggle={() => setExpandedId(open ? null : o.id)}
+                        onRefund={(order) => setRefundModal({ open: true, order })}
                       />
                     );
                   })}
@@ -561,6 +571,21 @@ export default function PaymentsManager({ token, searchQuery = "" }: { token: st
             )}
           </div>
         </>
+      )}
+
+      {/* Refund Modal */}
+      {refundModal.open && refundModal.order && (
+        <RefundModal
+          order={refundModal.order}
+          token={token}
+          onSuccess={(msg) => {
+            addToast(msg, "success");
+            setRefundModal({ open: false, order: null });
+            load(status, page);
+          }}
+          onError={(msg) => addToast(msg, "danger")}
+          onClose={() => setRefundModal({ open: false, order: null })}
+        />
       )}
 
       {/* Toast shell */}
@@ -620,10 +645,12 @@ function OrderRow({
   order,
   open,
   onToggle,
+  onRefund,
 }: {
   order: PaymentOrder;
   open: boolean;
   onToggle: () => void;
+  onRefund: (order: PaymentOrder) => void;
 }) {
   return (
     <>
@@ -723,6 +750,17 @@ function OrderRow({
                 {order.billing.city && (
                   <DetailRow label="City / State" value={`${order.billing.city}, ${order.billing.state ?? ""} · ${order.billing.pincode ?? ""}`} />
                 )}
+                {["ACTIVE", "PAID", "COMPLETED"].includes(order.status) && order.items.length > 0 && (
+                  <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onRefund(order); }}
+                      className="font-mono text-[10px] font-bold px-3 py-1.5 rounded cursor-pointer"
+                      style={{ background: "var(--red-d)", color: "var(--red)", border: "1px solid var(--red)" }}
+                    >
+                      REFUND
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </td>
@@ -737,6 +775,197 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
     <div className="flex justify-between gap-3 py-0.5" style={{ color: "var(--text2)" }}>
       <span className="text-[var(--text3)]">{label}</span>
       <span className={`${mono ? "font-mono text-[10.5px]" : ""} text-right break-all`}>{value}</span>
+    </div>
+  );
+}
+
+function RefundModal({
+  order,
+  token,
+  onSuccess,
+  onError,
+  onClose,
+}: {
+  order: PaymentOrder;
+  token: string;
+  onSuccess: (msg: string) => void;
+  onError: (msg: string) => void;
+  onClose: () => void;
+}) {
+  const allItems = order.items;
+
+  // Calculate the actual amount paid per item (after discount + GST)
+  function actualPaidForItem(item: { priceAtPurchase: number; type?: string }): number {
+    if (!order.subtotal || order.subtotal === 0) return item.priceAtPurchase;
+    const nonProjectItems = allItems.filter((it) => it.type !== "project");
+    // Single item → full order total is what was paid for it
+    if (nonProjectItems.length === 1 && allItems.length === 1) return order.totalAmount;
+    // Multi-item → proportional share of totalAmount
+    const share = item.priceAtPurchase / order.subtotal;
+    return Math.round(share * order.totalAmount * 100) / 100;
+  }
+
+  const firstItem = allItems[0];
+  const [selectedId, setSelectedId] = useState(firstItem?.courseId ?? "");
+  const [amount, setAmount] = useState(firstItem ? String(actualPaidForItem(firstItem)) : "");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const courseItems = order.items.filter((it) => it.type !== "project");
+  const isManualOrder = order.razorpayOrderId?.startsWith("MANUAL-");
+
+  async function handleRefund() {
+    if (!selectedId || !amount || !reason) return;
+    const selectedItem = allItems.find((it) => it.courseId === selectedId);
+    const isProject = selectedItem?.type === "project";
+    setSaving(true);
+    try {
+      const body: Record<string, any> = {
+        orderId: order.id,
+        amount: Number(amount),
+        reason,
+      };
+      if (isProject) body.projectId = selectedId;
+      else body.courseId = selectedId;
+
+      const res = await opsFetch("/api/admin/refunds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const respBody = await res.json();
+      if (!res.ok) throw new Error(respBody.message || "Refund failed");
+      onSuccess(`Refund of ₹${amount} initiated successfully`);
+    } catch (e: unknown) {
+      onError(e instanceof Error ? e.message : "Refund failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center" style={{ background: "rgba(0,0,0,.5)" }}>
+      <div className="rounded-xl w-[440px] max-h-[90vh] overflow-y-auto" style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 24px 48px rgba(0,0,0,.2)" }}>
+        {isManualOrder ? (
+          <>
+            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid var(--border)" }}>
+              <span className="text-[15px] font-bold" style={{ color: "var(--text)" }}>Refund Not Available</span>
+              <button onClick={onClose} className="text-[18px] cursor-pointer" style={{ color: "var(--text3)", background: "none", border: "none" }}>✕</button>
+            </div>
+            <div className="px-5 py-5">
+              <div className="flex items-start gap-3 p-4 rounded-lg mb-4" style={{ background: "var(--red-d)", border: "1px solid rgba(239,68,68,.3)" }}>
+                <span className="text-[22px] mt-0.5 shrink-0">⚠️</span>
+                <div>
+                  <div className="text-[13px] font-bold mb-1" style={{ color: "var(--red)" }}>Sorry! This is a cash / offline payment.</div>
+                  <div className="text-[12px] leading-relaxed" style={{ color: "var(--text2)" }}>
+                    No online payment was made through Razorpay for this order, so an online refund cannot be processed. To refund this student, you will need to arrange a manual refund via cash or bank transfer outside the system.
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+                <div className="flex-1">
+                  <div className="text-[12px] font-semibold" style={{ color: "var(--text)" }}>{order.student?.name ?? "—"}</div>
+                  <div className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>{order.student?.email ?? ""}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>₹{order.totalAmount.toLocaleString("en-IN")}</div>
+                  <div className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>{order.orderNo}</div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end px-5 py-3.5" style={{ borderTop: "1px solid var(--border)" }}>
+              <button
+                onClick={onClose}
+                className="font-mono text-[11px] font-semibold px-4 py-2 rounded cursor-pointer"
+                style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
+              >
+                Got it
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between px-5 py-3.5" style={{ borderBottom: "1px solid var(--border)" }}>
+              <span className="text-[15px] font-bold" style={{ color: "var(--text)" }}>Initiate Refund</span>
+              <button onClick={onClose} className="text-[18px] cursor-pointer" style={{ color: "var(--text3)", background: "none", border: "none" }}>✕</button>
+            </div>
+            <div className="px-5 py-4 space-y-3.5">
+              <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+                <div className="flex-1">
+                  <div className="text-[12px] font-semibold" style={{ color: "var(--text)" }}>{order.student?.name ?? "—"}</div>
+                  <div className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>{order.student?.email ?? ""}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>₹{order.totalAmount.toLocaleString("en-IN")}</div>
+                  <div className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>{order.orderNo}</div>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-mono text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--text3)" }}>Item</label>
+                <select
+                  value={selectedId}
+                  onChange={(e) => {
+                    setSelectedId(e.target.value);
+                    const item = allItems.find((it) => it.courseId === e.target.value);
+                    if (item) setAmount(String(actualPaidForItem(item)));
+                  }}
+                  className="w-full px-3 py-2 rounded-lg text-[12px] font-medium outline-none"
+                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+                >
+                  {allItems.map((it) => (
+                    <option key={it.courseId} value={it.courseId}>
+                      {it.type === "project" ? "🚀 " : "📚 "}{it.title} — ₹{it.priceAtPurchase.toLocaleString("en-IN")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-mono text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--text3)" }}>Refund Amount (₹)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={allItems.find((it) => it.courseId === selectedId)?.priceAtPurchase ?? 0}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg text-[12px] font-mono font-bold outline-none"
+                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+                />
+              </div>
+
+              <div>
+                <label className="font-mono text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--text3)" }}>Reason</label>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg text-[12px] font-medium outline-none resize-none"
+                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+                  placeholder="Reason for refund..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-5 py-3.5" style={{ borderTop: "1px solid var(--border)" }}>
+              <button
+                onClick={onClose}
+                className="font-mono text-[11px] font-semibold px-4 py-2 rounded cursor-pointer"
+                style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRefund}
+                disabled={saving || !selectedId || !amount || !reason}
+                className="font-mono text-[11px] font-bold px-4 py-2 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: "var(--red)", color: "#fff", border: "none" }}
+              >
+                {saving ? "Processing..." : "Initiate Refund"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

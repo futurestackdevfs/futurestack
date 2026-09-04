@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About — Future Stack</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0e14;
+    --bg2: #0f1219;
+    --surface: #111520;
+    --card: #161b27;
+    --border: #1e2535;
+    --border2: #263048;
+    --orange: #ff6a1a;
+    --orange2: #ff8c42;
+    --orange-d: rgba(255,106,26,.12);
+    --blue: #3b82f6;
+    --blue-d: rgba(59,130,246,.12);
+    --green: #22c55e;
+    --green-d: rgba(34,197,94,.12);
+    --purple: #a78bfa;
+    --purple-d: rgba(167,139,250,.12);
+    --pink: #f472b6;
+    --text: #e8eaf0;
+    --text2: #b0bac9;
+    --muted: #7a859a;
+    --shadow: 0 4px 24px rgba(0,0,0,.45);
+  }
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  a { color: inherit; text-decoration: none; }
+
+  /* ─── ANIMATIONS ─────────────────────────── */
+  @keyframes drift {
+    0%, 100% { transform: translate(0,0) scale(1); }
+    50% { transform: translate(30px,-24px) scale(1.06); }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .4; }
+  }
+
+  @keyframes gradientShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(28px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity .7s cubic-bezier(.2,.8,.2,1), transform .7s cubic-bezier(.2,.8,.2,1);
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ─── LAYOUT ─────────────────────────────── */
+  .container { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+  @media (min-width: 768px) { .container { padding: 0 32px; } }
+
+  .section-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .section-label span { width: 18px; height: 2px; border-radius: 2px; }
+
+  .section-label.orange { color: var(--orange); }
+  .section-label.orange span { background: linear-gradient(90deg, var(--orange), var(--blue)); }
+  .section-label.purple { color: var(--purple); }
+  .section-label.purple span { background: linear-gradient(90deg, var(--purple), var(--pink)); }
+  .section-label.blue { color: var(--blue); }
+  .section-label.blue span { background: linear-gradient(90deg, var(--blue), var(--purple)); }
+  .section-label.green { color: var(--green); }
+  .section-label.green span { background: linear-gradient(90deg, var(--green), var(--blue)); }
+
+  h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
+
+  .gradient-text {
+    background: linear-gradient(135deg, var(--orange), var(--orange2), var(--blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    background-size: 200% 200%;
+    animation: gradientShift 4s ease infinite;
+  }
+
+  /* ─── HERO ────────────────────────────────── */
+  .hero {
+    position: relative;
+    min-height: 85vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .particles {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+  }
+
+  .glow-orb {
+    position: absolute;
+    border-radius: 50%;
+    opacity: .2;
+    filter: blur(80px);
+  }
+  .glow-orb.orange { background: radial-gradient(circle, var(--orange) 0%, transparent 70%); }
+  .glow-orb.blue { background: radial-gradient(circle, var(--blue) 0%, transparent 70%); }
+
+  .hero-content {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 0 20px;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--blue);
+    background: var(--blue-d);
+    border: 1px solid rgba(59,130,246,.2);
+    border-radius: 999px;
+    padding: 6px 16px;
+    margin-bottom: 24px;
+  }
+  .hero-badge .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--orange);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .hero h1 {
+    font-size: clamp(32px, 6vw, 60px);
+    font-weight: 700;
+    line-height: 1.05;
+    margin-bottom: 24px;
+  }
+
+  .hero-tagline {
+    font-size: clamp(16px, 2.5vw, 22px);
+    font-weight: 500;
+    color: var(--text2);
+    margin-bottom: 16px;
+    letter-spacing: -.01em;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  .hero-desc {
+    font-size: 14.5px;
+    color: var(--muted);
+    max-width: 600px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  .hero-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 32px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 13.5px;
+    padding: 12px 24px;
+    border-radius: 10px;
+    transition: all .25s ease;
+    cursor: pointer;
+    border: none;
+    font-family: inherit;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-primary {
+    color: #fff;
+    background: linear-gradient(135deg, var(--orange), var(--orange2));
+    box-shadow: 0 10px 28px -10px rgba(255,106,26,.35);
+  }
+  .btn-primary:hover { box-shadow: 0 14px 34px -10px rgba(255,106,26,.35); }
+  .btn-secondary {
+    color: var(--text);
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--blue); background: var(--blue-d); }
+
+  .scroll-indicator {
+    position: absolute;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* ─── ABOUT ──────────────────────────────── */
+  .about-section { padding: 48px 0 64px; }
+  @media (min-width: 768px) { .about-section { padding: 64px 0 96px; } }
+  .about-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 40px;
+    align-items: center;
+  }
+  @media (min-width: 1024px) {
+    .about-grid { grid-template-columns: 1fr 280px; gap: 64px; }
+  }
+  .about-text h2 {
+    font-size: clamp(22px, 2.8vw, 30px);
+    font-weight: 700;
+    margin-bottom: 20px;
+    line-height: 1.25;
+  }
+  .about-text h2 .hl { color: var(--orange); }
+  .about-text p {
+    font-size: 14px;
+    color: var(--text2);
+    line-height: 1.8;
+    margin-bottom: 12px;
+  }
+  .about-text p:last-child { margin-bottom: 0; }
+
+  .stats {
+    display: flex;
+    flex-direction: row;
+    gap: 12px;
+  }
+  @media (min-width: 1024px) { .stats { flex-direction: column; } }
+  .stat-card {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 28px;
+    text-align: center;
+    transition: all .3s ease;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-card .num {
+    font-size: 28px;
+    font-weight: 700;
+    font-family: 'Space Grotesk', sans-serif;
+    margin-bottom: 2px;
+  }
+  .stat-card .num.orange { color: var(--orange); }
+  .stat-card .num.blue { color: var(--blue); }
+  .stat-card .label {
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+  }
+
+  /* ─── VISION ─────────────────────────────── */
+  .vision-section {
+    padding: 56px 0;
+    position: relative;
+  }
+  @media (min-width: 768px) { .vision-section { padding: 80px 0; } }
+  .vision-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(59,130,246,.08), rgba(59,130,246,.12), rgba(59,130,246,.08));
+  }
+  .vision-content {
+    position: relative;
+    text-align: center;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .vision-content h2 {
+    font-size: clamp(26px, 4vw, 48px);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -.02em;
+  }
+  .vision-content h2 .hl {
+    background: linear-gradient(135deg, var(--orange), var(--blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .vision-content > p {
+    font-size: 14.5px;
+    color: var(--text2);
+    line-height: 1.75;
+    margin-top: 20px;
+    max-width: 580px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .tags {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 28px;
+  }
+  .tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--blue);
+    background: var(--blue-d);
+    border: 1px solid rgba(59,130,246,.15);
+    border-radius: 999px;
+    padding: 4px 12px;
+  }
+
+  /* ─── APPROACH ───────────────────────────── */
+  .approach-section { padding: 56px 0; }
+  @media (min-width: 768px) { .approach-section { padding: 80px 0; } }
+  .approach-header {
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto 40px;
+  }
+  .approach-header h2 {
+    font-size: clamp(22px, 3vw, 34px);
+    font-weight: 700;
+    line-height: 1.15;
+  }
+  .approach-header h2 .hl { color: var(--orange); }
+  .approach-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  @media (min-width: 640px) { .approach-grid { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 1024px) { .approach-grid { grid-template-columns: repeat(4, 1fr); } }
+
+  .step-card {
+    height: 100%;
+    border-radius: 16px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    transition: all .3s ease;
+  }
+  .step-card:hover { border-color: var(--border2); }
+  .step-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .step-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    font-family: 'Space Grotesk', sans-serif;
+    flex-shrink: 0;
+  }
+  .step-card h3 {
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .step-card p {
+    font-size: 12.5px;
+    color: var(--text2);
+    line-height: 1.65;
+  }
+
+  /* ─── DOMAINS ────────────────────────────── */
+  .domains-section {
+    padding: 56px 0;
+    position: relative;
+  }
+  @media (min-width: 768px) { .domains-section { padding: 80px 0; } }
+  .domains-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--bg2);
+  }
+  .domains-header {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  @media (min-width: 640px) {
+    .domains-header { flex-direction: row; align-items: flex-end; justify-content: space-between; }
+  }
+  .domains-header h2 {
+    font-size: clamp(22px, 3vw, 34px);
+    font-weight: 700;
+    line-height: 1.15;
+  }
+  .domains-header h2 .hl { color: var(--orange); }
+  .domains-grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (min-width: 640px) { .domains-grid { grid-template-columns: repeat(4, 1fr); } }
+  .domain-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    transition: all .3s ease;
+    cursor: default;
+  }
+  .domain-card:hover { border-color: rgba(255,106,26,.25); }
+  .domain-card .icon { font-size: 26px; transition: transform .3s ease; }
+  .domain-card:hover .icon { transform: scale(1.1); }
+  @media (max-width: 639px) { .domain-card .icon { display: none; } }
+  .domain-card .name {
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+
+  /* ─── ACCELERATING ───────────────────────── */
+  .accel-section { padding: 56px 0; }
+  @media (min-width: 768px) { .accel-section { padding: 80px 0; } }
+  .accel-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 32px;
+    align-items: center;
+  }
+  @media (min-width: 1024px) { .accel-grid { grid-template-columns: 3fr 2fr; } }
+  .accel-text h2 {
+    font-size: clamp(22px, 3vw, 34px);
+    font-weight: 700;
+    margin-bottom: 16px;
+    line-height: 1.15;
+  }
+  .accel-text h2 .hl { color: var(--orange); }
+  .accel-text p {
+    font-size: 14px;
+    color: var(--text2);
+    line-height: 1.75;
+  }
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid;
+    transition: all .3s ease;
+  }
+  .pill:hover { transform: translateY(-2px); }
+  .pill.orange { color: var(--orange); background: var(--orange-d); border-color: rgba(255,106,26,.15); }
+  .pill.blue { color: var(--blue); background: var(--blue-d); border-color: rgba(59,130,246,.15); }
+  .pill.green { color: var(--green); background: var(--green-d); border-color: rgba(34,197,94,.15); }
+  .pill.purple { color: var(--purple); background: var(--purple-d); border-color: rgba(167,139,250,.15); }
+
+  /* ─── AMBITION ───────────────────────────── */
+  .ambition-section {
+    padding: 56px 0;
+    position: relative;
+  }
+  @media (min-width: 768px) { .ambition-section { padding: 80px 0; } }
+  .ambition-section::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--bg2);
+  }
+  .ambition-content {
+    position: relative;
+    max-width: 700px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .ambition-content h2 {
+    font-size: clamp(22px, 3vw, 34px);
+    font-weight: 700;
+    margin-bottom: 16px;
+    line-height: 1.15;
+  }
+  .ambition-content h2 .hl { color: var(--orange); }
+  .ambition-content p {
+    font-size: 14px;
+    color: var(--text2);
+    line-height: 1.75;
+    margin-bottom: 20px;
+  }
+  .ambition-banner {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: linear-gradient(135deg, var(--orange), var(--blue));
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-family: 'Space Grotesk', sans-serif;
+    box-shadow: 0 8px 24px -6px rgba(255,106,26,.35);
+  }
+
+  /* ─── JOURNEY ────────────────────────────── */
+  .journey-section { padding: 56px 0; }
+  @media (min-width: 768px) { .journey-section { padding: 80px 0; } }
+  .journey-header {
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto 40px;
+  }
+  .journey-header h2 {
+    font-size: clamp(22px, 3vw, 34px);
+    font-weight: 700;
+    line-height: 1.15;
+  }
+  .journey-header h2 .hl { color: var(--orange); }
+  .timeline {
+    position: relative;
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  .timeline-line {
+    position: absolute;
+    left: 20px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, var(--orange), var(--blue), var(--purple));
+    opacity: .3;
+  }
+  @media (min-width: 768px) {
+    .timeline-line { left: 50%; }
+  }
+  .timeline-item {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+  .timeline-item:last-child { margin-bottom: 0; }
+  @media (min-width: 768px) {
+    .timeline-item { gap: 0; }
+    .timeline-item.reverse { flex-direction: row-reverse; }
+  }
+  .timeline-dot {
+    position: absolute;
+    left: 20px;
+    transform: translateX(-50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--orange), var(--blue));
+    border: 2px solid var(--bg);
+    z-index: 10;
+    margin-top: 6px;
+  }
+  @media (min-width: 768px) {
+    .timeline-dot { left: 50%; }
+  }
+  .timeline-content {
+    margin-left: 48px;
+    flex: 1;
+  }
+  @media (min-width: 768px) {
+    .timeline-content { margin-left: 0; width: 50%; }
+    .timeline-item:not(.reverse) .timeline-content { padding-right: 48px; text-align: right; }
+    .timeline-item.reverse .timeline-content { padding-left: 48px; }
+  }
+  .timeline-year {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--orange);
+    background: var(--orange-d);
+    border: 1px solid rgba(255,106,26,.15);
+    border-radius: 999px;
+    padding: 2px 12px;
+    margin-bottom: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .timeline-content h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .timeline-content p {
+    font-size: 12.5px;
+    color: var(--text2);
+    line-height: 1.65;
+  }
+
+  /* ─── CTA ────────────────────────────────── */
+  .cta-section { padding: 16px 0 56px; }
+  @media (min-width: 768px) { .cta-section { padding: 16px 0 80px; } }
+  .cta-card {
+    position: relative;
+    border-radius: 24px;
+    overflow: hidden;
+    padding: 32px 20px;
+    text-align: center;
+    background: linear-gradient(135deg, #0c1120, #141024);
+    border: 1px solid rgba(255,255,255,.1);
+  }
+  @media (min-width: 768px) { .cta-card { padding: 56px; } }
+  .cta-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(480px 280px at 90% 0%, rgba(255,106,26,.35), transparent 65%),
+                radial-gradient(420px 260px at 5% 100%, rgba(28,134,214,.30), transparent 60%);
+  }
+  .cta-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: .3;
+    background-image: radial-gradient(rgba(255,255,255,.12) 1px, transparent 1px);
+    background-size: 26px 26px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, #000 20%, transparent 85%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, #000 20%, transparent 85%);
+  }
+  .cta-inner { position: relative; z-index: 10; }
+  .cta-inner h2 {
+    color: #fff;
+    font-size: clamp(22px, 3.5vw, 34px);
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+  .cta-inner p {
+    color: rgba(255,255,255,.6);
+    font-size: 14px;
+    max-width: 460px;
+    margin: 0 auto 24px;
+  }
+  .cta-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn-cta-outline {
+    color: #fff;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.15);
+  }
+  .btn-cta-outline:hover { background: rgba(255,255,255,.2); }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HERO ═══════════ -->
+<section class="hero" id="hero">
+  <div class="particles" id="particles"></div>
+  <div class="glow-orb orange" style="top:-15%;right:-10%;width:500px;height:500px;animation:drift 30s ease-in-out infinite"></div>
+  <div class="glow-orb blue" style="bottom:-15%;left:-10%;width:450px;height:450px;animation:drift 36s ease-in-out -10s infinite"></div>
+
+  <div class="hero-content">
+    <div class="reveal">
+      <div class="hero-badge">
+        <span class="dot"></span>
+        Est. 2017 · Building the Future
+      </div>
+    </div>
+    <div class="reveal" style="transition-delay:.1s">
+      <h1><span>About </span><span class="gradient-text">Future Stack</span></h1>
+    </div>
+    <div class="reveal" style="transition-delay:.2s">
+      <p class="hero-tagline">Think. Create. Conquer. Build the Future.</p>
+    </div>
+    <div class="reveal" style="transition-delay:.3s">
+      <p class="hero-desc">A future-focused EdTech and technology innovation platform built with a simple vision: teach people the skills of tomorrow and empower them to create solutions for the future.</p>
+    </div>
+    <div class="reveal" style="transition-delay:.4s">
+      <div class="hero-buttons">
+        <a href="#approach" class="btn btn-primary">See Our Approach</a>
+        <a href="#journey" class="btn btn-secondary">Our Journey</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroll-indicator">
+    <span>Scroll</span>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+  </div>
+</section>
+
+<!-- ═══════════ ABOUT ═══════════ -->
+<section class="about-section">
+  <div class="container">
+    <div class="about-grid">
+      <div class="reveal">
+        <div class="about-text">
+          <div class="section-label orange">
+            <span></span> Who We Are
+          </div>
+          <h2>Education should enable people to <span class="hl">build, experiment, innovate</span>, and solve real-world problems.</h2>
+          <p>Our journey began in 2017 with a belief that education should go beyond learning concepts. Over the years, we have evolved into a growing technology ecosystem focused on developing future-ready talent, products, and resources.</p>
+          <p>At Future Stack, we bring together learning, technology, and innovation. Our goal is not just to create skilled professionals, but to create individuals who can contribute to and build the technologies that will shape tomorrow.</p>
+        </div>
+      </div>
+      <div class="reveal" style="transition-delay:.15s">
+        <div class="stats">
+          <div class="stat-card">
+            <div class="num orange">2017</div>
+            <div class="label">Founded</div>
+          </div>
+          <div class="stat-card">
+            <div class="num blue">8+</div>
+            <div class="label">Domains</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ VISION ═══════════ -->
+<section class="vision-section">
+  <div class="container">
+    <div class="vision-content reveal">
+      <div class="section-label purple">
+        <span></span> Our Vision
+      </div>
+      <h2>Education directly leads to <span class="hl">creation</span>.</h2>
+      <p>We want to build a strong community of future-ready resources who can work across multiple domains, adapt to rapidly changing technologies, and transform ideas into practical solutions.</p>
+      <div class="tags">
+        <span class="tag">AI</span>
+        <span class="tag">IoT</span>
+        <span class="tag">Embedded</span>
+        <span class="tag">Digital Twins</span>
+        <span class="tag">Software</span>
+        <span class="tag">Cloud</span>
+        <span class="tag">Data</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ APPROACH ═══════════ -->
+<section class="approach-section" id="approach">
+  <div class="container">
+    <div class="approach-header reveal">
+      <div class="section-label orange">
+        <span></span> Our Approach
+      </div>
+      <h2>From Learning to <span class="hl">Creation</span></h2>
+    </div>
+    <div class="approach-grid">
+      <div class="reveal" style="transition-delay:0s">
+        <div class="step-card">
+          <div class="step-top">
+            <div class="step-icon" style="background:linear-gradient(135deg, var(--blue), rgba(59,130,246,.6))">01</div>
+            <h3>Learn</h3>
+          </div>
+          <p>Gain practical exposure to emerging technologies and real-world projects.</p>
+        </div>
+      </div>
+      <div class="reveal" style="transition-delay:.08s">
+        <div class="step-card">
+          <div class="step-top">
+            <div class="step-icon" style="background:linear-gradient(135deg, var(--orange), rgba(255,106,26,.6))">02</div>
+            <h3>Build</h3>
+          </div>
+          <p>Don't just learn technology — use it to create products and solve problems.</p>
+        </div>
+      </div>
+      <div class="reveal" style="transition-delay:.16s">
+        <div class="step-card">
+          <div class="step-top">
+            <div class="step-icon" style="background:linear-gradient(135deg, var(--purple), rgba(167,139,250,.6))">03</div>
+            <h3>Innovate</h3>
+          </div>
+          <p>Develop new possibilities through experimentation and creative engineering.</p>
+        </div>
+      </div>
+      <div class="reveal" style="transition-delay:.24s">
+        <div class="step-card">
+          <div class="step-top">
+            <div class="step-icon" style="background:linear-gradient(135deg, var(--green), rgba(34,197,94,.6))">04</div>
+            <h3>Deploy</h3>
+          </div>
+          <p>Ship solutions that make an impact in the real world.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ DOMAINS ═══════════ -->
+<section class="domains-section">
+  <div class="container">
+    <div class="domains-header reveal">
+      <div>
+        <div class="section-label blue">
+          <span></span> Our Domains
+        </div>
+        <h2>Technologies That Shape <span class="hl">Tomorrow</span></h2>
+      </div>
+    </div>
+    <div class="domains-grid">
+      <div class="reveal" style="transition-delay:0s"><div class="domain-card"><span class="icon">✨</span><span class="name">Artificial Intelligence</span></div></div>
+      <div class="reveal" style="transition-delay:.05s"><div class="domain-card"><span class="icon">⚙️</span><span class="name">Industrial IoT</span></div></div>
+      <div class="reveal" style="transition-delay:.1s"><div class="domain-card"><span class="icon">🖥️</span><span class="name">Embedded Technology</span></div></div>
+      <div class="reveal" style="transition-delay:.15s"><div class="domain-card"><span class="icon">🔗</span><span class="name">Digital Twins</span></div></div>
+      <div class="reveal" style="transition-delay:.2s"><div class="domain-card"><span class="icon">💻</span><span class="name">Software Engineering</span></div></div>
+      <div class="reveal" style="transition-delay:.25s"><div class="domain-card"><span class="icon">🤖</span><span class="name">Automation</span></div></div>
+      <div class="reveal" style="transition-delay:.3s"><div class="domain-card"><span class="icon">☁️</span><span class="name">Cloud</span></div></div>
+      <div class="reveal" style="transition-delay:.35s"><div class="domain-card"><span class="icon">📊</span><span class="name">Data</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ ACCELERATING ═══════════ -->
+<section class="accel-section">
+  <div class="container">
+    <div class="accel-grid reveal">
+      <div class="accel-text">
+        <div class="section-label green">
+          <span></span> Our Mission
+        </div>
+        <h2>Accelerating the <span class="hl">Future</span></h2>
+        <p>Technology is evolving faster than ever. Our mission is to reduce the time between an idea and its implementation by combining skilled people, modern technologies, reusable resources, and innovative approaches.</p>
+      </div>
+      <div class="pills">
+        <span class="pill orange">Skilled People</span>
+        <span class="pill blue">Modern Tech</span>
+        <span class="pill green">Reusable Resources</span>
+        <span class="pill purple">Innovative Approaches</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ AMBITION ═══════════ -->
+<section class="ambition-section">
+  <div class="container">
+    <div class="ambition-content reveal">
+      <div class="section-label purple">
+        <span></span> Reorganizing the World
+      </div>
+      <h2>Our ambition goes beyond <span class="hl">education</span>.</h2>
+      <p>We want to use new technologies to rethink how things are designed, developed, and delivered. Through our learning ecosystem and R&D initiatives, we aim to create resources capable of working on multiple future-ready projects and contributing to meaningful technological transformation.</p>
+      <div class="ambition-banner">Future Stack is building more than a learning platform.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ JOURNEY ═══════════ -->
+<section class="journey-section" id="journey">
+  <div class="container">
+    <div class="journey-header reveal">
+      <div class="section-label orange">
+        <span></span> Our Journey
+      </div>
+      <h2>2017 → Today → <span class="hl">Future</span></h2>
+    </div>
+    <div class="timeline">
+      <div class="timeline-line"></div>
+
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-year">2017</div>
+          <h3>The Beginning</h3>
+          <p>Started with a belief that education should go beyond concepts — it should enable people to build and solve real problems.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item reverse">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-year">Today</div>
+          <h3>Growing Ecosystem</h3>
+          <p>Evolved into a technology ecosystem focused on developing future-ready talent, products, and resources.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-year">Future</div>
+          <h3>What's Next</h3>
+          <p>Reorganizing the world through technology — faster development, smarter solutions, bigger impact.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ CTA ═══════════ -->
+<section class="cta-section">
+  <div class="container">
+    <div class="cta-card reveal">
+      <div class="cta-inner">
+        <h2>Think. Create. Conquer.</h2>
+        <p>We are building a community of people who learn today, create tomorrow, and shape the future.</p>
+        <div class="cta-buttons">
+          <a href="#" class="btn btn-primary">Explore Courses</a>
+          <a href="#" class="btn btn-cta-outline">R&D Services</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Particles
+  (function() {
+    var container = document.getElementById('particles');
+    for (var i = 0; i < 40; i++) {
+      var p = document.createElement('div');
+      p.className = 'particle';
+      var x = Math.random() * 100;
+      var y = Math.random() * 100;
+      var size = 1 + Math.random() * 2;
+      var dur = 15 + Math.random() * 25;
+      var del = Math.random() * -20;
+      var opa = 0.1 + Math.random() * 0.25;
+      var colors = ['var(--orange)', 'var(--blue)', '#fff'];
+      p.style.cssText = 'left:' + x + '%;top:' + y + '%;width:' + size + 'px;height:' + size + 'px;background:' + colors[i % 3] + ';opacity:' + opa + ';animation:drift ' + dur + 's ease-in-out ' + del + 's infinite';
+      container.appendChild(p);
+    }
+  })();
+
+  // Scroll reveal
+  (function() {
+    var reveals = document.querySelectorAll('.reveal');
+    var obs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(e) {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          obs.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.15 });
+    reveals.forEach(function(el) { obs.observe(el); });
+  })();
+</script>
+</body>
+</html>

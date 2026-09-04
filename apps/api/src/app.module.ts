@@ -3,12 +3,14 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
+import { BlogApiKeyGuard } from './blog/blog-api-key.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { StudentModule } from './student/student.module';
 import { AdminModule } from './admin/admin.module';
+import { BlogModule } from './blog/blog.module';
 import { CoursesModule } from './courses/courses.module';
 import { UploadModule } from './upload/upload.module';
 import { DiscussionModule } from './discussion/discussion.module';
@@ -26,6 +28,9 @@ import { SalesTargetsModule } from './sales-targets/sales-targets.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { CoordinatorModule } from './coordinator/coordinator.module';
 import { ProjectsModule } from './projects/projects.module';
+import { RefundModule } from './refund/refund.module';
+import { SupportModule } from './support/support.module';
+import { ContactModule } from './contact/contact.module';
 
 @Module({
   imports: [
@@ -47,6 +52,7 @@ import { ProjectsModule } from './projects/projects.module';
     AuthModule,
     StudentModule,
     AdminModule,
+    BlogModule,
     CoursesModule,
     UploadModule,
     DiscussionModule,
@@ -65,6 +71,9 @@ import { ProjectsModule } from './projects/projects.module';
     InvoicesModule,
     CoordinatorModule,
     ProjectsModule,
+    RefundModule,
+    SupportModule,
+    ContactModule,
   ],
   controllers: [AppController],
   providers: [
@@ -73,6 +82,7 @@ import { ProjectsModule } from './projects/projects.module';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    BlogApiKeyGuard,
   ],
 })
 export class AppModule {}

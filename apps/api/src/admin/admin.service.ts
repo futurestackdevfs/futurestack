@@ -354,7 +354,7 @@ export class AdminService {
         createdAt: o.createdAt,
         studentName: o.user?.name ?? o.billingFullName ?? null,
         studentEmail: o.user?.email ?? o.billingEmail ?? null,
-        courseTitle: o.items[0]?.course.title ?? null,
+        courseTitle: o.items[0]?.course?.title ?? null,
       })),
       coupons: coupons.map((c) => ({
         id: c.id,
@@ -474,7 +474,7 @@ export class AdminService {
       return {
         id: o.id,
         name: o.billingFullName ?? o.user?.name ?? 'Unknown',
-        course: firstItem?.course.title ?? '—',
+        course: firstItem?.course?.title ?? '—',
         source: o.gatewayType ?? 'Checkout',
         status,
         orderStatus: o.status,

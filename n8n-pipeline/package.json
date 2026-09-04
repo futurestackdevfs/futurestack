@@ -1,0 +1,10 @@
+{
+  "name": "futurestack-n8n-pipeline",
+  "version": "1.0.0",
+  "private": true,
+  "description": "n8n workflow configuration for AI-powered blog content automation in FutureStack",
+  "scripts": {
+    "start": "n8n start",
+    "install": "npm install -g n8n && n8n start"
+  }
+}

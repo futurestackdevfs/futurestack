@@ -58,7 +58,7 @@ export class ProjectsService {
           orderBy: { order: 'asc' },
           include: { videos: { orderBy: { order: 'asc' } } },
         },
-        _count: { select: { orders: true } },
+        _count: { select: { orderItems: true } },
       },
     });
     if (!project) throw new NotFoundException('Project not found');
@@ -73,7 +73,7 @@ export class ProjectsService {
         trainer: {
           select: { id: true, name: true, email: true },
         },
-        _count: { select: { curriculum: true, orders: true } },
+        _count: { select: { curriculum: true, orderItems: true } },
       },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }],
     });
@@ -309,16 +309,38 @@ export class ProjectsService {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new NotFoundException('Project not found');
 
-    const order = await this.prisma.projectOrder.create({
-      data: {
-        projectId,
-        studentId: studentId || null,
-        name: dto.studentName || 'Anonymous',
-        phone: dto.studentPhone || '',
-        email: dto.studentEmail || '',
-        pricePaid: dto.amount,
-        status: 'pending',
-      },
+    const { randomUUID } = await import('crypto');
+    const orderId = randomUUID();
+
+    const order = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.order.create({
+        data: {
+          id: orderId,
+          userId: studentId || '',
+          currency: 'INR',
+          gatewayType: 'DOMESTIC',
+          subtotal: dto.amount,
+          discountAmount: 0,
+          gstPercent: 0,
+          gstAmount: 0,
+          totalAmount: dto.amount,
+          razorpayOrderId: `MANUAL-${orderId}`,
+          razorpayPaymentId: null,
+          billingFullName: dto.studentName || 'Anonymous',
+          billingEmail: dto.studentEmail || '',
+          billingPhone: dto.studentPhone || '',
+        },
+      });
+      await tx.orderItem.create({
+        data: {
+          orderId: created.id,
+          projectId,
+          priceAtPurchase: dto.amount,
+          currency: 'INR',
+          status: 'active',
+        },
+      });
+      return created;
     });
 
     return order;
@@ -328,27 +350,43 @@ export class ProjectsService {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new NotFoundException('Project not found');
 
-    return this.prisma.projectOrder.findMany({
-      where: { projectId },
+    return this.prisma.order.findMany({
+      where: {
+        items: { some: { projectId } },
+      },
       orderBy: { createdAt: 'desc' },
+      include: {
+        items: { where: { projectId }, select: { id: true, status: true, priceAtPurchase: true } },
+        user: { select: { id: true, name: true, email: true } },
+      },
     });
   }
 
   async listAllOrders() {
-    return this.prisma.projectOrder.findMany({
-      include: {
-        project: { select: { id: true, name: true } },
+    return this.prisma.order.findMany({
+      where: {
+        items: { some: { projectId: { not: null } } },
       },
       orderBy: { createdAt: 'desc' },
+      include: {
+        items: {
+          where: { projectId: { not: null } },
+          include: { project: { select: { id: true, name: true } } },
+        },
+        user: { select: { id: true, name: true, email: true } },
+      },
     });
   }
 
   async updateOrderStatus(orderId: string, status: string) {
-    const order = await this.prisma.projectOrder.findUnique({ where: { id: orderId } });
-    if (!order) throw new NotFoundException('Order not found');
+    // Update the project OrderItem's status within the Order
+    const orderItem = await this.prisma.orderItem.findFirst({
+      where: { orderId, projectId: { not: null } },
+    });
+    if (!orderItem) throw new NotFoundException('Project order item not found');
 
-    return this.prisma.projectOrder.update({
-      where: { id: orderId },
+    return this.prisma.orderItem.update({
+      where: { id: orderItem.id },
       data: { status },
     });
   }

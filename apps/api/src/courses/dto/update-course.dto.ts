@@ -57,6 +57,12 @@ export class UpdateCourseDto {
   @IsString()
   careerBody?: string;
 
+  // See CreateCourseDto.careerPath. Passing "" clears the course's track;
+  // omitting it leaves the current track untouched.
+  @IsOptional()
+  @IsString()
+  careerPath?: string;
+
   @IsOptional()
   @IsEnum(CourseStatus)
   status?: CourseStatus;

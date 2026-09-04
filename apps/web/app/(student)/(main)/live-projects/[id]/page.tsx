@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import { StarRating } from "@/components/StarRating";
 import { ReviewForm } from "@/components/ReviewForm";
+import { useAuth } from "@/app/auth/hooks/use-auth";
+import { showToast } from "@/lib/toast";
 
 interface ProjectDetail {
   id: string;
@@ -85,7 +87,24 @@ type Tab = "overview" | "curriculum" | "reviews";
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
+  const { isAuthenticated } = useAuth();
   const projectId = params?.id as string;
+
+  // Buy flow — mirrors the courses page: signed-out users get a friendly
+  // prompt + the login form highlighted instead of an "Unauthorized" wall.
+  const handleBuy = useCallback(() => {
+    if (!isAuthenticated) {
+      showToast("Please sign in to buy this project");
+      if (pathname === "/") {
+        window.dispatchEvent(new CustomEvent("fs:highlight-login"));
+      } else {
+        router.push("/#student-login");
+      }
+      return;
+    }
+    router.push(`/cart?project=${projectId}`);
+  }, [isAuthenticated, pathname, projectId, router]);
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -588,7 +607,7 @@ export default function ProjectDetailPage() {
               )}
             </div>
             <button
-              onClick={() => router.push(`/cart?project=${p.id}`)}
+              onClick={handleBuy}
               className="shrink-0 bg-[var(--orange)] text-white border-none py-2 sm:py-3 px-4 sm:px-6 rounded-[8px] sm:rounded-[10px] font-bold text-[12px] sm:text-[14px] cursor-pointer hover:bg-[var(--orange2)] transition-all"
             >
               Buy Project

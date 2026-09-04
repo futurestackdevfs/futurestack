@@ -46,6 +46,8 @@ function pipelineStatus(o: { status: OrderStatus }): PipelineStatus {
     case OrderStatus.FAILED:
     case OrderStatus.CANCELLED:
     case OrderStatus.EXPIRED:
+    case OrderStatus.REFUND_REQUESTED:
+    case OrderStatus.REFUNDED:
       return 'Dropped';
   }
 }
@@ -326,7 +328,7 @@ export class SalesService {
       return {
         id: o.id,
         name: o.billingFullName ?? o.user?.name ?? 'Unknown',
-        course: firstItem?.course.title ?? '—',
+        course: firstItem?.course?.title ?? '—',
         status,
         lastContact: o.createdAt.toISOString().slice(0, 10),
         budget: o.totalAmount,
@@ -502,7 +504,7 @@ export class SalesService {
             paymentMethod: lead.order.paymentMethod,
             batchMode: lead.order.batchMode,
             createdAt: lead.order.createdAt.toISOString(),
-            course: lead.order.items[0]?.course.title ?? null,
+            course: lead.order.items[0]?.course?.title ?? null,
           }
         : null,
       createdAt: lead.createdAt.toISOString(),
@@ -941,7 +943,7 @@ export class SalesService {
       studentId: o.userId,
       studentName: o.user?.name ?? null,
       studentEmail: o.user?.email ?? null,
-      course: o.items[0]?.course.title ?? null,
+      course: o.items[0]?.course?.title ?? null,
       totalAmount: o.totalAmount,
       batchMode: o.batchMode,
       paymentMethod: o.paymentMethod,
@@ -1091,6 +1093,7 @@ export class SalesService {
         items: {
           include: {
             course: { select: { id: true, title: true, price: true, code: true } },
+            project: { select: { id: true, name: true } },
           },
         },
         enrollments: { select: { id: true, status: true, enrolledAt: true } },
@@ -1105,8 +1108,12 @@ export class SalesService {
       course: o.items[0]?.course
         ? { id: o.items[0].course.id, title: o.items[0].course.title, price: o.items[0].course.price, code: o.items[0].course.code }
         : null,
+      project: o.items[0]?.project
+        ? { id: o.items[0].project.id, name: o.items[0].project.name }
+        : null,
       items: o.items.map((it) => ({
-        courseTitle: it.course.title,
+        courseTitle: it.course?.title ?? null,
+        projectName: it.project?.name ?? null,
         priceAtPurchase: it.priceAtPurchase,
       })),
       subtotal: o.subtotal,
@@ -1154,7 +1161,7 @@ export class SalesService {
         ? { id: order.items[0].course.id, title: order.items[0].course.title, price: order.items[0].course.price, code: order.items[0].course.code, description: order.items[0].course.description }
         : null,
       items: order.items.map((it) => ({
-        courseTitle: it.course.title,
+        courseTitle: it.course?.title ?? null,
         priceAtPurchase: it.priceAtPurchase,
       })),
       subtotal: order.subtotal,

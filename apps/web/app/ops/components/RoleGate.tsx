@@ -27,8 +27,16 @@ function decodeJwtRole(t: string): string | undefined {
  * and only renders the portal when the role matches. A mismatched role is
  * bounced to that role's own portal (or the staff login when unknown).
  */
-export function RoleGate({ role, children }: { role: string; children: React.ReactNode }) {
+export function RoleGate({
+  role,
+  children,
+}: {
+  role: string | string[];
+  children: React.ReactNode;
+}) {
   const [ok, setOk] = useState(false);
+  const allowed = Array.isArray(role) ? role : [role];
+  const allowedKey = allowed.join(",");
 
   useEffect(() => {
     let active = true;
@@ -43,14 +51,15 @@ export function RoleGate({ role, children }: { role: string; children: React.Rea
         window.location.href = "/auth/staff-login";
         return;
       }
-      if (r !== role) {
+      if (!allowed.includes(r)) {
         window.location.href = ROLE_PORTALS[r] ?? "/auth/staff-login";
         return;
       }
       if (active) setOk(true);
     })();
     return () => { active = false; };
-  }, [role]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowedKey]);
 
   if (!ok) return null;
   return <>{children}</>;

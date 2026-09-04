@@ -148,7 +148,7 @@ export class TrainerService {
       if (!order.subtotal || order.subtotal <= 0) continue;
       const ratio = order.totalAmount / order.subtotal;
       for (const item of order.items) {
-        if (item.course.trainerId !== trainerId) continue;
+        if (item.course?.trainerId !== trainerId) continue;
         const effective = Math.round(item.priceAtPurchase * ratio * 100) / 100;
         const { trainerShare, platformCut } = computeTrainerShare(
           effective,
@@ -158,10 +158,10 @@ export class TrainerService {
         totalPlatformCut += platformCut;
         totalTrainerShare += trainerShare;
 
-        if (!courseBreakdownMap.has(item.course.id)) {
-          courseBreakdownMap.set(item.course.id, {
-            courseId: item.course.id,
-            courseTitle: item.course.title,
+        if (!courseBreakdownMap.has(item.course!.id)) {
+          courseBreakdownMap.set(item.course!.id, {
+            courseId: item.course!.id,
+            courseTitle: item.course!.title,
             enrollmentCount: 0,
             totalFees: 0,
             collectedSoFar: 0,
@@ -169,7 +169,7 @@ export class TrainerService {
             trainerShare: 0,
           });
         }
-        const cb = courseBreakdownMap.get(item.course.id);
+        const cb = courseBreakdownMap.get(item.course!.id);
         cb.enrollmentCount += 1;
         cb.totalFees += effective;
         cb.collectedSoFar += effective;
@@ -177,7 +177,7 @@ export class TrainerService {
 
         studentRegistrations.push({
           studentName: order.user?.name ?? 'Unknown',
-          courseTitle: item.course.title,
+          courseTitle: item.course!.title,
           courseFee: effective,
           paidSoFar: effective,
           enrolledOn: order.createdAt,
@@ -352,7 +352,7 @@ export class TrainerService {
     const projects = await this.prisma.project.findMany({
       where: { trainerId },
       include: {
-        _count: { select: { orders: true } },
+        _count: { select: { orderItems: true } },
       },
       orderBy: { updatedAt: 'desc' },
     });
@@ -365,7 +365,7 @@ export class TrainerService {
       level: p.level,
       status: p.status,
       price: p.price,
-      enrolled: p._count.orders,
+      enrolled: p._count.orderItems,
       duration: p.duration,
       updatedAt: p.updatedAt,
     }));

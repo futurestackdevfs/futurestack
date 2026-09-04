@@ -226,6 +226,16 @@ export class CheckoutService {
 
     const totalBeforeGst = this.round2(subtotal - discountAmount);
 
+    // Distribute the coupon discount proportionally across projects so that
+    // OrderItem.priceAtPurchase reflects the original price (before discount).
+    // This prevents Razorpay refund failures where the refund amount exceeds
+    // the captured payment.
+    const discountedPrices = keptProjects.map((p) => {
+      const share = subtotal > 0 ? p.price / subtotal : 0;
+      const discount = this.round2(share * discountAmount);
+      return Math.max(0, p.price - discount);
+    });
+
     // GST is added on top (exclusive) of the discounted fee. The rate is the
     // admin-configurable PaymentSettings value and is snapshotted on the Order
     // so historical invoices stay accurate if the rate changes later.
@@ -271,29 +281,22 @@ export class CheckoutService {
         },
       });
       await tx.orderItem.createMany({
-        data: kept.map((k) => ({
-          orderId: created.id,
-          courseId: k.courseId,
-          priceAtPurchase: coursePrice(k),
-          currency,
-        })),
-      });
-      // Create pending ProjectOrder records for each project in the cart.
-      // These are activated (status → 'active') on payment success and
-      // deleted on Razorpay failure or user cancellation.
-      if (keptProjects.length > 0) {
-        await tx.projectOrder.createMany({
-          data: keptProjects.map((p) => ({
+        data: [
+          ...kept.map((k) => ({
+            orderId: created.id,
+            courseId: k.courseId,
+            priceAtPurchase: coursePrice(k),
+            currency,
+          })),
+          ...keptProjects.map((p, idx) => ({
+            orderId: created.id,
             projectId: p.projectId,
-            studentId: userId,
-            name: dto.fullName ?? '',
-            email: dto.email ?? '',
-            phone: dto.phone ?? '',
-            pricePaid: p.price,
+            priceAtPurchase: discountedPrices[idx],
+            currency,
             status: 'pending',
           })),
-        });
-      }
+        ],
+      });
       return created;
     });
 
@@ -308,13 +311,8 @@ export class CheckoutService {
       });
       razorpayOrderId = created.id;
     } catch (e) {
-      // Roll back the local Order and any pending ProjectOrders created above.
-      await this.prisma.$transaction([
-        this.prisma.projectOrder.deleteMany({
-          where: { studentId: userId, status: 'pending' },
-        }),
-        this.prisma.order.delete({ where: { id: order.id } }),
-      ]);
+      // Roll back the local Order (cascades to OrderItems including project items).
+      await this.prisma.order.delete({ where: { id: order.id } });
       if (e instanceof ServiceUnavailableException) throw e;
       this.logger.error(
         `Razorpay order creation failed: ${this.describeError(e)}`,
@@ -456,10 +454,10 @@ export class CheckoutService {
           }),
       );
 
-      // Activate any pending ProjectOrders for this student — they were
+      // Activate any pending project OrderItems for this order — they were
       // created with status 'pending' when the Order was initialised.
-      await tx.projectOrder.updateMany({
-        where: { studentId: order.userId, status: 'pending' },
+      await tx.orderItem.updateMany({
+        where: { orderId: order.id, projectId: { not: null }, status: 'pending' },
         data: { status: 'active' },
       });
 
@@ -563,6 +561,17 @@ export class CheckoutService {
           where: { id: order.id, status: 'CREATED' },
           data: { status: 'FAILED' },
         });
+      } else if (type === 'payment.refunded') {
+        // Razorpay refund webhook — idempotently mark the order as REFUNDED
+        // if it was PAID. The actual Refund record may already exist from the
+        // admin-initiated refund API; this is a safety net.
+        await this.prisma.order.updateMany({
+          where: { id: order.id, status: { in: ['PAID', 'REFUND_REQUESTED'] } },
+          data: { status: 'REFUNDED' },
+        });
+        this.logger.log(
+          `Webhook payment.refunded processed for order ${order.id}`,
+        );
       }
     } catch (e) {
       this.logger.error(`Webhook processing error: ${(e as Error).message}`);
@@ -597,10 +606,10 @@ export class CheckoutService {
       where: { id: order.id, status: 'CREATED' },
       data: { status: 'CANCELLED' },
     });
-    // Also clean up any pending ProjectOrders created alongside this order.
+    // Also clean up any pending project OrderItems created alongside this order.
     if (updated.count > 0) {
-      await this.prisma.projectOrder.deleteMany({
-        where: { studentId: order.userId, status: 'pending' },
+      await this.prisma.orderItem.deleteMany({
+        where: { orderId: order.id, projectId: { not: null }, status: 'pending' },
       });
     }
     return { cancelled: updated.count > 0 };
@@ -613,15 +622,30 @@ export class CheckoutService {
   @Cron('0 * * * *')
   async expireStaleOrders() {
     const cutoff = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    const result = await this.prisma.order.updateMany({
+
+    const staleOrders = await this.prisma.order.findMany({
       where: {
         status: 'CREATED',
         createdAt: { lt: cutoff },
       },
-      data: { status: 'EXPIRED' },
+      select: { id: true },
     });
-    if (result.count > 0) {
-      this.logger.log(`Expired ${result.count} stale order(s)`);
-    }
+
+    if (staleOrders.length === 0) return;
+
+    const staleIds = staleOrders.map((o) => o.id);
+
+    await this.prisma.$transaction([
+      this.prisma.order.updateMany({
+        where: { id: { in: staleIds } },
+        data: { status: 'EXPIRED' },
+      }),
+      this.prisma.orderItem.updateMany({
+        where: { orderId: { in: staleIds }, projectId: { not: null }, status: 'pending' },
+        data: { status: 'cancelled' },
+      }),
+    ]);
+
+    this.logger.log(`Expired ${staleIds.length} stale order(s)`);
   }
 }
