@@ -82,10 +82,19 @@ export default function RootLayout({
         />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
+        {/* Non-render-blocking font load: injected as media="print" then swapped
+            to media="all" once downloaded, so it never blocks first paint. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var l=document.createElement('link');l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,400;0,500;0,600;1,500;1,600&family=Manrope:wght@400;500;600;700;800&display=swap';l.media='print';l.onload=function(){l.media='all'};document.head.appendChild(l);})();`,
+          }}
         />
+        <noscript>
+          <link
+            rel="stylesheet"
+            href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,400;0,500;0,600;1,500;1,600&family=Manrope:wght@400;500;600;700;800&display=swap"
+          />
+        </noscript>
         <script
           dangerouslySetInnerHTML={{
             __html: `

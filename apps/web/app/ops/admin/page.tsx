@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useMemo } from "react";
+import { useViewParam } from "@/lib/use-view-param";
 import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken, clearStaffToken } from "@/app/auth/lib/token-store";
 import { RoleGate } from "@/app/ops/components/RoleGate";
@@ -129,6 +130,8 @@ const SCHEMAS: Record<string, FieldDef[]> = {
     { key: "level", label: "Level", type: "select", required: true, options: ["Beginner", "Intermediate", "Advanced"] },
     { key: "price", label: "Price (₹)", type: "number", required: true, placeholder: "e.g. 45000" },
     { key: "discountPercent", label: "Discount (%)", type: "discount", placeholder: "e.g. 90", full: true },
+    { key: "priceUsd", label: "Price (USD)", type: "number", placeholder: "e.g. 149 — blank = auto-convert from ₹" },
+    { key: "discountPercentUsd", label: "USD Discount (%)", type: "discount", placeholder: "e.g. 40", full: true },
     { key: "description", label: "About This Course", type: "textarea", required: true, full: true, placeholder: "Long-form description shown on the course detail page…" },
     { key: "whatYoullLearn", label: "What You'll Learn (one per line)", type: "textarea", required: true, full: true, placeholder: "Build production-grade full-stack apps with the MERN stack\nDesign scalable REST APIs with Express.js and Node.js\n…" },
     { key: "techStack", label: "Technologies Covered (comma separated)", type: "text", required: true, full: true, placeholder: "MongoDB, Mongoose, Express.js, React.js, Node.js, Redux Toolkit, JWT Auth" },
@@ -199,6 +202,8 @@ const SCHEMAS: Record<string, FieldDef[]> = {
     { key: "seats", label: "Available Seats", type: "number", placeholder: "e.g. 10" },
     { key: "price", label: "Price (₹)", type: "number", required: true, placeholder: "e.g. 6999" },
     { key: "discountPercent", label: "Discount (%)", type: "discount", placeholder: "e.g. 30", full: true },
+    { key: "priceUsd", label: "Price (USD)", type: "number", placeholder: "e.g. 99 — blank = auto-convert from ₹" },
+    { key: "discountPercentUsd", label: "USD Discount (%)", type: "discount", placeholder: "e.g. 30", full: true },
     { key: "trainerId", label: "Trainer", type: "select", required: true, optionsFrom: "instructors" },
     { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
   ],
@@ -207,6 +212,36 @@ const SCHEMAS: Record<string, FieldDef[]> = {
 /* ───────────────────────────────────────────────
    COLUMN CONFIGS
 ─────────────────────────────────────────────── */
+
+/** One currency's price line: strikethrough list price → sale price + −off%. */
+function PriceLine({ sym, price, orig, muted }: { sym: string; price: number; orig: number | null; muted?: boolean }) {
+  const off = orig && orig > price ? Math.round(((orig - price) / orig) * 100) : 0;
+  return (
+    <div className="flex items-center gap-1.5" style={muted ? { opacity: 0.75 } : undefined}>
+      {off > 0 && <span className="font-mono text-[10px] text-[var(--muted)] line-through">{sym}{Math.round(orig!).toLocaleString()}</span>}
+      <span className="font-mono text-[10.5px] font-bold" style={{ color: muted ? "var(--text2)" : "var(--text)" }}>{sym}{Math.round(price).toLocaleString()}</span>
+      {off > 0 && <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "var(--green-d)", color: "var(--green)" }}>-{off}%</span>}
+    </div>
+  );
+}
+
+/** ₹ price plus a separate USD line (explicit priceUsd, or "auto" when blank). */
+function PriceCell({ price, orig, priceUsd, origUsd }: { price: number; orig: unknown; priceUsd: unknown; origUsd: unknown }) {
+  const inrOrig = orig != null && Number(orig) > price ? Number(orig) : null;
+  const usd = priceUsd != null && priceUsd !== "" ? Number(priceUsd) : null;
+  const usdOrig = usd != null && origUsd != null && Number(origUsd) > usd ? Number(origUsd) : null;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <PriceLine sym="₹" price={price} orig={inrOrig} />
+      {usd != null ? (
+        <PriceLine sym="$" price={usd} orig={usdOrig} muted />
+      ) : (
+        <span className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>$ auto</span>
+      )}
+    </div>
+  );
+}
+
 const COLUMNS: Record<string, ColumnDef[]> = {
   courses: [
     { key: "code", label: "Course Code", mono: true, strong: true },
@@ -229,19 +264,7 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     {
       key: "price",
       label: "Price",
-      render: (v, r) => {
-        const price = Number(v ?? 0);
-        const orig = r.originalPrice != null && Number(r.originalPrice) > price ? Number(r.originalPrice) : null;
-        if (orig == null) return <span className="font-mono text-[10.5px]" style={{ color: "var(--text2)" }}>₹{price.toLocaleString()}</span>;
-        const off = Math.round(((orig - price) / orig) * 100);
-        return (
-          <div className="flex items-center gap-1.5">
-            <span className="font-mono text-[10.5px] text-[var(--muted)] line-through">₹{orig.toLocaleString()}</span>
-            <span className="font-mono text-[10.5px] font-bold" style={{ color: "var(--text)" }}>₹{price.toLocaleString()}</span>
-            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "var(--green-d)", color: "var(--green)" }}>-{off}%</span>
-          </div>
-        );
-      },
+      render: (v, r) => <PriceCell price={Number(v ?? 0)} orig={r.originalPrice} priceUsd={r.priceUsd} origUsd={r.originalPriceUsd} />,
     },
     { key: "status", label: "Status", render: (v) => <StatusBadge status={v === "ACTIVE" ? "Active" : v === "DRAFT" ? "Draft" : v === "ARCHIVED" ? "Archived" : v} /> },
   ],
@@ -288,19 +311,7 @@ const COLUMNS: Record<string, ColumnDef[]> = {
     {
       key: "price",
       label: "Price",
-      render: (v, r) => {
-        const price = Number(v ?? 0);
-        const orig = r.originalPrice != null && Number(r.originalPrice) > price ? Number(r.originalPrice) : null;
-        if (orig == null) return <span className="font-mono text-[10.5px]" style={{ color: "var(--text2)" }}>₹{price.toLocaleString()}</span>;
-        const off = Math.round(((orig - price) / orig) * 100);
-        return (
-          <div className="flex items-center gap-1.5">
-            <span className="font-mono text-[10.5px] text-[var(--muted)] line-through">₹{orig.toLocaleString()}</span>
-            <span className="font-mono text-[10.5px] font-bold" style={{ color: "var(--text)" }}>₹{price.toLocaleString()}</span>
-            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "var(--green-d)", color: "var(--green)" }}>-{off}%</span>
-          </div>
-        );
-      },
+      render: (v, r) => <PriceCell price={Number(v ?? 0)} orig={r.originalPrice} priceUsd={r.priceUsd} origUsd={r.originalPriceUsd} />,
     },
     { key: "trainer", label: "Trainer", render: (v, r) => <span className="font-mono text-[10px]">{r.trainer?.name || "—"}</span> },
     { key: "status", label: "Status", render: (v) => <StatusBadge status={v === "ACTIVE" ? "Active" : v === "DRAFT" ? "Draft" : v === "ARCHIVED" ? "Archived" : v} /> },
@@ -313,7 +324,7 @@ const CURRICULUM_SEED: Record<string, CurriculumEntry> = {};
    MAIN PAGE
 ─────────────────────────────────────────────── */
 export default function AdminMasterDataPage() {
-  const [view, setView] = useState("admin-dashboard");
+  const [view, setView] = useViewParam("admin-dashboard");
   const [currentEntity, setCurrentEntity] = useState("courses");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
@@ -611,6 +622,13 @@ export default function AdminMasterDataPage() {
           Number(record.originalPrice) > Number(record.price ?? 0)
             ? String(Math.round(((Number(record.originalPrice) - Number(record.price ?? 0)) / Number(record.originalPrice)) * 100))
             : "",
+        priceUsd: record.priceUsd ?? "",
+        discountPercentUsd:
+          record.originalPriceUsd != null &&
+          record.priceUsd != null &&
+          Number(record.originalPriceUsd) > Number(record.priceUsd)
+            ? String(Math.round(((Number(record.originalPriceUsd) - Number(record.priceUsd)) / Number(record.originalPriceUsd)) * 100))
+            : "",
         trainerId: record.trainerId || "",
         description: record.description || "",
         whatYoullLearn: Array.isArray(record.whatYoullLearn) ? record.whatYoullLearn.join("\n") : (record.whatYoullLearn || ""),
@@ -629,7 +647,15 @@ export default function AdminMasterDataPage() {
       };
       setEditingRecord(mapped);
     } else {
-      setEditingRecord({ ...record });
+      // Projects: pass the record through, deriving the USD discount % from the
+      // stored originalPriceUsd so the form's discount field pre-fills.
+      const discountPercentUsd =
+        record.originalPriceUsd != null &&
+        record.priceUsd != null &&
+        Number(record.originalPriceUsd) > Number(record.priceUsd)
+          ? String(Math.round(((Number(record.originalPriceUsd) - Number(record.priceUsd)) / Number(record.originalPriceUsd)) * 100))
+          : "";
+      setEditingRecord({ ...record, priceUsd: record.priceUsd ?? "", discountPercentUsd });
     }
     setModalOpen(true);
   }
@@ -711,6 +737,20 @@ export default function AdminMasterDataPage() {
             body.originalPrice = Math.round((price / (1 - pct / 100)) / 100) * 100;
           } else {
             body.originalPrice = null;
+          }
+        }
+        // USD price: blank = null (backend auto-converts from ₹ at the admin rate).
+        if (formData.priceUsd !== undefined) {
+          const usd = Number(formData.priceUsd);
+          body.priceUsd = formData.priceUsd === "" || !Number.isFinite(usd) || usd <= 0 ? null : usd;
+        }
+        if (formData.discountPercentUsd !== undefined) {
+          const pct = Number(formData.discountPercentUsd);
+          const usd = Number(formData.priceUsd);
+          if (Number.isFinite(pct) && pct > 0 && pct < 100 && Number.isFinite(usd) && usd > 0) {
+            body.originalPriceUsd = Math.round(usd / (1 - pct / 100));
+          } else {
+            body.originalPriceUsd = null;
           }
         }
         // Only send trainerId when the admin actually changed it — the backend
@@ -822,6 +862,9 @@ export default function AdminMasterDataPage() {
             }
           } else if (k === "price" || k === "seats") {
             body[k] = v === "" || v == null ? null : Number(v);
+          } else if (k === "priceUsd") {
+            const usd = Number(v);
+            body.priceUsd = v === "" || v == null || !Number.isFinite(usd) || usd <= 0 ? null : usd;
           } else if (k === "discountPercent") {
             // Convert discountPercent to originalPrice
             const pct = Number(v);
@@ -830,6 +873,14 @@ export default function AdminMasterDataPage() {
               body.originalPrice = Math.round(price / (1 - pct / 100));
             } else {
               body.originalPrice = null;
+            }
+          } else if (k === "discountPercentUsd") {
+            const pct = Number(v);
+            const usd = Number(formData.priceUsd);
+            if (!isNaN(pct) && pct > 0 && pct < 100 && !isNaN(usd) && usd > 0) {
+              body.originalPriceUsd = Math.round(usd / (1 - pct / 100));
+            } else {
+              body.originalPriceUsd = null;
             }
           } else if (k === "trainerId") {
             body[k] = v || null;

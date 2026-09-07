@@ -19,7 +19,8 @@
 *,
 *::before,
 *::after {
-  transition: background-color .3s ease, border-color .3s ease, color .2s ease, box-shadow .3s ease;
+  /* Universal transitions removed to prevent layout thrashing.
+     Individual components (buttons, cards, etc.) have their own transitions. */
 }
 
 button,

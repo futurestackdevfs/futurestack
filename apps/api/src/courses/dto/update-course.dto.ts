@@ -36,6 +36,16 @@ export class UpdateCourseDto {
   originalPrice?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  priceUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  originalPriceUsd?: number;
+
+  @IsOptional()
   @IsString()
   trainerId?: string;
 

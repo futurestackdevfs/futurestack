@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useViewParam } from "@/lib/use-view-param";
 import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken } from "@/app/auth/lib/token-store";
 import { OpsTopbar } from "@/app/ops/components/OpsTopbar";
@@ -54,7 +55,7 @@ function SupportConsoleInner() {
   const [user, setUser] = useState<{ id: string; name: string; email: string; role: string; initials: string } | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
-  const [view, setView] = useState("dashboard");
+  const [view, setView] = useViewParam("dashboard");
   const [openTicketId, setOpenTicketId] = useState<string | null>(null);
 
   const [stats, setStats] = useState<TicketStats | null>(null);

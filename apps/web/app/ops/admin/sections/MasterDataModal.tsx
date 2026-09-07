@@ -260,25 +260,42 @@ export function MasterDataModal({
                       <span className="text-[11px] font-semibold shrink-0" style={{ color: "var(--text3)" }}>% off</span>
                     </div>
                     {(() => {
+                      // The USD discount field previews against the USD price and
+                      // in dollars; every other discount field stays in rupees.
+                      const isUsd = field.key === "discountPercentUsd";
+                      const sym = isUsd ? "$" : "₹";
+                      const fmt = (n: number) =>
+                        sym + (isUsd
+                          ? Math.round(n).toLocaleString("en-US")
+                          : Math.round(n).toLocaleString("en-IN"));
                       const pct = Number(form[field.key]);
-                      const price = Number(form.price);
+                      const price = Number(isUsd ? form.priceUsd : form.price);
                       const hasPrice = Number.isFinite(price) && price > 0;
                       const hasPct = Number.isFinite(pct) && pct > 0 && pct < 100;
                       if (hasPrice && hasPct) {
-                        const orig = Math.round((price / (1 - pct / 100)) / 100) * 100;
+                        const orig = isUsd
+                          ? Math.round(price / (1 - pct / 100))
+                          : Math.round((price / (1 - pct / 100)) / 100) * 100;
                         return (
                           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px]" style={{ background: "var(--green-d)", border: "1px solid var(--border)" }}>
-                            <span className="font-mono text-[var(--muted)] line-through">₹{orig.toLocaleString("en-IN")}</span>
-                            <span className="font-mono font-bold" style={{ color: "var(--text)" }}>→ ₹{Math.round(price).toLocaleString("en-IN")}</span>
+                            <span className="font-mono text-[var(--muted)] line-through">{fmt(orig)}</span>
+                            <span className="font-mono font-bold" style={{ color: "var(--text)" }}>→ {fmt(price)}</span>
                             <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: "var(--green)", color: "#fff" }}>-{pct}%</span>
-                            <span className="text-[9.5px] ml-auto" style={{ color: "var(--text3)" }}>list price = ₹{orig.toLocaleString("en-IN")}</span>
+                            <span className="text-[9.5px] ml-auto" style={{ color: "var(--text3)" }}>list price = {fmt(orig)}</span>
                           </div>
                         );
                       }
                       if (hasPrice && Number.isFinite(pct) && pct === 0) {
                         return (
                           <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px]" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text3)" }}>
-                            No discount — shows as ₹{Math.round(price).toLocaleString("en-IN")}
+                            No discount — shows as {fmt(price)}
+                          </div>
+                        );
+                      }
+                      if (isUsd && !hasPrice) {
+                        return (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-[11px]" style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text3)" }}>
+                            Set a USD price above to preview the list price
                           </div>
                         );
                       }

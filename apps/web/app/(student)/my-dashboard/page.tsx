@@ -7,6 +7,7 @@ import SectionRenderer from "./sections/SectionRenderer";
 import { useStudentDashboard } from "../hooks/student-dashboard";
 import { userApi, type ProfileData } from "@/app/auth/lib/auth-api";
 import { useAuth } from "@/app/auth/hooks/use-auth";
+import { useViewParam } from "@/lib/use-view-param";
 import { SECTION_CONFIG, SECTION_ORDER, resolveBadge } from "./section-config";
 import type { TabId, SectionContext } from "./section-config";
 
@@ -101,7 +102,7 @@ function ProfileCompletionRibbon({ pct, onDismiss }: { pct: number; onDismiss: (
 }
 
 export default function MyDashboardPage() {
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [activeTab, setActiveTab] = useViewParam("overview", "tab", SECTION_ORDER);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [discussionCourseId, setDiscussionCourseId] = useState<string | null>(null);
   const [messageCounts, setMessageCounts] = useState<Record<string, number>>({});

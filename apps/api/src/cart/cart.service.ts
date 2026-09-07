@@ -8,6 +8,11 @@ import { Currency } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CouponService } from '../coupon/coupon.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
+import {
+  gstPercentFor,
+  resolveItemOriginalPrice,
+  resolveItemPrice,
+} from '../common/pricing.util';
 
 @Injectable()
 export class CartService {
@@ -86,6 +91,8 @@ export class CartService {
             thumbnailUrl: true,
             price: true,
             originalPrice: true,
+            priceUsd: true,
+            originalPriceUsd: true,
             category: true,
             techStack: true,
             averageRating: true,
@@ -102,6 +109,8 @@ export class CartService {
             thumbGradient: true,
             price: true,
             originalPrice: true,
+            priceUsd: true,
+            originalPriceUsd: true,
             shortDesc: true,
             techLabel: true,
             trainer: { select: { name: true } },
@@ -114,11 +123,26 @@ export class CartService {
     const courseIds = items.filter((i) => i.courseId).map((i) => i.courseId!);
     const videoStats = await this.getVideoStats(courseIds);
 
+    // Never let a settings hiccup break the whole cart view — fall back to
+    // launch defaults. usdRate 0 lets resolveItemPrice apply its own last-resort
+    // guard; the real rate is the admin-set PaymentSettings.usdRate.
+    const settings = await this.paymentSettings.getSettings().catch(() => ({
+      gstPercent: 18,
+      gstPercentUsd: 0,
+      usdRate: 0,
+    }));
+    const usdRate = settings.usdRate ?? 0;
+
     const enriched = items.map((item) => {
       if (item.projectId && item.project) {
         const p = item.project;
-        const price = p.price;
-        const originalPrice = p.originalPrice ?? null;
+        const price = resolveItemPrice(currency, p.price, p.priceUsd, usdRate);
+        const originalPrice = resolveItemOriginalPrice(
+          currency,
+          p.originalPrice,
+          p.originalPriceUsd,
+          usdRate,
+        );
         let offPct = 0;
         if (originalPrice != null && originalPrice > price) {
           offPct = Math.min(99, Math.round(((originalPrice - price) / originalPrice) * 100));
@@ -147,8 +171,13 @@ export class CartService {
       }
 
       const c = item.course!;
-      const price = c.price;
-      const originalPrice = c.originalPrice ?? null;
+      const price = resolveItemPrice(currency, c.price, c.priceUsd, usdRate);
+      const originalPrice = resolveItemOriginalPrice(
+        currency,
+        c.originalPrice,
+        c.originalPriceUsd,
+        usdRate,
+      );
       let offPct = 0;
       if (originalPrice != null && originalPrice > price) {
         offPct = Math.min(99, Math.round(((originalPrice - price) / originalPrice) * 100));
@@ -219,8 +248,11 @@ export class CartService {
     }
 
     const taxableAmount = this.round2(subtotal - discountAmount);
-    const gstPercent =
-      (await this.paymentSettings.getSettings()).gstPercent ?? 18;
+    const gstPercent = gstPercentFor(
+      currency,
+      settings.gstPercent ?? 18,
+      settings.gstPercentUsd ?? 0,
+    );
     const gstAmount = this.round2((taxableAmount * gstPercent) / 100);
 
     return {

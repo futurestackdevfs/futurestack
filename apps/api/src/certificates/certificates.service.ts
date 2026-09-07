@@ -36,6 +36,12 @@ export class CertificatesService {
       where: { studentId, isCompleted: true, quiz: { section: { courseId } } },
     });
 
+    // A course with nothing to complete can't be "completed" — guard against
+    // issuing a certificate for an empty / not-yet-populated course.
+    if (totalVideos + totalQuizzes === 0) {
+      return { issued: false };
+    }
+
     // If completed is less than total, not complete yet
     if (completedVideos < totalVideos || completedQuizzes < totalQuizzes) {
       return { issued: false };
@@ -69,10 +75,23 @@ export class CertificatesService {
       course?.code ?? `CRS-${courseId.substring(0, 4).toUpperCase()}`;
     const credentialId = `FS-${year}-${safeCode}-${sequence}`;
 
-    // Create the certificate
-    await this.prisma.certificate.create({
-      data: { studentId, courseId, credentialId, score, rank },
-    });
+    // Create the certificate. Two concurrent requests (e.g. a double-click) can
+    // both pass the findUnique check above, so a unique-constraint violation
+    // here just means another request already issued it — not an error.
+    try {
+      await this.prisma.certificate.create({
+        data: { studentId, courseId, credentialId, score, rank },
+      });
+    } catch (err) {
+      if (
+        err &&
+        typeof err === 'object' &&
+        (err as { code?: string }).code === 'P2002'
+      ) {
+        return { issued: false };
+      }
+      throw err;
+    }
 
     return { issued: true, credentialId };
   }

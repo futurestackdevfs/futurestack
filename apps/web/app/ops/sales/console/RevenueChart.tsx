@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Chart } from "chart.js/auto";
+import type { Chart } from "chart.js/auto";
 import type { RevenueSeries } from "../lib/types";
 
 interface RevenueChartProps {
@@ -19,10 +19,14 @@ export default function RevenueChart({ monthly, yearly }: RevenueChartProps) {
   const [range, setRange] = useState<"monthly" | "yearly">("monthly");
 
   useEffect(() => {
-    if (!canvasRef.current) return;
-    if (chartRef.current) chartRef.current.destroy();
-
+    let cancelled = false;
     const series = range === "monthly" ? monthly : yearly;
+
+    // Lazy-load chart.js (~200KB) — only pulled in when this chart renders.
+    void (async () => {
+      const { Chart } = await import("chart.js/auto");
+      if (cancelled || !canvasRef.current) return;
+      if (chartRef.current) chartRef.current.destroy();
 
     const gridColor = getComputedStyle(document.documentElement).getPropertyValue("--border").trim() || "rgba(120,120,120,.15)";
     const textColor = getComputedStyle(document.documentElement).getPropertyValue("--text3").trim() || "#888";
@@ -87,8 +91,12 @@ export default function RevenueChart({ monthly, yearly }: RevenueChartProps) {
         },
       },
     });
+    })();
 
-    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+    return () => {
+      cancelled = true;
+      if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+    };
   }, [range, monthly, yearly]);
 
   const series = range === "monthly" ? monthly : yearly;

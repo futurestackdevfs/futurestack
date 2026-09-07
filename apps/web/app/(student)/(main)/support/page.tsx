@@ -126,6 +126,23 @@ export default function SupportPage() {
     }
     if (subject.trim().length < 3) return showToast("Add a short subject");
     if (body.trim().length < 10) return showToast("Please describe the issue in a bit more detail");
+
+    const requiredFields = (sub.fields ?? []).filter((f) => f);
+    const missingFields: string[] = [];
+    for (const f of requiredFields) {
+      const val = fields[f] ?? "";
+      if (!val.trim()) missingFields.push(f);
+    }
+    if (missingFields.length) {
+      const fieldLabels: Record<string, string> = {
+        orderId: "Order ID",
+        courseId: "Which course?",
+        lessonId: "Lesson / video name",
+        browser: "Browser & device",
+      };
+      return showToast(`Please fill in the required field(s): ${missingFields.map((f) => fieldLabels[f] ?? f).join(", ")}`);
+    }
+
     setSubmitting(true);
     try {
       const context: Record<string, string> = {};

@@ -118,20 +118,20 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
                 <form className="px-5.5 pb-5.5 pt-5" onSubmit={handleSubmit}>
                   <div className="mb-3 flex flex-col gap-1">
                     <label className="text-[11px] font-semibold" style={{ color: "var(--text2)" }}>Full Name <span style={{ color: "var(--orange)" }}>*</span></label>
-                    <input type="text" name="name" placeholder="Your full name" required
+                    <input type="text" name="name" placeholder="Enter your full name" required
                       className="h-10 rounded-lg px-3 outline-none"
                       style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} />
                   </div>
                   <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                     <div className="flex flex-col gap-1">
                       <label className="text-[11px] font-semibold" style={{ color: "var(--text2)" }}>Phone <span style={{ color: "var(--orange)" }}>*</span></label>
-                      <input type="tel" name="phone" placeholder="98xxxxxxxx" required
+                      <input type="tel" name="phone" placeholder="Enter your phone number" required
                         className="h-10 rounded-lg px-3 outline-none"
                         style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-[11px] font-semibold" style={{ color: "var(--text2)" }}>Email <span style={{ color: "var(--orange)" }}>*</span></label>
-                      <input type="email" name="email" placeholder="you@example.com" required
+                      <input type="email" name="email" placeholder="Enter your email" required
                         className="h-10 rounded-lg px-3 outline-none"
                         style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} />
                     </div>
@@ -147,7 +147,7 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-[11px] font-semibold" style={{ color: "var(--text2)" }}>City</label>
-                      <input type="text" name="city" placeholder="Pune"
+                      <input type="text" name="city" placeholder="Enter your city"
                         className="h-10 rounded-lg px-3 outline-none"
                         style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} />
                     </div>

@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import useSWR from "swr";
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/auth/hooks/use-auth";
-import { toPng } from "html-to-image";
-import { jsPDF } from "jspdf";
+import { showToast } from "@/lib/toast";
 
 interface EarnedCert {
   courseId: string;
@@ -110,11 +109,30 @@ function getProgressBg(pct: number): string {
   return "linear-gradient(90deg,var(--blue),var(--blue2))";
 }
 
-async function downloadCertificatePdf(cert: EarnedCert, studentName: string) {
+async function downloadCertificatePdf(cert: EarnedCert, _studentName: string) {
+  // Lazy-load PDF/image libs (~600KB combined) only on actual download.
+  const [{ toPng }, { jsPDF }] = await Promise.all([
+    import("html-to-image"),
+    import("jspdf"),
+  ]);
+
   await document.fonts.ready;
+  // The certificate leans on Fraunces (name/headings) and Manrope (labels) —
+  // force them to parse before rasterising, else the PNG (and the resulting PDF)
+  // silently falls back to a system serif/sans.
+  try {
+    await Promise.all([
+      document.fonts.load("600 44px 'Fraunces'"),
+      document.fonts.load("italic 500 27px 'Fraunces'"),
+      document.fonts.load("700 11px 'Manrope'"),
+      document.fonts.load("600 13px 'Manrope'"),
+    ]);
+  } catch {
+    /* non-fatal — continue with whatever is loaded */
+  }
 
   const el = document.getElementById("certDoc");
-  if (!el) return;
+  if (!el) throw new Error("Certificate isn’t ready yet — try again in a moment.");
 
   const saved: { el: HTMLElement; key: string; val: string }[] = [];
 
@@ -136,14 +154,23 @@ async function downloadCertificatePdf(cert: EarnedCert, studentName: string) {
     const imgData = await toPng(el, {
       quality: 1.0,
       pixelRatio: 2,
-      backgroundColor: "#fdfbf6",
+      backgroundColor: "#FBF9F3",
+      // html-to-image otherwise walks every stylesheet to inline @font-face
+      // rules and throws a SecurityError on the cross-origin Google Fonts sheet
+      // ("Cannot access rules"). We've already forced Fraunces/Manrope to load
+      // via document.fonts.load above, so the browser renders the cloned node
+      // with those faces from its own cache — skip the CSS embed entirely.
+      skipFonts: true,
     });
 
     restore();
 
     const img = new Image();
     img.src = imgData;
-    await new Promise<void>((res) => { img.onload = () => res(); });
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res();
+      img.onerror = () => rej(new Error("Failed to render the certificate image."));
+    });
 
     const pdfW = 210;
     const pdfH = pdfW * (img.height / img.width);
@@ -157,8 +184,9 @@ async function downloadCertificatePdf(cert: EarnedCert, studentName: string) {
     pdf.addImage(imgData, "PNG", 0, 0, pdfW, pdfH);
     const filename = `FutureStack_Certificate_${cert.courseTitle.replace(/\s+/g, "-")}_${cert.credentialId}.pdf`;
     pdf.save(filename);
-  } catch {
+  } catch (err) {
     restore();
+    throw err instanceof Error ? err : new Error("Couldn’t generate the certificate PDF.");
   }
 }
 
@@ -296,6 +324,8 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
   const skipApi = !enrolledCount || enrolledCount === 0;
   const { data, isLoading, error } = useSWR<CertificatesResponse>(skipApi ? null : "/api/certificates/my");
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const pendingDownloadRef = useRef<string | null>(null);
 
   const earned = data?.earned ?? [];
   const inProgress = data?.inProgress ?? [];
@@ -308,6 +338,45 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
   const isEarned = !!activeEarned;
 
   const studentName = user?.name ?? "Student";
+
+  // Runs the actual capture. Guards against concurrent / double-click downloads
+  // and surfaces failures as a toast instead of failing silently.
+  const runDownload = useCallback(async (cert: EarnedCert) => {
+    setDownloadingId((cur) => cur ?? cert.courseId);
+    try {
+      await downloadCertificatePdf(cert, studentName);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Couldn’t generate the certificate PDF.");
+    } finally {
+      setDownloadingId(null);
+      pendingDownloadRef.current = null;
+    }
+  }, [studentName]);
+
+  // The #certDoc element always renders whichever cert is `active`, so a
+  // download request for a non-active row must select it first, then wait for
+  // the new certificate to paint before capturing.
+  const requestDownload = useCallback((cert: EarnedCert) => {
+    if (downloadingId) return;
+    if (activeId === cert.courseId) {
+      void runDownload(cert);
+    } else {
+      pendingDownloadRef.current = cert.courseId;
+      setActiveId(cert.courseId);
+    }
+  }, [activeId, downloadingId, runDownload]);
+
+  useEffect(() => {
+    const pending = pendingDownloadRef.current;
+    if (!pending || downloadingId) return;
+    const cert = earned.find((c) => c.courseId === pending);
+    if (!cert || activeId !== pending) return;
+    pendingDownloadRef.current = null;
+    const raf = requestAnimationFrame(() =>
+      requestAnimationFrame(() => void runDownload(cert)),
+    );
+    return () => cancelAnimationFrame(raf);
+  }, [activeId, earned, downloadingId, runDownload]);
 
   const summaryStats = [
     { num: earned.length, lbl: "Earned", color: "var(--green)" },
@@ -394,11 +463,16 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
                     </div>
                     <div className="flex-shrink-0 flex items-center gap-1.5">
                       <button
-                        onClick={(e) => { e.stopPropagation(); downloadCertificatePdf(c, studentName); }}
-                        className="w-[26px] h-[26px] rounded-[6px] flex items-center justify-center bg-transparent border border-[var(--border)] text-[var(--text3)] cursor-pointer hover:bg-[var(--orange-d)] hover:border-[var(--orange)] hover:text-[var(--orange)] transition-all"
+                        onClick={(e) => { e.stopPropagation(); requestDownload(c); }}
+                        disabled={!!downloadingId}
+                        className="w-[26px] h-[26px] rounded-[6px] flex items-center justify-center bg-transparent border border-[var(--border)] text-[var(--text3)] cursor-pointer hover:bg-[var(--orange-d)] hover:border-[var(--orange)] hover:text-[var(--orange)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Download PDF"
                       >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                        {downloadingId === c.courseId ? (
+                          <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                        )}
                       </button>
                       <span className="font-['JetBrains_Mono',monospace] text-[8px] font-bold px-2 py-[2px] rounded-[20px] tracking-[.04em] uppercase bg-[var(--green-d)] text-[var(--green)] border border-[rgba(22,163,74,.2)]">✓ Earned</span>
                     </div>
@@ -473,75 +547,84 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
           <div className="bg-[var(--bg)] flex flex-col items-center gap-5 py-8 px-7 overflow-y-auto">
             {activeEarned ? (
               <>
-                <div id="certDoc" className="w-full max-w-[600px] bg-[#fdfbf6] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,.14),0_2px_8px_rgba(0,0,0,.08)] overflow-hidden relative [animation:fadeUp_.35s_ease_both]">
-                  <div className="absolute inset-0 pointer-events-none z-0 opacity-[.5]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px,rgba(201,168,76,.15) 1px,transparent 0)", backgroundSize: "14px 14px" }} />
-                  <div className="absolute right-[-30px] bottom-[-40px] w-[240px] h-[240px] opacity-[.05] pointer-events-none z-0 flex items-center justify-center font-['Inter_Tight',sans-serif] font-[800] text-[160px] text-[#0d1f3c] rotate-[-8deg]">FS</div>
-                  <div className="m-[9px] border border-[#c9a84c] rounded-[6px] relative z-[1]">
-                    <div className="m-[7px] border-[2.5px] border-[#c9a84c] rounded-[4px] px-9 py-[30px] pb-[26px] relative bg-transparent">
-                      <div className="absolute top-[-2.5px] left-[-2.5px] w-[22px] h-[22px] border-t-[2.5px] border-l-[2.5px] border-[#8b6914] rounded-tl-[4px] z-[2]" />
-                      <div className="absolute top-[-2.5px] right-[-2.5px] w-[22px] h-[22px] border-t-[2.5px] border-r-[2.5px] border-[#8b6914] rounded-tr-[4px] z-[2]" />
-                      <div className="absolute bottom-[-2.5px] left-[-2.5px] w-[22px] h-[22px] border-b-[2.5px] border-l-[2.5px] border-[#8b6914] rounded-bl-[4px] z-[2]" />
-                      <div className="absolute bottom-[-2.5px] right-[-2.5px] w-[22px] h-[22px] border-b-[2.5px] border-r-[2.5px] border-[#8b6914] rounded-br-[4px] z-[2]" />
+                <div id="certDoc" className="w-full max-w-[720px] bg-[#FBF9F3] shadow-[0_40px_70px_-30px_rgba(32,42,66,.4),0_10px_30px_rgba(32,42,66,.12)] relative [animation:fadeUp_.35s_ease_both]">
+                  {/* inner hairline frame */}
+                  <div className="absolute inset-[14px] border border-[#DCD5C2] pointer-events-none z-[1]" />
+                  {/* corner brackets */}
+                  <div className="absolute top-[14px] left-[14px] w-[30px] h-[30px] border-t-2 border-l-2 border-[#202A42] z-[2]" />
+                  <div className="absolute top-[14px] right-[14px] w-[30px] h-[30px] border-t-2 border-r-2 border-[#202A42] z-[2]" />
+                  <div className="absolute bottom-[14px] left-[14px] w-[30px] h-[30px] border-b-2 border-l-2 border-[#202A42] z-[2]" />
+                  <div className="absolute bottom-[14px] right-[14px] w-[30px] h-[30px] border-b-2 border-r-2 border-[#202A42] z-[2]" />
+                  {/* soft grid glow — futuristic accent */}
+                  <div className="absolute inset-0 z-0 pointer-events-none opacity-[.5]" style={{ backgroundImage: "linear-gradient(rgba(36,53,111,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(36,53,111,.04) 1px,transparent 1px)", backgroundSize: "34px 34px" }} />
+                  <div className="absolute -top-[60px] left-1/2 -translate-x-1/2 w-[420px] h-[220px] z-0 pointer-events-none rounded-full blur-[80px] opacity-[.25]" style={{ background: "radial-gradient(circle,#EFA23B 0%,transparent 70%)" }} />
 
-                      <div className="flex items-center justify-center gap-[9px] mb-[14px] relative z-[1]">
-                        <img src="/images/logo.png" alt="FutureStack" className="h-[34px] w-auto object-contain flex-shrink-0" style={{ mixBlendMode: 'multiply' }} />
-                      </div>                      <div className="text-center border-b border-[#e8d99a] pb-4 mb-[18px] relative z-[1]">
-                        <div className="font-['Inter_Tight',sans-serif] text-[10px] font-[800] uppercase tracking-[.24em] text-[#8b6914] mb-[6px]">FutureStack Academy</div>
-                        <div className="font-['Instrument_Serif',Georgia,serif] text-[19px] italic text-[#5a4008] leading-[1.3]">Certificate of Completion</div>
+                  <div className="absolute top-[26px] right-[26px] flex items-center gap-[6px] bg-[#1E9455] text-white font-['Manrope',sans-serif] font-semibold text-[11px] pl-[9px] pr-[13px] py-[6px] rounded-[20px] z-[3] tracking-[.01em] shadow-[0_4px_14px_rgba(30,148,85,.35)]">
+                    <svg viewBox="0 0 16 16" fill="none" className="w-3 h-3"><path d="M6 8.2L7.4 9.6L10.3 6.4" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /><circle cx="8" cy="8" r="7" stroke="white" strokeWidth="1.4" /></svg>
+                    Verified
+                  </div>
+
+                  <div className="relative z-[1] px-[62px] pt-[58px] pb-[42px] text-center">
+                    <img src="/images/logo.png" alt="FutureStack" className="h-[56px] w-auto mx-auto mb-[16px] object-contain" />
+                    <div className="font-['Manrope',sans-serif] font-bold text-[12px] tracking-[.32em] text-[#E1602C] mb-[6px]">FUTURE STACK</div>
+                    <h1 className="font-['Fraunces',serif] italic font-medium text-[30px] text-[#202A42] m-0 mb-[24px]">Certificate of Completion</h1>
+                    <div className="w-[60px] h-[2px] bg-[#E1602C] mx-auto mb-[30px]" />
+
+                    <img src="/images/stamp.png" alt="FutureStack Academy Seal" className="w-[128px] h-auto mx-auto mb-[26px] block drop-shadow-[0_8px_20px_rgba(32,42,66,.18)]" />
+
+                    <p className="font-['Manrope',sans-serif] text-[10.5px] font-bold tracking-[.18em] uppercase text-[#8B8F9C] m-0 mb-[14px]">This certifies that</p>
+                    <h2 className="font-['Fraunces',serif] font-semibold text-[clamp(30px,5.5vw,46px)] text-[#202A42] m-0 mb-[24px] leading-[1.1] break-words">{studentName}</h2>
+                    <div className="w-full max-w-[440px] mx-auto mb-[26px] h-px bg-[#DCD5C2]" />
+
+                    <p className="font-['Manrope',sans-serif] text-[10.5px] font-bold tracking-[.18em] uppercase text-[#8B8F9C] m-0 mb-[12px]">Has successfully completed</p>
+                    <h3 className="font-['Fraunces',serif] font-semibold text-[24px] text-[#24356F] m-0 mb-[12px] leading-[1.3]">{activeEarned.courseTitle}</h3>
+                    {activeEarned.description && (
+                      <p className="font-['Manrope',sans-serif] text-[13.5px] text-[#4B5471] max-w-[440px] mx-auto mb-[26px] leading-[1.65]">{activeEarned.description}</p>
+                    )}
+
+                    {activeEarned.techStack && activeEarned.techStack.length > 0 && (
+                      <div className="flex justify-center flex-wrap gap-[9px] mb-[44px]">
+                        {activeEarned.techStack.map(s => (
+                          <span key={s} className="font-['Manrope',sans-serif] text-[11px] font-semibold text-[#24356F] border border-[#C8CEDF] bg-[#F3F5FA] px-[13px] py-[6px] rounded-[20px]">{s}</span>
+                        ))}
                       </div>
+                    )}
 
-                      <div className="relative w-[64px] h-[80px] mx-auto mb-4 z-[1]">
-                        <div className="w-[64px] h-[64px] rounded-full bg-[linear-gradient(135deg,#c9a84c,#e8c96a,#c9a84c)] flex items-center justify-center text-[28px] shadow-[0_3px_14px_rgba(201,168,76,.45),inset_0_0_0_3px_rgba(255,255,255,.35)] animate-[float_3s_ease_infinite] relative z-[2]">
-                          {getEmoji(activeEarned.category)}
-                        </div>
+                    <div className="flex items-end justify-between gap-6 pt-[26px] border-t border-[#DCD5C2] text-left">
+                      <div className="w-[34%] min-w-0">
+                        <div className="font-['Fraunces',serif] italic font-medium text-[19px] text-[#202A42] border-b border-[#202A42]/25 pb-[7px] mb-[7px] whitespace-nowrap overflow-hidden text-ellipsis">{activeEarned.trainerName ?? "Master Trainer"}</div>
+                        <div className="font-['Manrope',sans-serif] text-[9.5px] font-semibold tracking-[.11em] uppercase text-[#8B8F9C]">Course Instructor</div>
                       </div>
-
-                      <div className="text-[10.5px] text-[#8b7340] text-center tracking-[.08em] uppercase mb-2 relative z-[1] whitespace-nowrap">This certifies that</div>
-                      <div className="font-['Instrument_Serif',Georgia,serif] text-[32px] italic text-[#1a1208] text-center leading-[1.15] mb-[14px] pb-2.5 border-b border-dashed border-[#d4b96a] relative z-[1] whitespace-nowrap overflow-hidden text-ellipsis px-4">{studentName}</div>
-
-                      <div className="text-[10px] text-[#8b7340] text-center tracking-[.1em] uppercase mb-[5px] relative z-[1] whitespace-nowrap">has successfully completed</div>
-                      <div className="font-['Inter_Tight',sans-serif] text-[16px] font-[800] text-[#0d1f3c] text-center mb-3 leading-[1.3] relative z-[1] px-4">{activeEarned.courseTitle}</div>
-
-                      <div className="text-[11px] text-[#5a4a30] text-center leading-[1.65] max-w-[400px] mx-auto mb-[18px] relative z-[1]">{activeEarned.description}</div>
-
-                      {activeEarned.techStack && activeEarned.techStack.length > 0 && (
-                        <div className="flex justify-center gap-[7px] flex-wrap mb-5 relative z-[1]">
-                          {activeEarned.techStack.map(s => (
-                            <span key={s} className="font-['Inter',sans-serif] text-[9px] font-semibold px-3 py-[4px] rounded-[20px] border border-[#c9a84c] text-[#8b6914] bg-[rgba(201,168,76,.09)]">{s}</span>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="flex justify-between items-end border-t border-[#e8d99a] pt-4 relative z-[1] w-full">
-                        <div className="text-center w-[32%]">
-                          <div className="font-['Instrument_Serif',Georgia,serif] italic text-[15px] text-[#1a1208] border-b border-[#c9a84c] pb-[5px] mb-[4px] whitespace-nowrap overflow-hidden text-ellipsis">{activeEarned.trainerName ?? "FutureStack Faculty"}</div>
-                          <div className="text-[8.5px] uppercase tracking-[.08em] text-[#8b7340] whitespace-nowrap">Course Instructor</div>
-                        </div>
-                        <div className="text-center flex flex-col items-center justify-end w-[32%]">
-                          <img src="/images/logo.png" alt="FutureStack" className="h-[26px] w-auto object-contain" />
-                        </div>
-                        <div className="text-center w-[32%]">
-                          <div className="font-['Inter',sans-serif] text-[7.5px] text-[#b09040] mb-[2px] whitespace-nowrap">ID: {activeEarned.credentialId}</div>
-                          <div className="font-['Inter',sans-serif] text-[8px] text-[#8b6914] font-semibold whitespace-nowrap">{formatDate(activeEarned.issuedAt)}</div>
-                          {activeEarned.score !== null && (
-                            <div className="inline-block bg-[linear-gradient(135deg,#c9a84c,#e8c96a)] text-[#5a3a00] font-['Inter',sans-serif] text-[8px] font-bold px-[11px] py-[3px] rounded-[20px] mt-[6px] shadow-[0_2px_6px_rgba(201,168,76,.3)] whitespace-nowrap">Score: {activeEarned.score}%</div>
-                          )}
+                      <img src="/images/logo.png" alt="FutureStack" className="h-[26px] w-auto object-contain opacity-90 shrink-0 pb-[6px]" />
+                      <div className="w-[34%] text-right shrink-0 relative">
+                        <img src="/images/stamp.png" alt="" aria-hidden="true" className="pointer-events-none select-none absolute -top-[26px] right-[-6px] w-[92px] h-auto object-contain grayscale opacity-[.07] mix-blend-multiply z-0" />
+                        <div className="relative z-[1] font-['Manrope',sans-serif] text-[9.5px] text-[#8B8F9C] mb-[5px] tracking-[.02em] whitespace-nowrap overflow-hidden text-ellipsis">ID: {activeEarned.credentialId}</div>
+                        <div className="relative z-[1] font-['Manrope',sans-serif] text-[12px] text-[#202A42] font-semibold mb-[8px]">{formatDate(activeEarned.issuedAt)}</div>
+                        <div className="relative z-[1] inline-block font-['Manrope',sans-serif] text-[10.5px] font-bold text-[#E1602C] bg-[#FBEBE1] px-[11px] py-[4px] rounded-[20px]">
+                          {activeEarned.score !== null ? `Score: ${activeEarned.score}%` : "Completed"}
                         </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="absolute top-[14px] right-[-2px] z-[3] bg-[linear-gradient(135deg,#16a34a,#22c55e)] text-white font-['Inter',sans-serif] text-[8.5px] font-bold py-[4px] pl-[10px] pr-3 shadow-[0_2px_8px_rgba(22,163,74,.35)] flex items-center gap-1" style={{ clipPath: "polygon(0 0, 100% 0, 100% 100%, 8px 100%, 0 50%)" }}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>Verified
                   </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2.5 w-full max-w-[580px]">
                   <button
-                    onClick={() => downloadCertificatePdf(activeEarned, studentName)}
-                    className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-[var(--orange)] text-white shadow-[0_3px_12px_rgba(240,90,26,.3)] border-none hover:bg-[var(--orange2)] hover:-translate-y-[1px] cursor-pointer"
+                    onClick={() => runDownload(activeEarned)}
+                    disabled={!!downloadingId}
+                    className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-[var(--orange)] text-white shadow-[0_3px_12px_rgba(240,90,26,.3)] border-none hover:bg-[var(--orange2)] hover:-translate-y-[1px] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                    Download PDF
+                    {downloadingId === activeEarned.courseId ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Generating…
+                      </>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                        Download PDF
+                      </>
+                    )}
                   </button>
                   <button className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-[linear-gradient(135deg,#0a66c2,#1a8cff)] text-white shadow-[0_3px_12px_rgba(10,102,194,.3)] border-none hover:opacity-[.88] hover:-translate-y-[1px]">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z" /><circle cx="4" cy="4" r="2" /></svg>

@@ -105,6 +105,8 @@ export class ProjectsService {
         seats: dto.seats ?? 0,
         price: dto.price,
         originalPrice: dto.originalPrice,
+        priceUsd: dto.priceUsd,
+        originalPriceUsd: dto.originalPriceUsd,
         category: dto.category,
         stack: dto.stack ?? [],
         highlights: dto.highlights ?? [],
@@ -136,7 +138,7 @@ export class ProjectsService {
     const fields = [
       'name', 'image', 'techLabel', 'tech', 'shortDesc', 'overview',
       'thumbGradient', 'level', 'badge', 'duration', 'sessions', 'seats',
-      'price', 'originalPrice', 'category', 'industryUse', 'demoVideoUrl',
+      'price', 'originalPrice', 'priceUsd', 'originalPriceUsd', 'category', 'industryUse', 'demoVideoUrl',
       'walkthroughVideoUrl', 'trainerId', 'status', 'isFeatured', 'displayOrder',
     ];
     for (const f of fields) {

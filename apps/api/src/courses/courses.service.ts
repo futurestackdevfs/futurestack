@@ -1220,13 +1220,16 @@ export class CoursesService {
           `A course with the title "${dto.title}" already exists`,
         );
     }
-    const { price, originalPrice, careerPath, ...rest } = dto;
+    const { price, originalPrice, priceUsd, originalPriceUsd, careerPath, ...rest } =
+      dto;
     const course = await this.prisma.course.update({
       where: { id },
       data: {
         ...rest,
         ...(price !== undefined ? { price } : {}),
         ...(originalPrice !== undefined ? { originalPrice } : {}),
+        ...(priceUsd !== undefined ? { priceUsd } : {}),
+        ...(originalPriceUsd !== undefined ? { originalPriceUsd } : {}),
       },
     });
     if (careerPath !== undefined) {

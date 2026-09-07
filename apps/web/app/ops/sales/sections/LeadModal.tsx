@@ -170,7 +170,7 @@ export function LeadModal({ open, lead, onClose, onSaved, onError }: {
             <div>
               <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={labelStyle}>EMAIL</div>
               <input value={form.email} onChange={(e) => set({ email: e.target.value })}
-                placeholder="email@example.com" className="w-full rounded px-2.5 py-1.5 text-[11px] outline-none"
+                placeholder="Enter email address" className="w-full rounded px-2.5 py-1.5 text-[11px] outline-none"
                 style={inputStyle} />
             </div>
             <div>
