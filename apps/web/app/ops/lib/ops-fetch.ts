@@ -55,5 +55,15 @@ export async function opsFetch(input: string, init: RequestInit = {}): Promise<R
     if (res.status === 401) reportSessionExpired(role);
   }
 
+  // Auth failures leak the raw backend word "Unauthorized" into every ops
+  // screen that surfaces `body.message`. Swap in a friendly, actionable line
+  // so the staff user knows what to do, while keeping the status code intact.
+  if (res.status === 401 || res.status === 403) {
+    return new Response(
+      JSON.stringify({ message: "Please refresh the browser or retry — you may need to log in again." }),
+      { status: res.status, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   return res;
 }

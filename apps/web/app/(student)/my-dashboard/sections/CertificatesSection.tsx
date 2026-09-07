@@ -155,6 +155,12 @@ async function downloadCertificatePdf(cert: EarnedCert, _studentName: string) {
       quality: 1.0,
       pixelRatio: 2,
       backgroundColor: "#FBF9F3",
+      // html-to-image otherwise walks every stylesheet to inline @font-face
+      // rules and throws a SecurityError on the cross-origin Google Fonts sheet
+      // ("Cannot access rules"). We've already forced Fraunces/Manrope to load
+      // via document.fonts.load above, so the browser renders the cloned node
+      // with those faces from its own cache — skip the CSS embed entirely.
+      skipFonts: true,
     });
 
     restore();
@@ -590,12 +596,13 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
                         <div className="font-['Manrope',sans-serif] text-[9.5px] font-semibold tracking-[.11em] uppercase text-[#8B8F9C]">Course Instructor</div>
                       </div>
                       <img src="/images/logo.png" alt="FutureStack" className="h-[26px] w-auto object-contain opacity-90 shrink-0 pb-[6px]" />
-                      <div className="w-[34%] text-right shrink-0">
-                        <div className="font-['Manrope',sans-serif] text-[9.5px] text-[#8B8F9C] mb-[5px] tracking-[.02em] whitespace-nowrap overflow-hidden text-ellipsis">ID: {activeEarned.credentialId}</div>
-                        <div className="font-['Manrope',sans-serif] text-[12px] text-[#202A42] font-semibold mb-[8px]">{formatDate(activeEarned.issuedAt)}</div>
-                        {activeEarned.score !== null && (
-                          <div className="inline-block font-['Manrope',sans-serif] text-[10.5px] font-bold text-[#E1602C] bg-[#FBEBE1] px-[11px] py-[4px] rounded-[20px]">Score: {activeEarned.score}%</div>
-                        )}
+                      <div className="w-[34%] text-right shrink-0 relative">
+                        <img src="/images/stamp.png" alt="" aria-hidden="true" className="pointer-events-none select-none absolute -top-[26px] right-[-6px] w-[92px] h-auto object-contain grayscale opacity-[.07] mix-blend-multiply z-0" />
+                        <div className="relative z-[1] font-['Manrope',sans-serif] text-[9.5px] text-[#8B8F9C] mb-[5px] tracking-[.02em] whitespace-nowrap overflow-hidden text-ellipsis">ID: {activeEarned.credentialId}</div>
+                        <div className="relative z-[1] font-['Manrope',sans-serif] text-[12px] text-[#202A42] font-semibold mb-[8px]">{formatDate(activeEarned.issuedAt)}</div>
+                        <div className="relative z-[1] inline-block font-['Manrope',sans-serif] text-[10.5px] font-bold text-[#E1602C] bg-[#FBEBE1] px-[11px] py-[4px] rounded-[20px]">
+                          {activeEarned.score !== null ? `Score: ${activeEarned.score}%` : "Completed"}
+                        </div>
                       </div>
                     </div>
                   </div>

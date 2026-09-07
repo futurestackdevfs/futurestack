@@ -561,6 +561,7 @@ export default function CartPage() {
         }),
       });
       const body = (await orderRes.json().catch(() => ({}))) as { message?: string };
+      if (orderRes.status === 401 || orderRes.status === 403) throw new Error("Please login to continue");
       if (!orderRes.ok) throw new Error(body.message || "Could not start checkout");
       orderData = body as unknown as typeof orderData;
     } catch (e) {
@@ -638,6 +639,7 @@ export default function CartPage() {
               }),
             });
             const vbody = (await verifyRes.json().catch(() => ({}))) as { message?: string };
+            if (verifyRes.status === 401 || verifyRes.status === 403) throw new Error("Please login to continue");
             if (!verifyRes.ok) throw new Error(vbody.message || "Payment could not be verified");
             setSuccess({
               amount: orderData.amount,

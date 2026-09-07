@@ -55,6 +55,29 @@ async function proxy(req: NextRequest) {
     );
   }
 
+  // Staff portal only: the backend returns a bare `{ "message": "Unauthorized" }`
+  // (or "Forbidden resource") on an expired/invalid session, which then surfaces
+  // raw in every ops screen. Swap it for an actionable line. Scoped to staff by
+  // decoding (not verifying — the token may be expired) the role claim.
+  if (backendRes.status === 401 || backendRes.status === 403) {
+    const bearer = headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+    let role: string | undefined;
+    if (bearer) {
+      try {
+        role = JSON.parse(
+          Buffer.from(bearer.split('.')[1] ?? '', 'base64').toString('utf8'),
+        ).role;
+      } catch { /* not a decodable JWT — leave the response untouched */ }
+    }
+    const STAFF_ROLES = ['ADMIN', 'TRAINER', 'COORDINATOR', 'CONTENT_MANAGER', 'SUPPORT', 'SALES'];
+    if (role && STAFF_ROLES.includes(role)) {
+      return NextResponse.json(
+        { statusCode: backendRes.status, message: 'Please refresh the browser or retry — you may need to log in again.' },
+        { status: backendRes.status },
+      );
+    }
+  }
+
   // Stream the backend response straight through instead of buffering it all
   // into memory — lower TTFB and memory for large JSON payloads.
   const resBody = backendRes.body;
