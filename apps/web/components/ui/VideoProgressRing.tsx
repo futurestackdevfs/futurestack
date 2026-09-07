@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 
 export function VideoProgressRing({
   videoId,
@@ -12,21 +12,34 @@ export function VideoProgressRing({
   isActive?: boolean;
 }) {
   const [progress, setProgress] = useState(initialProgress)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    if (!isActive) return
+    if (!isActive) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+      return
+    }
 
-    const interval = setInterval(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current)
+
+    intervalRef.current = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
-          clearInterval(interval)
+          clearInterval(intervalRef.current as NodeJS.Timeout)
+          intervalRef.current = null
           return 100
         }
         return prev + 2
       })
     }, 500)
 
-    return () => clearInterval(interval)
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
   }, [isActive])
 
   const radius = 20

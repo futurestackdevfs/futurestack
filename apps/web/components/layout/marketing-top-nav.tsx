@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import useSWR from "swr";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/auth/hooks/use-auth";
@@ -321,7 +322,7 @@ export function TopNav() {
   return (<>
     <nav className={`flex items-center gap-3 md:gap-5 px-3 md:px-6 h-14 bg-[var(--surface)]/80 backdrop-blur-lg border-b border-[var(--border)] fixed top-0 left-0 right-0 z-[999] shadow-[var(--shadow)] font-[family-name:var(--font-dm-sans)] ${animate ? "[animation:slideDown_.4s_ease_both]" : ""}`}>
       <Link href="/" className="flex items-center gap-2.5 shrink-0 no-underline group">
-        <img src="/images/logo.png" alt="FutureStack" style={{ height: 42 }} className="transition-transform duration-300 group-hover:scale-105" />
+        <Image src="/images/logo.png" alt="FutureStack" width={128} height={42} priority style={{ height: 42, width: "auto" }} className="transition-transform duration-300 group-hover:scale-105" />
       </Link>
 
       <div className="hidden md:flex flex-1 max-w-[320px] relative">

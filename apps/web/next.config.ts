@@ -8,7 +8,10 @@ const nextConfig: NextConfig = {
   // production builds.
   experimental: {
     serverComponentsHmrCache: false,
+    optimizePackageImports: ["swr", "react-markdown", "remark-gfm"],
   },
+  compress: true,
+  productionBrowserSourceMaps: false,
   reactStrictMode: false,
   headers: async () => [
     {

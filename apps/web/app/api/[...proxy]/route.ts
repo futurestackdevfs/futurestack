@@ -55,7 +55,9 @@ async function proxy(req: NextRequest) {
     );
   }
 
-  const resBody = await backendRes.arrayBuffer();
+  // Stream the backend response straight through instead of buffering it all
+  // into memory — lower TTFB and memory for large JSON payloads.
+  const resBody = backendRes.body;
   const resHeaders = new Headers();
   const resCt = backendRes.headers.get('content-type');
   if (resCt) resHeaders.set('content-type', resCt);

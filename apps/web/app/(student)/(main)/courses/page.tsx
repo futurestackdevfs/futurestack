@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { loadToken } from "@/app/auth/lib/token-store";
 import { showToast } from "@/lib/toast";
@@ -187,6 +187,7 @@ export default function CoursesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlSearch]);
+  const { mutate } = useSWRConfig();
   const [sort, setSort] = useState("Most Popular");
   const [currentPage, setCurrentPage] = useState(1);
   const [inCart, setInCart] = useState<Set<string>>(new Set());
@@ -320,6 +321,7 @@ export default function CoursesPage() {
         if (alreadyInCart) next.delete(id); else next.add(id);
         return next;
       });
+      mutate("/api/cart?currency=INR");
       showToast(alreadyInCart ? "Removed from cart" : "Added to cart");
     } catch {
       showToast("Could not update cart");

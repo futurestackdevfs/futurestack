@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
-import { jsPDF } from "jspdf";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { userApi, type OrderHistoryItem } from "@/app/auth/lib/auth-api";
 
@@ -66,6 +65,8 @@ async function loadLogo(): Promise<string | null> {
 // ─── Invoice PDF ───────────────────────────────────────────────────────────────
 
 async function downloadInvoice(order: OrderHistoryItem, userName: string, userEmail: string) {
+  // Lazy-load jsPDF (~350KB) only when a user actually downloads an invoice.
+  const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "mm", format: "a4" });
   const W = 210;
   const M = 14;

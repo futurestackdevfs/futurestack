@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export function Footer() {
   return (
     <footer
@@ -45,7 +47,7 @@ export function Footer() {
         <div style={{ margin: "0 auto", padding: "0 40px" }}>
           <div className="footer-grid">
             <div className="footer-brand-col">
-              <img src="/images/logo.png" alt="FutureStack" style={{ height: 46, marginBottom: 12 }} />
+              <Image src="/images/logo.png" alt="FutureStack" width={140} height={46} style={{ height: 46, width: "auto", marginBottom: 12 }} />
               <p style={{ color: "var(--muted)", fontSize: 15, lineHeight: 1.7, margin: 0 }}>
                 Think. Create. Conquer. Build real-world skills with industry-certified courses and hands-on projects.
               </p>
