@@ -163,7 +163,7 @@ export default function CreateStaffModal({ role, onClose }: CreateStaffModalProp
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Ram Warhekar"
+                placeholder="Enter full name"
                 className="w-full px-3.5 py-2.5 rounded-lg text-[13px] outline-none transition-all border-[1.5px] focus:border-[var(--blue)] focus:shadow-[0_0_0_3px_var(--blue-d)]"
                 style={{ background: "var(--bg)", color: "var(--text)", borderColor: "var(--border)" }}
               />
@@ -173,7 +173,7 @@ export default function CreateStaffModal({ role, onClose }: CreateStaffModalProp
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="e.g. ram@gmail.com"
+                placeholder="Enter email address"
                 type="email"
                 className="w-full px-3.5 py-2.5 rounded-lg text-[13px] outline-none transition-all border-[1.5px] focus:border-[var(--blue)] focus:shadow-[0_0_0_3px_var(--blue-d)]"
                 style={{ background: "var(--bg)", color: "var(--text)", borderColor: "var(--border)" }}

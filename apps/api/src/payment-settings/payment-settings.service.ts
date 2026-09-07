@@ -18,6 +18,9 @@ export class PaymentSettingsService {
         domesticEnabled: true,
         internationalEnabled: false,
         gstPercent: 18,
+        gstPercentUsd: 0,
+        // usdRate omitted — takes the schema @default. Admin edits it afterwards
+        // in Payment Settings → Fees & Tax.
       },
     });
   }
@@ -29,6 +32,7 @@ export class PaymentSettingsService {
       domesticEnabled: s.domesticEnabled,
       internationalEnabled: s.internationalEnabled,
       gstPercent: s.gstPercent,
+      gstPercentUsd: s.gstPercentUsd,
     };
   }
 
@@ -41,6 +45,8 @@ export class PaymentSettingsService {
       trainerSharePercent:
         dto.trainerSharePercent ?? settings.trainerSharePercent,
       gstPercent: dto.gstPercent ?? settings.gstPercent,
+      gstPercentUsd: dto.gstPercentUsd ?? settings.gstPercentUsd,
+      usdRate: dto.usdRate ?? settings.usdRate,
     };
     if (!next.domesticEnabled && !next.internationalEnabled) {
       throw new BadRequestException(

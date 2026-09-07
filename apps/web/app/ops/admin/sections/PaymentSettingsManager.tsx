@@ -4,12 +4,18 @@ import { useCallback, useEffect, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import CouponsManager from "./CouponsManager";
 
+// Pre-load fallback only — shown for the split second before the settings row
+// loads. The live, editable value is PaymentSettings.usdRate (this component).
+const DEFAULT_USD_RATE = 95;
+
 interface PaymentSettings {
   id: string;
   domesticEnabled: boolean;
   internationalEnabled: boolean;
   trainerSharePercent: number;
   gstPercent: number;
+  gstPercentUsd: number;
+  usdRate: number;
   updatedAt: string;
 }
 
@@ -247,6 +253,24 @@ export default function PaymentSettingsManager({ token, searchQuery = "" }: Paym
     setSaving(false);
   }
 
+  async function savePatch(patch: Record<string, number>, okMsg: string) {
+    if (!settings || saving) return;
+    setSaving(true);
+    try {
+      const res = await opsFetch("/api/admin/payment-settings", {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) throw new Error("Failed to update payment settings");
+      setSettings(await res.json());
+      addToast(okMsg);
+    } catch (e: unknown) {
+      addToast(e instanceof Error ? e.message : "Failed to update payment settings", "danger");
+    }
+    setSaving(false);
+  }
+
   async function saveTrainerOverride(id: string, current: number | null, inputEl: HTMLInputElement | null) {
     const raw = Number(inputEl?.value);
     const pct = Number.isFinite(raw) ? Math.max(0, Math.min(100, Math.round(raw))) : null;
@@ -453,6 +477,60 @@ export default function PaymentSettingsManager({ token, searchQuery = "" }: Paym
                 >
                   Save
                 </button>
+              </div>
+            </div>
+
+            {/* USD tax rate */}
+            <div className="rounded-xl p-4 flex items-center justify-between gap-4 mt-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[16px] shrink-0" style={{ background: "var(--blue-d, var(--bg2))", color: "var(--blue)" }}>$</div>
+                <div>
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>USD tax rate</div>
+                  <div className="text-[11px] mt-0.5 leading-snug max-w-[420px]" style={{ color: "var(--muted)" }}>
+                    Current: {settings.gstPercentUsd ?? 0}%. Applied to USD (international) orders. Export of services is normally zero-rated — keep at 0 unless your tax advisor says otherwise.
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <input type="number" min={0} max={100} step={0.1} disabled={saving} defaultValue={settings.gstPercentUsd ?? 0} key={`usdtax-${settings.gstPercentUsd}`}
+                  className="font-mono text-[12px] px-2 py-1 rounded w-[80px] text-right outline-none"
+                  style={{ border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)" }} id="usd-tax-input" />
+                <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>%</span>
+                <button disabled={saving}
+                  onClick={() => {
+                    const el = document.getElementById("usd-tax-input") as HTMLInputElement | null;
+                    const pct = Math.max(0, Math.min(100, Number(el?.value ?? 0)));
+                    if (Number.isFinite(pct) && pct !== settings.gstPercentUsd) savePatch({ gstPercentUsd: Math.round(pct * 10) / 10 }, `USD tax rate set to ${pct}%`);
+                  }}
+                  className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer disabled:opacity-60"
+                  style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--panel)" }}>Save</button>
+              </div>
+            </div>
+
+            {/* USD conversion rate (fallback) */}
+            <div className="rounded-xl p-4 flex items-center justify-between gap-4 mt-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[16px] shrink-0" style={{ background: "var(--bg2)", color: "var(--text2)" }}>₹→$</div>
+                <div>
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>USD conversion rate (fallback)</div>
+                  <div className="text-[11px] mt-0.5 leading-snug max-w-[420px]" style={{ color: "var(--muted)" }}>
+                    Current: ₹{settings.usdRate ?? DEFAULT_USD_RATE} = $1. Used only when a course/project has no explicit USD price — the ₹ price is divided by this and rounded up to a whole dollar.
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>₹</span>
+                <input type="number" min={1} max={1000} step={0.5} disabled={saving} defaultValue={settings.usdRate ?? DEFAULT_USD_RATE} key={`usdrate-${settings.usdRate}`}
+                  className="font-mono text-[12px] px-2 py-1 rounded w-[80px] text-right outline-none"
+                  style={{ border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)" }} id="usd-rate-input" />
+                <button disabled={saving}
+                  onClick={() => {
+                    const el = document.getElementById("usd-rate-input") as HTMLInputElement | null;
+                    const rate = Math.max(1, Math.min(1000, Number(el?.value ?? DEFAULT_USD_RATE)));
+                    if (Number.isFinite(rate) && rate !== settings.usdRate) savePatch({ usdRate: Math.round(rate * 100) / 100 }, `USD rate set to ₹${rate}`);
+                  }}
+                  className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer disabled:opacity-60"
+                  style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--panel)" }}>Save</button>
               </div>
             </div>
           </section>

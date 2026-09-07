@@ -197,7 +197,7 @@ export function StaffLoginForm() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder={active.email}
+                    placeholder="Enter your email"
                     className="h-12 w-full rounded-xl border-[1.5px] border-[var(--border)] bg-[var(--bg)] pl-10 pr-4 text-[13px] text-[var(--text)] outline-none transition-all placeholder:text-[var(--muted)] focus:border-[var(--blue)] focus:shadow-[0_0_0_3px_var(--blue-dim)] focus:bg-[var(--surface)]"
                   />
                 </div>

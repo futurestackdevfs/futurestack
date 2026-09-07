@@ -162,6 +162,8 @@ model Course {
   thumbnailUrl String?
   price        Float
   originalPrice Float?    // list/strikethrough price (admin-set). null = no discount, display price only.
+  priceUsd         Float?  // USD sale price for international checkout. null = auto-convert from `price` via PaymentSettings.usdRate.
+  originalPriceUsd Float?  // USD list/strikethrough price. null = no USD discount shown.
   status       CourseStatus  @default(DRAFT)
   isFeatured   Boolean       @default(false)
   displayOrder Int           @default(0)
@@ -524,6 +526,8 @@ model Order {
   razorpayPaymentId String?
   razorpaySignature String?
   paymentMethod     String?
+  isInternational   Boolean?    // set from the Razorpay payment entity — was the card foreign-issued?
+  settledCurrency   String?     // currency the payment actually settled in, per Razorpay ("INR" | "USD")
   billingFullName   String?
   billingEmail      String?
   billingPhone      String?
@@ -531,6 +535,7 @@ model Order {
   billingCity       String?
   billingState      String?
   billingPincode    String?
+  billingCountry    String?     // ISO 3166-1 alpha-2, e.g. "IN", "US". Drives currency + invoice format.
   batchMode         String?     // "Online" | "Offline" — set by the sales console for manually collected sales
   discountReason    String?     // salesperson notes for a manual discount
 items             OrderItem[]
@@ -568,7 +573,9 @@ model PaymentSettings {
   domesticEnabled      Boolean  @default(true)   // INR (domestic gateway)
   internationalEnabled Boolean  @default(false)  // USD (international gateway)
   trainerSharePercent  Int      @default(50)     // default % of collected gross the trainer keeps (rest = platform cut)
-  gstPercent           Float    @default(18)     // GST % charged on top of every course fee
+  gstPercent           Float    @default(18)     // GST % charged on top of every course fee (INR / domestic)
+  gstPercentUsd        Float    @default(0)      // GST % for USD orders — export of services is zero-rated by default
+  usdRate              Float    @default(95)     // INR per 1 USD — fallback conversion when a course/project has no explicit priceUsd. Fresh rows are seeded from the DEFAULT_USD_RATE env var; this DB default is only a raw safety net. Admin edits the live value.
   updatedAt            DateTime @updatedAt
 }
 
@@ -633,6 +640,8 @@ model Project {
   seats               Int           @default(0)
   price               Float         @default(0)
   originalPrice       Float?
+  priceUsd            Float?        // USD sale price for international checkout. null = auto-convert from `price` via PaymentSettings.usdRate.
+  originalPriceUsd    Float?        // USD list/strikethrough price. null = no USD discount shown.
   rating              Float         @default(0)
   reviewCount         Int           @default(0)
   status              CourseStatus  @default(DRAFT)

@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useViewParam } from "@/lib/use-view-param";
 import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken, clearStaffToken } from "@/app/auth/lib/token-store";
 import { OpsStatusbar } from "@/app/ops/components/OpsStatusbar";
@@ -28,7 +29,7 @@ const EMPTY_DASHBOARD: CoordinatorDashboard = {
 };
 
 export default function CoordinatorConsolePage() {
-  const [view, setView] = useState("dashboard");
+  const [view, setView] = useViewParam("dashboard");
   const [searchQuery, setSearchQuery] = useState("");
   const [user, setUser] = useState<{ id: string; name: string; email: string; role: string; initials: string } | null>(null);
   const [token, setToken] = useState<string | null>(null);

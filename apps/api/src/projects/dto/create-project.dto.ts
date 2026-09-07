@@ -69,6 +69,16 @@ export class CreateProjectDto {
   originalPrice?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  priceUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  originalPriceUsd?: number;
+
+  @IsOptional()
   @IsString()
   category?: string;
 

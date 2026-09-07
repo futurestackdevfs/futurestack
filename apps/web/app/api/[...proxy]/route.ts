@@ -48,9 +48,12 @@ async function proxy(req: NextRequest) {
 
     backendRes = await fetch(url, fetchOptions);
   } catch (err) {
-    // Backend unreachable (ECONNREFUSED, timeout, DNS failure, etc.)
+    // Backend unreachable (ECONNREFUSED, timeout, DNS failure, etc.). Log the
+    // real cause server-side; never return it to the browser — it can carry the
+    // internal backend host/port.
+    console.error('[proxy] backend unreachable:', err);
     return NextResponse.json(
-      { statusCode: 502, message: 'Backend unreachable', error: String(err) },
+      { statusCode: 502, message: 'Service temporarily unavailable. Please try again in a moment.' },
       { status: 502 },
     );
   }

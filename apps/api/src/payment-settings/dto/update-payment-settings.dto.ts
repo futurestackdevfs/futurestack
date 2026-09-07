@@ -27,4 +27,16 @@ export class UpdatePaymentSettingsDto {
   @Min(0)
   @Max(100)
   gstPercent?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  gstPercentUsd?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(1000)
+  usdRate?: number;
 }

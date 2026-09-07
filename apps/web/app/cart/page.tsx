@@ -5,11 +5,13 @@ import useSWR from "swr";
 import { TopNav } from "@/components/layout/marketing-top-nav";
 import Link from "next/link";
 import { authFetch } from "@/app/auth/lib/auth-fetch";
+import { COUNTRIES, addressFormat, countryName, normalizeCountry } from "@/lib/countries";
 
 interface PaymentSettings {
   domesticEnabled: boolean;
   internationalEnabled: boolean;
   gstPercent: number;
+  gstPercentUsd?: number;
 }
 
 type Currency = "INR" | "USD";
@@ -113,6 +115,7 @@ interface BillingDetails {
   city: string;
   state: string;
   pincode: string;
+  country: string; // ISO 3166-1 alpha-2
 }
 
 const emptyBilling: BillingDetails = {
@@ -123,6 +126,7 @@ const emptyBilling: BillingDetails = {
   city: "",
   state: "",
   pincode: "",
+  country: "IN",
 };
 
 const BILLING_CACHE_KEY = "fs_billing";
@@ -132,7 +136,8 @@ function loadBillingCache(): BillingDetails | null {
     const raw = localStorage.getItem(BILLING_CACHE_KEY);
     if (!raw) return null;
     const v = JSON.parse(raw) as Partial<BillingDetails>;
-    return v.fullName || v.email ? { ...emptyBilling, ...v } : null;
+    if (!v.fullName && !v.email) return null;
+    return { ...emptyBilling, ...v, country: normalizeCountry(v.country) };
   } catch {
     return null;
   }
@@ -164,6 +169,27 @@ function formatPrice(n: number, currency: Currency = "INR") {
   return "₹" + v.toLocaleString("en-IN");
 }
 
+/**
+ * Turns an API error response into a message that's safe to show a shopper:
+ * auth failures become a login prompt, server errors (5xx) collapse to a
+ * generic line so we never surface a stack trace / DB message, and only short
+ * plain-text 4xx messages (validation / business rules) are passed through.
+ */
+function safeApiError(
+  status: number,
+  body: unknown,
+  fallback: string,
+): string {
+  if (status === 401 || status === 403) return "Please login to continue";
+  if (status >= 500 || status === 0) return fallback;
+  let msg = (body as { message?: unknown } | null)?.message;
+  if (Array.isArray(msg)) msg = msg[0];
+  if (typeof msg === "string" && msg.length > 0 && msg.length <= 160 && !/\n/.test(msg)) {
+    return msg;
+  }
+  return fallback;
+}
+
 function discountLabel(c: CartCoupon, currency: Currency): string {
   return c.discountType === "PERCENT"
     ? `${c.value}% OFF`
@@ -176,7 +202,7 @@ async function cartFetcher(url: string): Promise<CartView> {
   if (res.status === 401) return emptyCart();
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message || `Request failed (${res.status})`);
+    throw new Error(safeApiError(res.status, body, "We couldn't load your cart. Please refresh and try again."));
   }
   return res.json();
 }
@@ -270,46 +296,6 @@ function Field({
   );
 }
 
-function CurrencySelector({
-  currency,
-  enabledCurrencies,
-  onChange,
-}: {
-  currency: Currency;
-  enabledCurrencies: Currency[];
-  onChange: (c: Currency) => void;
-}) {
-  const opts: { code: Currency; label: string }[] = ([
-    { code: "INR", label: "₹ INR" },
-    { code: "USD", label: "$ USD" },
-  ] as { code: Currency; label: string }[]).filter(o => enabledCurrencies.includes(o.code));
-
-  if (opts.length === 0) return null;
-
-  return (
-    <div className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1">
-      {opts.map(o => {
-        const active = currency === o.code;
-        return (
-          <button
-            key={o.code}
-            type="button"
-            onClick={() => onChange(o.code)}
-            className={`px-3.5 py-1.5 rounded-full text-[11.5px] font-bold transition-all duration-150 cursor-pointer ${
-              active
-                ? "bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white shadow-[0_3px_10px_rgba(240,90,26,.35)]"
-                : "text-[var(--text2)] hover:text-[var(--text)] hover:bg-[var(--bg2)]"
-            }`}
-            title={`Pay in ${o.code}`}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export default function CartPage() {
   const [step, setStep] = useState(1);
   const [promoInput, setPromoInput] = useState("");
@@ -318,7 +304,6 @@ export default function CartPage() {
   const [payError, setPayError] = useState("");
   const [payNotice, setPayNotice] = useState<PayNotice | null>(null);
   const [success, setSuccess] = useState<SuccessData | null>(null);
-  const [currency, setCurrency] = useState<Currency>("INR");
   const [billing, setBilling] = useState<BillingDetails>(emptyBilling);
   const [billingError, setBillingError] = useState("");
 
@@ -340,11 +325,15 @@ export default function CartPage() {
     return list.length > 0 ? list : ["INR"];
   }, [paySettings]);
 
-  // If the current selection was disabled, fall back to the first enabled
-  // currency without firing a render-cycle state update.
-  const activeCurrency: Currency = enabledCurrencies.includes(currency)
-    ? currency
+  // Currency defaults to the billing country (India → INR, else → USD) but the
+  // shopper can override it with the toggle when both currencies are enabled.
+  const [currencyOverride, setCurrencyOverride] = useState<Currency | null>(null);
+  const desiredCurrency: Currency = billing.country === "IN" ? "INR" : "USD";
+  const preferredCurrency: Currency = currencyOverride ?? desiredCurrency;
+  const activeCurrency: Currency = enabledCurrencies.includes(preferredCurrency)
+    ? preferredCurrency
     : enabledCurrencies[0];
+  const showCurrencyToggle = enabledCurrencies.length > 1;
 
   const {
     data: cart,
@@ -397,7 +386,7 @@ export default function CartPage() {
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { message?: string };
-      setPromoError(body.message || "Invalid coupon code");
+      setPromoError(safeApiError(res.status, body, "Couldn't apply that code — please try again."));
       return;
     }
     setPromoInput("");
@@ -462,6 +451,7 @@ export default function CartPage() {
             billingCity?: string | null;
             billingState?: string | null;
             billingPincode?: string | null;
+            billingCountry?: string | null;
           }[];
           const latest = orders.find(o => o.billingFullName && o.billingEmail && o.billingPhone);
           if (latest) {
@@ -473,6 +463,7 @@ export default function CartPage() {
               city: latest.billingCity ?? "",
               state: latest.billingState ?? "",
               pincode: latest.billingPincode ?? "",
+              country: normalizeCountry(latest.billingCountry),
             });
             return;
           }
@@ -518,16 +509,18 @@ export default function CartPage() {
   }
 
   function validateBilling(): string {
+    const fmt = addressFormat(billing.country);
     if (!billing.fullName.trim()) return "Please enter your full name";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billing.email.trim()))
       return "Please enter a valid email address";
-    if (!/^[0-9]{10,15}$/.test(billing.phone.trim()))
-      return "Please enter a valid phone number (10-15 digits)";
+    if (!/^\+?[0-9]{8,15}$/.test(billing.phone.trim().replace(/[\s-]/g, "")))
+      return "Please enter a valid phone number";
     if (!billing.address.trim()) return "Please enter your address";
     if (!billing.city.trim()) return "Please enter your city";
-    if (!billing.state.trim()) return "Please enter your state";
-    if (!/^[0-9]{5,6}$/.test(billing.pincode.trim()))
-      return "Please enter a valid pincode (5-6 digits)";
+    if (!billing.country.trim()) return "Please select your country";
+    if (!billing.state.trim()) return `Please enter your ${fmt.stateLabel.toLowerCase()}`;
+    if (!fmt.postalPattern.test(billing.pincode.trim()))
+      return `Please enter a valid ${fmt.postalLabel.toLowerCase()}`;
     return "";
   }
 
@@ -558,11 +551,11 @@ export default function CartPage() {
           city: billing.city.trim(),
           state: billing.state.trim(),
           pincode: billing.pincode.trim(),
+          country: billing.country,
         }),
       });
       const body = (await orderRes.json().catch(() => ({}))) as { message?: string };
-      if (orderRes.status === 401 || orderRes.status === 403) throw new Error("Please login to continue");
-      if (!orderRes.ok) throw new Error(body.message || "Could not start checkout");
+      if (!orderRes.ok) throw new Error(safeApiError(orderRes.status, body, "Could not start checkout — please try again."));
       orderData = body as unknown as typeof orderData;
     } catch (e) {
       setProcessing(false);
@@ -639,8 +632,7 @@ export default function CartPage() {
               }),
             });
             const vbody = (await verifyRes.json().catch(() => ({}))) as { message?: string };
-            if (verifyRes.status === 401 || verifyRes.status === 403) throw new Error("Please login to continue");
-            if (!verifyRes.ok) throw new Error(vbody.message || "Payment could not be verified");
+            if (!verifyRes.ok) throw new Error(safeApiError(verifyRes.status, vbody, "We couldn't confirm your payment. If money was deducted it will be auto-refunded, or contact support."));
             setSuccess({
               amount: orderData.amount,
               currency: orderData.currency,
@@ -715,7 +707,29 @@ export default function CartPage() {
                 <span className="text-xs font-medium text-[var(--muted)]">{totalCount} {totalCount === 1 ? "course" : "courses"}</span>
               </div>
               <div className="flex items-center gap-2.5 shrink-0">
-                <CurrencySelector currency={activeCurrency} enabledCurrencies={enabledCurrencies} onChange={setCurrency} />
+                {showCurrencyToggle ? (
+                  <div className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1" title={`Auto-selected from ${countryName(billing.country)} — tap to change`}>
+                    {(["INR", "USD"] as Currency[]).filter(c => enabledCurrencies.includes(c)).map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setCurrencyOverride(c === desiredCurrency ? null : c)}
+                        className={`px-3.5 py-1.5 rounded-full text-[11.5px] font-bold transition-all duration-150 cursor-pointer ${
+                          activeCurrency === c
+                            ? "bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white shadow-[0_3px_10px_rgba(240,90,26,.35)]"
+                            : "text-[var(--text2)] hover:text-[var(--text)] hover:bg-[var(--bg2)]"
+                        }`}
+                      >
+                        {c === "USD" ? "$ USD" : "₹ INR"}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-[12px] font-semibold text-[var(--text2)] bg-[var(--bg2)] border border-[var(--border)] rounded-lg px-2.5 py-1.5">
+                    {activeCurrency === "USD" ? "$ USD" : "₹ INR"}
+                    <span className="text-[var(--muted)] font-normal"> · {countryName(billing.country)}</span>
+                  </span>
+                )}
                 <Link href="/courses" className="hidden sm:inline text-[13px] font-semibold text-[var(--blue)] hover:underline no-underline">Continue browsing →</Link>
               </div>
             </div>
@@ -868,7 +882,7 @@ export default function CartPage() {
                         )}
                         {gstPercent > 0 && (
                           <div className="flex justify-between">
-                            <span className="text-[var(--text2)]">GST ({gstPercent}%)</span>
+                            <span className="text-[var(--text2)]">{activeCurrency === "USD" ? "Tax" : "GST"} ({gstPercent}%)</span>
                             <span className="text-[var(--text)] font-semibold">{formatPrice(gstAmount, activeCurrency)}</span>
                           </div>
                         )}
@@ -1008,13 +1022,67 @@ export default function CartPage() {
               {showBillingForm ? (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Field label="Full Name" value={billing.fullName} onChange={v => setBillingField("fullName", v)} placeholder="e.g. Rahul Sharma" className="sm:col-span-1" />
-                    <Field label="Email" value={billing.email} onChange={v => setBillingField("email", v)} placeholder="you@example.com" className="sm:col-span-1" type="email" />
-                    <Field label="Phone Number" value={billing.phone} onChange={v => setBillingField("phone", v)} placeholder="e.g. 9876543210" className="sm:col-span-2" type="tel" maxLength={15} />
+                    <Field label="Full Name" value={billing.fullName} onChange={v => setBillingField("fullName", v)} placeholder="Enter your full name" className="sm:col-span-1" />
+                    <Field label="Email" value={billing.email} onChange={v => setBillingField("email", v)} placeholder="Enter your email" className="sm:col-span-1" type="email" />
+                    <Field label="Phone Number" value={billing.phone} onChange={v => setBillingField("phone", v)} placeholder="Enter your phone number" className="sm:col-span-2" type="tel" maxLength={15} />
                     <Field label="Address" value={billing.address} onChange={v => setBillingField("address", v)} placeholder="House no, street, area" className="sm:col-span-2" textarea />
-                    <Field label="City" value={billing.city} onChange={v => setBillingField("city", v)} placeholder="e.g. Mumbai" className="sm:col-span-1" />
-                    <Field label="State" value={billing.state} onChange={v => setBillingField("state", v)} placeholder="e.g. Maharashtra" className="sm:col-span-1" />
-                    <Field label="Pincode" value={billing.pincode} onChange={v => setBillingField("pincode", v)} placeholder="e.g. 400001" className="sm:col-span-2" maxLength={6} inputMode="numeric" />
+                    <label className="flex flex-col gap-1.5 sm:col-span-2">
+                      <span className="text-[11px] font-bold uppercase tracking-[.06em] text-[var(--text2)]">Country</span>
+                      <select
+                        value={billing.country}
+                        onChange={e => {
+                          const c = e.target.value;
+                          // Clear state/pincode when switching country so a stale
+                          // Indian PIN doesn't ride along into a US order.
+                          setBilling(b => ({ ...b, country: c, state: "", pincode: "" }));
+                        }}
+                        className={fieldBaseCls}
+                      >
+                        {COUNTRIES.map(c => (
+                          <option key={c.code} value={c.code}>{c.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <Field label="City" value={billing.city} onChange={v => setBillingField("city", v)} placeholder="Enter your city" className="sm:col-span-1" />
+                    {(() => {
+                      const fmt = addressFormat(billing.country);
+                      return (
+                        <label className="flex flex-col gap-1.5 sm:col-span-1">
+                          <span className="text-[11px] font-bold uppercase tracking-[.06em] text-[var(--text2)]">{fmt.stateLabel}</span>
+                          {fmt.stateOptions ? (
+                            <select
+                              value={billing.state}
+                              onChange={e => setBillingField("state", e.target.value)}
+                              className={fieldBaseCls}
+                            >
+                              <option value="">Select…</option>
+                              {fmt.stateOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          ) : (
+                            <input
+                              value={billing.state}
+                              onChange={e => setBillingField("state", e.target.value)}
+                              placeholder={`Enter your ${fmt.stateLabel.toLowerCase()}`}
+                              className={fieldBaseCls}
+                            />
+                          )}
+                        </label>
+                      );
+                    })()}
+                    {(() => {
+                      const fmt = addressFormat(billing.country);
+                      return (
+                        <Field
+                          label={fmt.postalLabel}
+                          value={billing.pincode}
+                          onChange={v => setBillingField("pincode", v)}
+                          placeholder={fmt.postalPlaceholder}
+                          className="sm:col-span-2"
+                          maxLength={12}
+                          inputMode={fmt.postalInputMode}
+                        />
+                      );
+                    })()}
                   </div>
                   <div className="flex flex-col gap-2.5 mt-5">
                     <button onClick={saveBilling} className={primaryBtnCls}>
@@ -1049,18 +1117,22 @@ export default function CartPage() {
                     <span className="text-[var(--muted)] shrink-0">Address</span>
                     <span className="text-[var(--text)] font-semibold text-right">{billing.address}</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2.5 text-[13px]">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[13px]">
                     <div className="flex flex-col gap-0.5">
                       <span className="text-[var(--muted)] text-[11px]">City</span>
                       <span className="text-[var(--text)] font-semibold">{billing.city}</span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[var(--muted)] text-[11px]">State</span>
+                      <span className="text-[var(--muted)] text-[11px]">{addressFormat(billing.country).stateLabel}</span>
                       <span className="text-[var(--text)] font-semibold">{billing.state}</span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[var(--muted)] text-[11px]">Pincode</span>
+                      <span className="text-[var(--muted)] text-[11px]">{addressFormat(billing.country).postalLabel}</span>
                       <span className="text-[var(--text)] font-semibold">{billing.pincode}</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[var(--muted)] text-[11px]">Country</span>
+                      <span className="text-[var(--text)] font-semibold">{countryName(billing.country)}</span>
                     </div>
                   </div>
                   <button
@@ -1085,7 +1157,7 @@ export default function CartPage() {
                 )}
                 {gstPercent > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-[var(--text2)]">GST ({gstPercent}%)</span>
+                    <span className="text-[var(--text2)]">{activeCurrency === "USD" ? "Tax" : "GST"} ({gstPercent}%)</span>
                     <span className="text-[var(--text)] font-semibold">{formatPrice(gstAmount, activeCurrency)}</span>
                   </div>
                 )}

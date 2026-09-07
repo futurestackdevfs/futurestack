@@ -19,6 +19,7 @@ import {
 } from '../payment-settings/share.util';
 import { RazorpayClientService } from './razorpay-client.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { gstPercentFor, resolveItemPrice } from '../common/pricing.util';
 
 interface FinalizeMeta {
   razorpayPaymentId: string;
@@ -75,6 +76,7 @@ export class CheckoutService {
       billingCity: dto.city,
       billingState: dto.state,
       billingPincode: dto.pincode,
+      billingCountry: (dto.country ?? 'IN').toUpperCase(),
     };
     // Gate on the admin-controlled PaymentSettings toggle so a disabled
     // currency can never reach Razorpay even if the frontend sends it.
@@ -83,14 +85,15 @@ export class CheckoutService {
       throw new BadRequestException('INR payments are currently disabled');
     if (currency === Currency.USD && !settings.internationalEnabled)
       throw new BadRequestException('USD payments are currently disabled');
+    const usdRate = settings.usdRate ?? 0;
 
     const cart = await this.prisma.cart.findUnique({
       where: { userId },
       include: {
         items: {
           include: {
-            course: { select: { status: true, price: true } },
-            project: { select: { id: true, name: true, status: true, price: true, trainerId: true } },
+            course: { select: { status: true, price: true, priceUsd: true } },
+            project: { select: { id: true, name: true, status: true, price: true, priceUsd: true, trainerId: true } },
           },
         },
       },
@@ -120,7 +123,11 @@ export class CheckoutService {
           dropped.push({ courseId: item.courseId, reason: 'You are already enrolled in this course' });
           continue;
         }
-        keptCourses.push({ itemId: item.id, courseId: item.courseId, price: item.course.price });
+        keptCourses.push({
+          itemId: item.id,
+          courseId: item.courseId,
+          price: resolveItemPrice(currency, item.course.price, item.course.priceUsd, usdRate),
+        });
       } else if (item.projectId) {
         if (!item.project || item.project.status !== 'ACTIVE') {
           dropped.push({ projectId: item.projectId, reason: 'Project is no longer available' });
@@ -130,7 +137,7 @@ export class CheckoutService {
           itemId: item.id,
           projectId: item.projectId,
           projectName: item.project.name,
-          price: item.project.price,
+          price: resolveItemPrice(currency, item.project.price, item.project.priceUsd, usdRate),
           trainerId: item.project.trainerId,
         });
       }
@@ -239,23 +246,29 @@ export class CheckoutService {
     // GST is added on top (exclusive) of the discounted fee. The rate is the
     // admin-configurable PaymentSettings value and is snapshotted on the Order
     // so historical invoices stay accurate if the rate changes later.
-    const gstPercent = settings.gstPercent ?? 18;
+    const gstPercent = gstPercentFor(
+      currency,
+      settings.gstPercent ?? 18,
+      settings.gstPercentUsd ?? 0,
+    );
     const gstAmount = this.round2((totalBeforeGst * gstPercent) / 100);
     const totalAmount = this.round2(totalBeforeGst + gstAmount);
 
     // Razorpay rejects orders below ₹1 (100 paise). Surface a clear error
     // instead of a misleading "gateway unavailable" when a coupon zeroes out
     // the total — e.g. a 100% discount.
-    if (totalAmount < 1) {
+    const minAmount = currency === Currency.USD ? 0.5 : 1;
+    if (totalAmount < minAmount) {
       throw new BadRequestException(
-        'Order total must be at least ₹1 — try a smaller discount',
+        `Order total must be at least ${currency === Currency.USD ? '$0.50' : '₹1'} — try a smaller discount`,
       );
     }
 
-    // Single Razorpay account today — international payments arrive on the same
-    // account later, so no branching on currency. Keep the schema field for
-    // future-proofing but always record DOMESTIC for now.
-    const gatewayType = 'DOMESTIC' as const;
+    // Records the intent: a USD order is routed through the international
+    // gateway. (Same Razorpay account today; the field lets reporting and a
+    // future gateway split tell domestic and international sales apart.)
+    const gatewayType =
+      currency === Currency.USD ? ('INTERNATIONAL' as const) : ('DOMESTIC' as const);
 
     // Create Order + OrderItem[] (snapshotting priceAtPurchase) in one tx.
     // The order id is generated client-side (Prisma @default(uuid())) and used as
@@ -534,6 +547,8 @@ export class CheckoutService {
                 order_id?: string;
                 payment_signature?: string;
                 method?: string;
+                international?: boolean;
+                currency?: string;
               };
             };
           }
@@ -556,6 +571,23 @@ export class CheckoutService {
           razorpaySignature: entity?.payment_signature ?? undefined,
           paymentMethod: entity?.method ?? undefined,
         });
+        // Settlement signals from the gateway — the authoritative answer to
+        // "was this actually an international payment?" (a USD-priced order can
+        // still be paid on an Indian card, and vice versa). Purely informational
+        // — a failure here must never undo the finalized enrollment above.
+        try {
+          await this.prisma.order.update({
+            where: { id: order.id },
+            data: {
+              isInternational: entity?.international ?? false,
+              settledCurrency: entity?.currency ?? order.currency,
+            },
+          });
+        } catch (e) {
+          this.logger.warn(
+            `Could not record settlement signals for order ${order.id}: ${this.describeError(e)}`,
+          );
+        }
       } else if (type === 'payment.failed') {
         await this.prisma.order.updateMany({
           where: { id: order.id, status: 'CREATED' },

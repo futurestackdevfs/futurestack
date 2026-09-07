@@ -453,7 +453,7 @@ export default function RndInnovationLabPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@company.com"
+                    placeholder="Enter your work email"
                     required
                     className="bg-white/8 border border-white/18 rounded-[10px] px-4 py-3 text-[13px] text-white outline-none w-full sm:min-w-[220px] placeholder:text-white/45 focus:border-[var(--blue)] transition-colors"
                   />
