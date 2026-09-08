@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import Image from "next/image";
 import useSWR from "swr";
 
 interface HeroSlide {
@@ -93,6 +92,10 @@ export function Hero() {
             key={s.id}
             src={s.imageUrl}
             alt={s.title || ""}
+            loading={i === 0 ? "eager" : "lazy"}
+            fetchPriority={i === 0 ? "high" : "auto"}
+            decoding="async"
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
             className="absolute inset-0 block w-full transition-opacity duration-700"
             style={{ height: 307, objectFit: "fill", opacity: i === current ? 1 : 0 }}
           />

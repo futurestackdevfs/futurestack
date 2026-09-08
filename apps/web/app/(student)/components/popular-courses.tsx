@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
+import { SafeImage } from "@/components/SafeImage";
 import useSWR from "swr";
 
 interface FeaturedCourse {
@@ -55,12 +55,12 @@ export function PopularCourses() {
                 </div>
               </div>
             ))
-          : courses.map((c) => (
+          : courses.map((c, i) => (
               <div key={c.id} onClick={() => router.push(`/courses/${slugify(c.title)}`)} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden cursor-pointer shadow-[var(--shadow)] hover:-translate-y-1 hover:border-[rgba(37,99,235,.3)] hover:shadow-[var(--shadow-lg)] group">
                 <div className="relative aspect-[21/8] w-full overflow-hidden rounded-[18px_18px_0_0] bg-[var(--bg2)]">
                   {c.thumbnailUrl ? (
                     <div className="absolute inset-0">
-                      <Image src={c.thumbnailUrl} alt={c.title} fill sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw" className="object-cover" />
+                      <SafeImage src={c.thumbnailUrl} alt={c.title} fill sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw" className="object-cover" priority={i < 4} />
                     </div>
                   ) : <div className="absolute inset-0" style={{ background: fallbackGradient }} />}
                   {c.badge && (

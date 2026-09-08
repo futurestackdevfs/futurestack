@@ -119,6 +119,84 @@ export function normalizeCountry(code: unknown): string {
   return "IN";
 }
 
+// IANA timezone → ISO-2 country. Only the zones we care about; anything not
+// listed falls through to the locale check in guessCountry(). One representative
+// zone per country is enough — we just need a sensible default, not precision.
+const TZ_TO_COUNTRY: Record<string, string> = {
+  "Asia/Kolkata": "IN", "Asia/Calcutta": "IN",
+  "America/New_York": "US", "America/Chicago": "US", "America/Denver": "US",
+  "America/Los_Angeles": "US", "America/Phoenix": "US", "America/Anchorage": "US",
+  "Pacific/Honolulu": "US", "America/Detroit": "US",
+  "Europe/London": "GB",
+  "Asia/Dubai": "AE",
+  "Australia/Sydney": "AU", "Australia/Melbourne": "AU", "Australia/Brisbane": "AU",
+  "Australia/Perth": "AU", "Australia/Adelaide": "AU",
+  "America/Toronto": "CA", "America/Vancouver": "CA", "America/Edmonton": "CA",
+  "America/Winnipeg": "CA", "America/Halifax": "CA",
+  "Asia/Singapore": "SG",
+  "Europe/Berlin": "DE", "Europe/Paris": "FR", "Europe/Amsterdam": "NL",
+  "Europe/Dublin": "IE", "Pacific/Auckland": "NZ",
+  "Asia/Riyadh": "SA", "Asia/Qatar": "QA", "Asia/Kuwait": "KW",
+  "Asia/Bahrain": "BH", "Asia/Muscat": "OM",
+  "Africa/Johannesburg": "ZA", "Asia/Tokyo": "JP", "Asia/Kabul": "AF",
+  "Europe/Tirane": "AL", "Africa/Algiers": "DZ", "America/Argentina/Buenos_Aires": "AR",
+  "Asia/Yerevan": "AM", "Europe/Vienna": "AT", "Asia/Baku": "AZ",
+  "Asia/Dhaka": "BD", "Europe/Brussels": "BE", "America/Sao_Paulo": "BR",
+  "Europe/Sofia": "BG", "Asia/Phnom_Penh": "KH", "America/Santiago": "CL",
+  "Asia/Shanghai": "CN", "America/Bogota": "CO", "Europe/Zagreb": "HR",
+  "Asia/Nicosia": "CY", "Europe/Prague": "CZ", "Europe/Copenhagen": "DK",
+  "Africa/Cairo": "EG", "Europe/Tallinn": "EE", "Africa/Addis_Ababa": "ET",
+  "Europe/Helsinki": "FI", "Asia/Tbilisi": "GE", "Africa/Accra": "GH",
+  "Europe/Athens": "GR", "Asia/Hong_Kong": "HK", "Europe/Budapest": "HU",
+  "Asia/Jakarta": "ID", "Asia/Jerusalem": "IL", "Europe/Rome": "IT",
+  "Asia/Amman": "JO", "Asia/Almaty": "KZ", "Africa/Nairobi": "KE",
+  "Europe/Riga": "LV", "Asia/Beirut": "LB", "Europe/Vilnius": "LT",
+  "Europe/Luxembourg": "LU", "Asia/Kuala_Lumpur": "MY", "Indian/Maldives": "MV",
+  "Europe/Malta": "MT", "Indian/Mauritius": "MU", "America/Mexico_City": "MX",
+  "Africa/Casablanca": "MA", "Asia/Kathmandu": "NP", "Africa/Lagos": "NG",
+  "Europe/Oslo": "NO", "Asia/Karachi": "PK", "Asia/Manila": "PH",
+  "Europe/Warsaw": "PL", "Europe/Lisbon": "PT", "Europe/Bucharest": "RO",
+  "Europe/Moscow": "RU", "Europe/Belgrade": "RS", "Asia/Colombo": "LK",
+  "Europe/Bratislava": "SK", "Europe/Ljubljana": "SI", "Asia/Seoul": "KR",
+  "Europe/Madrid": "ES", "Europe/Stockholm": "SE", "Europe/Zurich": "CH",
+  "Asia/Taipei": "TW", "Africa/Dar_es_Salaam": "TZ", "Asia/Bangkok": "TH",
+  "Africa/Tunis": "TN", "Europe/Istanbul": "TR", "Africa/Kampala": "UG",
+  "Europe/Kyiv": "UA", "Europe/Kiev": "UA", "America/Montevideo": "UY",
+  "Asia/Tashkent": "UZ", "Asia/Ho_Chi_Minh": "VN", "Asia/Saigon": "VN",
+  "Africa/Lusaka": "ZM", "Africa/Harare": "ZW",
+};
+
+/**
+ * Best-effort ISO-2 country guess from the browser — no IP, no network call.
+ * Uses the resolved IANA timezone first (most reliable), then the locale's
+ * region subtag. Falls back to India, which is the safest default for this
+ * business. This is only a pre-fill hint; the billing dropdown is authoritative.
+ */
+export function guessCountry(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    if (TZ_TO_COUNTRY[tz]) return TZ_TO_COUNTRY[tz];
+
+    const locales: string[] =
+      (typeof navigator !== "undefined" &&
+        (navigator.languages?.length
+          ? [...navigator.languages]
+          : navigator.language
+            ? [navigator.language]
+            : [])) || [];
+    for (const loc of locales) {
+      const m = loc.match(/[-_]([A-Za-z]{2})(?:$|[-_])/);
+      if (m) {
+        const cc = m[1].toUpperCase();
+        if (COUNTRY_MAP[cc]) return cc;
+      }
+    }
+  } catch {
+    /* Intl / navigator unavailable — fall through */
+  }
+  return "IN";
+}
+
 export const IN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa",
   "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala",

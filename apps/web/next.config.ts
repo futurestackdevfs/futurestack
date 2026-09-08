@@ -26,9 +26,16 @@ const nextConfig: NextConfig = {
     },
   ],
   images: {
+    // Serve modern formats and let the browser/CDN keep optimized copies for a
+    // month — remote catalog thumbnails rarely change.
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 2592000,
+    // Still permissive on host (avatars / blog / stock come from many domains);
+    // `SafeImage` degrades gracefully when a specific URL can't be optimized.
     remotePatterns: [
       { protocol: "https", hostname: "**" },
-      { protocol: "http", hostname: "**" },
+      { protocol: "http", hostname: "localhost" },
+      { protocol: "http", hostname: "127.0.0.1" },
     ],
   },
   async rewrites() {

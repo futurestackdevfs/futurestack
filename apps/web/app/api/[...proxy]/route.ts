@@ -49,9 +49,17 @@ async function proxy(req: NextRequest) {
     backendRes = await fetch(url, fetchOptions);
   } catch (err) {
     // Backend unreachable (ECONNREFUSED, timeout, DNS failure, etc.). Log the
-    // real cause server-side; never return it to the browser — it can carry the
-    // internal backend host/port.
-    console.error('[proxy] backend unreachable:', err);
+    // cause server-side; never return it to the browser — it can carry the
+    // internal backend host/port. Connection-refused (API simply not running —
+    // common in local dev) is logged as a one-liner; anything else gets the
+    // full error for real debugging.
+    const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code
+      ?? (err as { code?: string })?.code;
+    if (code === 'ECONNREFUSED') {
+      console.error(`[proxy] ${req.method} ${path} — backend not reachable at ${BACKEND} (is it running?)`);
+    } else {
+      console.error('[proxy] backend unreachable:', err);
+    }
     return NextResponse.json(
       { statusCode: 502, message: 'Service temporarily unavailable. Please try again in a moment.' },
       { status: 502 },
