@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Header, Patch } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { PaymentSettingsService } from './payment-settings.service';
@@ -23,6 +23,7 @@ export class PaymentSettingsController {
   }
 
   /** Public — no auth, consumed by the cart/checkout page currency selector. */
+  @Header('Cache-Control', 'public, max-age=120, s-maxage=600, stale-while-revalidate=600')
   @Get('payment-settings/public')
   getPublic() {
     return this.paymentSettingsService.getPublicSettings();

@@ -14,12 +14,16 @@ import { MailService } from '../mail/mail.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UploadVideoDto } from './dto/upload-video.dto';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
+import { TTLCache } from '../common/ttl-cache';
 import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 import { UpdateTrainerShareDto } from './dto/update-trainer-share.dto';
 
 @Injectable()
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
+  // Staff analytics — a few seconds of staleness is fine and these run many
+  // heavy aggregate queries. Serve stale + refresh in the background.
+  private readonly analyticsCache = new TTLCache<any>(45_000);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -155,6 +159,12 @@ export class AdminService {
   }
 
   async getPlatformStats() {
+    return this.analyticsCache.getOrRefresh('platform-stats', () =>
+      this.computePlatformStats(),
+    );
+  }
+
+  private async computePlatformStats() {
     const [
       totalCourses,
       activeCourses,
@@ -385,6 +395,12 @@ export class AdminService {
    * to them via Order.salespersonId (0 when nothing assigned).
    */
   async getSalesDashboard() {
+    return this.analyticsCache.getOrRefresh('sales-dashboard', () =>
+      this.computeSalesDashboard(),
+    );
+  }
+
+  private async computeSalesDashboard() {
     const [orders, salesStaff, careerLeads] = await Promise.all([
       this.prisma.order.findMany({
         orderBy: { createdAt: 'desc' },

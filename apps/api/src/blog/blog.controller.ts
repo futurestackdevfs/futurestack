@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Header,
   Post,
   Patch,
   Body,
@@ -54,6 +55,7 @@ export class BlogController {
   }
 
   @Get('articles')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   async findAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
@@ -71,6 +73,7 @@ export class BlogController {
   }
 
   @Get('articles/:slug')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   async findOne(@Param('slug') slug: string) {
     return this.blogService.findOnePublished(slug);
   }

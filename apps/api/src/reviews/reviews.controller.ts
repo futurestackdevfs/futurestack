@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Header,
   Post,
   Put,
   Body,
@@ -45,6 +46,7 @@ export class ReviewsController {
   }
 
   @Get('courses/:courseId/reviews')
+  @Header('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
   async getCourseReviews(
     @Param('courseId') courseId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,

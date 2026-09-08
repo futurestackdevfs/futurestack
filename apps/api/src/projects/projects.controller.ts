@@ -35,7 +35,7 @@ export class ProjectsController {
   // ── PUBLIC ──────────────────────────────────────────────────────
 
   @Get()
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   listActive() {
     return this.projectsService.listActive();
   }
@@ -117,6 +117,7 @@ export class ProjectsController {
   }
 
   @Get(':id/reviews')
+  @Header('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
   getProjectReviews(
     @Param('id') projectId: string,
     @Query('page') page: string,
@@ -149,7 +150,7 @@ export class ProjectsController {
   // ── PUBLIC: :id routes ─────────────────────────────────────────
 
   @Get(':id')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   getById(@Param('id') id: string) {
     return this.projectsService.getById(id);
   }

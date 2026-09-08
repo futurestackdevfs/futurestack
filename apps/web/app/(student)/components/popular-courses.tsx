@@ -33,7 +33,10 @@ function slugify(str: string): string {
 
 export function PopularCourses() {
   const router = useRouter();
-  const { data, isLoading } = useSWR<FeaturedCourse[]>("/api/courses/public/featured-courses");
+  const { data, isLoading } = useSWR<FeaturedCourse[]>("/api/courses/public/featured-courses", {
+    revalidateIfStale: false,
+    dedupingInterval: 300_000,
+  });
   const courses = (Array.isArray(data) ? data : []).slice(0, 10);
 
   if (!isLoading && courses.length === 0) return null;

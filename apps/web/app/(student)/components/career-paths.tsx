@@ -23,7 +23,10 @@ const iconClasses = [
 
 export function CareerPaths() {
   const router = useRouter();
-  const { data, isLoading } = useSWR<FeaturedTrack[]>("/api/courses/public/featured-tracks");
+  const { data, isLoading } = useSWR<FeaturedTrack[]>("/api/courses/public/featured-tracks", {
+    revalidateIfStale: false,
+    dedupingInterval: 300_000,
+  });
   const paths = (Array.isArray(data) ? data : []).slice(0, 10);
 
   if (!isLoading && paths.length === 0) return null;

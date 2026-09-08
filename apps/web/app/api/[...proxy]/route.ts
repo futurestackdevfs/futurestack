@@ -31,9 +31,10 @@ async function proxy(req: NextRequest) {
     ? await req.arrayBuffer()
     : undefined;
 
+  const isPublicGet = req.method === 'GET' && path.includes('/public/');
+
   let backendRes: Response;
   try {
-    const isPublicGet = req.method === 'GET' && path.includes('/public/');
     const fetchOptions: RequestInit = {
       method: req.method,
       headers,
@@ -41,7 +42,9 @@ async function proxy(req: NextRequest) {
     };
     
     if (isPublicGet) {
-      fetchOptions.next = { revalidate: 60 };
+      // Public catalog data changes rarely — let Next's Data Cache hold it for
+      // 5 min so most requests never reach the backend.
+      fetchOptions.next = { revalidate: 300 };
     } else {
       fetchOptions.cache = 'no-store';
     }
@@ -96,7 +99,16 @@ async function proxy(req: NextRequest) {
   const resCt = backendRes.headers.get('content-type');
   if (resCt) resHeaders.set('content-type', resCt);
   const resCache = backendRes.headers.get('cache-control');
-  if (resCache) resHeaders.set('cache-control', resCache);
+  if (resCache) {
+    resHeaders.set('cache-control', resCache);
+  } else if (isPublicGet && backendRes.ok) {
+    // Backend didn't set one but this is public catalog data — let the Vercel
+    // edge / browser cache it briefly so bursts don't each hit the origin.
+    resHeaders.set(
+      'cache-control',
+      'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+    );
+  }
 
   const response = new NextResponse(resBody, {
     status: backendRes.status,

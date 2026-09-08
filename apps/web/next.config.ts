@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   experimental: {
     serverComponentsHmrCache: false,
     optimizePackageImports: ["swr", "react-markdown", "remark-gfm"],
+    // Client-side Router Cache: reuse a prefetched/visited route's payload for
+    // a while so back/forward and quick re-navigation don't refetch.
+    staleTimes: { dynamic: 30, static: 300 },
   },
   compress: true,
   productionBrowserSourceMaps: false,

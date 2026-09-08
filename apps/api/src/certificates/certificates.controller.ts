@@ -182,13 +182,17 @@ export class CertificatesController {
   }
 
   @Get('recent')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   async getRecentAchievements() {
     const cached = this.recentCache.get('recent');
     if (cached) return cached;
 
     const certs = await this.prisma.certificate.findMany({
       orderBy: { issuedAt: 'desc' },
+      // Only the 3 newest distinct (student, course) pairs are rendered; a small
+      // window is plenty for the in-memory dedupe below and keeps the query
+      // bounded as the table grows.
+      take: 60,
       select: {
         issuedAt: true,
         student: { select: { name: true } },

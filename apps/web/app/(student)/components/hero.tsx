@@ -14,7 +14,11 @@ interface HeroSlide {
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function Hero() {
-  const { data, isLoading } = useSWR<HeroSlide[]>("/api/courses/public/featured-hero-slides", fetcher);
+  const { data, isLoading } = useSWR<HeroSlide[]>("/api/courses/public/featured-hero-slides", fetcher, {
+    revalidateIfStale: false,
+    revalidateOnFocus: false,
+    dedupingInterval: 300_000,
+  });
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState(0);
