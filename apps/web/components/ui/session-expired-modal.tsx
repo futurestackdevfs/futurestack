@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { emit } from '@/app/auth/hooks/use-auth';
+import { emit, useAuth } from '@/app/auth/hooks/use-auth';
 import { refreshSession } from '@/app/auth/lib/refresh-session';
 
 function decodeJwt(token: string) {
@@ -14,6 +14,7 @@ function decodeJwt(token: string) {
 
 export function SessionExpiredModal() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [visible, setVisible] = useState(false);
   const [countdown, setCountdown] = useState(10);
 
@@ -62,6 +63,15 @@ export function SessionExpiredModal() {
     window.addEventListener('fs:session-expired', handler);
     return () => window.removeEventListener('fs:session-expired', handler);
   }, []);
+
+  // use-auth.ts's own listener races this component's refresh attempt (both
+  // share the same single-flight `refreshSession` call, so only one network
+  // request happens) — if that recovers the session first, close the modal
+  // instead of leaving it up (or counting down toward a redirect) over a
+  // session that's actually fine again.
+  useEffect(() => {
+    if (visible && isAuthenticated) dismiss();
+  }, [visible, isAuthenticated, dismiss]);
 
   // Countdown timer — auto-redirect when it hits 0
   useEffect(() => {

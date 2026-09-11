@@ -24,6 +24,7 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { UpdateCurriculumDto } from './dto/update-curriculum.dto';
 import { UploadCurriculumVideoDto } from './dto/upload-curriculum-video.dto';
 import { CreateProjectOrderDto } from './dto/create-order.dto';
+import { clampPageSize } from '../common/page-size.pipe';
 
 @Controller('projects')
 export class ProjectsController {
@@ -125,13 +126,13 @@ export class ProjectsController {
   ) {
     return this.reviewsService.getProjectReviews(
       projectId,
-      parseInt(page) || 1,
-      parseInt(limit) || 10,
+      Math.max(1, parseInt(page) || 1),
+      clampPageSize(limit, 10, 50),
     );
   }
 
   @Auth(Role.STUDENT)
-  @Get(':id/reviews/me')
+  @Get(':id/reviews/my-review')
   getMyProjectReview(
     @Req() req: Request,
     @Param('id') projectId: string,

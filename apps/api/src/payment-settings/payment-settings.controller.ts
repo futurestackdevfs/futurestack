@@ -3,6 +3,7 @@ import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { PaymentSettingsService } from './payment-settings.service';
 import { UpdatePaymentSettingsDto } from './dto/update-payment-settings.dto';
+import { Audit } from '../audit/audit.decorator';
 
 @Controller()
 export class PaymentSettingsController {
@@ -17,6 +18,7 @@ export class PaymentSettingsController {
   }
 
   @Auth(Role.ADMIN)
+  @Audit({ action: 'UPDATE', entity: 'PaymentSettings', idFrom: 'none' })
   @Patch('admin/payment-settings')
   update(@Body() dto: UpdatePaymentSettingsDto) {
     return this.paymentSettingsService.updateSettings(dto);

@@ -172,7 +172,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
       setMyReviewLoading(true);
       const token = localStorage.getItem('fs_uid') ? await loadToken() : null;
       if (!token) { setMyReviewLoading(false); return; }
-      const res = await fetch(`/api/courses/${courseId}/reviews/me`, {
+      const res = await fetch(`/api/courses/${courseId}/reviews/my-review`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (cancelled) return;

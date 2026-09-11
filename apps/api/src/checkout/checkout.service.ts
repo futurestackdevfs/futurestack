@@ -57,11 +57,10 @@ export class CheckoutService {
         (typeof rec.description === 'string' ? rec.description : undefined) ??
         (typeof rec.code === 'string' ? rec.code : undefined);
       if (desc) return desc;
-      try {
-        return JSON.stringify(e);
-      } catch {
-        /* ignore */
-      }
+      // Deliberately do NOT JSON.stringify the whole error — a Razorpay SDK
+      // error object can carry request/response fragments (amounts, ids,
+      // partial card metadata) that shouldn't land in log storage.
+      return 'unrecognised gateway error';
     }
     return String(e);
   }

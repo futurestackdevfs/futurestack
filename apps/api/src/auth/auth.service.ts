@@ -100,6 +100,16 @@ export class AuthService {
       throw new UnauthorizedException('Account is suspended');
     }
 
+    // Refresh tokens issued before the last password change are dead — a
+    // password reset ends every existing session. The row is left in place
+    // (no bulk delete); it simply stops working and expires on its own.
+    if (
+      stored.user.passwordChangedAt &&
+      stored.createdAt < stored.user.passwordChangedAt
+    ) {
+      throw new UnauthorizedException('Session ended — password was changed');
+    }
+
     // Atomically consume the token. If another request already consumed it
     // (`updated.count === 0`), give it a short grace window: a just-rotated
     // token means a legit concurrent refresh, not a replay, so issue a fresh
@@ -161,7 +171,7 @@ export class AuthService {
       throw new ConflictException('An account with this email already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const hashedPassword = await bcrypt.hash(dto.password, 12);
 
     const user = await this.prisma.user.create({
       data: {
@@ -209,7 +219,7 @@ export class AuthService {
       throw new ConflictException('An account with this email already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+    const hashedPassword = await bcrypt.hash(dto.password, 12);
 
     await this.prisma.user.create({
       data: {
@@ -359,7 +369,7 @@ export class AuthService {
       );
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     await this.prisma.user.update({
       where: { id: userId },
@@ -367,6 +377,7 @@ export class AuthService {
         password: hashedPassword,
         mustChangePassword: false,
         passwordExpiresAt: null,
+        passwordChangedAt: new Date(),
       },
     });
 
@@ -436,7 +447,7 @@ export class AuthService {
       throw new BadRequestException('Reset link is invalid or has expired');
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -445,6 +456,9 @@ export class AuthService {
         passwordResetToken: null,
         passwordResetExpires: null,
         passwordExpiresAt: null,
+        // Kills every existing access + refresh token for this user (see
+        // JwtStrategy / refreshTokens). No rows are deleted.
+        passwordChangedAt: new Date(),
       },
     });
 

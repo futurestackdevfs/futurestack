@@ -783,7 +783,7 @@ export class SalesService {
             phone: dto.phone,
             city: dto.city,
             qualification: dto.qualification,
-            password: await bcrypt.hash(tempPassword, 10),
+            password: await bcrypt.hash(tempPassword, 12),
             role: Role.STUDENT,
             emailVerified: true,
             mustChangePassword: true,

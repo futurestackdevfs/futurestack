@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ToastContainer } from "@/components/ui/toast-container";
 import { SessionExpiredModal } from "@/components/ui/session-expired-modal";
@@ -39,11 +40,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Per-request CSP nonce set by middleware.ts — stamped onto our inline
+  // <script> tags below so they survive the strict CSP.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html
       lang="en"
@@ -55,6 +60,8 @@ export default function RootLayout({
       <head>
         <link rel="icon" type="image/png" href="/images/iconlogo.png" />
         <script
+          nonce={nonce}
+          suppressHydrationWarning
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
@@ -85,6 +92,8 @@ export default function RootLayout({
         {/* Non-render-blocking font load: injected as media="print" then swapped
             to media="all" once downloaded, so it never blocks first paint. */}
         <script
+          nonce={nonce}
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `(function(){var l=document.createElement('link');l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,400;0,500;0,600;1,500;1,600&family=Manrope:wght@400;500;600;700;800&display=swap';l.media='print';l.onload=function(){l.media='all'};document.head.appendChild(l);})();`,
           }}
@@ -96,6 +105,8 @@ export default function RootLayout({
           />
         </noscript>
         <script
+          nonce={nonce}
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `
               (function() {

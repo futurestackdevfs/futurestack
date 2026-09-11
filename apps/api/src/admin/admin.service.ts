@@ -564,7 +564,7 @@ export class AdminService {
       ? await this.ensureCompanyIdAvailable(dto.companyId)
       : await this.generateUniqueCompanyEmail(dto.name, dto.role);
     const tempPassword = this.generateTempPassword();
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
     const user = await this.prisma.user.create({
       data: {
@@ -648,7 +648,7 @@ export class AdminService {
     }
 
     const tempPassword = this.generateTempPassword();
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
     await this.prisma.user.update({
       where: { id: userId },

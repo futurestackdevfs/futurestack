@@ -121,8 +121,24 @@ function badgeColor(level: string) {
   return "bg-[var(--orange)] text-white";
 }
 
+// Curriculum text is authored by trainers/admins (and partly AI-generated), so
+// escape every HTML-significant char BEFORE we add our own `<code>` markup —
+// otherwise a stray `<img onerror=…>` in a step description is stored XSS
+// against every student viewing the project.
+function escapeHtml(str: string) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function mdInline(str: string) {
-  return str.replace(/`([^`]+)`/g, '<code class="bg-[var(--bg)] border border-[var(--border)] rounded px-1 py-px text-[11px] text-[var(--text)] font-mono">$1</code>');
+  return escapeHtml(str).replace(
+    /`([^`]+)`/g,
+    '<code class="bg-[var(--bg)] border border-[var(--border)] rounded px-1 py-px text-[11px] text-[var(--text)] font-mono">$1</code>',
+  );
 }
 
 /* ─── COMPONENT ─────────────────────────────────────────────────── */

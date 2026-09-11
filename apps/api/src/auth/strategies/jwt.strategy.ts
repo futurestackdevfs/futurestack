@@ -11,6 +11,7 @@ export interface JwtPayload {
   role: string;
   avatarUrl?: string;
   emailVerified?: boolean;
+  iat?: number; // issued-at (seconds) — set by jsonwebtoken
 }
 
 @Injectable()
@@ -23,6 +24,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
       secretOrKey: configService.get<string>('JWT_SECRET') as string,
+      issuer: 'futurestack-api',
+      audience: 'futurestack',
     });
   }
 
@@ -32,10 +35,20 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     // access token expires (~15 min).
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, name: true, role: true, avatarUrl: true, isActive: true, emailVerified: true },
+      select: { id: true, email: true, name: true, role: true, avatarUrl: true, isActive: true, emailVerified: true, passwordChangedAt: true },
     });
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Account is disabled or no longer exists');
+    }
+
+    // Any token minted before the last password change is dead — a password
+    // reset logs out every existing session immediately.
+    if (
+      user.passwordChangedAt &&
+      payload.iat != null &&
+      payload.iat * 1000 < user.passwordChangedAt.getTime()
+    ) {
+      throw new UnauthorizedException('Session ended — password was changed');
     }
 
     return {

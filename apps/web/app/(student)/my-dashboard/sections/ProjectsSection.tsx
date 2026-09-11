@@ -71,7 +71,7 @@ export default function ProjectsSection() {
         await Promise.all(
           data.map(async (p: StudentProject) => {
             try {
-              const r = await fetch(`/api/projects/${p.id}/reviews/me`, {
+              const r = await fetch(`/api/projects/${p.id}/reviews/my-review`, {
                 headers: { Authorization: `Bearer ${token}` },
               });
               if (r.ok) {

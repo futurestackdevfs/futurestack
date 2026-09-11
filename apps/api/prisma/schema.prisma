@@ -81,6 +81,11 @@ model User {
   passwordResetToken   String?         @unique
   passwordResetExpires DateTime?
   passwordExpiresAt    DateTime?
+  // Bumped on every password change. Any refresh token issued before this
+  // instant, and any access token with iat before it, is rejected — so a
+  // password reset immediately logs out all existing sessions without
+  // deleting rows. See AuthService.resetPassword / JwtStrategy.
+  passwordChangedAt    DateTime?
   googleId             String?         @unique
   role                 Role            @default(STUDENT)
   isActive             Boolean         @default(true)
@@ -401,6 +406,31 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime  @default(now())
   revokedAt DateTime?
+}
+
+/// Append-only trail of privileged staff actions across the admin surface
+/// (coupons, payments/refunds, payment settings, enrolments, course price /
+/// publish state, trainer approval & revenue share, homepage CMS, …).
+/// Rows are only ever INSERTed — never updated or deleted from application code.
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  actorRole  String
+  actorEmail String?
+  actorName  String?  // denormalized — stays readable even if the admin is later deleted
+  action     String   // CREATE | UPDATE | DELETE | APPROVE | REJECT | REFUND | DEACTIVATE
+  entityType String?  // Coupon | Course | Enrollment | Refund | PaymentSettings | Trainer | Staff | HeroSlide | Track
+  entityId   String?
+  changes    Json?    // { before?, after?, requested? } — changed fields only
+  meta       Json?    // free-form extra context (reason, amount, …)
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
 }
 
 model Review {

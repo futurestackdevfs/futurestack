@@ -1403,8 +1403,20 @@ export class CoursesService {
 
   async createVideo(sectionId: string, dto: CreateVideoDto) {
     this.invalidateCatalog();
-    await this.findSectionOrFail(sectionId);
-    return this.prisma.video.create({ data: { ...dto, sectionId } });
+    const section = await this.findSectionOrFail(sectionId);
+
+    // The very first video ever added to a course becomes its "intro video" —
+    // playable publicly without enrollment (see getPublicVideoOtp), so a
+    // prospective student always has something to preview before buying.
+    // There's no separate UI for marking a video as preview (CurriculumBuilder
+    // has no such control), so this is the only path that ever sets it — once
+    // the course has any video, every later one defaults to locked (false).
+    const existingVideoCount = await this.prisma.video.count({
+      where: { section: { courseId: section.courseId } },
+    });
+    const isPreview = existingVideoCount === 0;
+
+    return this.prisma.video.create({ data: { ...dto, sectionId, isPreview } });
   }
 
   async updateVideo(id: string, dto: UpdateVideoDto) {

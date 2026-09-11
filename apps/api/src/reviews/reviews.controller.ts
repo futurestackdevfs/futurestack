@@ -12,6 +12,7 @@ import {
   DefaultValuePipe,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { PageSizePipe } from '../common/page-size.pipe';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { ReviewsService } from './reviews.service';
@@ -50,13 +51,13 @@ export class ReviewsController {
   async getCourseReviews(
     @Param('courseId') courseId: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('limit', new PageSizePipe(10, 100)) limit: number,
   ) {
     return this.reviewsService.getCourseReviews(courseId, page, limit);
   }
 
   @Auth(Role.STUDENT)
-  @Get('courses/:courseId/reviews/me')
+  @Get('courses/:courseId/reviews/my-review')
   async getMyCourseReview(@Req() req: Request, @Param('courseId') courseId: string) {
     const user = req.user as { id: string };
     return this.reviewsService.getStudentReview(user.id, courseId);

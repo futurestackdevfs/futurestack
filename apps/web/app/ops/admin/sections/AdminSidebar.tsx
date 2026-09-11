@@ -49,7 +49,7 @@ const configNav: NavItem[] = [
 ];
 
 const reportNav: NavItem[] = [
-  { icon: "▦", label: "Audit Log" },
+  { icon: "▦", label: "Audit Log", view: "audit-log" },
   { icon: "▧", label: "Data Reports" },
 ];
 
@@ -148,15 +148,27 @@ export function AdminSidebar({ activeView, onSwitchView }: AdminSidebarProps) {
         <div className="font-mono text-[9px] font-semibold uppercase tracking-widest px-3.5 pt-2.5 pb-1" style={{ color: "var(--text3)" }}>
           Reports
         </div>
-        {reportNav.map((item, i) => (
-          <div key={i}
-            className="flex items-center gap-2 px-3.5 py-1.5 text-[11.5px] font-medium"
-            style={{ color: "var(--text2)", borderLeft: "2px solid transparent", cursor: "default" }}
-          >
-            <span style={{ width: 14, textAlign: "center", fontSize: 12 }} className="shrink-0">{item.icon}</span>
-            <span className="flex-1">{item.label}</span>
-          </div>
-        ))}
+        {reportNav.map((item, i) => {
+          const isActive = activeView === item.view;
+          return (
+            <div key={i}
+              onClick={() => item.view && onSwitchView(item.view)}
+              className="flex items-center gap-2 px-3.5 py-1.5 text-[11.5px] font-medium"
+              style={{
+                color: isActive ? "var(--orange)" : "var(--text2)",
+                background: isActive ? "var(--orange-d)" : "transparent",
+                borderLeft: isActive ? "2px solid var(--orange)" : "2px solid transparent",
+                fontWeight: isActive ? 700 : 500,
+                cursor: item.view ? "pointer" : "default",
+              }}
+              onMouseEnter={(e) => { if (!isActive && item.view) { (e.currentTarget as HTMLElement).style.background = "var(--panel)"; (e.currentTarget as HTMLElement).style.color = "var(--text)"; } }}
+              onMouseLeave={(e) => { if (!isActive && item.view) { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--text2)"; } }}
+            >
+              <span style={{ width: 14, textAlign: "center", fontSize: 12 }} className="shrink-0">{item.icon}</span>
+              <span className="flex-1">{item.label}</span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Footer */}

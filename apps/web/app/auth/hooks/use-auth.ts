@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { authApi, type User } from '../lib/auth-api';
 import { saveToken, loadToken, clearToken, loadStaffToken, saveStaffToken, clearStaffToken } from '../lib/token-store';
 import { showToast } from '@/lib/toast';
+import { refreshSession } from '../lib/refresh-session';
 
 // Decode JWT payload client-side — avoids a network round-trip on every page load.
 // The backend still re-verifies the signature on every API call; this is only for reading claims.
@@ -96,6 +97,41 @@ if (typeof window !== 'undefined') {
     const role = evRole || shared.user?.role || 'STUDENT';
     // Save the last known role before clearing so session-expired-modal can try silent refresh with the right cookie
     try { sessionStorage.setItem('fs_last_role', role); } catch {}
+
+    // Try a silent refresh FIRST — this event also fires for a transient 401
+    // that a background refresh can recover from. Logging out unconditionally
+    // here races the SessionExpiredModal's own silent-refresh attempt and
+    // always wins, flipping isAuthenticated:false and triggering every
+    // page-level `!isAuthenticated -> router.push('/')` guard before the
+    // modal's recovery path ever gets a chance — i.e. an instant, avoidable
+    // logout on what may have been a recoverable expiry.
+    // `refreshSession` is single-flight per role, so this shares the same
+    // in-flight request as the modal's attempt instead of duplicating it.
+    try {
+      const refreshed = await refreshSession(role);
+      if (refreshed?.accessToken) {
+        const payload = JSON.parse(
+          atob(refreshed.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
+        );
+        emit({
+          user: {
+            id: payload.sub,
+            name: payload.name,
+            email: payload.email,
+            role: payload.role,
+            avatarUrl: payload.avatarUrl,
+            emailVerified: payload.emailVerified,
+          },
+          isAuthenticated: true,
+          isLoading: false,
+        });
+        try { sessionStorage.removeItem('fs_last_role'); } catch {}
+        return;
+      }
+    } catch {
+      // fall through to hard logout below
+    }
+
     try { await clearToken(); } catch {}
     try { await clearSessionCookie('student'); } catch {}
     try { await clearStaffToken(); } catch {}

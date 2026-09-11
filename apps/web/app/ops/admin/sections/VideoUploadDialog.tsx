@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { RingIndicator } from "@/components/ui/RingIndicator"
+import { startVideoUpload } from "@/lib/upload-manager"
 
 interface VideoUploadDialogProps {
   isOpen: boolean
@@ -26,10 +26,9 @@ interface UploadMetadata {
 
 export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token, initialTitle = '', initialOrder = 1, videoId, uploadEndpoint, uploadBody }: VideoUploadDialogProps) {
   const [isVisible, setIsVisible] = useState(false)
-  const [step, setStep] = useState<'idle' | 'select' | 'uploading'>('idle')
+  const [step, setStep] = useState<'idle' | 'select'>('idle')
   const [formData, setFormData] = useState<UploadMetadata>({ title: '', order: 1, filename: '', contentType: '' })
   const [file, setFile] = useState<File | null>(null)
-  const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -37,7 +36,6 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
     setStep('idle')
     setFormData({ title: initialTitle, order: initialOrder, filename: '', contentType: '' })
     setFile(null)
-    setProgress(0)
     setError(null)
   }
 
@@ -78,85 +76,42 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
     setError(null)
   }
 
-  async function uploadFile() {
+  function uploadFile() {
     if (!file || !formData.title.trim()) {
       setError('Please provide a title and select a video file')
       return
     }
 
-    setStep('uploading')
-    setProgress(0)
-
-    try {
-      // Get upload credentials from backend
-      const endpoint = uploadEndpoint || '/api/admin/videos/upload-credentials'
-      const body = uploadBody || {
-        title: formData.title,
-        filename: formData.filename,
-        contentType: formData.contentType,
-        sectionId,
-        order: formData.order,
-        ...(videoId ? { videoId } : {}),
-      }
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to get upload credentials')
-      }
-
-      const uploadData = await response.json()
-
-      // Upload to VdoCipher S3 using the provided credentials
-      const formDataToSend = new FormData()
-      Object.entries(uploadData.uploadCredentials).forEach(([key, value]) => {
-        // S3 POST policy requires ALL fields specified in the conditions.
-        // Empty strings (e.g. success_action_redirect) are valid values
-        // and must still be included in the form, or S3 returns 403.
-        if (value !== null && value !== undefined) {
-          formDataToSend.append(key, value as string)
-        }
-      })
-      formDataToSend.append('file', file)
-
-      const xhr = new XMLHttpRequest()
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percent = Math.round((e.loaded / e.total) * 100)
-          setProgress(percent)
-        }
-      })
-
-      await new Promise((resolve, reject) => {
-        xhr.addEventListener('load', () => {
-          if (xhr.status === 201) {
-            resolve(xhr.response)
-          } else {
-            reject(new Error(`Upload failed: ${xhr.status}`))
-          }
-        })
-        xhr.addEventListener('error', () => reject(new Error('Upload error')))
-        xhr.open('POST', uploadData.uploadUrl)
-        xhr.send(formDataToSend)
-      })
-
-      setProgress(100)
-      // Upload done — brief pause so user sees 100%
-      await new Promise(r => setTimeout(r, 600))
-      // Wait for parent to refresh state before closing
-      await onUpload?.(file, formData)
-      handleClose()
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed')
-      setStep('select')
+    const endpoint = uploadEndpoint || '/api/admin/videos/upload-credentials'
+    const body = uploadBody || {
+      title: formData.title,
+      filename: formData.filename,
+      contentType: formData.contentType,
+      sectionId,
+      order: formData.order,
+      ...(videoId ? { videoId } : {}),
     }
+    const uploadingFile = file
+    const uploadingMetadata = formData
+
+    // Close the dialog immediately instead of blocking on the upload here —
+    // the actual transfer now runs in lib/upload-manager.ts, independent of
+    // this component's lifecycle, and its progress is tracked by the global
+    // bottom-right UploadProgressWidget (mounted in app/ops/layout.tsx). This
+    // lets the admin keep working (e.g. open another lesson) while a large
+    // video uploads in the background.
+    handleClose()
+
+    startVideoUpload({
+      file: uploadingFile,
+      token,
+      endpoint,
+      body,
+      onDone: async () => { await onUpload?.(uploadingFile, uploadingMetadata) },
+    }).catch(() => {
+      // Already surfaced to the admin via the widget's error state — this
+      // catch only exists to avoid an unhandled-rejection console warning.
+    })
   }
 
   const handleClose = () => {
@@ -302,44 +257,6 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
                 >
                   Upload & Process
                 </button>
-              </div>
-            </div>
-          )}
-
-          {step === 'uploading' && (
-            <div className="text-center py-12">
-              <div className="relative w-20 h-20 mx-auto mb-6">
-                <RingIndicator
-                  percentage={progress}
-                  size={80}
-                  strokeWidth={4}
-                  color="var(--blue)"
-                  backgroundColor="var(--blue-d)"
-                  label={true}
-                />
-              </div>
-
-              <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--text)' }}>
-                Uploading Video...
-              </h3>
-
-              <p className="text-sm mb-4" style={{ color: 'var(--text2)' }}>
-                Uploading to S3: {progress}%
-              </p>
-
-              <div className="w-full max-w-xs mx-auto">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs" style={{ color: 'var(--text3)' }}>{progress}%</span>
-                </div>
-                <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
-                  <div
-                    className="h-full rounded-full transition-all duration-300 ease-out"
-                    style={{
-                      width: `${progress}%`,
-                      background: 'var(--blue)',
-                    }}
-                  />
-                </div>
               </div>
             </div>
           )}

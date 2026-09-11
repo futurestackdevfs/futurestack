@@ -150,12 +150,17 @@ export class AuthController {
 
     const redirectUrl = googleRedirect ?? `${frontendUrl}/auth/oauth/callback`;
 
-    // Redirect to frontend OAuth callback page to initialize localStorage and auth state
-    // We strictly DO NOT pass the refresh token in the URL query string to prevent credential leakage.
-    // The refresh token is already set securely via the HttpOnly cookie above.
-    return res.redirect(
-      `${redirectUrl}?token=${accessToken}`,
-    );
+    // Hand the access token to the frontend in the URL *fragment* (`#`), never
+    // the query string. A fragment is not sent to the server, never appears in
+    // access logs, and is not leaked via the Referer header to any third-party
+    // resource the callback page loads. The callback page reads it once and
+    // immediately scrubs it from the address bar (history.replaceState).
+    // The refresh token is already set as an HttpOnly cookie above.
+    //
+    // NOTE: if you point GOOGLE_REDIRECT_URL at a *server* route (one that reads
+    // the token from the request), switch it back to `?token=` for that route —
+    // a server cannot read a fragment.
+    return res.redirect(`${redirectUrl}#token=${accessToken}`);
   }
 
   @Post('refresh')

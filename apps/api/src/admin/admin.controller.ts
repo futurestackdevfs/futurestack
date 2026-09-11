@@ -1,9 +1,13 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, Res, Header } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, Res, Header, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { AdminService } from './admin.service';
+import { AuditService } from '../audit/audit.service';
+import { Audit } from '../audit/audit.decorator';
+import { VdoCipherWebhookGuard } from './vdocipher-webhook.guard';
+import { clampPageSize } from '../common/page-size.pipe';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { RejectTrainerDto } from './dto/reject-trainer.dto';
 import { UpdateTrainerShareDto } from './dto/update-trainer-share.dto';
@@ -12,7 +16,28 @@ import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly audit: AuditService,
+  ) {}
+
+  @Auth(Role.ADMIN)
+  @Get('audit-logs')
+  async listAuditLogs(
+    @Query('page') page?: string,
+    @Query('perPage') perPage?: string,
+    @Query('action') action?: string,
+    @Query('entityType') entityType?: string,
+    @Query('entityId') entityId?: string,
+  ) {
+    return this.audit.list({
+      page: Math.max(1, parseInt(page ?? '1') || 1),
+      perPage: clampPageSize(perPage, 50, 100),
+      action,
+      entityType,
+      entityId,
+    });
+  }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER, Role.COORDINATOR)
   @Get('stats')
@@ -40,14 +65,19 @@ export class AdminController {
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'APPROVE', entity: 'Trainer' })
   @Post('trainers/:id/approve')
   async approveTrainer(@Param('id') id: string) {
     return this.adminService.approveTrainer(id);
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'REJECT', entity: 'Trainer' })
   @Post('trainers/:id/reject')
-  async rejectTrainer(@Param('id') id: string, @Body() dto: RejectTrainerDto) {
+  async rejectTrainer(
+    @Param('id') id: string,
+    @Body() dto: RejectTrainerDto,
+  ) {
     return this.adminService.rejectTrainer(id, dto.reason);
   }
 
@@ -55,6 +85,7 @@ export class AdminController {
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Auth(Role.ADMIN)
+  @Audit({ action: 'CREATE', entity: 'Staff', idFrom: 'response' })
   @Post('staff')
   async createStaffAccount(@Body() dto: CreateStaffDto) {
     return this.adminService.createStaffAccount(dto);
@@ -74,6 +105,7 @@ export class AdminController {
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Auth(Role.ADMIN)
+  @Audit({ action: 'UPDATE', entity: 'User', meta: { field: 'password' } })
   @Post('users/:id/regenerate-password')
   async regeneratePassword(@Param('id') id: string) {
     return this.adminService.regeneratePassword(id);
@@ -89,6 +121,7 @@ export class AdminController {
   // revenue has been generated for the trainer.
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Auth(Role.ADMIN)
+  @Audit({ action: 'UPDATE', entity: 'Trainer', meta: { field: 'revenueShare' } })
   @Patch('trainers/:id/share')
   async updateTrainerShare(
     @Param('id') id: string,
@@ -110,8 +143,10 @@ export class AdminController {
     return this.adminService.getVideoStatus(videoId);
   }
 
-  // NO @Auth here — VdoCipher calls this without any token
-  // Verified by checking the event payload and vdoCipherId existence instead
+  // NO @Auth here — VdoCipher can't present a user JWT. Instead the request
+  // must carry the shared VDOCIPHER_WEBHOOK_SECRET (x-vdocipher-secret header,
+  // Authorization header, or ?secret= query), verified by VdoCipherWebhookGuard.
+  @UseGuards(VdoCipherWebhookGuard)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('videos/vdocipher-webhook')
   async handleVdoCipherWebhook(@Body() payload: VdoCipherWebhookPayload) {
@@ -128,14 +163,15 @@ export class AdminController {
     @Query('q') q?: string,
   ) {
     return this.adminService.listEnrollments(
-      parseInt(page ?? '1') || 1,
-      parseInt(perPage ?? '20') || 20,
+      Math.max(1, parseInt(page ?? '1') || 1),
+      clampPageSize(perPage, 20, 100),
       q,
     );
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Auth(Role.ADMIN)
+  @Audit({ action: 'CREATE', entity: 'Enrollment', idFrom: 'response' })
   @Post('enrollments')
   async manualEnroll(
     @Body() dto: { studentId: string; courseId: string; amountPaid: number },
@@ -144,6 +180,7 @@ export class AdminController {
   }
 
   @Auth(Role.ADMIN)
+  @Audit({ action: 'DELETE', entity: 'Enrollment' })
   @Delete('enrollments/:id')
   async unenroll(@Param('id') id: string) {
     return this.adminService.unenroll(id);
@@ -178,6 +215,7 @@ export class AdminController {
     res.send(csv);
   }
 
+  @UseGuards(VdoCipherWebhookGuard)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('videos/webhook/video-ready')
   async handleVideoReady(@Body() payload: VdoCipherWebhookPayload) {
@@ -185,6 +223,7 @@ export class AdminController {
     return this.adminService.handleVdoCipherWebhook(payload);
   }
 
+  @UseGuards(VdoCipherWebhookGuard)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('videos/webhook/video-updated')
   async handleVideoUpdated(@Body() payload: VdoCipherWebhookPayload) {
@@ -192,6 +231,7 @@ export class AdminController {
     return this.adminService.handleVdoCipherWebhook(payload);
   }
 
+  @UseGuards(VdoCipherWebhookGuard)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('videos/webhook/video-deleted')
   async handleVideoDeleted(@Body() payload: VdoCipherWebhookPayload) {
@@ -199,6 +239,7 @@ export class AdminController {
     return this.adminService.handleVdoCipherWebhook(payload);
   }
 
+  @UseGuards(VdoCipherWebhookGuard)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('videos/webhook/video-error')
   async handleVideoError(@Body() payload: VdoCipherWebhookPayload) {
@@ -206,6 +247,7 @@ export class AdminController {
     return this.adminService.handleVdoCipherWebhook(payload);
   }
 
+  @UseGuards(VdoCipherWebhookGuard)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('videos/webhook/caption-ready')
   async handleCaptionReady(@Body() payload: VdoCipherWebhookPayload) {
@@ -213,6 +255,7 @@ export class AdminController {
     return this.adminService.handleVdoCipherWebhook(payload);
   }
 
+  @UseGuards(VdoCipherWebhookGuard)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('videos/webhook/caption-deleted')
   async handleCaptionDeleted(@Body() payload: VdoCipherWebhookPayload) {
@@ -220,6 +263,7 @@ export class AdminController {
     return this.adminService.handleVdoCipherWebhook(payload);
   }
 
+  @UseGuards(VdoCipherWebhookGuard)
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('videos/webhook/poster-ready')
   async handlePosterReady(@Body() payload: VdoCipherWebhookPayload) {

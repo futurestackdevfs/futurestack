@@ -5,7 +5,7 @@ import { VideoUploadDialog } from "./VideoUploadDialog"
 import { ConfirmDialog, type ConfirmOptions } from "./ConfirmDialog"
 
 interface ApiVideo {
-  id: string; title: string; vdoCipherId: string; durationSeconds: number; order: number;
+  id: string; title: string; vdoCipherId: string; durationSeconds: number; order: number; isPreview: boolean;
 }
 interface ApiQuiz {
   id: string; title: string; order: number; totalQuestions: number; passingScore?: number;
@@ -23,6 +23,7 @@ interface MergedLesson {
   durationLabel: string;
   durationSeconds: number;
   totalQuestions: number;
+  isPreview: boolean;
 }
 
 interface MergedSection {
@@ -60,11 +61,13 @@ function mergeLessons(sections: ApiSection[]): MergedSection[] {
         id: v.id, kind: "video" as const, title: v.title, order: v.order,
         typeLabel: v.vdoCipherId?.startsWith("type:") ? v.vdoCipherId.slice(5) : "Video",
         durationLabel: formatDuration(v), durationSeconds: v.durationSeconds, totalQuestions: 0,
+        isPreview: v.isPreview,
       })),
       ...s.quizzes.map((q) => ({
         id: q.id, kind: "quiz" as const, title: q.title, order: q.order,
         typeLabel: q.passingScore ? "Quiz + Project" : "Quiz",
         durationLabel: formatDuration(q), durationSeconds: 0, totalQuestions: q.totalQuestions,
+        isPreview: false,
       })),
     ].sort((a, b) => a.order - b.order);
 
@@ -234,7 +237,10 @@ export function CurriculumBuilder({
   function addLesson(sectionId: string, kind: "video" | "quiz") {
     if (!token) return;
     if (kind === "video") {
-      const newVideo: ApiVideo = { id: nextTempId(), title: 'New Video', vdoCipherId: 'type:Video', durationSeconds: 600, order: 0 };
+      // isPreview is server-decided (createVideo auto-marks the course's very
+      // first video) — this local placeholder is just for optimistic UI until
+      // the real value comes back from the save/refetch.
+      const newVideo: ApiVideo = { id: nextTempId(), title: 'New Video', vdoCipherId: 'type:Video', durationSeconds: 600, order: 0, isPreview: false };
       setSections(prev => {
         const sec = prev.find(s => s.id === sectionId);
         if (!sec) return prev;
@@ -593,16 +599,27 @@ export function CurriculumBuilder({
                         section.lessons.map((lesson, li) => (
                           <div key={lesson.id} className="grid gap-2 items-center py-1" style={{ gridTemplateColumns: "24px 1.6fr 1fr auto 28px" }}>
                             <span className="font-mono text-[9px] text-center" style={{ color: "var(--text3)" }}>{li + 1}</span>
-                            <input
-                              value={lesson.title}
-                              onChange={(e) => saveLessonTitle(section.id, lesson.id, e.target.value)}
-                              className="text-[11px] px-1.5 py-1 rounded outline-none"
-                              style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }}
-                              onFocus={(e) => { e.currentTarget.style.borderColor = "var(--orange)"; e.currentTarget.style.background = "var(--surface)"; }}
-                              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg)"; }}
-                              onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                              placeholder="Lesson name"
-                            />
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <input
+                                value={lesson.title}
+                                onChange={(e) => saveLessonTitle(section.id, lesson.id, e.target.value)}
+                                className="flex-1 min-w-0 text-[11px] px-1.5 py-1 rounded outline-none"
+                                style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }}
+                                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--orange)"; e.currentTarget.style.background = "var(--surface)"; }}
+                                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg)"; }}
+                                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                                placeholder="Lesson name"
+                              />
+                              {lesson.kind === "video" && lesson.isPreview && (
+                                <span
+                                  className="shrink-0 font-mono text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                                  style={{ color: "var(--green)", background: "var(--green-d, rgba(34,197,94,.12))", border: "1px solid rgba(34,197,94,.3)" }}
+                                  title="This is the course's intro video — playable publicly, without login or enrollment, as a free preview."
+                                >
+                                  🎬 Intro · Public
+                                </span>
+                              )}
+                            </div>
                             <select
                               value={lesson.typeLabel}
                               onChange={(e) => saveLessonType(section.id, lesson, e.target.value)}

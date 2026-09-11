@@ -16,6 +16,11 @@ async function proxy(req: NextRequest) {
   const auth = req.headers.get('authorization');
   if (auth) headers.set('authorization', auth);
 
+  // Forward the real client IP so the backend (behind Render's LB) can record
+  // it — Vercel sets x-forwarded-for / x-real-ip to the true client address.
+  const fwd = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip');
+  if (fwd) headers.set('x-forwarded-for', fwd);
+
   // Forward the HttpOnly cookie token as Authorization if no explicit header
   // Try student token first, fallback to staff token
   if (!auth) {

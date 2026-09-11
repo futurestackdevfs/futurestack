@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { authApi } from '../../lib/auth-api';
 import { saveToken } from '../../lib/token-store';
 
@@ -11,13 +11,30 @@ function decodeId(token: string) {
 import { showToast } from '@/lib/toast';
 import { emit } from '../../hooks/use-auth';
 
+/**
+ * Pulls `#token=…` out of the URL fragment and immediately wipes it from the
+ * address bar / history so the JWT never lingers where a screenshot, a shared
+ * link, or `window.location` logging could pick it up. A fragment (unlike a
+ * query string) is never sent to the server or leaked via Referer.
+ */
+function takeTokenFromHash(): string | null {
+  if (typeof window === 'undefined') return null;
+  const raw = window.location.hash.replace(/^#/, '');
+  if (!raw) return null;
+  const token = new URLSearchParams(raw).get('token');
+  if (token) {
+    // Scrub the fragment without adding a history entry.
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+  return token;
+}
+
 function OAuthHandler() {
   const router = useRouter();
-  const params = useSearchParams();
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const token = params.get('token');
+    const token = takeTokenFromHash();
     if (!token) {
       setError('No token received from OAuth provider.');
       return;
@@ -40,7 +57,7 @@ function OAuthHandler() {
       .catch(() => {
         setError('Authentication failed. Please try again.');
       });
-  }, [params, router]);
+  }, [router]);
 
   if (error) {
     return (

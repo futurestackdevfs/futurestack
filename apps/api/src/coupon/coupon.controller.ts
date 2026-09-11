@@ -15,12 +15,15 @@ import { Auth } from '../auth/decorators/auth.decorator';
 import { CouponService } from './coupon.service';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
+import { clampPageSize } from '../common/page-size.pipe';
+import { Audit } from '../audit/audit.decorator';
 
 @Controller('admin/coupons')
 export class CouponController {
   constructor(private readonly couponService: CouponService) {}
 
   @Auth(Role.ADMIN)
+  @Audit({ action: 'CREATE', entity: 'Coupon', idFrom: 'response' })
   @Post()
   create(@Req() req: Request, @Body() dto: CreateCouponDto) {
     const user = req.user as { id: string };
@@ -31,7 +34,7 @@ export class CouponController {
   @Get()
   list(@Query('page') page?: string, @Query('perPage') perPage?: string) {
     const p = page ? parseInt(page, 10) : 1;
-    const pp = perPage ? parseInt(perPage, 10) : 20;
+    const pp = clampPageSize(perPage, 20, 100);
     return this.couponService.list(p, pp);
   }
 
@@ -48,18 +51,21 @@ export class CouponController {
   }
 
   @Auth(Role.ADMIN)
+  @Audit({ action: 'UPDATE', entity: 'Coupon' })
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateCouponDto) {
     return this.couponService.update(id, dto);
   }
 
   @Auth(Role.ADMIN)
+  @Audit({ action: 'DEACTIVATE', entity: 'Coupon' })
   @Patch(':id/deactivate')
   deactivate(@Param('id') id: string) {
     return this.couponService.deactivate(id);
   }
 
   @Auth(Role.ADMIN)
+  @Audit({ action: 'DELETE', entity: 'Coupon' })
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.couponService.remove(id);

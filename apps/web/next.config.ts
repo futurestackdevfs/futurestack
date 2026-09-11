@@ -16,14 +16,19 @@ const nextConfig: NextConfig = {
   compress: true,
   productionBrowserSourceMaps: false,
   reactStrictMode: false,
+  // The Content-Security-Policy is set per-request (with a nonce) in
+  // `middleware.ts` — not here — so it can't be static. These are the headers
+  // that are safe to pin statically for every route.
   headers: async () => [
     {
       source: "/(.*)",
       headers: [
         { key: "X-Content-Type-Options", value: "nosniff" },
         { key: "X-Frame-Options", value: "DENY" },
-        { key: "X-XSS-Protection", value: "1; mode=block" },
+        // Deprecated & can introduce XSS-filter bugs — disable it, rely on CSP.
+        { key: "X-XSS-Protection", value: "0" },
         { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         { key: "X-Powered-By", value: "" },
       ],
     },

@@ -203,7 +203,7 @@ function PreviewPlayer({ videoId, title, durationSeconds }: { videoId: string; t
   const handlePlay = () => {
     setStarted(true);
     setLoading(true);
-    fetch(`${API}/courses/public/videos/${videoId}/otp`)
+    fetch(`${API}/courses/public/videos/${videoId}/verification`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => { setOtp(data.otp); setPlaybackInfo(data.playbackInfo); })
       .catch(() => setError('Failed to load video preview'))
@@ -294,7 +294,16 @@ export default function CourseDetailPage() {
   );
   const isLoading = isLoadingCourse;
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated: isAuthenticatedRaw } = useAuth();
+  // `useAuth`'s state is a module-level singleton that persists for the whole
+  // SPA session, so a fresh mount of this page after auth already resolved
+  // elsewhere can disagree with the SSR HTML (which always assumes signed-out)
+  // on the very first client render. Gate on `mounted` so that first render
+  // matches SSR, then swap in the real value — same pattern as
+  // components/layout/marketing-top-nav.tsx.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const isAuthenticated = mounted && isAuthenticatedRaw;
 
   // ── Cart integration ─────────────────────────────
   // Shares the SWR cache key with the top-nav badge, so adding a course here
@@ -362,7 +371,7 @@ export default function CourseDetailPage() {
     let cancelled = false;
     (async () => {
       const token = await loadToken();
-      const res = await fetch(`${API}/courses/${courseId}/reviews/me`, {
+      const res = await fetch(`${API}/courses/${courseId}/reviews/my-review`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (cancelled) return;
