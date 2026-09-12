@@ -320,9 +320,27 @@ function StaticCertificates({ studentName }: { studentName: string }) {
 }
 
 export default function CertificatesSection({ embedded, enrolledCount }: { embedded?: boolean; enrolledCount?: number }) {
-  const { user } = useAuth();
-  const skipApi = !enrolledCount || enrolledCount === 0;
-  const { data, isLoading, error } = useSWR<CertificatesResponse>(skipApi ? null : "/api/certificates/my");
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  // `useAuth`'s state is a module-level singleton that persists for the whole
+  // SPA session. SSR always renders assuming auth hasn't resolved yet (the
+  // server can't see localStorage/cookies), but if the client's auth already
+  // resolved on an earlier page, a fresh mount of this component (e.g. this
+  // route's own server-rendered segment gets hydrated on navigation) would
+  // otherwise read the already-resolved value on its very first render and
+  // disagree with the SSR HTML. `mounted` forces the first client render to
+  // match the SSR-safe "still resolving" assumption — see the same pattern in
+  // components/layout/marketing-top-nav.tsx.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  // Only skip the fetch when embedded in the dashboard overview and we already
+  // know (via enrolledCount) the student has nothing to show — avoids a wasted
+  // call there. The standalone /certificates page never passes enrolledCount
+  // and must always fetch real data instead of falling back to the static demo.
+  // Either way, never fire the request before auth has resolved to a logged-in
+  // user — an unauthenticated call would just 401.
+  const skipApi = !mounted || !isAuthenticated || (embedded && (!enrolledCount || enrolledCount === 0));
+  const { data, isLoading: dataLoading, error } = useSWR<CertificatesResponse>(skipApi ? null : "/api/certificates/my");
+  const isLoading = !mounted || authLoading || dataLoading;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const pendingDownloadRef = useRef<string | null>(null);
@@ -337,7 +355,11 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
   const activeItem = activeEarned ?? activeInProgress;
   const isEarned = !!activeEarned;
 
-  const studentName = user?.name ?? "Student";
+  // Same singleton-race as `isLoading`/`skipApi` above — `user` itself must be
+  // gated on `mounted` too, or the very first client render can already show
+  // the real name (from an already-resolved earlier page) while the SSR HTML
+  // always rendered the "Student" fallback.
+  const studentName = mounted && user?.name ? user.name : "Student";
 
   // Runs the actual capture. Guards against concurrent / double-click downloads
   // and surfaces failures as a toast instead of failing silently.

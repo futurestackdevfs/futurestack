@@ -29,5 +29,7 @@ services:
         sync: false
       - key: AGENTMAIL_INBOX_ID
         value: "FutureStack <onboarding@agentmail.to>"
+      - key: CONTACT_EMAIL
+        sync: false
       - key: VDOCIPHER_API_KEY
         sync: false

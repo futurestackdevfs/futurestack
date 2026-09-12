@@ -11,6 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { PageSizePipe } from '../common/page-size.pipe';
 import { Role, TicketStatus } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { SupportService } from './support.service';
@@ -42,7 +43,7 @@ export class SupportController {
     @Req() req: Request,
     @Query('status') status: string | undefined,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('limit', new PageSizePipe(20, 100)) limit: number,
   ) {
     const user = req.user as ReqUser;
     return this.support.listMine(user.id, {
@@ -85,7 +86,7 @@ export class SupportController {
     @Query('assigneeId') assigneeId: string,
     @Query('q') q: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('limit', new PageSizePipe(20, 100)) limit: number,
   ) {
     return this.support.staffList({
       status,
@@ -139,7 +140,7 @@ export class SupportController {
   listStudents(
     @Query('q') q: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('limit', new PageSizePipe(20, 100)) limit: number,
   ) {
     return this.support.listStudents({
       q,
@@ -155,7 +156,7 @@ export class SupportController {
   listAllStudents(
     @Query('q') q: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('limit', new PageSizePipe(20, 100)) limit: number,
   ) {
     return this.support.listStudents({
       q,
@@ -188,7 +189,7 @@ export class SupportController {
     @Query('type') type: 'course' | 'project',
     @Query('q') q: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('limit', new PageSizePipe(20, 100)) limit: number,
   ) {
     return this.support.listRatingSubjects({
       type: type === 'project' ? 'project' : 'course',
@@ -218,7 +219,7 @@ export class SupportController {
     @Query('status') status: string,
     @Query('q') q: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('limit', new PageSizePipe(20, 100)) limit: number,
   ) {
     return this.support.staffListPayments({
       status,
@@ -246,7 +247,7 @@ export class SupportController {
   @Get('staff/inbox/threads')
   listInboxThreads(
     @Query('q') q: string,
-    @Query('limit', new DefaultValuePipe(30), ParseIntPipe) limit: number,
+    @Query('limit', new PageSizePipe(30, 100)) limit: number,
     @Query('pageToken') pageToken: string,
   ) {
     return this.support.listInboxThreads({

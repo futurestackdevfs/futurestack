@@ -31,6 +31,8 @@ import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
 import { SetCourseCareerPathDto } from './dto/set-course-career-path.dto';
 import { FeatureDto } from './dto/feature.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
+import { clampPageSize } from '../common/page-size.pipe';
+import { Audit } from '../audit/audit.decorator';
 
 // IMPORTANT — route ordering: any route with a static first segment (tracks,
 // sections, videos, quizzes, resources, public, reorder-featured) MUST be
@@ -46,6 +48,7 @@ export class CoursesController {
   // ================================================================
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'CREATE', entity: 'Track', idFrom: 'response' })
   @Post('tracks')
   createTrack(@Body() dto: CreateTrackDto) {
     return this.coursesService.createTrack(dto);
@@ -58,12 +61,14 @@ export class CoursesController {
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'UPDATE', entity: 'Track' })
   @Patch('tracks/:id')
   updateTrack(@Param('id') id: string, @Body() dto: UpdateTrackDto) {
     return this.coursesService.updateTrack(id, dto);
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'DELETE', entity: 'Track' })
   @Delete('tracks/:id')
   deleteTrack(@Param('id') id: string) {
     return this.coursesService.deleteTrack(id);
@@ -86,6 +91,7 @@ export class CoursesController {
   // ================================================================
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'CREATE', entity: 'HeroSlide', idFrom: 'response' })
   @Post('hero-slides')
   createHeroSlide(@Body() dto: CreateHeroSlideDto) {
     return this.coursesService.createHeroSlide(dto);
@@ -98,6 +104,7 @@ export class CoursesController {
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'DELETE', entity: 'HeroSlide' })
   @Delete('hero-slides/:id')
   deleteHeroSlide(@Param('id') id: string) {
     return this.coursesService.deleteHeroSlide(id);
@@ -116,7 +123,7 @@ export class CoursesController {
   }
 
   @Get('public/featured-hero-slides')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   featuredHeroSlides() {
     return this.coursesService.featuredHeroSlides();
   }
@@ -202,25 +209,25 @@ export class CoursesController {
   // ================================================================
 
   @Get('public/featured-courses')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   featuredCourses() {
     return this.coursesService.featuredCourses();
   }
 
   @Get('public/featured-tracks')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   featuredTracks() {
     return this.coursesService.featuredTracks();
   }
 
   @Get('public/tracks/:id/courses')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   trackCourses(@Param('id') id: string) {
     return this.coursesService.trackCourses(id);
   }
 
   @Get('public/cards')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   publicCards(
     @Query('page') page?: string,
     @Query('perPage') perPage?: string,
@@ -230,7 +237,7 @@ export class CoursesController {
     @Query('fields') fields?: string,
   ) {
     const p = page ? parseInt(page, 10) : 1;
-    const pp = perPage ? parseInt(perPage, 10) : 12;
+    const pp = clampPageSize(perPage, 12, 60);
     return this.coursesService.findAllCards({
       page: p,
       perPage: pp,
@@ -242,32 +249,32 @@ export class CoursesController {
   }
 
   @Get('public/slug/:slug')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   publicCourseBySlug(@Param('slug') slug: string) {
     return this.coursesService.publicCourseBySlug(slug);
   }
 
   @Get('public/related/:id')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   relatedCourses(@Param('id') id: string) {
     return this.coursesService.relatedCourses(id);
   }
 
   @Get('public/:id')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   publicCourseDetail(@Param('id') id: string) {
     return this.coursesService.publicCourseDetail(id);
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  @Get('public/videos/:videoId/otp')
+  @Get('public/videos/:videoId/verification')
   getPublicVideoOtp(@Param('videoId') videoId: string) {
     return this.coursesService.getPublicVideoOtp(videoId);
   }
 
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Get('search')
-  @Header('Cache-Control', 'public, max-age=30, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=30, s-maxage=300, stale-while-revalidate=300')
   searchCourses(
     @Query('q') q?: string,
     @Query('category') category?: string,
@@ -278,7 +285,7 @@ export class CoursesController {
       q,
       category,
       skillLevel,
-      limit: limit ? parseInt(limit, 10) : 10,
+      limit: clampPageSize(limit, 10, 50),
     });
   }
 
@@ -287,6 +294,7 @@ export class CoursesController {
   // ================================================================
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'CREATE', entity: 'Course', idFrom: 'response' })
   @Post()
   createCourse(@Body() dto: CreateCourseDto) {
     return this.coursesService.createCourse(dto);
@@ -333,6 +341,7 @@ export class CoursesController {
   }
 
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   @Get(':courseId/overview')
   getCourseOverview(@Param('courseId') courseId: string) {
     return this.coursesService.getCourseOverview(courseId);
@@ -340,6 +349,7 @@ export class CoursesController {
 
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'UPDATE', entity: 'Course' })
   @Patch(':id')
   updateCourse(@Param('id') id: string, @Body() dto: UpdateCourseDto) {
     return this.coursesService.updateCourse(id, dto);
@@ -352,6 +362,7 @@ export class CoursesController {
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'DELETE', entity: 'Course' })
   @Delete(':id')
   deleteCourse(@Param('id') id: string) {
     return this.coursesService.deleteCourse(id);

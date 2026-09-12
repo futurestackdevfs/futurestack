@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { useState, useEffect } from "react";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { StudentLoginForm } from "@/app/auth/components/student-login-form";
 import { QuickActions } from "./quick-actions";
@@ -10,10 +11,20 @@ import Link from "next/link";
 
 export function HomeSidebar({ className }: { className?: string }) {
   const { isAuthenticated, isLoading, user } = useAuth();
+  // `useAuth`'s state is a module-level singleton that persists for the whole
+  // SPA session. SSR always renders assuming auth hasn't resolved yet, but if
+  // the client's auth already resolved on an earlier page, a fresh mount of
+  // this component reads the already-resolved value on its very first render
+  // and disagrees with the SSR HTML (skeleton vs. real login form/greeting).
+  // `mounted` forces the first client render to match the SSR-safe "still
+  // resolving" assumption — same pattern as marketing-top-nav.tsx.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const authLoading = !mounted || isLoading;
 
   return (
     <aside className={`flex flex-col gap-5.5 border-l border-[var(--border)] bg-[var(--surface)] px-2.5 py-3 w-[295px] shrink-0 max-lg:border-l-0 max-lg:border-t max-lg:w-full ${className || ""}`}>
-      {isLoading ? (
+      {authLoading ? (
         /* Skeleton while auth resolves */
         <div className="w-full max-w-[280px] rounded-[20px] border-2 border-[var(--border)] p-4 animate-pulse">
           <div className="h-4 w-32 rounded bg-[var(--border)] mb-2" />

@@ -55,7 +55,7 @@ export function Footer() {
 
             {[
               { title: "Platform", links: [{ label: "Courses", href: "/courses" }, { label: "R&D Services", href: "/research-and-development" }, { label: "Certifications", href: "#" }, { label: "Live Projects", href: "/live-projects" }] },
-              { title: "Company", links: [{ label: "About Us", href: "/about" }, { label: "Careers", href: "/careers" }, { label: "Blog", href: "#" }, { label: "Contact", href: "#" }] },
+              { title: "Company", links: [{ label: "About Us", href: "/about" }, { label: "Careers", href: "/careers" }, { label: "Blog", href: "#" }, { label: "Contact", href: "#contact" }] },
               { title: "Support", links: [{ label: "Help Center", href: "/support" }, { label: "FAQs", href: "/faq" }, { label: "Community", href: "#" }, { label: "Refund Policy", href: "#" }] },
             ].map((group) => (
               <div key={group.title} className="footer-link-col">

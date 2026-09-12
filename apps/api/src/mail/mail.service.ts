@@ -729,14 +729,17 @@ export class MailService {
 
   /**
    * "Have an R&D problem worth solving?" form on /research-and-development.
-   * Always notifies the one configured inbox (AGENTMAIL_INBOX_ID). `replyTo`
-   * is the visitor's own email, so hitting "reply" goes straight to them.
+   * Notifies `CONTACT_EMAIL` if set, else the primary inbox (same routing as the
+   * generic Contact form). `replyTo` is the visitor's own email, so hitting
+   * "reply" goes straight to them.
    */
   async sendRndInquiryEmail(data: {
     fromEmail: string;
     details?: string;
   }): Promise<boolean> {
-    const to = this.getPrimaryInboxAddress();
+    const to =
+      this.configService.get<string>('CONTACT_EMAIL')?.trim() ||
+      this.getPrimaryInboxAddress();
 
     try {
       const detailsHtml = data.details
@@ -780,6 +783,87 @@ export class MailService {
     } catch (error) {
       this.logger.error(
         `Failed to send R&D inquiry email (from ${data.fromEmail})`,
+        error,
+      );
+      return false;
+    }
+  }
+
+  /**
+   * Generic "Contact us" form (business / trainer / other inquiries from
+   * non-students). Notifies `CONTACT_EMAIL` if set, else the primary inbox.
+   * `replyTo` is the visitor's own email so hitting "reply" reaches them — the
+   * From address can never be the visitor's (provider anti-spoofing), so their
+   * identity lives in the subject + body.
+   */
+  async sendContactEmail(data: {
+    name: string;
+    email: string;
+    phone?: string;
+    type: 'business' | 'trainer' | 'other';
+    company?: string;
+    message: string;
+  }): Promise<boolean> {
+    const to =
+      this.configService.get<string>('CONTACT_EMAIL')?.trim() ||
+      this.getPrimaryInboxAddress();
+
+    const typeLabel =
+      data.type === 'business'
+        ? 'Business'
+        : data.type === 'trainer'
+          ? 'Trainer'
+          : 'General';
+
+    try {
+      const row = (label: string, value?: string) =>
+        value
+          ? `<tr><td style="padding:4px 16px 4px 0;color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:.05em;vertical-align:top;">${label}</td><td style="padding:4px 0;font-size:14px;color:#0f172a;">${this.escapeHtml(value)}</td></tr>`
+          : '';
+
+      const html = this.fsShell(
+        'New contact inquiry',
+        `Contact form · ${typeLabel}`,
+        `
+        <p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Someone reached out through the <strong>Contact</strong> form.</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
+          ${row('Name', data.name)}
+          ${row('Email', data.email)}
+          ${row('Phone', data.phone)}
+          ${row('Reaching out as', typeLabel)}
+          ${row('Company', data.company)}
+        </table>
+        <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;">Message</p>
+        <p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;white-space:pre-wrap;">${this.escapeHtml(data.message)}</p>
+        <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;line-height:1.6;">Reply to this email to answer them directly.</p>
+      `,
+      );
+
+      const text = [
+        `New contact inquiry — ${typeLabel}`,
+        '',
+        `Name:    ${data.name}`,
+        `Email:   ${data.email}`,
+        data.phone ? `Phone:   ${data.phone}` : '',
+        data.company ? `Company: ${data.company}` : '',
+        '',
+        'Message:',
+        data.message,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      await this.client.inboxes.messages.send(this.inboxId, {
+        to,
+        replyTo: [data.email],
+        subject: `[Contact · ${typeLabel}] ${data.name} <${data.email}>`,
+        text,
+        html,
+      });
+      return true;
+    } catch (error) {
+      this.logger.error(
+        `Failed to send contact email (from ${data.email})`,
         error,
       );
       return false;

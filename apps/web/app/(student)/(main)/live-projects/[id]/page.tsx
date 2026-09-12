@@ -156,7 +156,7 @@ export default function ProjectDetailPage() {
   const fetchMyReview = useCallback(async () => {
     if (!projectId) return;
     try {
-      const res = await fetch(`/api/projects/${projectId}/reviews/me`, { credentials: "include" });
+      const res = await fetch(`/api/projects/${projectId}/reviews/my-review`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setMyReview(data);

@@ -16,6 +16,7 @@ import { UpdateMessageDto } from './dto/update-message.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Role } from '@prisma/client';
+import { clampPageSize } from '../common/page-size.pipe';
 
 interface RequestUser {
   id: string;
@@ -40,7 +41,7 @@ export class DiscussionController {
       user.id,
       user.role,
       page ? parseInt(page, 10) : 1,
-      limit ? parseInt(limit, 10) : 20,
+      clampPageSize(limit, 20, 100),
     );
   }
 

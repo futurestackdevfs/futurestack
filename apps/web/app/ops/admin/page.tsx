@@ -24,6 +24,7 @@ import PaymentSettingsManager from "./sections/PaymentSettingsManager";
 import PaymentsManager from "./sections/PaymentsManager";
 import RefundsManager from "./sections/RefundsManager";
 import EnrollmentsManager from "./sections/EnrollmentsManager";
+import AuditLogManager from "./sections/AuditLogManager";
 import AdminDashboardContent from "./console/AdminDashboardContent";
 import SalesDashboardContent from "./console/SalesDashboardContent";
 import TrainerDashboardContent from "./console/TrainerDashboardContent";
@@ -1464,6 +1465,7 @@ export default function AdminMasterDataPage() {
             {view === "support" && <SupportDashboardContent key={`support-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["support"])} addLabel="Support" />}
             {view === "content-manager" && <ContentMgrDashboardContent key={`content-manager-${refreshNonce}`} searchQuery={searchQuery} onAddStaff={() => setCreateStaffRole(ROLE_META["content-manager"])} addLabel="Content Manager" />}
             {view === "articles" && <BlogManager key={`blog-${refreshNonce}`} />}
+            {view === "audit-log" && <AuditLogManager key={`audit-log-${refreshNonce}`} />}
           </main>
         )}
       </div>

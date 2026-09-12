@@ -79,9 +79,30 @@ export class CoursesService {
     private readonly s3Service: S3Service,
   ) {}
 
-  /** Clears every cached catalog response — call after any course/track/hero edit. */
+  // Cached-response key prefixes for the public course/track catalog. Hero
+  // slides are tracked separately so a hero edit doesn't evict the whole
+  // catalog (and vice versa).
+  private static readonly CATALOG_PREFIXES = [
+    'featured-courses',
+    'featured-tracks',
+    'track:',
+    'slug:',
+    'course:',
+    'related:',
+    'cards:',
+    'overview:',
+  ];
+
+  /** Clears the cached course/track catalog responses — call after a course or track edit. */
   private invalidateCatalog(): void {
-    this.catalogCache.clear();
+    for (const p of CoursesService.CATALOG_PREFIXES) {
+      this.catalogCache.deleteByPrefix(p);
+    }
+  }
+
+  /** Clears only the cached hero-slide response — call after a hero-slide edit. */
+  private invalidateHero(): void {
+    this.catalogCache.deleteByPrefix('hero-slides');
   }
 
   // ==================== PUBLIC ====================
@@ -112,10 +133,12 @@ export class CoursesService {
   }
 
   async featuredCourses() {
-    const CACHE_KEY = 'featured-courses';
-    const cached = this.catalogCache.get(CACHE_KEY);
-    if (cached) return cached;
+    return this.catalogCache.getOrRefresh('featured-courses', () =>
+      this.computeFeaturedCourses(),
+    );
+  }
 
+  private async computeFeaturedCourses() {
     const SLOT_COUNT = 10;
     const courses = await this.prisma.course.findMany({
       where: {
@@ -182,15 +205,16 @@ export class CoursesService {
         badgeClass: '',
       };
     });
-    this.catalogCache.set(CACHE_KEY, result);
     return result;
   }
 
   async featuredTracks() {
-    const CACHE_KEY = 'featured-tracks';
-    const cached = this.catalogCache.get(CACHE_KEY);
-    if (cached) return cached;
+    return this.catalogCache.getOrRefresh('featured-tracks', () =>
+      this.computeFeaturedTracks(),
+    );
+  }
 
+  private async computeFeaturedTracks() {
     const SLOT_COUNT = 10;
     const tracks = await this.prisma.track.findMany({
       where: {
@@ -215,9 +239,7 @@ export class CoursesService {
         uniqueTracks.push(t);
       }
     }
-    const result = uniqueTracks;
-    this.catalogCache.set(CACHE_KEY, result);
-    return result;
+    return uniqueTracks;
   }
 
   async trackCourses(id: string) {
@@ -474,6 +496,12 @@ export class CoursesService {
   }
 
   async getCourseOverview(courseId: string) {
+    return this.catalogCache.getOrRefresh(`overview:${courseId}`, () =>
+      this.computeCourseOverview(courseId),
+    );
+  }
+
+  private async computeCourseOverview(courseId: string) {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId, status: 'ACTIVE' },
       include: {
@@ -1375,8 +1403,20 @@ export class CoursesService {
 
   async createVideo(sectionId: string, dto: CreateVideoDto) {
     this.invalidateCatalog();
-    await this.findSectionOrFail(sectionId);
-    return this.prisma.video.create({ data: { ...dto, sectionId } });
+    const section = await this.findSectionOrFail(sectionId);
+
+    // The very first video ever added to a course becomes its "intro video" —
+    // playable publicly without enrollment (see getPublicVideoOtp), so a
+    // prospective student always has something to preview before buying.
+    // There's no separate UI for marking a video as preview (CurriculumBuilder
+    // has no such control), so this is the only path that ever sets it — once
+    // the course has any video, every later one defaults to locked (false).
+    const existingVideoCount = await this.prisma.video.count({
+      where: { section: { courseId: section.courseId } },
+    });
+    const isPreview = existingVideoCount === 0;
+
+    return this.prisma.video.create({ data: { ...dto, sectionId, isPreview } });
   }
 
   async updateVideo(id: string, dto: UpdateVideoDto) {
@@ -1496,10 +1536,12 @@ export class CoursesService {
   // ==================== HERO SLIDES ====================
 
   async featuredHeroSlides() {
-    const CACHE_KEY = 'hero-slides';
-    const cached = this.catalogCache.get(CACHE_KEY);
-    if (cached) return cached;
+    return this.catalogCache.getOrRefresh('hero-slides', () =>
+      this.computeFeaturedHeroSlides(),
+    );
+  }
 
+  private async computeFeaturedHeroSlides() {
     const SLOT_COUNT = 3;
     const slides = await this.prisma.heroSlide.findMany({
       where: { isFeatured: true, displayOrder: { lt: SLOT_COUNT } },
@@ -1507,17 +1549,15 @@ export class CoursesService {
       take: SLOT_COUNT,
     });
     const seen = new Set<number>();
-    const result = slides.filter((s) => {
+    return slides.filter((s) => {
       if (seen.has(s.displayOrder)) return false;
       seen.add(s.displayOrder);
       return true;
     });
-    this.catalogCache.set(CACHE_KEY, result);
-    return result;
   }
 
   async createHeroSlide(dto: CreateHeroSlideDto) {
-    this.invalidateCatalog();
+    this.invalidateHero();
     return this.prisma.heroSlide.create({ data: dto });
   }
 
@@ -1526,7 +1566,7 @@ export class CoursesService {
   }
 
   async deleteHeroSlide(id: string) {
-    this.invalidateCatalog();
+    this.invalidateHero();
     const slide = await this.prisma.heroSlide.findUnique({ where: { id } });
     await this.prisma.heroSlide.delete({ where: { id } });
     if (slide?.imageUrl) {
@@ -1540,13 +1580,13 @@ export class CoursesService {
   }
 
   async featureHeroSlide(id: string, dto: FeatureDto) {
-    this.invalidateCatalog();
+    this.invalidateHero();
     await this.prisma.heroSlide.findUniqueOrThrow({ where: { id } });
     return this.prisma.heroSlide.update({ where: { id }, data: dto });
   }
 
   async reorderHeroSlides(dto: ReorderItemsDto) {
-    this.invalidateCatalog();
+    this.invalidateHero();
     await this.prisma.$transaction(
       dto.items.map((item) =>
         this.prisma.heroSlide.update({

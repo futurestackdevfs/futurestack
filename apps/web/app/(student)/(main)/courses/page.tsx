@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import Image from "next/image";
+import { SafeImage } from "@/components/SafeImage";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { useAuth } from "@/app/auth/hooks/use-auth";
@@ -509,7 +509,7 @@ export default function CoursesPage() {
             </div>
           ) : (
             <div className="grid gap-4" style={{ gridTemplateColumns: viewMode === "list" ? "1fr" : "repeat(auto-fill, minmax(280px, 1fr))" }}>
-              {allCourses.map((course) => (
+              {allCourses.map((course, i) => (
                 <article
                   key={course.id}
                   role="link"
@@ -519,7 +519,17 @@ export default function CoursesPage() {
                   className={`group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow)] transition-all duration-[220ms] ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-1 hover:border-[#C7D8FF] hover:shadow-[var(--shadow-lg)] ${viewMode === "list" ? "md:flex-row" : ""}`}
                 >
                   <div className={`relative overflow-hidden bg-[var(--bg2)] ${viewMode === "list" ? "md:w-[200px] md:h-full md:min-h-[120px]" : "aspect-[21/8]"}`}>
-                    <Image src={course.img} alt={course.title} fill sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" className="object-cover" />
+                    <SafeImage
+                      src={course.img}
+                      alt={course.title}
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      className="object-cover"
+                      // First row is above the fold and one of these is the LCP
+                      // (which card depends on the column count) — `priority`
+                      // sets fetchpriority=high + eager + a preload link.
+                      priority={i < 3}
+                    />
                     <div className="absolute inset-0 bg-gradient-to-t from-[rgba(13,31,92,.5)] via-transparent to-transparent" />
                     {course.badge && (
                       <span className={`absolute left-3 top-3 rounded-full px-2.5 py-[3px] text-[10px] font-extrabold uppercase tracking-[.4px] text-white shadow-[0_2px_10px_rgba(0,0,0,.25)] ${course.badgeClass}`}>{course.badge}</span>

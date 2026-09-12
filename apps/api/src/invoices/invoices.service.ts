@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -46,7 +51,10 @@ export class InvoicesService {
     });
   }
 
-  async getInvoiceByOrder(orderId: string) {
+  async getInvoiceByOrder(
+    orderId: string,
+    requester?: { id: string; role: string },
+  ) {
     const invoice = await this.prisma.invoice.findUnique({
       where: { orderId },
       include: {
@@ -61,6 +69,17 @@ export class InvoicesService {
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
+
+    // A student may only read their own invoice (it carries full billing
+    // name / email / phone / address). Staff roles are unrestricted.
+    if (
+      requester &&
+      requester.role === 'STUDENT' &&
+      invoice.userId !== requester.id
+    ) {
+      throw new ForbiddenException('You cannot access this invoice');
+    }
+
     return invoice;
   }
 

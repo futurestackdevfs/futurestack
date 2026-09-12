@@ -105,7 +105,6 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
                   >
                     ✕
                   </button>
-                  <span className="relative inline-block text-[10.5px] font-bold uppercase tracking-[.06em] text-[var(--orange2)] mb-2">Limited seats this batch</span>
                   <h2 className="relative text-[20px] font-bold leading-[1.25] mb-1.5">Get Free Career Counselling</h2>
                   <p className="relative text-[12px] leading-[1.5]" style={{ color: "#9ba8be" }}>Tell us a bit about yourself — one of our course advisors will call you back with the right course, fees &amp; batch options.</p>
                   <div className="relative mt-3.5 flex flex-wrap gap-3.5">

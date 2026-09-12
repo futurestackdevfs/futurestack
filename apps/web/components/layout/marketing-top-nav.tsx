@@ -19,6 +19,23 @@ const categoryIcons: Record<string, string> = {
 
 export function TopNav() {
   const { isAuthenticated, isLoading, user, logout } = useAuth();
+  // `useAuth`'s state is a module-level singleton that persists for the whole
+  // SPA session, not just this component's lifetime. SSR always renders with
+  // the pristine `isLoading: true` state (the server can't know if the client
+  // is logged in), but if the client's auth already resolved on an earlier
+  // page, a *fresh* mount of this component (e.g. this layout segment gets
+  // re-hydrated on navigation to a route with its own server-rendered layout)
+  // hydrates against an already-resolved `shared` state instead — server and
+  // client disagree on the very first paint. `mounted` forces the first
+  // client render to match the SSR-safe assumption; the real auth-gated
+  // branch only kicks in one tick later, after hydration is done.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  // Treat auth as "still resolving" until this component has actually
+  // mounted on the client — see the `mounted` comment above. Every
+  // auth-gated branch below must use this instead of the raw `isLoading`
+  // so the first client render always matches the SSR output.
+  const authLoading = !mounted || isLoading;
   const [profileOpen, setProfileOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -395,7 +412,7 @@ export function TopNav() {
           { href: "/research-and-development", label: "R&D Services" },
           { href: "/my-dashboard", label: "My Dashboard", requiresAuth: true },
         ].map((link, i) => {
-          const locked = link.requiresAuth && !isAuthenticated && !isLoading;
+          const locked = link.requiresAuth && !isAuthenticated && !authLoading;
           return (
             <li key={link.label} style={animate ? { animation: `fadeUp .35s ${.08 + (i + 2) * .05}s ease both` } : {}}>
               {locked ? (
@@ -466,7 +483,7 @@ export function TopNav() {
               }`}
           >
             {/* Avatar */}
-            {isLoading ? (
+            {authLoading ? (
               <div className="size-7 rounded-full bg-[var(--border)] animate-pulse shrink-0" />
             ) : isAuthenticated && user ? (
               user.avatarUrl ? (
@@ -484,7 +501,7 @@ export function TopNav() {
 
             {/* Label */}
             <div className="hidden sm:block">
-              {!isLoading && isAuthenticated && user ? (
+              {!authLoading && isAuthenticated && user ? (
                 <>
                   <div className="font-semibold text-[12px] leading-[1.2] text-[var(--text)]">
                     Hi, {user.name.split(" ")[0]}
@@ -648,7 +665,7 @@ export function TopNav() {
         <div className="border-t border-[var(--border)] mx-3" />
 
         {/* Profile (signed in) */}
-        {!isLoading && isAuthenticated && user && (
+        {!authLoading && isAuthenticated && user && (
           <div className="px-3 py-1.5">
             <div className="flex items-center gap-2.5 px-2.5 py-1.5 mb-1">
               {user.avatarUrl ? (
@@ -695,7 +712,7 @@ export function TopNav() {
         )}
 
         {/* Sign in (not authenticated) */}
-        {!isLoading && !isAuthenticated && (
+        {!authLoading && !isAuthenticated && (
           <div className="px-3 py-1.5">
             <button
               onClick={() => {

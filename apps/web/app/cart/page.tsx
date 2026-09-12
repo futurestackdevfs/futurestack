@@ -5,7 +5,7 @@ import useSWR from "swr";
 import { TopNav } from "@/components/layout/marketing-top-nav";
 import Link from "next/link";
 import { authFetch } from "@/app/auth/lib/auth-fetch";
-import { COUNTRIES, addressFormat, countryName, normalizeCountry } from "@/lib/countries";
+import { COUNTRIES, addressFormat, countryName, guessCountry, normalizeCountry } from "@/lib/countries";
 
 interface PaymentSettings {
   domesticEnabled: boolean;
@@ -126,7 +126,7 @@ const emptyBilling: BillingDetails = {
   city: "",
   state: "",
   pincode: "",
-  country: "IN",
+  country: "", // "" = not yet determined (auto-guessed on mount, then user-editable)
 };
 
 const BILLING_CACHE_KEY = "fs_billing";
@@ -137,7 +137,9 @@ function loadBillingCache(): BillingDetails | null {
     if (!raw) return null;
     const v = JSON.parse(raw) as Partial<BillingDetails>;
     if (!v.fullName && !v.email) return null;
-    return { ...emptyBilling, ...v, country: normalizeCountry(v.country) };
+    // Keep "" when the cache predates the country field — the mount effect fills
+    // it from the auto-guess. A stored code is normalised and kept as-is.
+    return { ...emptyBilling, ...v, country: v.country ? normalizeCountry(v.country) : "" };
   } catch {
     return null;
   }
@@ -328,7 +330,9 @@ export default function CartPage() {
   // Currency defaults to the billing country (India → INR, else → USD) but the
   // shopper can override it with the toggle when both currencies are enabled.
   const [currencyOverride, setCurrencyOverride] = useState<Currency | null>(null);
-  const desiredCurrency: Currency = billing.country === "IN" ? "INR" : "USD";
+  // Empty (not yet determined) → INR, the safe default until the guess resolves.
+  const desiredCurrency: Currency =
+    billing.country && billing.country !== "IN" ? "USD" : "INR";
   const preferredCurrency: Currency = currencyOverride ?? desiredCurrency;
   const activeCurrency: Currency = enabledCurrencies.includes(preferredCurrency)
     ? preferredCurrency
@@ -437,6 +441,8 @@ export default function CartPage() {
 
   // Load saved billing once: prefer the latest order's snapshot (server truth,
   // works across devices), fall back to the local cache, else show the Add form.
+  // The country is only ever auto-guessed (from the browser timezone/locale)
+  // when it isn't already known — a stored/entered value is never overridden.
   useEffect(() => {
     let active = true;
     (async () => {
@@ -463,7 +469,10 @@ export default function CartPage() {
               city: latest.billingCity ?? "",
               state: latest.billingState ?? "",
               pincode: latest.billingPincode ?? "",
-              country: normalizeCountry(latest.billingCountry),
+              // Older orders were placed before we captured country — guess it.
+              country: latest.billingCountry
+                ? normalizeCountry(latest.billingCountry)
+                : guessCountry(),
             });
             return;
           }
@@ -474,9 +483,12 @@ export default function CartPage() {
       const cached = loadBillingCache();
       if (!active) return;
       if (cached) {
-        setBilling(cached);
+        setBilling(cached.country ? cached : { ...cached, country: guessCountry() });
         return;
       }
+      // Brand-new shopper: pre-fill the country so the currency is right from
+      // the start, and open the form for them to complete.
+      setBilling(b => ({ ...b, country: guessCountry() }));
       setEditingBilling(true);
     })();
     return () => {
@@ -1038,6 +1050,7 @@ export default function CartPage() {
                         }}
                         className={fieldBaseCls}
                       >
+                        <option value="" disabled>Select your country…</option>
                         {COUNTRIES.map(c => (
                           <option key={c.code} value={c.code}>{c.name}</option>
                         ))}

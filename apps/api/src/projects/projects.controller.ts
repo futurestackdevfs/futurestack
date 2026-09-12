@@ -24,6 +24,7 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { UpdateCurriculumDto } from './dto/update-curriculum.dto';
 import { UploadCurriculumVideoDto } from './dto/upload-curriculum-video.dto';
 import { CreateProjectOrderDto } from './dto/create-order.dto';
+import { clampPageSize } from '../common/page-size.pipe';
 
 @Controller('projects')
 export class ProjectsController {
@@ -35,7 +36,7 @@ export class ProjectsController {
   // ── PUBLIC ──────────────────────────────────────────────────────
 
   @Get()
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   listActive() {
     return this.projectsService.listActive();
   }
@@ -117,6 +118,7 @@ export class ProjectsController {
   }
 
   @Get(':id/reviews')
+  @Header('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
   getProjectReviews(
     @Param('id') projectId: string,
     @Query('page') page: string,
@@ -124,13 +126,13 @@ export class ProjectsController {
   ) {
     return this.reviewsService.getProjectReviews(
       projectId,
-      parseInt(page) || 1,
-      parseInt(limit) || 10,
+      Math.max(1, parseInt(page) || 1),
+      clampPageSize(limit, 10, 50),
     );
   }
 
   @Auth(Role.STUDENT)
-  @Get(':id/reviews/me')
+  @Get(':id/reviews/my-review')
   getMyProjectReview(
     @Req() req: Request,
     @Param('id') projectId: string,
@@ -149,7 +151,7 @@ export class ProjectsController {
   // ── PUBLIC: :id routes ─────────────────────────────────────────
 
   @Get(':id')
-  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=60')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   getById(@Param('id') id: string) {
     return this.projectsService.getById(id);
   }

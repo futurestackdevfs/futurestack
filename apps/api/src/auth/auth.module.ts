@@ -18,7 +18,13 @@ import { MailModule } from '../mail/mail.module';
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: '15m',
+          expiresIn: '20m', // TESTING ONLY — revert to '15m' before committing/deploying
+          issuer: 'futurestack-api',
+          audience: 'futurestack',
+        },
+        verifyOptions: {
+          issuer: 'futurestack-api',
+          audience: 'futurestack',
         },
       }),
     }),

@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Header,
   Post,
   Patch,
   Body,
@@ -11,6 +12,7 @@ import {
   DefaultValuePipe,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import { PageSizePipe } from '../common/page-size.pipe';
 import { BlogService } from './blog.service';
 import { BlogApiKeyGuard } from './blog-api-key.guard';
 import { CreateBlogPostDto } from './dto/create-blog-post.dto';
@@ -54,9 +56,10 @@ export class BlogController {
   }
 
   @Get('articles')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   async findAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('limit', new PageSizePipe(10, 100)) limit: number,
   ) {
     return this.blogService.findAllPublished(page, limit);
   }
@@ -65,12 +68,13 @@ export class BlogController {
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   async findAllForAdmin(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
-    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+    @Query('limit', new PageSizePipe(20, 100)) limit: number,
   ) {
     return this.blogService.findAllForAdmin(page, limit);
   }
 
   @Get('articles/:slug')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
   async findOne(@Param('slug') slug: string) {
     return this.blogService.findOnePublished(slug);
   }

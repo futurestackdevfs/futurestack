@@ -16,6 +16,11 @@ async function proxy(req: NextRequest) {
   const auth = req.headers.get('authorization');
   if (auth) headers.set('authorization', auth);
 
+  // Forward the real client IP so the backend (behind Render's LB) can record
+  // it — Vercel sets x-forwarded-for / x-real-ip to the true client address.
+  const fwd = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip');
+  if (fwd) headers.set('x-forwarded-for', fwd);
+
   // Forward the HttpOnly cookie token as Authorization if no explicit header
   // Try student token first, fallback to staff token
   if (!auth) {
@@ -31,9 +36,10 @@ async function proxy(req: NextRequest) {
     ? await req.arrayBuffer()
     : undefined;
 
+  const isPublicGet = req.method === 'GET' && path.includes('/public/');
+
   let backendRes: Response;
   try {
-    const isPublicGet = req.method === 'GET' && path.includes('/public/');
     const fetchOptions: RequestInit = {
       method: req.method,
       headers,
@@ -41,7 +47,9 @@ async function proxy(req: NextRequest) {
     };
     
     if (isPublicGet) {
-      fetchOptions.next = { revalidate: 60 };
+      // Public catalog data changes rarely — let Next's Data Cache hold it for
+      // 5 min so most requests never reach the backend.
+      fetchOptions.next = { revalidate: 300 };
     } else {
       fetchOptions.cache = 'no-store';
     }
@@ -49,9 +57,17 @@ async function proxy(req: NextRequest) {
     backendRes = await fetch(url, fetchOptions);
   } catch (err) {
     // Backend unreachable (ECONNREFUSED, timeout, DNS failure, etc.). Log the
-    // real cause server-side; never return it to the browser — it can carry the
-    // internal backend host/port.
-    console.error('[proxy] backend unreachable:', err);
+    // cause server-side; never return it to the browser — it can carry the
+    // internal backend host/port. Connection-refused (API simply not running —
+    // common in local dev) is logged as a one-liner; anything else gets the
+    // full error for real debugging.
+    const code = (err as { cause?: { code?: string }; code?: string })?.cause?.code
+      ?? (err as { code?: string })?.code;
+    if (code === 'ECONNREFUSED') {
+      console.error(`[proxy] ${req.method} ${path} — backend not reachable at ${BACKEND} (is it running?)`);
+    } else {
+      console.error('[proxy] backend unreachable:', err);
+    }
     return NextResponse.json(
       { statusCode: 502, message: 'Service temporarily unavailable. Please try again in a moment.' },
       { status: 502 },
@@ -88,7 +104,16 @@ async function proxy(req: NextRequest) {
   const resCt = backendRes.headers.get('content-type');
   if (resCt) resHeaders.set('content-type', resCt);
   const resCache = backendRes.headers.get('cache-control');
-  if (resCache) resHeaders.set('cache-control', resCache);
+  if (resCache) {
+    resHeaders.set('cache-control', resCache);
+  } else if (isPublicGet && backendRes.ok) {
+    // Backend didn't set one but this is public catalog data — let the Vercel
+    // edge / browser cache it briefly so bursts don't each hit the origin.
+    resHeaders.set(
+      'cache-control',
+      'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+    );
+  }
 
   const response = new NextResponse(resBody, {
     status: backendRes.status,

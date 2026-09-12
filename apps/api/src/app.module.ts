@@ -4,7 +4,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BlogApiKeyGuard } from './blog/blog-api-key.guard';
+import { validateEnv } from './config.validation';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -36,6 +38,7 @@ import { ContactModule } from './contact/contact.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateEnv,
     }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
@@ -49,6 +52,7 @@ import { ContactModule } from './contact/contact.module';
       }),
     }),
     PrismaModule,
+    AuditModule,
     AuthModule,
     StudentModule,
     AdminModule,
