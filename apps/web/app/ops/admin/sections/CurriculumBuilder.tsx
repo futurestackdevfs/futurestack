@@ -3,12 +3,13 @@
 import { useState, useEffect, useRef } from "react"
 import { VideoUploadDialog } from "./VideoUploadDialog"
 import { ConfirmDialog, type ConfirmOptions } from "./ConfirmDialog"
+import { SkillTestBuilder } from "./SkillTestBuilder"
 
 interface ApiVideo {
   id: string; title: string; vdoCipherId: string; durationSeconds: number; order: number; isPreview: boolean;
 }
 interface ApiQuiz {
-  id: string; title: string; order: number; totalQuestions: number; passingScore?: number;
+  id: string; title: string; order: number; totalQuestions: number; passingScore?: number; skillTestId?: string | null;
 }
 interface ApiSection {
   id: string; title: string; order: number; videos: ApiVideo[]; quizzes: ApiQuiz[];
@@ -42,6 +43,7 @@ interface CurriculumBuilderProps {
   token: string;
   onSave: () => void;
   onClose: () => void;
+  embedded?: boolean;
 }
 
 const LESSON_TYPE_OPTIONS = ["Video", "Video + Lab", "Video + Docs", "Quiz", "Quiz + Project", "Project", "Live Session"];
@@ -102,7 +104,7 @@ function getTotalMinutes(lessons: MergedLesson[]): number {
 }
 
 export function CurriculumBuilder({
-  open, courseId, courseName, courseCode, token, onSave, onClose,
+  open, courseId, courseName, courseCode, token, onSave, onClose, embedded = false,
 }: CurriculumBuilderProps) {
   const [sections, setSections] = useState<ApiSection[]>([]);
   const [displaySections, setDisplaySections] = useState<MergedSection[]>([]);
@@ -118,6 +120,41 @@ export function CurriculumBuilder({
   const originalSections = useRef<ApiSection[]>([]);
   const tempIdCounter = useRef(0);
   const [confirmState, setConfirmState] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
+  const [courseSkillTest, setCourseSkillTest] = useState<{ id: string; title: string; passingScore?: number; questionCount: number } | null>(null);
+  const [skillTestEditorOpen, setSkillTestEditorOpen] = useState(false);
+  const [creatingSkillTest, setCreatingSkillTest] = useState(false);
+
+  function refreshCourseSkillTest() {
+    if (!token) return;
+    return apiCall(token, `/skill-tests/by-course/${courseId}`)
+      .then((test) => {
+        if (test) {
+          setCourseSkillTest({
+            id: test.id,
+            title: test.title,
+            passingScore: test.passingScore,
+            questionCount: (test.questions || []).length,
+          });
+        } else {
+          setCourseSkillTest(null);
+        }
+      })
+      .catch(() => setCourseSkillTest(null));
+  }
+
+  async function createCourseSkillTest() {
+    if (!token || creatingSkillTest) return;
+    setCreatingSkillTest(true);
+    try {
+      await apiCall(token, `/skill-tests/by-course/${courseId}`, { method: "POST" });
+      await refreshCourseSkillTest();
+      setSkillTestEditorOpen(true);
+    } catch {
+      // surfaced via courseSkillTest staying null
+    } finally {
+      setCreatingSkillTest(false);
+    }
+  }
 
   function nextTempId() { return `new_${--tempIdCounter.current}`; }
 
@@ -159,7 +196,7 @@ export function CurriculumBuilder({
           })),
           quizzes: (s.quizzes || []).map((q: any) => ({
             id: q.id, title: q.title || "", order: q.order ?? 0,
-            totalQuestions: q.totalQuestions ?? 0, passingScore: q.passingScore,
+            totalQuestions: q.totalQuestions ?? 0, passingScore: q.passingScore, skillTestId: q.skillTestId,
           })),
         }));
         setSections(secs);
@@ -170,6 +207,8 @@ export function CurriculumBuilder({
       })
       .catch((e) => { setFetchError(e.message || "Failed to load curriculum"); })
       .finally(() => setLoading(false));
+
+    refreshCourseSkillTest();
   }, [open, courseId, token]);
 
   function refreshSections() {
@@ -251,7 +290,12 @@ export function CurriculumBuilder({
         return updated;
       });
     } else {
-      const newQuiz: ApiQuiz = { id: nextTempId(), title: 'New Quiz', order: 0, totalQuestions: 5 };
+      if (!courseSkillTest) return;
+      const newQuiz: ApiQuiz = {
+        id: nextTempId(), title: courseSkillTest.title, order: 0,
+        totalQuestions: courseSkillTest.questionCount, passingScore: courseSkillTest.passingScore,
+        skillTestId: courseSkillTest.id,
+      };
       setSections(prev => {
         const sec = prev.find(s => s.id === sectionId);
         if (!sec) return prev;
@@ -387,7 +431,7 @@ export function CurriculumBuilder({
           for (const q of section.quizzes) {
             await apiCall(token, `/courses/sections/${realSectionId}/quizzes`, {
               method: 'POST',
-              body: JSON.stringify({ title: q.title, order: q.order, totalQuestions: q.totalQuestions }),
+              body: JSON.stringify({ title: q.title, order: q.order, totalQuestions: q.totalQuestions, skillTestId: q.skillTestId }),
             });
           }
         } else if (origSec) {
@@ -430,7 +474,7 @@ export function CurriculumBuilder({
             await apiCall(token, `/courses/quizzes/${q.id}`, { method: 'DELETE' });
           }
           for (const q of newQuizzes) {
-            const body: any = { title: q.title, order: q.order, totalQuestions: q.totalQuestions };
+            const body: any = { title: q.title, order: q.order, totalQuestions: q.totalQuestions, skillTestId: q.skillTestId };
             if (q.passingScore !== undefined) body.passingScore = q.passingScore;
             await apiCall(token, `/courses/sections/${section.id}/quizzes`, {
               method: 'POST',
@@ -469,72 +513,42 @@ export function CurriculumBuilder({
 
   if (!open) return null;
   if (!token) {
-    return (        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center p-6"
-          style={{ background: "var(--overlay)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+    const lockedContent = (
+      <div
+        className="flex flex-col rounded-lg max-w-full max-h-[88vh] p-8 items-center gap-3"
+        style={{
+          width: 440,
+          maxWidth: "96vw",
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          boxShadow: embedded ? "none" : "0 20px 60px rgba(0,0,0,.3)",
+        }}
       >
-        <div
-          className="flex flex-col rounded-lg max-w-full max-h-[88vh] p-8 items-center gap-3"
-          style={{
-            width: 440,
-            maxWidth: "96vw",
-            background: "var(--surface)",
-            border: "1px solid var(--border)",
-            boxShadow: "0 20px 60px rgba(0,0,0,.3)",
-          }}
-        >
-          <div className="text-3xl">🔒</div>
-          <div className="font-mono text-[12px] font-bold" style={{ color: "var(--text)" }}>Session Required</div>
-          <div className="font-mono text-[11px] text-center" style={{ color: "var(--text3)" }}>
-            Please log in to manage curriculum.
-          </div>
-          <button onClick={handleClose}
-            className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
-            style={{ border: "1px solid var(--border)", color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, var(--surface))" }}
-          >Close</button>
+        <div className="text-3xl">🔒</div>
+        <div className="font-mono text-[12px] font-bold" style={{ color: "var(--text)" }}>Session Required</div>
+        <div className="font-mono text-[11px] text-center" style={{ color: "var(--text3)" }}>
+          Please log in to manage curriculum.
         </div>
+        <button onClick={handleClose}
+          className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer"
+          style={{ border: "1px solid var(--border)", color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, var(--surface))" }}
+        >Close</button>
+      </div>
+    );
+    if (embedded) return lockedContent;
+    return (
+      <div
+        className="fixed inset-0 z-[200] flex items-center justify-center p-6"
+        style={{ background: "var(--overlay)" }}
+        onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+      >
+        {lockedContent}
       </div>
     );
   }
 
-  return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-6"
-      style={{ background: "var(--overlay)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
-    >
-      <div
-        className="flex flex-col rounded-lg max-w-full max-h-[88vh]"
-        style={{
-          width: 880,
-          maxWidth: "96vw",
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 20px 60px rgba(0,0,0,.3)",
-        }}
-      >
-        {/* Header */}
-        <div
-          className="flex items-center justify-between px-4 py-3 shrink-0"
-          style={{ borderBottom: "1px solid var(--border)" }}
-        >
-          <div className="flex items-center gap-2 text-[13.5px] font-extrabold" style={{ color: "var(--text)" }}>
-            <span
-              className="w-[26px] h-[26px] rounded flex items-center justify-center text-[13px]"
-              style={{ background: "var(--orange-d)", color: "var(--orange)" }}
-            >📚</span>
-            Manage Curriculum{courseName ? <span style={{ fontWeight: 400, color: "var(--text3)" }}> — {courseName}</span> : ""}
-          </div>
-          <button
-            onClick={handleClose}
-            className="flex items-center justify-center w-6 h-6 rounded text-[14px] cursor-pointer"
-            style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--panel))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text))"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, transparent)";                             (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))" }}
-          >✕</button>
-        </div>
-
+  const bodyAndFooter = (
+    <>
         {/* Body */}
         <div className="p-4 overflow-y-auto flex-1">
           {loading ? (
@@ -672,13 +686,11 @@ export function CurriculumBuilder({
                                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, var(--orange-d))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--orange))"; }}
                               >📤 Upload</button>
                             ) : (
-                              <input defaultValue={lesson.totalQuestions || 5} type="number" min="1"
-                                className="text-[11px] px-1.5 py-1 rounded outline-none text-center"
-                                style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", width: 70 }}
-                                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--orange)"; e.currentTarget.style.background = "var(--surface)"; }}
-                                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--bg)"; const val = parseInt(e.currentTarget.value); if (!isNaN(val) && val !== lesson.totalQuestions) saveLessonQuestions(section.id, lesson, val); }}
-                                onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-                              />
+                              <span className="text-[10px] px-1.5 py-1 rounded text-center whitespace-nowrap"
+                                style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text3)" }}
+                                title="Question count is derived from the linked skill test">
+                                {lesson.totalQuestions} questions
+                              </span>
                             )}
                             <button disabled={acting} onClick={() => removeLesson(section.id, lesson)}
                               className="flex items-center justify-center text-[10px] cursor-pointer disabled:opacity-40"
@@ -695,11 +707,28 @@ export function CurriculumBuilder({
                           style={{ color: "var(--btn-text, var(--green))", background: "var(--btn-bg, transparent)" }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
                           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>+ Add Video</button>
-                        <button disabled={acting} onClick={() => addLesson(section.id, "quiz")}
-                          className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 cursor-pointer disabled:opacity-40"
-                          style={{ color: "var(--btn-text, var(--blue))", background: "var(--btn-bg, transparent)" }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>+ Add Quiz</button>
+                        {courseSkillTest ? (
+                          <>
+                            <button disabled={acting} onClick={() => addLesson(section.id, "quiz")}
+                              className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 cursor-pointer disabled:opacity-40"
+                              style={{ color: "var(--btn-text, var(--blue))", background: "var(--btn-bg, transparent)" }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>+ Add Quiz ({courseSkillTest.questionCount} Q)</button>
+                            <button disabled={acting} onClick={() => setSkillTestEditorOpen(true)}
+                              className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 cursor-pointer disabled:opacity-40"
+                              style={{ color: "var(--btn-text, var(--purple))", background: "var(--btn-bg, transparent)" }}
+                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
+                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>✎ Edit Skill Test Questions</button>
+                          </>
+                        ) : (
+                          <button disabled={creatingSkillTest} onClick={createCourseSkillTest}
+                            className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 cursor-pointer disabled:opacity-40"
+                            style={{ color: "var(--btn-text, var(--purple))", background: "var(--btn-bg, transparent)" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>
+                            {creatingSkillTest ? "Creating…" : "+ Create Skill Test for this Course"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -732,8 +761,11 @@ export function CurriculumBuilder({
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
           >💾 Save Curriculum</button>
         </div>
-      </div>
+    </>
+  );
 
+  const extras = (
+    <>
       {/* Upload Video Dialog */}
       <VideoUploadDialog
         isOpen={uploadDialogOpen}
@@ -766,6 +798,18 @@ export function CurriculumBuilder({
         videoId={selectedLessonId && !selectedLessonId.startsWith('new_') ? selectedLessonId : undefined}
       />
 
+      {/* Skill Test question editor — opened without leaving Curriculum */}
+      {courseSkillTest && (
+        <SkillTestBuilder
+          open={skillTestEditorOpen}
+          skillTestId={courseSkillTest.id}
+          skillTestTitle={courseSkillTest.title}
+          token={token}
+          onSave={() => { refreshCourseSkillTest(); }}
+          onClose={() => { setSkillTestEditorOpen(false); refreshCourseSkillTest(); }}
+        />
+      )}
+
       {/* Confirmation Dialog */}
       <ConfirmDialog
         open={!!confirmState}
@@ -777,6 +821,59 @@ export function CurriculumBuilder({
         onConfirm={() => resolveConfirm(true)}
         onCancel={() => resolveConfirm(false)}
       />
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        {bodyAndFooter}
+        {extras}
+      </>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-6"
+      style={{ background: "var(--overlay)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
+    >
+      <div
+        className="flex flex-col rounded-lg max-w-full max-h-[88vh]"
+        style={{
+          width: 880,
+          maxWidth: "96vw",
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          boxShadow: "0 20px 60px rgba(0,0,0,.3)",
+        }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-4 py-3 shrink-0"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          <div className="flex items-center gap-2 text-[13.5px] font-extrabold" style={{ color: "var(--text)" }}>
+            <span
+              className="w-[26px] h-[26px] rounded flex items-center justify-center text-[13px]"
+              style={{ background: "var(--orange-d)", color: "var(--orange)" }}
+            >📚</span>
+            Manage Curriculum{courseName ? <span style={{ fontWeight: 400, color: "var(--text3)" }}> — {courseName}</span> : ""}
+          </div>
+          <button
+            onClick={handleClose}
+            className="flex items-center justify-center w-6 h-6 rounded text-[14px] cursor-pointer"
+            style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--panel))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text))"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, transparent)";                             (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))" }}
+          >✕</button>
+        </div>
+
+        {bodyAndFooter}
+      </div>
+
+      {extras}
     </div>
   );
 }

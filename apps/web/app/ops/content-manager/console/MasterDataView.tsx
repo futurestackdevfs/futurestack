@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import { MasterDataModal, type FieldDef } from "../../admin/sections/MasterDataModal";
-import { CurriculumBuilder } from "../../admin/sections/CurriculumBuilder";
 import { ProjectCurriculumBuilder } from "../../admin/sections/ProjectCurriculumBuilder";
-import { ResourceManagerModal } from "../../admin/sections/ResourceManagerModal";
+import { SkillTestBuilder } from "../../admin/sections/SkillTestBuilder";
+import { CourseManagerModal } from "../../admin/sections/CourseManagerModal";
 import { Panel, Th, Td, ViewHeader, ActionBtn } from "../../sales/sections/ui";
 
 /* ── Helpers ── */
@@ -83,14 +83,26 @@ const PROJECT_FIELDS: FieldDef[] = [
   { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
 ];
 
+const SKILLTEST_FIELDS: FieldDef[] = [
+  { key: "title", label: "Test Title", type: "text", required: true, full: true, placeholder: "e.g. JavaScript Fundamentals" },
+  { key: "description", label: "Description", type: "textarea", full: true, placeholder: "What this test evaluates…" },
+  { key: "category", label: "Category", type: "text", placeholder: "e.g. Frontend Development" },
+  { key: "skillLevel", label: "Level", type: "select", options: ["BEGINNER", "INTERMEDIATE", "ADVANCED"] },
+  { key: "durationMinutes", label: "Duration (minutes)", type: "number", placeholder: "e.g. 20" },
+  { key: "passingScore", label: "Passing Score (%)", type: "number", placeholder: "e.g. 70" },
+  { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
+  { key: "displayOrder", label: "Display Order", type: "number", placeholder: "e.g. 0" },
+];
+
 export default function MasterDataView({ searchQuery, refreshSignal, onToast }: {
   searchQuery: string;
   refreshSignal?: number;
   onToast: (msg: string, type?: "success" | "danger") => void;
 }) {
-  const [activeTab, setActiveTab] = useState<"courses" | "projects">("courses");
+  const [activeTab, setActiveTab] = useState<"courses" | "projects" | "skilltests">("courses");
   const [courses, setCourses] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [skilltests, setSkilltests] = useState<any[]>([]);
   const [trainers, setTrainers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
@@ -98,12 +110,12 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
-  const [cbOpen, setCbOpen] = useState(false);
-  const [cbCourse, setCbCourse] = useState<{ code: string; name: string; id: string } | null>(null);
   const [pbOpen, setPbOpen] = useState(false);
   const [pbProject, setPbProject] = useState<{ name: string; id: string } | null>(null);
-  const [rmOpen, setRmOpen] = useState(false);
-  const [rmCourse, setRmCourse] = useState<{ code: string; name: string; id: string } | null>(null);
+  const [stOpen, setStOpen] = useState(false);
+  const [stTest, setStTest] = useState<{ title: string; id: string } | null>(null);
+  const [cmOpen, setCmOpen] = useState(false);
+  const [cmCourse, setCmCourse] = useState<any>(null);
   const [deleting, setDeleting] = useState<any>(null);
 
   // Load token
@@ -117,14 +129,16 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [cRes, pRes, tRes] = await Promise.all([
+      const [cRes, pRes, tRes, stRes] = await Promise.all([
         opsFetch("/api/courses"),
         opsFetch("/api/projects/admin/all"),
         opsFetch("/api/admin/trainers/approved"),
+        opsFetch("/api/skill-tests"),
       ]);
       if (cRes.ok) { const d = await cRes.json(); setCourses(Array.isArray(d) ? d : []); }
       if (pRes.ok) { const d = await pRes.json(); setProjects(Array.isArray(d) ? d : []); }
       if (tRes.ok) { const d = await tRes.json(); setTrainers(Array.isArray(d) ? d : []); }
+      if (stRes.ok) { const d = await stRes.json(); setSkilltests(Array.isArray(d) ? d : []); }
     } catch { /* ignore */ } finally { setLoading(false); }
   }, []);
 
@@ -133,15 +147,17 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
   // Filtered data
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const list = activeTab === "courses" ? courses : projects;
+    const list = activeTab === "courses" ? courses : activeTab === "projects" ? projects : skilltests;
     if (!q) return list;
     return list.filter((r: any) => {
       const fields = activeTab === "courses"
         ? [r.title, r.code, r.category, r.description, r.trainer?.name]
-        : [r.name, r.techLabel, r.category, r.shortDesc];
+        : activeTab === "projects"
+        ? [r.name, r.techLabel, r.category, r.shortDesc]
+        : [r.title, r.category, r.description];
       return fields.some((v) => v && String(v).toLowerCase().includes(q));
     });
-  }, [activeTab, courses, projects, searchQuery]);
+  }, [activeTab, courses, projects, skilltests, searchQuery]);
 
   // Extra options for trainer select
   const extraOptions = useMemo(() => ({
@@ -150,7 +166,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
 
   // Default form values
   function getDefaultForm(entity: string): Record<string, any> {
-    const fields = entity === "courses" ? COURSE_FIELDS : PROJECT_FIELDS;
+    const fields = entity === "courses" ? COURSE_FIELDS : entity === "projects" ? PROJECT_FIELDS : SKILLTEST_FIELDS;
     const defaults: Record<string, any> = {};
     for (const field of fields) {
       if (field.type === "select" && field.options && !field.defaultEmpty) {
@@ -168,34 +184,50 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
     setModalOpen(true);
   }
 
+  function mapCourseRecordToForm(record: any): Record<string, any> {
+    return {
+      id: record.id,
+      title: record.title || "",
+      price: record.price ?? 0,
+      discountPercent: record.originalPrice != null && Number(record.originalPrice) > Number(record.price ?? 0)
+        ? String(Math.round(((Number(record.originalPrice) - Number(record.price ?? 0)) / Number(record.originalPrice)) * 100)) : "",
+      trainerId: record.trainerId || "",
+      description: record.description || "",
+      whatYoullLearn: Array.isArray(record.whatYoullLearn) ? record.whatYoullLearn.join("\n") : (record.whatYoullLearn || ""),
+      techStack: Array.isArray(record.techStack) ? record.techStack.join(", ") : (record.techStack || ""),
+      careerTitle: record.careerTitle || "",
+      careerBody: record.careerBody || "",
+      careerPath: record.careerPath || "",
+      thumbnailUrl: record.thumbnailUrl || "",
+      status: record.status || "DRAFT",
+      category: record.category || "",
+      level: record.level || "",
+    };
+  }
+
   function openEditModal(record: any) {
     if (activeTab === "courses") {
-      setEditingRecord({
-        id: record.id,
-        title: record.title || "",
-        price: record.price ?? 0,
-        discountPercent: record.originalPrice != null && Number(record.originalPrice) > Number(record.price ?? 0)
-          ? String(Math.round(((Number(record.originalPrice) - Number(record.price ?? 0)) / Number(record.originalPrice)) * 100)) : "",
-        trainerId: record.trainerId || "",
-        description: record.description || "",
-        whatYoullLearn: Array.isArray(record.whatYoullLearn) ? record.whatYoullLearn.join("\n") : (record.whatYoullLearn || ""),
-        techStack: Array.isArray(record.techStack) ? record.techStack.join(", ") : (record.techStack || ""),
-        careerTitle: record.careerTitle || "",
-        careerBody: record.careerBody || "",
-        careerPath: record.careerPath || "",
-        thumbnailUrl: record.thumbnailUrl || "",
-        status: record.status || "DRAFT",
-        category: record.category || "",
-        level: record.level || "",
-        // duration: record.duration || "",
-        // totalLessons: record.totalLessons || "",
-        // totalHours: record.totalHours || "",
-        // modules: record.modules || "",
-      });
+      setEditingRecord(mapCourseRecordToForm(record));
     } else {
       setEditingRecord({ ...record });
     }
     setModalOpen(true);
+  }
+
+  function openCourseManager(record: any) {
+    setCmCourse(record);
+    setCmOpen(true);
+  }
+
+  function closeCourseManager() {
+    setCmOpen(false);
+    setCmCourse(null);
+    loadData();
+  }
+
+  function openSkillTestBuilder(test: any) {
+    setStTest({ title: test.title, id: test.id });
+    setStOpen(true);
   }
 
   async function saveRecord(formData: Record<string, any>): Promise<{ success: boolean; error?: string } | void> {
@@ -288,17 +320,49 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
         return { success: false, error: err instanceof Error ? err.message : "Save failed" };
       }
     }
+
+    if (activeTab === "skilltests" && token) {
+      const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+      const body: Record<string, any> = {};
+      for (const [k, v] of Object.entries(formData)) {
+        if (k === "id") continue;
+        if (k === "durationMinutes" || k === "passingScore" || k === "displayOrder") {
+          body[k] = v === "" || v == null ? null : Number(v);
+        } else if (k === "skillLevel") {
+          body[k] = v || null;
+        } else {
+          body[k] = v;
+        }
+      }
+
+      try {
+        const url = formData.id ? `/api/skill-tests/${formData.id}` : "/api/skill-tests";
+        const method = formData.id ? "PATCH" : "POST";
+        const res = await fetch(url, { method, headers, body: JSON.stringify(body) });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ message: `${res.status}` }));
+          return { success: false, error: err.message || "Save failed" };
+        }
+        await loadData();
+        onToast(formData.id ? "Skill test updated" : "Skill test created", "success");
+        setModalOpen(false);
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : "Save failed" };
+      }
+    }
   }
 
   async function handleDelete() {
     if (!deleting) return;
     try {
-      const url = activeTab === "courses" ? `/api/courses/${deleting.id}` : `/api/projects/${deleting.id}`;
+      const url = activeTab === "courses" ? `/api/courses/${deleting.id}` : activeTab === "projects" ? `/api/projects/${deleting.id}` : `/api/skill-tests/${deleting.id}`;
       const r = await opsFetch(url, { method: "DELETE" });
       if (r.ok) {
         if (activeTab === "courses") setCourses((prev) => prev.filter((c) => c.id !== deleting.id));
-        else setProjects((prev) => prev.filter((p) => p.id !== deleting.id));
-        onToast(`${activeTab === "courses" ? "Course" : "Project"} deleted`, "success");
+        else if (activeTab === "projects") setProjects((prev) => prev.filter((p) => p.id !== deleting.id));
+        else setSkilltests((prev) => prev.filter((s) => s.id !== deleting.id));
+        onToast(`${activeTab === "courses" ? "Course" : activeTab === "projects" ? "Project" : "Skill test"} deleted`, "success");
       } else {
         onToast("Delete failed", "danger");
       }
@@ -318,7 +382,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
         <div className="flex items-baseline gap-2.5">
           <span className="text-[17px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>🗄 Master Data</span>
           <span className="font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
-            {courses.length} courses · {projects.length} projects
+            {courses.length} courses · {projects.length} projects · {skilltests.length} skill tests
           </span>
         </div>
         <div className="flex gap-1.5">
@@ -336,6 +400,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
         {([
           { key: "courses" as const, icon: "📚", label: "Courses", count: courses.length },
           { key: "projects" as const, icon: "🚀", label: "Projects", count: projects.length },
+          { key: "skilltests" as const, icon: "🧪", label: "Skill Tests", count: skilltests.length },
         ]).map((tab) => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             className="flex items-center gap-1.5 font-mono text-[10px] font-bold px-3 py-1.5 rounded cursor-pointer"
@@ -357,7 +422,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
       <div className="rounded overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between px-3 py-2" style={{ background: "var(--panel)", borderBottom: "1px solid var(--border)" }}>
           <span className="font-mono text-[10.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>
-            {activeTab === "courses" ? "📚 Courses & Curriculum" : "🚀 Projects & Curriculum"}
+            {activeTab === "courses" ? "📚 Courses & Curriculum" : activeTab === "projects" ? "🚀 Projects & Curriculum" : "🧪 Skill Tests & Questions"}
           </span>
           <span className="font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>{filtered.length} records</span>
         </div>
@@ -375,9 +440,13 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
                     <>
                       <Th>Code</Th><Th>Name</Th><Th>Category</Th><Th>Level</Th><Th>Trainer</Th><Th>Price</Th><Th>Status</Th><Th>Actions</Th>
                     </>
-                  ) : (
+                  ) : activeTab === "projects" ? (
                     <>
                       <Th>Name</Th><Th>Tech</Th><Th>Level</Th><TrainerTh /><Th>Price</Th><Th>Status</Th><Th>Actions</Th>
+                    </>
+                  ) : (
+                    <>
+                      <Th>Title</Th><Th>Category</Th><Th>Level</Th><Th>Duration</Th><Th>Questions</Th><Th>Status</Th><Th>Actions</Th>
                     </>
                   )}
                 </tr>
@@ -399,7 +468,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
                         <td className="px-2.5 py-1.5 font-mono text-[10.5px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{fmtRupee(record.price)}</td>
                         <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}><StatusBadge status={record.status === "ACTIVE" ? "Active" : record.status === "DRAFT" ? "Draft" : "Archived"} /></td>
                       </>
-                    ) : (
+                    ) : activeTab === "projects" ? (
                       <>
                         <td className="px-2.5 py-1.5 font-semibold" style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{record.name}</td>
                         <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ color: "var(--blue)", borderBottom: "1px solid var(--border)" }}>{record.techLabel ?? "—"}</td>
@@ -408,17 +477,29 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
                         <td className="px-2.5 py-1.5 font-mono text-[10.5px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{fmtRupee(record.price)}</td>
                         <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}><StatusBadge status={record.status === "ACTIVE" ? "Active" : record.status === "DRAFT" ? "Draft" : "Archived"} /></td>
                       </>
+                    ) : (
+                      <>
+                        <td className="px-2.5 py-1.5 font-semibold" style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{record.title}</td>
+                        <td className="px-2.5 py-1.5" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{record.category ?? "—"}</td>
+                        <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}><StatusBadge status={record.skillLevel ?? "BEGINNER"} /></td>
+                        <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{record.durationMinutes ? `${record.durationMinutes} min` : "—"}</td>
+                        <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{record.questionCount ?? 0}</td>
+                        <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}><StatusBadge status={record.status === "ACTIVE" ? "Active" : record.status === "DRAFT" ? "Draft" : "Archived"} /></td>
+                      </>
                     )}
                     <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
                       <div className="flex items-center gap-1">
-                        <ActionBtn color="var(--orange)" onClick={() => openEditModal(record)}>EDIT</ActionBtn>
                         {activeTab === "courses" ? (
-                          <>
-                            <ActionBtn color="var(--blue)" onClick={() => { setCbOpen(true); setCbCourse({ id: record.id, code: record.code, name: record.title }); }}>CURRICULUM</ActionBtn>
-                            <ActionBtn color="var(--green)" onClick={() => { setRmOpen(true); setRmCourse({ id: record.id, code: record.code, name: record.title }); }}>RESOURCES</ActionBtn>
-                          </>
+                          <ActionBtn color="var(--orange)" onClick={() => openCourseManager(record)}>MANAGE</ActionBtn>
                         ) : (
-                          <ActionBtn color="var(--blue)" onClick={() => { setPbOpen(true); setPbProject({ id: record.id, name: record.name }); }}>CURRICULUM</ActionBtn>
+                          <>
+                            <ActionBtn color="var(--orange)" onClick={() => openEditModal(record)}>EDIT</ActionBtn>
+                            {activeTab === "projects" ? (
+                              <ActionBtn color="var(--blue)" onClick={() => { setPbOpen(true); setPbProject({ id: record.id, name: record.name }); }}>CURRICULUM</ActionBtn>
+                            ) : (
+                              <ActionBtn color="var(--blue)" onClick={() => openSkillTestBuilder(record)}>QUESTIONS</ActionBtn>
+                            )}
+                          </>
                         )}
                         <ActionBtn color="var(--red)" onClick={() => setDeleting(record)}>✕</ActionBtn>
                       </div>
@@ -435,26 +516,15 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
       <MasterDataModal
         open={modalOpen}
         entity={activeTab}
-        icon={activeTab === "courses" ? "📚" : "🚀"}
-        title={activeTab === "courses" ? "Course" : "Project"}
-        fields={activeTab === "courses" ? COURSE_FIELDS : PROJECT_FIELDS}
+        icon={activeTab === "courses" ? "📚" : activeTab === "projects" ? "🚀" : "🧪"}
+        title={activeTab === "courses" ? "Course" : activeTab === "projects" ? "Project" : "Skill Test"}
+        fields={activeTab === "courses" ? COURSE_FIELDS : activeTab === "projects" ? PROJECT_FIELDS : SKILLTEST_FIELDS}
         data={editingRecord || {}}
         editing={!!editingRecord?.id}
         extraOptions={extraOptions}
         token={token || ""}
         onSave={saveRecord}
         onClose={() => { setModalOpen(false); setEditingRecord(null); }}
-      />
-
-      {/* Curriculum Builder */}
-      <CurriculumBuilder
-        open={cbOpen}
-        courseId={cbCourse?.id || ""}
-        courseName={cbCourse?.name || ""}
-        courseCode={cbCourse?.code || ""}
-        token={token || ""}
-        onSave={handleSaveCurriculum}
-        onClose={() => { setCbOpen(false); setCbCourse(null); }}
       />
 
       {/* Project Curriculum Builder */}
@@ -467,20 +537,36 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
         onClose={() => { setPbOpen(false); setPbProject(null); }}
       />
 
-      {/* Resource Manager */}
-      <ResourceManagerModal
-        open={rmOpen}
-        courseId={rmCourse?.id || ""}
-        courseName={rmCourse?.name || ""}
+      {/* Unified Course Manager (Curriculum / Resources / Skill Test / Edit) */}
+      <CourseManagerModal
+        open={cmOpen}
+        courseId={cmCourse?.id || ""}
+        courseName={cmCourse?.title || ""}
+        courseCode={cmCourse?.code || ""}
         token={token || ""}
-        onClose={() => { setRmOpen(false); setRmCourse(null); }}
+        fields={COURSE_FIELDS}
+        editData={cmCourse ? mapCourseRecordToForm(cmCourse) : {}}
+        extraOptions={extraOptions}
+        onSaveEdit={saveRecord}
+        onCurriculumSaved={loadData}
+        onClose={closeCourseManager}
+      />
+
+      {/* Skill Test Builder */}
+      <SkillTestBuilder
+        open={stOpen}
+        skillTestId={stTest?.id || ""}
+        skillTestTitle={stTest?.title || ""}
+        token={token || ""}
+        onSave={() => { loadData(); onToast("Skill test questions saved", "success"); }}
+        onClose={() => { setStOpen(false); setStTest(null); }}
       />
 
       {/* Delete Confirm */}
       {deleting && (
         <div className="fixed inset-0 z-[210] flex items-center justify-center" style={{ background: "rgba(0,0,0,.5)" }} onClick={(e) => { if (e.target === e.currentTarget) setDeleting(null); }}>
           <div className="rounded w-[380px] max-w-[95vw] p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}>
-            <div className="text-[13px] font-extrabold mb-1" style={{ color: "var(--text)" }}>Delete {activeTab === "courses" ? "course" : "project"}?</div>
+            <div className="text-[13px] font-extrabold mb-1" style={{ color: "var(--text)" }}>Delete {activeTab === "courses" ? "course" : activeTab === "projects" ? "project" : "skill test"}?</div>
             <div className="font-mono text-[9.5px] mb-4" style={{ color: "var(--text3)" }}>
               This permanently removes <span className="font-bold" style={{ color: "var(--text)" }}>{deleting.title || deleting.name}</span>
             </div>

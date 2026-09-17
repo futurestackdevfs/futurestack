@@ -8,13 +8,18 @@ export class CreateQuizDto {
   @Min(0)
   order: number;
 
+  @IsOptional()
   @IsInt()
   @Min(1)
-  totalQuestions: number;
+  totalQuestions?: number;
 
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(100)
   passingScore?: number;
+
+  @IsOptional()
+  @IsString()
+  skillTestId?: string;
 }

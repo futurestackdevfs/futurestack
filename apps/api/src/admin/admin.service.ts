@@ -14,6 +14,7 @@ import { MailService } from '../mail/mail.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UploadVideoDto } from './dto/upload-video.dto';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
+import { S3Service } from '../upload/s3.service';
 import { TTLCache } from '../common/ttl-cache';
 import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 import { UpdateTrainerShareDto } from './dto/update-trainer-share.dto';
@@ -30,7 +31,65 @@ export class AdminService {
     private readonly vdoCipherService: VdoCipherService,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
+    private readonly s3Service: S3Service,
   ) {}
+
+  // Reports which env vars are PRESENT for each third-party integration —
+  // never their values. Only presence/absence booleans leave this method,
+  // by design, so this endpoint can never leak credential material.
+  getIntegrationsStatus() {
+    const has = (name: string) => Boolean(this.configService.get<string>(name));
+
+    const razorpayFields = ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET'].map((name) => ({
+      name,
+      present: has(name),
+    }));
+    const vdocipherFields = [{ name: 'VDOCIPHER_API_KEY', present: has('VDOCIPHER_API_KEY') }];
+    const googleFields = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_CALLBACK_URL'].map(
+      (name) => ({ name, present: has(name) }),
+    );
+    const emailFields = ['AGENTMAIL_API_KEY', 'AGENTMAIL_INBOX_ID', 'CONTACT_EMAIL'].map((name) => ({
+      name,
+      present: has(name),
+    }));
+
+    return [
+      {
+        key: 'razorpay',
+        label: 'Razorpay',
+        configured: razorpayFields.every((f) => f.present),
+        fields: razorpayFields,
+        webhookConfigured: has('RAZORPAY_WEBHOOK_SECRET'),
+        webhookRoute: '/webhooks/razorpay',
+      },
+      {
+        key: 'vdocipher',
+        label: 'VdoCipher',
+        configured: vdocipherFields.every((f) => f.present),
+        fields: vdocipherFields,
+        webhookConfigured: has('VDOCIPHER_WEBHOOK_SECRET'),
+        webhookRoute: '/admin/videos/vdocipher-webhook',
+      },
+      {
+        key: 'storage',
+        label: 'File Storage (S3 / Supabase)',
+        configured: this.s3Service.isConfigured(),
+        fields: [{ name: 'S3 / Supabase credentials', present: this.s3Service.isConfigured() }],
+      },
+      {
+        key: 'google',
+        label: 'Google OAuth',
+        configured: googleFields.every((f) => f.present),
+        fields: googleFields,
+      },
+      {
+        key: 'email',
+        label: 'AgentMail (Email)',
+        configured: emailFields.every((f) => f.present),
+        fields: emailFields,
+      },
+    ];
+  }
 
   async listAllTrainers() {
     const trainers = await this.prisma.user.findMany({

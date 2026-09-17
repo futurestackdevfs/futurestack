@@ -22,6 +22,12 @@ export class AdminController {
   ) {}
 
   @Auth(Role.ADMIN)
+  @Get('integrations')
+  getIntegrationsStatus() {
+    return this.adminService.getIntegrationsStatus();
+  }
+
+  @Auth(Role.ADMIN)
   @Get('audit-logs')
   async listAuditLogs(
     @Query('page') page?: string,

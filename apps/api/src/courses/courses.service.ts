@@ -1444,13 +1444,30 @@ export class CoursesService {
   async createQuiz(sectionId: string, dto: CreateQuizDto) {
     this.invalidateCatalog();
     await this.findSectionOrFail(sectionId);
-    return this.prisma.quiz.create({ data: { ...dto, sectionId } });
+    const data = await this.resolveQuizData(dto);
+    if (data.totalQuestions == null) data.totalQuestions = 0;
+    return this.prisma.quiz.create({ data: { ...data, sectionId } as any });
   }
 
   async updateQuiz(id: string, dto: UpdateQuizDto) {
     this.invalidateCatalog();
     await this.findQuizOrFail(id);
-    return this.prisma.quiz.update({ where: { id }, data: dto });
+    const data = await this.resolveQuizData(dto);
+    return this.prisma.quiz.update({ where: { id }, data });
+  }
+
+  private async resolveQuizData(dto: CreateQuizDto | UpdateQuizDto) {
+    const data: Record<string, unknown> = { ...dto };
+    if (dto.skillTestId) {
+      const skillTest = await this.prisma.skillTest.findUnique({
+        where: { id: dto.skillTestId },
+        include: { _count: { select: { questions: true } } },
+      });
+      if (!skillTest) throw new NotFoundException('Skill test not found');
+      data.totalQuestions = skillTest._count.questions;
+      data.passingScore = skillTest.passingScore ?? undefined;
+    }
+    return data;
   }
 
   async deleteQuiz(id: string) {

@@ -31,6 +31,7 @@ interface MasterDataModalProps {
   token?: string;
   onSave: (formData: Record<string, any>) => Promise<{ success: boolean; error?: string } | void>;
   onClose: () => void;
+  embedded?: boolean;
 }
 
 export function MasterDataModal({
@@ -45,6 +46,7 @@ export function MasterDataModal({
   token,
   onSave,
   onClose,
+  embedded = false,
 }: MasterDataModalProps) {
   const [form, setForm] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -151,54 +153,8 @@ export function MasterDataModal({
 
   if (!open) return null;
 
-  return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-6"
-      style={{ background: "var(--overlay)" }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="flex flex-col rounded-lg max-w-full max-h-[88vh]"
-        style={{
-          width: 760,
-          background: "var(--surface)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 20px 60px rgba(0,0,0,.3)",
-        }}
-      >
-        {/* Header */}
-        <div
-          className="flex items-center justify-between px-4 py-3 shrink-0"
-          style={{ borderBottom: "1px solid var(--border)" }}
-        >
-          <div className="flex items-center gap-2 text-[13.5px] font-extrabold" style={{ color: "var(--text)" }}>
-            <span
-              className="w-[26px] h-[26px] rounded flex items-center justify-center text-[13px]"
-              style={{ background: "var(--orange-d)", color: "var(--orange)" }}
-            >
-              {icon}
-            </span>
-            {editing ? `Edit ${title}` : `Add ${title}`}
-          </div>
-          <button
-            onClick={onClose}
-            className="flex items-center justify-center w-6 h-6 rounded text-[14px] cursor-pointer"
-            style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--panel))";
-              (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text))";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, transparent)";
-              (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))";
-            }}
-          >
-            ✕
-          </button>
-        </div>
-
+  const bodyAndFooter = (
+    <>
         {/* Body */}
         <div className="p-4 overflow-y-auto flex-1">
           {apiError && (
@@ -563,6 +519,62 @@ export function MasterDataModal({
             💾 Save
           </button>
         </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex flex-col">{bodyAndFooter}</div>;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center p-6"
+      style={{ background: "var(--overlay)" }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="flex flex-col rounded-lg max-w-full max-h-[88vh]"
+        style={{
+          width: 760,
+          background: "var(--surface)",
+          border: "1px solid var(--border)",
+          boxShadow: "0 20px 60px rgba(0,0,0,.3)",
+        }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-4 py-3 shrink-0"
+          style={{ borderBottom: "1px solid var(--border)" }}
+        >
+          <div className="flex items-center gap-2 text-[13.5px] font-extrabold" style={{ color: "var(--text)" }}>
+            <span
+              className="w-[26px] h-[26px] rounded flex items-center justify-center text-[13px]"
+              style={{ background: "var(--orange-d)", color: "var(--orange)" }}
+            >
+              {icon}
+            </span>
+            {editing ? `Edit ${title}` : `Add ${title}`}
+          </div>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center w-6 h-6 rounded text-[14px] cursor-pointer"
+            style={{ color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, transparent)" }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--panel))";
+              (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text))";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, transparent)";
+              (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))";
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {bodyAndFooter}
       </div>
     </div>
   );
