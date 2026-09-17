@@ -36,10 +36,10 @@ const adminNav: NavItem[] = [
   { icon: "💸", label: "Refunds", view: "refunds" },
   { icon: "📋", label: "Enrollments", view: "enrollments" },
   { icon: "👤", label: "User Accounts", view: "users" },
-  { icon: "🖥", label: "System Health" },
+  { icon: "🖥", label: "System Health", view: "system-health" },
   { icon: "🚨", label: "Escalations", badge: { text: "2", color: "var(--red)", bg: "var(--red-d)" } },
   { icon: "💾", label: "Backups" },
-  { icon: "🔌", label: "Integrations" },
+  { icon: "🔌", label: "Integrations", view: "integrations" },
 ];
 
 const configNav: NavItem[] = [

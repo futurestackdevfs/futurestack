@@ -440,24 +440,73 @@ export class StudentService {
     };
   }
 
-  async submitQuiz(studentId: string, quizId: string, score: number) {
+  private async findQuizForStudent(studentId: string, quizId: string) {
     const quiz = await this.prisma.quiz.findUnique({
       where: { id: quizId },
       include: { section: { include: { course: true } } },
     });
-
     if (!quiz) {
       throw new NotFoundException('Quiz not found');
     }
-
     const enrollment = await this.prisma.enrollment.findUnique({
       where: {
         studentId_courseId: { studentId, courseId: quiz.section.courseId },
       },
     });
-
     if (!enrollment || enrollment.status !== 'active') {
       throw new ForbiddenException('You are not enrolled in this course');
+    }
+    return quiz;
+  }
+
+  async getQuizQuestions(studentId: string, quizId: string) {
+    const quiz = await this.findQuizForStudent(studentId, quizId);
+    if (!quiz.skillTestId) {
+      return { quizId, title: quiz.title, hasQuestions: false, questions: [] };
+    }
+    const questions = await this.prisma.skillTestQuestion.findMany({
+      where: { skillTestId: quiz.skillTestId },
+      orderBy: { order: 'asc' },
+    });
+    return {
+      quizId,
+      title: quiz.title,
+      passingScore: quiz.passingScore,
+      hasQuestions: questions.length > 0,
+      questions: questions.map((q) => ({
+        id: q.id,
+        question: q.question,
+        options: q.options,
+      })),
+    };
+  }
+
+  async submitQuiz(
+    studentId: string,
+    quizId: string,
+    dto: { score?: number; answers?: { questionId: string; selectedIndex: number }[] },
+  ) {
+    const quiz = await this.findQuizForStudent(studentId, quizId);
+
+    let score: number;
+    if (quiz.skillTestId) {
+      const questions = await this.prisma.skillTestQuestion.findMany({
+        where: { skillTestId: quiz.skillTestId },
+      });
+      if (questions.length === 0) {
+        throw new NotFoundException('This quiz has no questions configured yet');
+      }
+      const answerMap = new Map(
+        (dto.answers ?? []).map((a) => [a.questionId, a.selectedIndex]),
+      );
+      const correctCount = questions.filter(
+        (q) => answerMap.get(q.id) === q.correctIndex,
+      ).length;
+      score = Math.round((correctCount / questions.length) * 100);
+    } else if (dto.score != null) {
+      score = dto.score;
+    } else {
+      throw new NotFoundException('This quiz has no questions configured yet');
     }
 
     const attempt = await this.prisma.quizAttempt.upsert({

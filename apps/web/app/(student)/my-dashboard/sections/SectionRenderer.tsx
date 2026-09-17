@@ -9,6 +9,7 @@ import AssignmentsSection from "./AssignmentsSection";
 import CertificatesSection from "./CertificatesSection";
 import ProjectsSection from "./ProjectsSection";
 import DiscussionTab from "./DiscussionTab";
+import SkillTestsSection from "./SkillTestsSection";
 import CourseLearningView from "./CourseLearningView";
 import type { EnrolledCourse } from "../../hooks/student-dashboard";
 
@@ -54,6 +55,7 @@ const COMPONENT_MAP: Record<string, ReactNode | ((props: any) => ReactNode)> = {
   assignments: () => <AssignmentsSection />,
   certificates: (props: SectionRendererProps) => <CertificatesSection enrolledCount={props.enrolledCourses.length} />,
   projects: () => <ProjectsSection />,
+  skilltests: () => <SkillTestsSection />,
   discussion: (props: SectionRendererProps) => {
     if (props.discussionCourseId) {
       return (

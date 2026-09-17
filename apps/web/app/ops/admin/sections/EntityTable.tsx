@@ -17,12 +17,50 @@ interface EntityTableProps {
   onDelete?: (row: any) => void;
   onManageCurriculum?: (row: any) => void;
   onManageResources?: (row: any) => void;
+  onManageQuestions?: (row: any) => void;
+  onManageSkillTest?: (row: any) => void;
+  onManageCourse?: (row: any) => void;
   emptyMessage?: string;
   expandedId?: string | number | null;
   onToggleExpand?: (id: string | number) => void;
   renderExpanded?: (row: any) => React.ReactNode;
   /** Rows per page. Pagination is hidden when there is only one page. */
   pageSize?: number;
+}
+
+function ActionPill({
+  label,
+  tint,
+  onClick,
+}: {
+  label: string;
+  tint: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="px-3 py-1.5 rounded-full text-[10.5px] font-semibold cursor-pointer whitespace-nowrap transition-all"
+      style={{
+        color: "var(--text3)",
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+      }}
+      title={label}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.color = tint;
+        (e.currentTarget as HTMLElement).style.borderColor = tint;
+        (e.currentTarget as HTMLElement).style.background = `color-mix(in srgb, ${tint} 12%, var(--surface))`;
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.color = "var(--text3)";
+        (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+        (e.currentTarget as HTMLElement).style.background = "var(--surface)";
+      }}
+    >
+      {label}
+    </button>
+  );
 }
 
 export function EntityTable({
@@ -32,6 +70,9 @@ export function EntityTable({
   onDelete,
   onManageCurriculum,
   onManageResources,
+  onManageQuestions,
+  onManageSkillTest,
+  onManageCourse,
   emptyMessage,
   expandedId,
   onToggleExpand,
@@ -182,96 +223,30 @@ export function EntityTable({
                   className="px-2.5 py-1.5 align-middle"
                   style={{ borderBottom: "1px solid var(--border)" }}
                 >
-                  <div className="flex gap-1 whitespace-nowrap">
-                    {onManageCurriculum && (
-                      <button
-                        onClick={() => onManageCurriculum(row)}
-                        className="flex items-center justify-center w-[22px] h-[22px] rounded text-[11px] cursor-pointer"
-                        style={{
-                          color: "var(--text3)",
-                          border: "1px solid var(--border)",
-                          background: "var(--surface)",
-                        }}
-                        title="Manage Curriculum"
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.color = "var(--orange)";
-                          (e.currentTarget as HTMLElement).style.borderColor = "var(--orange)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLElement).style.color = "var(--text3)";
-                          (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
-                        }}
-                      >
-                        📋
-                      </button>
-                    )}
-                    {onManageResources && (
-                      <button
-                        onClick={() => onManageResources(row)}
-                        className="flex items-center justify-center w-[22px] h-[22px] rounded text-[11px] cursor-pointer"
-                        style={{
-                          color: "var(--text3)",
-                          border: "1px solid var(--border)",
-                          background: "var(--surface)",
-                        }}
-                        title="Manage Resources"
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.color = "var(--green)";
-                          (e.currentTarget as HTMLElement).style.borderColor = "var(--green)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLElement).style.color = "var(--text3)";
-                          (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
-                        }}
-                      >
-                        📎
-                      </button>
-                    )}
-                    {onEdit && (
-                      <button
-                        onClick={() => onEdit(row)}
-                        className="flex items-center justify-center w-[22px] h-[22px] rounded text-[11px] cursor-pointer"
-                        style={{
-                          color: "var(--text3)",
-                          border: "1px solid var(--border)",
-                          background: "var(--surface)",
-                        }}
-                        title="Edit"
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.color = "var(--text)";
-                          (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLElement).style.color = "var(--text3)";
-                          (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
-                        }}
-                      >
-                        ✏
-                      </button>
+                  <div className="flex flex-wrap gap-1.5">
+                    {onManageCourse ? (
+                      <ActionPill label="Manage" tint="var(--orange)" onClick={() => onManageCourse(row)} />
+                    ) : (
+                      <>
+                        {onManageCurriculum && (
+                          <ActionPill label="Curriculum" tint="var(--orange)" onClick={() => onManageCurriculum(row)} />
+                        )}
+                        {onManageResources && (
+                          <ActionPill label="Resources" tint="var(--green)" onClick={() => onManageResources(row)} />
+                        )}
+                        {onManageQuestions && (
+                          <ActionPill label="Questions" tint="var(--blue)" onClick={() => onManageQuestions(row)} />
+                        )}
+                        {onManageSkillTest && (
+                          <ActionPill label="Skill Test" tint="var(--blue)" onClick={() => onManageSkillTest(row)} />
+                        )}
+                        {onEdit && (
+                          <ActionPill label="Edit" tint="var(--text2)" onClick={() => onEdit(row)} />
+                        )}
+                      </>
                     )}
                     {onDelete && (
-                      <button
-                        onClick={() => onDelete(row)}
-                        className="flex items-center justify-center w-[22px] h-[22px] rounded text-[11px] cursor-pointer"
-                        style={{
-                          color: "var(--text3)",
-                          border: "1px solid var(--border)",
-                          background: "var(--surface)",
-                        }}
-                        title="Delete"
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.color = "var(--red)";
-                          (e.currentTarget as HTMLElement).style.borderColor = "rgba(200,30,58,.35)";
-                          (e.currentTarget as HTMLElement).style.background = "var(--red-d)";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLElement).style.color = "var(--text3)";
-                          (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
-                          (e.currentTarget as HTMLElement).style.background = "var(--surface)";
-                        }}
-                      >
-                        🗑
-                      </button>
+                      <ActionPill label="Delete" tint="var(--red)" onClick={() => onDelete(row)} />
                     )}
                   </div>
                 </td>

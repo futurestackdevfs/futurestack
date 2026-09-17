@@ -107,6 +107,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [quizPanelOpen, setQuizPanelOpen] = useState(true);
 
   const { data: detail, isLoading } = useSWR<StudentCourseDetail>(
     `/api/student/courses/${courseId}`,
@@ -140,6 +141,10 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
 
   const allItems = detail?.sections.flatMap(s => s.items) ?? [];
   const currentItem = allItems.find(i => i.id === currentItemId);
+
+  useEffect(() => {
+    setQuizPanelOpen(true);
+  }, [currentItemId]);
 
   // Use real progress from API once loaded; fall back to dashboard data while loading
   const progress = detail?.progress ?? {
@@ -272,16 +277,17 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                 onComplete={handleComplete}
               />
             ) : currentItem?.type === 'quiz' ? (
-              <div className="aspect-[16/9]">
-                <QuizPlayer
-                  quizId={currentItem.id}
-                  title={currentItem.title}
-                  totalQuestions={currentItem.totalQuestions ?? 5}
-                  passingScore={currentItem.passingScore ?? null}
-                  previousScore={currentItem.score}
-                  isCompleted={currentItem.isCompleted}
-                  onComplete={handleComplete}
-                />
+              <div
+                onClick={() => setQuizPanelOpen(true)}
+                className="aspect-[16/9] flex items-center justify-center text-center px-4 cursor-pointer"
+                style={{ background: "linear-gradient(135deg,#040c1a 0%,#061522 40%,#080f04 100%)" }}>
+                <div>
+                  <div className="text-[22px] mb-1">📝</div>
+                  <div className="text-white text-[12.5px] font-bold">{currentItem.title}</div>
+                  <div className="text-[9.5px] text-[var(--orange)] mt-1">
+                    {quizPanelOpen ? "Opened on the right panel →" : "Tap to open on the right panel →"}
+                  </div>
+                </div>
               </div>
             ) : (
               /* Fallback placeholder */
@@ -451,8 +457,32 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
           )}
         </div>
 
-        {/* RIGHT PANEL — tabs */}
+        {/* RIGHT PANEL — quiz player or tabs */}
         <div className="overflow-hidden flex flex-col bg-[var(--bg)]">
+          {currentItem?.type === 'quiz' && quizPanelOpen ? (
+            <div className="flex flex-col h-full">
+              <button
+                onClick={() => { setQuizPanelOpen(false); setActiveTab("curriculum"); }}
+                className="flex items-center gap-[6px] px-4 py-2.5 text-[11px] font-semibold text-[var(--text3)] bg-[var(--surface)] border-b border-[var(--border)] cursor-pointer hover:text-[var(--orange)] hover:bg-[var(--card-h)] transition-all shrink-0"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                Back to Curriculum
+              </button>
+              <div className="flex-1 overflow-hidden">
+                <QuizPlayer
+                  key={currentItem.id}
+                  quizId={currentItem.id}
+                  title={currentItem.title}
+                  totalQuestions={currentItem.totalQuestions ?? 5}
+                  passingScore={currentItem.passingScore ?? null}
+                  previousScore={currentItem.score}
+                  isCompleted={currentItem.isCompleted}
+                  onComplete={handleComplete}
+                />
+              </div>
+            </div>
+          ) : (
+          <>
           <div className="flex bg-[var(--surface)] border-b border-[var(--border)] shrink-0">
             {TABS.map(tab => {
               const info = TAB_LABELS[tab];
@@ -657,7 +687,8 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
           <div className={`flex-1 overflow-y-auto ${activeTab === "discussion" ? "flex flex-col" : "hidden"}`}>
             <DiscussionTab courseId={courseId} onCountChange={setDiscussionCount} />
           </div>
-
+          </>
+          )}
         </div>
       </div>
 

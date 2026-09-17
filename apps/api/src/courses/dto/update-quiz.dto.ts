@@ -20,4 +20,8 @@ export class UpdateQuizDto {
   @Min(0)
   @Max(100)
   passingScore?: number;
+
+  @IsOptional()
+  @IsString()
+  skillTestId?: string;
 }

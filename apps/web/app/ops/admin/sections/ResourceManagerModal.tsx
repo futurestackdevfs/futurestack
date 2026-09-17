@@ -18,9 +18,10 @@ interface ResourceManagerModalProps {
   courseName: string;
   token: string;
   onClose: () => void;
+  embedded?: boolean;
 }
 
-export function ResourceManagerModal({ open, courseId, courseName, token, onClose }: ResourceManagerModalProps) {
+export function ResourceManagerModal({ open, courseId, courseName, token, onClose, embedded = false }: ResourceManagerModalProps) {
   const [resources, setResources] = useState<CourseResource[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,19 +156,8 @@ export function ResourceManagerModal({ open, courseId, courseName, token, onClos
 
   if (!open) return null;
 
-  return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}>
-      <div className="w-[500px] flex flex-col rounded shadow-2xl overflow-hidden" style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "85vh" }}>
-        
-        {/* Header */}
-        <div className="px-4 py-3 flex items-center justify-between" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
-          <div>
-            <h3 className="text-[13px] font-bold" style={{ color: "var(--text)" }}>Manage Resources</h3>
-            <p className="font-mono text-[9px] mt-0.5" style={{ color: "var(--text3)" }}>{courseName}</p>
-          </div>
-          <button onClick={onClose} className="w-6 h-6 rounded flex items-center justify-center text-[12px] font-bold cursor-pointer hover:opacity-70 transition-opacity border-none" style={{ color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, transparent)" }}>✕</button>
-        </div>
-
+  const body = (
+    <>
         {/* Upload Area */}
         <div className="p-4" style={{ borderBottom: "1px solid var(--border)" }}>
           <div 
@@ -240,6 +230,25 @@ export function ResourceManagerModal({ open, courseId, courseName, token, onClos
             </div>
           )}
         </div>
+    </>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)" }}>
+      <div className="w-[500px] flex flex-col rounded shadow-2xl overflow-hidden" style={{ background: "var(--bg)", border: "1px solid var(--border)", maxHeight: "85vh" }}>
+
+        {/* Header */}
+        <div className="px-4 py-3 flex items-center justify-between" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+          <div>
+            <h3 className="text-[13px] font-bold" style={{ color: "var(--text)" }}>Manage Resources</h3>
+            <p className="font-mono text-[9px] mt-0.5" style={{ color: "var(--text3)" }}>{courseName}</p>
+          </div>
+          <button onClick={onClose} className="w-6 h-6 rounded flex items-center justify-center text-[12px] font-bold cursor-pointer hover:opacity-70 transition-opacity border-none" style={{ color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, transparent)" }}>✕</button>
+        </div>
+
+        {body}
       </div>
     </div>
   );

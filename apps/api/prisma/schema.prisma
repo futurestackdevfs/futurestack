@@ -73,12 +73,12 @@ enum DiscountType {
 }
 
 model User {
-  id                   String          @id @default(uuid())
-  email                String          @unique
-  companyId            String?         @unique
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  companyId            String?   @unique
   name                 String
   password             String?
-  passwordResetToken   String?         @unique
+  passwordResetToken   String?   @unique
   passwordResetExpires DateTime?
   passwordExpiresAt    DateTime?
   // Bumped on every password change. Any refresh token issued before this
@@ -86,67 +86,68 @@ model User {
   // password reset immediately logs out all existing sessions without
   // deleting rows. See AuthService.resetPassword / JwtStrategy.
   passwordChangedAt    DateTime?
-  googleId             String?         @unique
-  role                 Role            @default(STUDENT)
-  isActive             Boolean         @default(true)
-  mustChangePassword   Boolean         @default(false)
+  googleId             String?   @unique
+  role                 Role      @default(STUDENT)
+  isActive             Boolean   @default(true)
+  mustChangePassword   Boolean   @default(false)
   avatarUrl            String?
-  emailVerified        Boolean         @default(false)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  emailVerified        Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
   lastLoginAt          DateTime?
 
   // Flag to coordinator
-  flaggedToCoordinator Boolean         @default(false)
+  flaggedToCoordinator Boolean @default(false)
   flagReason           String?
 
   // Extended profile fields (nullable — students + trainers both use these)
-  bio                  String?
-  phone                String?
-  dob                  DateTime?
-  city                 String?
-  qualification        String?
-  experience           SkillLevel?
-  careerPath           String?
-  skills               String[]      @default([])
+  bio           String?
+  phone         String?
+  dob           DateTime?
+  city          String?
+  qualification String?
+  experience    SkillLevel?
+  careerPath    String?
+  skills        String[]    @default([])
 
   // Trainer-only profile fields (nullable — only populated for TRAINER role)
-  yearsExperience      Int?
-  rating               Float?
-  trainerSharePercent  Int?      // per-trainer override (% trainer keeps); null = use global PaymentSettings default
+  yearsExperience     Int?
+  rating              Float?
+  trainerSharePercent Int? // per-trainer override (% trainer keeps); null = use global PaymentSettings default
 
-  enrollments          Enrollment[]
-  videoProgress        VideoProgress[]
-  quizAttempts         QuizAttempt[]              // ADDED — fixes missing back-relation
-  coursesTaught        Course[]        @relation("CourseTrainer")
-  projectsTaught       Project[]       @relation("ProjectTrainer")
-  approvalStatus       ApprovalStatus?
-  certificates         Certificate[]
+  enrollments       Enrollment[]
+  videoProgress     VideoProgress[]
+  quizAttempts      QuizAttempt[] // ADDED — fixes missing back-relation
+  skillTestAttempts SkillTestAttempt[]
+  coursesTaught     Course[]           @relation("CourseTrainer")
+  projectsTaught    Project[]          @relation("ProjectTrainer")
+  approvalStatus    ApprovalStatus?
+  certificates      Certificate[]
 
-  discussionMessages  CourseDiscussion[]       @relation("DiscussionAuthor")
-  discussionReplies   CourseDiscussionReply[]  @relation("ReplyAuthor")
-  discussionUpvotes   DiscussionUpvote[]
+  discussionMessages CourseDiscussion[]      @relation("DiscussionAuthor")
+  discussionReplies  CourseDiscussionReply[] @relation("ReplyAuthor")
+  discussionUpvotes  DiscussionUpvote[]
 
-  revenueLedger       RevenueLedger[] @relation("TrainerLedger")
-  payouts             Payout[]        @relation("TrainerPayouts")
-  refreshTokens       RefreshToken[]
+  revenueLedger RevenueLedger[] @relation("TrainerLedger")
+  payouts       Payout[]        @relation("TrainerPayouts")
+  refreshTokens RefreshToken[]
 
-  reviewsGiven        Review[]        @relation("StudentReviews")
+  reviewsGiven Review[] @relation("StudentReviews")
 
-  cart               Cart?
-  wishlist           Wishlist?
-  orders             Order[]
-  salesOrders        Order[]         @relation("OrderSalesperson")
-  leads              Lead[]          @relation("LeadSalesperson")
-  leadAsStudent      Lead[]          @relation("LeadStudent")
-  salesTargets       SalesTarget[]   @relation("SalesTargets")
-  invoices           Invoice[]       @relation("Invoices")
-  refundsInitiated   Refund[]        @relation("RefundInitiator")
-  refunds            Refund[]        @relation("RefundStudent")
+  cart             Cart?
+  wishlist         Wishlist?
+  orders           Order[]
+  salesOrders      Order[]       @relation("OrderSalesperson")
+  leads            Lead[]        @relation("LeadSalesperson")
+  leadAsStudent    Lead[]        @relation("LeadStudent")
+  salesTargets     SalesTarget[] @relation("SalesTargets")
+  invoices         Invoice[]     @relation("Invoices")
+  refundsInitiated Refund[]      @relation("RefundInitiator")
+  refunds          Refund[]      @relation("RefundStudent")
 
-  supportTickets     SupportTicket[]        @relation("TicketAuthor")
-  assignedTickets    SupportTicket[]        @relation("TicketAssignee")
-  supportMessages    SupportTicketMessage[]
+  supportTickets  SupportTicket[]        @relation("TicketAuthor")
+  assignedTickets SupportTicket[]        @relation("TicketAssignee")
+  supportMessages SupportTicketMessage[]
 }
 
 model Track {
@@ -161,30 +162,30 @@ model Track {
 }
 
 model Course {
-  id           String        @id @default(uuid())
-  title        String     @unique
-  description  String?
-  thumbnailUrl String?
-  price        Float
-  originalPrice Float?    // list/strikethrough price (admin-set). null = no discount, display price only.
-  priceUsd         Float?  // USD sale price for international checkout. null = auto-convert from `price` via PaymentSettings.usdRate.
-  originalPriceUsd Float?  // USD list/strikethrough price. null = no USD discount shown.
-  status       CourseStatus  @default(DRAFT)
-  isFeatured   Boolean       @default(false)
-  displayOrder Int           @default(0)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @default(now()) @updatedAt
+  id               String       @id @default(uuid())
+  title            String       @unique
+  description      String?
+  thumbnailUrl     String?
+  price            Float
+  originalPrice    Float? // list/strikethrough price (admin-set). null = no discount, display price only.
+  priceUsd         Float? // USD sale price for international checkout. null = auto-convert from `price` via PaymentSettings.usdRate.
+  originalPriceUsd Float? // USD list/strikethrough price. null = no USD discount shown.
+  status           CourseStatus @default(DRAFT)
+  isFeatured       Boolean      @default(false)
+  displayOrder     Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @default(now()) @updatedAt
 
-  trainerId    String?
-  trainer      User?         @relation("CourseTrainer", fields: [trainerId], references: [id])
+  trainerId String?
+  trainer   User?   @relation("CourseTrainer", fields: [trainerId], references: [id])
 
   // Overview tab content
-  whatYoullLearn String[]    @default([])  // bullet list, e.g. ["Build production-grade apps", ...]
-  techStack      String[]    @default([])  // chips, e.g. ["MongoDB", "React.js", "Docker"]
-  careerTitle    String?                    // e.g. "High-demand skill — average salary ₹18L–₹40L/yr"
-  careerBody     String?                    // longer paragraph
-  category       String?                    // e.g. "Web Development"
-  code           String?     @unique        // internal course code
+  whatYoullLearn String[]    @default([]) // bullet list, e.g. ["Build production-grade apps", ...]
+  techStack      String[]    @default([]) // chips, e.g. ["MongoDB", "React.js", "Docker"]
+  careerTitle    String? // e.g. "High-demand skill — average salary ₹18L–₹40L/yr"
+  careerBody     String? // longer paragraph
+  category       String? // e.g. "Web Development"
+  code           String?     @unique // internal course code
   skillLevel     SkillLevel?
 
   sections     Section[]
@@ -194,33 +195,34 @@ model Course {
   discussions  CourseDiscussion[]
   certificates Certificate[]
   reviews      Review[]
-  
+  skillTests   SkillTest[]
+
   averageRating Float @default(0)
   reviewCount   Int   @default(0)
 
-  cartItems       CartItem[]
-  wishlistItems   WishlistItem[]
-  orderItems      OrderItem[]
-  salesTargets    SalesTarget[]
-  refunds         Refund[]
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+  orderItems    OrderItem[]
+  salesTargets  SalesTarget[]
+  refunds       Refund[]
 }
 
 model CourseResource {
   id            String   @id @default(uuid())
   course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId      String
-    title        String     @unique                       // e.g. "MERN Stack Cheat Sheet"
-  fileType      String                       // "PDF" | "ZIP" | "FIGMA" | "PPT" — free text, frontend maps to icon
-  fileUrl       String                       // S3 url, or external link (Figma/GitHub)
-  fileSizeLabel String?                      // e.g. "4.2 MB" — display-only, not computed
+  title         String   @unique // e.g. "MERN Stack Cheat Sheet"
+  fileType      String // "PDF" | "ZIP" | "FIGMA" | "PPT" — free text, frontend maps to icon
+  fileUrl       String // S3 url, or external link (Figma/GitHub)
+  fileSizeLabel String? // e.g. "4.2 MB" — display-only, not computed
   createdAt     DateTime @default(now())
 }
 
 model TrackCourse {
-  id         String  @id @default(uuid())
-  track      Track   @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  id         String @id @default(uuid())
+  track      Track  @relation(fields: [trackId], references: [id], onDelete: Cascade)
   trackId    String
-  course     Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course     Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId   String
   orderIndex Int?
 
@@ -228,14 +230,14 @@ model TrackCourse {
 }
 
 model Section {
-  id       String  @id @default(uuid())
-  title        String     @unique
+  id       String @id @default(uuid())
+  title    String @unique
   order    Int
-  course   Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId String
 
-  videos   Video[]
-  quizzes  Quiz[]
+  videos  Video[]
+  quizzes Quiz[]
 }
 
 model Video {
@@ -254,12 +256,15 @@ model Video {
 model Quiz {
   id             String        @id @default(uuid())
   title          String
-  order          Int                          // same ordering convention as Video.order within a Section
+  order          Int // same ordering convention as Video.order within a Section
   section        Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   sectionId      String
   totalQuestions Int
-  passingScore   Int?                         // percentage, e.g. 70 — null means no pass/fail gate
+  passingScore   Int? // percentage, e.g. 70 — null means no pass/fail gate
   attempts       QuizAttempt[]
+
+  skillTestId String?
+  skillTest   SkillTest? @relation(fields: [skillTestId], references: [id], onDelete: SetNull)
 }
 
 model QuizAttempt {
@@ -268,11 +273,61 @@ model QuizAttempt {
   studentId   String
   quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
   quizId      String
-  score       Int                              // percentage, e.g. 91
-  isCompleted Boolean  @default(true)           // a submitted attempt is complete by definition
+  score       Int // percentage, e.g. 91
+  isCompleted Boolean  @default(true) // a submitted attempt is complete by definition
   completedAt DateTime @default(now())
 
-  @@unique([studentId, quizId])  // one attempt record per student per quiz (latest/best — your call on retake policy)
+  @@unique([studentId, quizId]) // one attempt record per student per quiz (latest/best — your call on retake policy)
+}
+
+model SkillTest {
+  id              String       @id @default(uuid())
+  title           String       @unique
+  description     String?
+  category        String?
+  skillLevel      SkillLevel?
+  durationMinutes Int?
+  passingScore    Int? // percentage, e.g. 70
+  status          CourseStatus @default(DRAFT)
+  isFeatured      Boolean      @default(false)
+  displayOrder    Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @default(now()) @updatedAt
+
+  questions SkillTestQuestion[]
+  attempts  SkillTestAttempt[]
+  quizzes   Quiz[]
+
+  courseId String?
+  course   Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+}
+
+model SkillTestQuestion {
+  id           String    @id @default(uuid())
+  skillTest    SkillTest @relation(fields: [skillTestId], references: [id], onDelete: Cascade)
+  skillTestId  String
+  question     String
+  options      String[]
+  correctIndex Int
+  explanation  String?
+  order        Int
+}
+
+model SkillTestAttempt {
+  id             String    @id @default(uuid())
+  student        User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId      String
+  skillTest      SkillTest @relation(fields: [skillTestId], references: [id], onDelete: Cascade)
+  skillTestId    String
+  score          Int // percentage
+  totalQuestions Int
+  correctCount   Int
+  isPassed       Boolean
+  answers        Json?
+  completedAt    DateTime  @default(now())
+
+  @@index([studentId])
+  @@index([skillTestId])
 }
 
 model Enrollment {
@@ -284,28 +339,28 @@ model Enrollment {
   amountPaid Float
   enrolledAt DateTime @default(now())
   status     String   @default("active")
-  
+
   revenueLedger RevenueLedger?
   orderId       String?
-  order         Order?    @relation(fields: [orderId], references: [id])
+  order         Order?         @relation(fields: [orderId], references: [id])
 
   @@unique([studentId, courseId])
 }
 
 model VideoProgress {
-  id                String    @id @default(uuid())
-  student           User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId         String
-  video             Video?    @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  videoId           String?
-  projectVideo      ProjectCurriculumVideo? @relation(fields: [projectCurriculumVideoId], references: [id], onDelete: Cascade)
+  id                       String                  @id @default(uuid())
+  student                  User                    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId                String
+  video                    Video?                  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  videoId                  String?
+  projectVideo             ProjectCurriculumVideo? @relation(fields: [projectCurriculumVideoId], references: [id], onDelete: Cascade)
   projectCurriculumVideoId String?
-  uniqueSecsWatched Int       @default(0)
-  lastPositionSec   Int       @default(0)
-  isCompleted       Boolean   @default(false)
-  completedAt       DateTime?
-  updatedAt         DateTime  @updatedAt
-  score             Int?
+  uniqueSecsWatched        Int                     @default(0)
+  lastPositionSec          Int                     @default(0)
+  isCompleted              Boolean                 @default(false)
+  completedAt              DateTime?
+  updatedAt                DateTime                @updatedAt
+  score                    Int?
 
   @@unique([studentId, videoId])
   @@unique([studentId, projectCurriculumVideoId])
@@ -319,31 +374,31 @@ enum MessageTag {
 }
 
 model CourseDiscussion {
-  id            String        @id @default(uuid())
-  course        Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  id            String                  @id @default(uuid())
+  course        Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId      String
-  author        User          @relation("DiscussionAuthor", fields: [authorId], references: [id])
+  author        User                    @relation("DiscussionAuthor", fields: [authorId], references: [id])
   authorId      String
   body          String
-  tag           MessageTag    @default(DOUBT)
-  isPinned      Boolean       @default(false)
-  isAnswered    Boolean       @default(false)
+  tag           MessageTag              @default(DOUBT)
+  isPinned      Boolean                 @default(false)
+  isAnswered    Boolean                 @default(false)
   attachmentUrl String?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @default(now()) @updatedAt
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @default(now()) @updatedAt
   replies       CourseDiscussionReply[]
   upvotes       DiscussionUpvote[]
 }
 
 model CourseDiscussionReply {
-  id        String          @id @default(uuid())
-  message   CourseDiscussion @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  id        String             @id @default(uuid())
+  message   CourseDiscussion   @relation(fields: [messageId], references: [id], onDelete: Cascade)
   messageId String
-  author    User            @relation("ReplyAuthor", fields: [authorId], references: [id])
+  author    User               @relation("ReplyAuthor", fields: [authorId], references: [id])
   authorId  String
   body      String
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
   upvotes   DiscussionUpvote[]
 }
 
@@ -355,8 +410,8 @@ model DiscussionUpvote {
   replyId   String?
   createdAt DateTime @default(now())
 
-  message   CourseDiscussion?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  reply     CourseDiscussionReply? @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  message CourseDiscussion?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reply   CourseDiscussionReply? @relation(fields: [replyId], references: [id], onDelete: Cascade)
 
   @@unique([userId, messageId])
   @@unique([userId, replyId])
@@ -417,12 +472,12 @@ model AuditLog {
   actorId    String
   actorRole  String
   actorEmail String?
-  actorName  String?  // denormalized — stays readable even if the admin is later deleted
-  action     String   // CREATE | UPDATE | DELETE | APPROVE | REJECT | REFUND | DEACTIVATE
-  entityType String?  // Coupon | Course | Enrollment | Refund | PaymentSettings | Trainer | Staff | HeroSlide | Track
+  actorName  String? // denormalized — stays readable even if the admin is later deleted
+  action     String // CREATE | UPDATE | DELETE | APPROVE | REJECT | REFUND | DEACTIVATE
+  entityType String? // Coupon | Course | Enrollment | Refund | PaymentSettings | Trainer | Staff | HeroSlide | Track
   entityId   String?
-  changes    Json?    // { before?, after?, requested? } — changed fields only
-  meta       Json?    // free-form extra context (reason, amount, …)
+  changes    Json? // { before?, after?, requested? } — changed fields only
+  meta       Json? // free-form extra context (reason, amount, …)
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime @default(now())
@@ -434,19 +489,19 @@ model AuditLog {
 }
 
 model Review {
-  id        String   @id @default(uuid())
-  rating    Int
-  comment   String?
-  
-  course    Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId  String?
-  
+  id      String  @id @default(uuid())
+  rating  Int
+  comment String?
+
+  course   Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId String?
+
   project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId String?
-  
-  student   User     @relation("StudentReviews", fields: [studentId], references: [id], onDelete: Cascade)
+
+  student   User   @relation("StudentReviews", fields: [studentId], references: [id], onDelete: Cascade)
   studentId String
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -508,24 +563,24 @@ model WishlistItem {
 }
 
 model Coupon {
-  id                   String       @id @default(uuid())
-  code                 String       @unique
-  discountType         DiscountType
-  value                Float
-  currency             Currency?
-  applicableCourseIds  String[]     @default([])
-  minOrderAmount       Float?
-  maxUses              Int?
-  usedCount            Int          @default(0)
-  perUserLimit         Int          @default(1)
-  isActive             Boolean      @default(true)
-  validFrom            DateTime?
-  validUntil           DateTime?
-  createdByAdminId     String
-  createdAt            DateTime     @default(now())
+  id                  String       @id @default(uuid())
+  code                String       @unique
+  discountType        DiscountType
+  value               Float
+  currency            Currency?
+  applicableCourseIds String[]     @default([])
+  minOrderAmount      Float?
+  maxUses             Int?
+  usedCount           Int          @default(0)
+  perUserLimit        Int          @default(1)
+  isActive            Boolean      @default(true)
+  validFrom           DateTime?
+  validUntil          DateTime?
+  createdByAdminId    String
+  createdAt           DateTime     @default(now())
 
-  redemptions          CouponRedemption[]
-  carts                Cart[]
+  redemptions CouponRedemption[]
+  carts       Cart[]
 }
 
 model CouponRedemption {
@@ -533,31 +588,31 @@ model CouponRedemption {
   coupon    Coupon   @relation(fields: [couponId], references: [id])
   couponId  String
   userId    String
-    orderId         String   @unique
+  orderId   String   @unique
   createdAt DateTime @default(now())
 
   @@unique([couponId, userId])
 }
 
 model Order {
-  id                String      @id @default(uuid())
-  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String       @id @default(uuid())
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId            String
   currency          Currency
   gatewayType       GatewayType
   subtotal          Float
-  discountAmount    Float       @default(0)
+  discountAmount    Float        @default(0)
   couponId          String?
-  gstPercent        Float       @default(0)  // GST rate snapshot at purchase time (admin-configurable in PaymentSettings)
-  gstAmount         Float       @default(0)  // GST amount charged on top of (subtotal - discount)
+  gstPercent        Float        @default(0) // GST rate snapshot at purchase time (admin-configurable in PaymentSettings)
+  gstAmount         Float        @default(0) // GST amount charged on top of (subtotal - discount)
   totalAmount       Float
-  status            OrderStatus @default(CREATED)
-  razorpayOrderId   String      @unique
+  status            OrderStatus  @default(CREATED)
+  razorpayOrderId   String       @unique
   razorpayPaymentId String?
   razorpaySignature String?
   paymentMethod     String?
-  isInternational   Boolean?    // set from the Razorpay payment entity — was the card foreign-issued?
-  settledCurrency   String?     // currency the payment actually settled in, per Razorpay ("INR" | "USD")
+  isInternational   Boolean? // set from the Razorpay payment entity — was the card foreign-issued?
+  settledCurrency   String? // currency the payment actually settled in, per Razorpay ("INR" | "USD")
   billingFullName   String?
   billingEmail      String?
   billingPhone      String?
@@ -565,18 +620,18 @@ model Order {
   billingCity       String?
   billingState      String?
   billingPincode    String?
-  billingCountry    String?     // ISO 3166-1 alpha-2, e.g. "IN", "US". Drives currency + invoice format.
-  batchMode         String?     // "Online" | "Offline" — set by the sales console for manually collected sales
-  discountReason    String?     // salesperson notes for a manual discount
-items             OrderItem[]
+  billingCountry    String? // ISO 3166-1 alpha-2, e.g. "IN", "US". Drives currency + invoice format.
+  batchMode         String? // "Online" | "Offline" — set by the sales console for manually collected sales
+  discountReason    String? // salesperson notes for a manual discount
+  items             OrderItem[]
   enrollments       Enrollment[]
   leads             Lead[]
   invoices          Invoice[]
   refunds           Refund[]
-  salesperson       User?           @relation("OrderSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
+  salesperson       User?        @relation("OrderSalesperson", fields: [salespersonId], references: [id], onDelete: SetNull)
   salespersonId     String?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 }
 
 model OrderItem {
@@ -589,7 +644,7 @@ model OrderItem {
   projectId       String?
   priceAtPurchase Float
   currency        Currency
-  status          String?  // for projects: pending | active | refunded
+  status          String? // for projects: pending | active | refunded
 
   @@index([courseId])
   @@index([projectId])
@@ -600,12 +655,12 @@ model OrderItem {
 /// reads the public projection to hide/disable disabled currencies.
 model PaymentSettings {
   id                   String   @id @default(uuid())
-  domesticEnabled      Boolean  @default(true)   // INR (domestic gateway)
-  internationalEnabled Boolean  @default(false)  // USD (international gateway)
-  trainerSharePercent  Int      @default(50)     // default % of collected gross the trainer keeps (rest = platform cut)
-  gstPercent           Float    @default(18)     // GST % charged on top of every course fee (INR / domestic)
-  gstPercentUsd        Float    @default(0)      // GST % for USD orders — export of services is zero-rated by default
-  usdRate              Float    @default(95)     // INR per 1 USD — fallback conversion when a course/project has no explicit priceUsd. Fresh rows are seeded from the DEFAULT_USD_RATE env var; this DB default is only a raw safety net. Admin edits the live value.
+  domesticEnabled      Boolean  @default(true) // INR (domestic gateway)
+  internationalEnabled Boolean  @default(false) // USD (international gateway)
+  trainerSharePercent  Int      @default(50) // default % of collected gross the trainer keeps (rest = platform cut)
+  gstPercent           Float    @default(18) // GST % charged on top of every course fee (INR / domestic)
+  gstPercentUsd        Float    @default(0) // GST % for USD orders — export of services is zero-rated by default
+  usdRate              Float    @default(95) // INR per 1 USD — fallback conversion when a course/project has no explicit priceUsd. Fresh rows are seeded from the DEFAULT_USD_RATE env var; this DB default is only a raw safety net. Admin edits the live value.
   updatedAt            DateTime @updatedAt
 }
 
@@ -615,12 +670,12 @@ model Lead {
   email        String?
   phone        String?
   city         String?
-  course       String?                    // course interest (free text or from course list)
-  status       String    @default("New")  // "New" | "Interested" | "Converted" | "Dropped"
+  course       String? // course interest (free text or from course list)
+  status       String    @default("New") // "New" | "Interested" | "Converted" | "Dropped"
   budget       Float     @default(0)
   score        Int       @default(35)
-  source       String?                    // e.g. Website, Referral, Walk-in, Demo
-  notes        String?                    // salesperson notes / follow-up context
+  source       String? // e.g. Website, Referral, Walk-in, Demo
+  notes        String? // salesperson notes / follow-up context
   nextFollowUp DateTime?
   lastContact  DateTime?
 
@@ -641,13 +696,13 @@ model Lead {
 }
 
 model LeadFollowUp {
-  id          String   @id @default(uuid())
-  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid())
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
   leadId      String
-  action      String   // "scheduled" | "rescheduled" | "completed" | "converted" | "dropped"
+  action      String // "scheduled" | "rescheduled" | "completed" | "converted" | "dropped"
   note        String?
   scheduledAt DateTime? // the follow-up time this entry refers to
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([leadId])
 }
@@ -655,49 +710,49 @@ model LeadFollowUp {
 // ─── LIVE PROJECTS ─────────────────────────────────────────────────
 
 model Project {
-  id                  String        @id @default(uuid())
-  name                String        @unique
+  id                  String       @id @default(uuid())
+  name                String       @unique
   image               String?
-  techLabel           String        @default("")
-  tech                String        @default("")
-  shortDesc           String        @default("")
-  overview            String        @default("")
-  thumbGradient       String        @default("linear-gradient(135deg,#0d1f3c,#0a2a1a)")
+  techLabel           String       @default("")
+  tech                String       @default("")
+  shortDesc           String       @default("")
+  overview            String       @default("")
+  thumbGradient       String       @default("linear-gradient(135deg,#0d1f3c,#0a2a1a)")
   level               SkillLevel?
-  badge               String        @default("")
-  duration            String        @default("")
-  sessions            String        @default("")
-  seats               Int           @default(0)
-  price               Float         @default(0)
+  badge               String       @default("")
+  duration            String       @default("")
+  sessions            String       @default("")
+  seats               Int          @default(0)
+  price               Float        @default(0)
   originalPrice       Float?
-  priceUsd            Float?        // USD sale price for international checkout. null = auto-convert from `price` via PaymentSettings.usdRate.
-  originalPriceUsd    Float?        // USD list/strikethrough price. null = no USD discount shown.
-  rating              Float         @default(0)
-  reviewCount         Int           @default(0)
-  status              CourseStatus  @default(DRAFT)
-  isFeatured          Boolean       @default(false)
-  displayOrder        Int           @default(0)
+  priceUsd            Float? // USD sale price for international checkout. null = auto-convert from `price` via PaymentSettings.usdRate.
+  originalPriceUsd    Float? // USD list/strikethrough price. null = no USD discount shown.
+  rating              Float        @default(0)
+  reviewCount         Int          @default(0)
+  status              CourseStatus @default(DRAFT)
+  isFeatured          Boolean      @default(false)
+  displayOrder        Int          @default(0)
   category            String?
-  stack               String[]      @default([])
-  highlights          String[]      @default([])
-  prereqs             String[]      @default([])
-  includes            String[]      @default([])
-  industryUse         String        @default("")
-  tools               String[]      @default([])
-  setupSteps          String[]      @default([])
+  stack               String[]     @default([])
+  highlights          String[]     @default([])
+  prereqs             String[]     @default([])
+  includes            String[]     @default([])
+  industryUse         String       @default("")
+  tools               String[]     @default([])
+  setupSteps          String[]     @default([])
   demoVideoUrl        String?
   walkthroughVideoUrl String?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 
-  trainerId           String?
-  trainer             User?         @relation("ProjectTrainer", fields: [trainerId], references: [id])
+  trainerId String?
+  trainer   User?   @relation("ProjectTrainer", fields: [trainerId], references: [id])
 
-  curriculum          ProjectCurriculum[]
-  orderItems          OrderItem[]
-  reviews             Review[]
-  cartItems           CartItem[]
-  refunds             Refund[]
+  curriculum ProjectCurriculum[]
+  orderItems OrderItem[]
+  reviews    Review[]
+  cartItems  CartItem[]
+  refunds    Refund[]
 }
 
 model ProjectCurriculum {
@@ -709,20 +764,20 @@ model ProjectCurriculum {
   desc      String
   order     Int
 
-  videos    ProjectCurriculumVideo[]
+  videos ProjectCurriculumVideo[]
 
   @@index([projectId])
 }
 
 model ProjectCurriculumVideo {
-  id              String           @id @default(uuid())
+  id              String            @id @default(uuid())
   curriculumId    String
   curriculum      ProjectCurriculum @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
   title           String
   vdoCipherId     String?
-  durationSeconds Int              @default(0)
-  videoStatus     VideoStatus      @default(UPLOADING)
-  isPreview       Boolean          @default(false)
+  durationSeconds Int               @default(0)
+  videoStatus     VideoStatus       @default(UPLOADING)
+  isPreview       Boolean           @default(false)
   order           Int
   progress        VideoProgress[]
 
@@ -732,18 +787,18 @@ model ProjectCurriculumVideo {
 // ─── SALES TARGETS ──────────────────────────────────────────────────
 
 model SalesTarget {
-  id              String   @id @default(uuid())
-  salespersonId   String
-  salesperson     User     @relation("SalesTargets", fields: [salespersonId], references: [id], onDelete: Cascade)
-  courseId         String?
-  course          Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  period          String   // "monthly" | "quarterly" | "yearly"
-  targetAmount    Float    @default(0)
-  currentAmount   Float    @default(0)
-  startDate       DateTime
-  endDate         DateTime
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(uuid())
+  salespersonId String
+  salesperson   User     @relation("SalesTargets", fields: [salespersonId], references: [id], onDelete: Cascade)
+  courseId      String?
+  course        Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  period        String // "monthly" | "quarterly" | "yearly"
+  targetAmount  Float    @default(0)
+  currentAmount Float    @default(0)
+  startDate     DateTime
+  endDate       DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([salespersonId])
 }
@@ -751,16 +806,16 @@ model SalesTarget {
 // ─── INVOICES ───────────────────────────────────────────────────────
 
 model Invoice {
-  id              String   @id @default(uuid())
-  invoiceNumber   String   @unique
-  orderId         String   @unique
-  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id              String    @id @default(uuid())
+  invoiceNumber   String    @unique
+  orderId         String    @unique
+  order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   userId          String
-  user            User     @relation("Invoices", fields: [userId], references: [id], onDelete: Cascade)
+  user            User      @relation("Invoices", fields: [userId], references: [id], onDelete: Cascade)
   subtotal        Float
-  gstPercent      Float    @default(0)
-  gstAmount       Float    @default(0)
-  discountAmount  Float    @default(0)
+  gstPercent      Float     @default(0)
+  gstAmount       Float     @default(0)
+  discountAmount  Float     @default(0)
   totalAmount     Float
   billingFullName String?
   billingEmail    String?
@@ -769,7 +824,7 @@ model Invoice {
   billingCity     String?
   billingState    String?
   billingPincode  String?
-  issuedAt        DateTime @default(now())
+  issuedAt        DateTime  @default(now())
   dueAt           DateTime?
 
   @@index([orderId])
@@ -779,23 +834,23 @@ model Invoice {
 // ─── REFUNDS ─────────────────────────────────────────────────────
 
 model Refund {
-  id              String       @id @default(uuid())
-  order           Order?       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  orderId         String?
-  student         User         @relation("RefundStudent", fields: [studentId], references: [id], onDelete: Cascade)
-  studentId       String
-  course          Course?      @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  courseId        String?
-  project         Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  projectId       String?
-  amount          Float
-  reason          String
-  status          RefundStatus @default(PENDING)
+  id               String       @id @default(uuid())
+  order            Order?       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId          String?
+  student          User         @relation("RefundStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId        String
+  course           Course?      @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  courseId         String?
+  project          Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId        String?
+  amount           Float
+  reason           String
+  status           RefundStatus @default(PENDING)
   razorpayRefundId String?
-  initiatedBy     User         @relation("RefundInitiator", fields: [initiatedById], references: [id], onDelete: Cascade)
-  initiatedById   String
-  processedAt     DateTime?
-  createdAt       DateTime     @default(now())
+  initiatedBy      User         @relation("RefundInitiator", fields: [initiatedById], references: [id], onDelete: Cascade)
+  initiatedById    String
+  processedAt      DateTime?
+  createdAt        DateTime     @default(now())
 
   @@index([orderId])
   @@index([studentId])
@@ -805,17 +860,17 @@ model Refund {
 // ─── BLOG ───────────────────────────────────────────────────────────
 
 model BlogPost {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   title           String
-  slug            String   @unique
-  content         String   @db.Text
+  slug            String    @unique
+  content         String    @db.Text
   metaDescription String
   tags            String[]
   sourceTopic     String?
-  status          String   @default("draft")
+  status          String    @default("draft")
   publishedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@index([status, publishedAt])
 }
@@ -823,8 +878,8 @@ model BlogPost {
 // ─── Support / help-desk tickets ─────────────────────────────────────
 
 enum TicketStatus {
-  OPEN      // waiting on an agent
-  PENDING   // waiting on the student
+  OPEN // waiting on an agent
+  PENDING // waiting on the student
   RESOLVED
   CLOSED
 }
@@ -849,27 +904,27 @@ enum TicketCategory {
 }
 
 model SupportTicket {
-  id            String         @id @default(uuid())
-  number        Int            @unique @default(autoincrement()) // human ref: SUP-0XXXX
-  subject       String
-  category      TicketCategory
-  topic         String?        // sub-topic id chosen in the guided wizard
-  context       Json?          // { orderId?, courseId?, lessonId?, browser? }
-  priority      TicketPriority @default(NORMAL)
-  status        TicketStatus   @default(OPEN)
+  id       String         @id @default(uuid())
+  number   Int            @unique @default(autoincrement()) // human ref: SUP-0XXXX
+  subject  String
+  category TicketCategory
+  topic    String? // sub-topic id chosen in the guided wizard
+  context  Json? // { orderId?, courseId?, lessonId?, browser? }
+  priority TicketPriority @default(NORMAL)
+  status   TicketStatus   @default(OPEN)
 
-  student       User           @relation("TicketAuthor", fields: [studentId], references: [id], onDelete: Cascade)
-  studentId     String
-  assignee      User?          @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  assigneeId    String?
+  student    User    @relation("TicketAuthor", fields: [studentId], references: [id], onDelete: Cascade)
+  studentId  String
+  assignee   User?   @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assigneeId String?
 
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  lastMessageAt DateTime       @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastMessageAt DateTime  @default(now())
   resolvedAt    DateTime?
   closedAt      DateTime?
 
-  messages      SupportTicketMessage[]
+  messages SupportTicketMessage[]
 
   @@index([status])
   @@index([assigneeId])
@@ -890,4 +945,3 @@ model SupportTicketMessage {
 
   @@index([ticketId])
 }
-

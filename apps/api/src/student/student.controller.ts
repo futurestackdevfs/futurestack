@@ -65,6 +65,16 @@ export class StudentController {
     );
   }
 
+  @Auth(Role.STUDENT)
+  @Get('quizzes/:quizId/questions')
+  async getQuizQuestions(
+    @Param('quizId') quizId: string,
+    @Req() req: Request,
+  ) {
+    const user = req.user as { id: string };
+    return this.studentService.getQuizQuestions(user.id, quizId);
+  }
+
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Auth(Role.STUDENT)
   @Post('quizzes/:quizId/submit')
@@ -74,7 +84,7 @@ export class StudentController {
     @Req() req: Request,
   ) {
     const user = req.user as { id: string };
-    return this.studentService.submitQuiz(user.id, quizId, dto.score);
+    return this.studentService.submitQuiz(user.id, quizId, dto);
   }
 
   @Auth(Role.STUDENT)

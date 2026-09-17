@@ -20,6 +20,7 @@ export const SECTION_ORDER = [
   // "assignments",
   "certificates",
   "projects",
+  "skilltests",
   "discussion",
 ] as const;
 
@@ -38,6 +39,7 @@ export const SECTION_CONFIG: SectionDef[] = [
   // { id: "assignments", icon: "📝", label: "Assignments", badge: "3 Due", badgeCls: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a]" },
   { id: "certificates", icon: "🏅", label: "Certificates" },
   { id: "projects", icon: "📁", label: "Projects" },
+  { id: "skilltests", icon: "🧪", label: "Skill Tests" },
 ];
 
 export function getSectionDef(id: TabId): SectionDef | undefined {
