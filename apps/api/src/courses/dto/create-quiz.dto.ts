@@ -19,7 +19,9 @@ export class CreateQuizDto {
   @Max(100)
   passingScore?: number;
 
+  // Only used when creating a standalone quiz (no section route param) —
+  // course-owned quizzes get sectionId from the route instead.
   @IsOptional()
   @IsString()
-  skillTestId?: string;
+  sectionId?: string;
 }

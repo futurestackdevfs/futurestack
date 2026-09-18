@@ -440,40 +440,70 @@ export class StudentService {
     };
   }
 
+  // For a course-owned quiz, requires active enrollment. For a standalone
+  // quiz (sectionId null — formerly SkillTest), any authenticated student
+  // may take it.
   private async findQuizForStudent(studentId: string, quizId: string) {
     const quiz = await this.prisma.quiz.findUnique({
       where: { id: quizId },
-      include: { section: { include: { course: true } } },
+      include: { section: { include: { course: true } }, questions: { orderBy: { order: 'asc' } } },
     });
     if (!quiz) {
       throw new NotFoundException('Quiz not found');
     }
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: {
-        studentId_courseId: { studentId, courseId: quiz.section.courseId },
-      },
-    });
-    if (!enrollment || enrollment.status !== 'active') {
-      throw new ForbiddenException('You are not enrolled in this course');
+    if (quiz.section) {
+      const enrollment = await this.prisma.enrollment.findUnique({
+        where: {
+          studentId_courseId: { studentId, courseId: quiz.section.courseId },
+        },
+      });
+      if (!enrollment || enrollment.status !== 'active') {
+        throw new ForbiddenException('You are not enrolled in this course');
+      }
     }
     return quiz;
   }
 
+  async listStandaloneQuizzes() {
+    const quizzes = await this.prisma.quiz.findMany({
+      where: { sectionId: null },
+      orderBy: [{ order: 'asc' }],
+      include: { _count: { select: { questions: true } } },
+    });
+    return quizzes.map((q) => ({
+      id: q.id,
+      title: q.title,
+      totalQuestions: q._count.questions,
+      passingScore: q.passingScore,
+    }));
+  }
+
+  async myStandaloneQuizAttempts(studentId: string) {
+    const attempts = await this.prisma.quizAttempt.findMany({
+      where: { studentId, quiz: { sectionId: null } },
+      orderBy: { completedAt: 'desc' },
+      include: { quiz: { select: { title: true } } },
+    });
+    return attempts.map((a) => ({
+      id: a.id,
+      quizId: a.quizId,
+      title: a.quiz.title,
+      score: a.score,
+      totalQuestions: a.totalQuestions,
+      correctCount: a.correctCount,
+      isPassed: a.isPassed,
+      completedAt: a.completedAt,
+    }));
+  }
+
   async getQuizQuestions(studentId: string, quizId: string) {
     const quiz = await this.findQuizForStudent(studentId, quizId);
-    if (!quiz.skillTestId) {
-      return { quizId, title: quiz.title, hasQuestions: false, questions: [] };
-    }
-    const questions = await this.prisma.skillTestQuestion.findMany({
-      where: { skillTestId: quiz.skillTestId },
-      orderBy: { order: 'asc' },
-    });
     return {
       quizId,
       title: quiz.title,
       passingScore: quiz.passingScore,
-      hasQuestions: questions.length > 0,
-      questions: questions.map((q) => ({
+      hasQuestions: quiz.questions.length > 0,
+      questions: quiz.questions.map((q) => ({
         id: q.id,
         question: q.question,
         options: q.options,
@@ -489,53 +519,82 @@ export class StudentService {
     const quiz = await this.findQuizForStudent(studentId, quizId);
 
     let score: number;
-    if (quiz.skillTestId) {
-      const questions = await this.prisma.skillTestQuestion.findMany({
-        where: { skillTestId: quiz.skillTestId },
-      });
-      if (questions.length === 0) {
-        throw new NotFoundException('This quiz has no questions configured yet');
-      }
+    let totalQuestions: number | undefined;
+    let correctCount: number | undefined;
+    let answers: any;
+    let breakdown:
+      | {
+          questionId: string;
+          question: string;
+          options: string[];
+          selectedIndex: number;
+          correctIndex: number;
+          isCorrect: boolean;
+          explanation: string | null;
+        }[]
+      | undefined;
+
+    if (quiz.questions.length > 0) {
       const answerMap = new Map(
         (dto.answers ?? []).map((a) => [a.questionId, a.selectedIndex]),
       );
-      const correctCount = questions.filter(
+      correctCount = quiz.questions.filter(
         (q) => answerMap.get(q.id) === q.correctIndex,
       ).length;
-      score = Math.round((correctCount / questions.length) * 100);
+      totalQuestions = quiz.questions.length;
+      score = Math.round((correctCount / totalQuestions) * 100);
+      answers = dto.answers as any;
+      breakdown = quiz.questions.map((q) => {
+        const selectedIndex = answerMap.has(q.id) ? answerMap.get(q.id)! : -1;
+        return {
+          questionId: q.id,
+          question: q.question,
+          options: q.options,
+          selectedIndex,
+          correctIndex: q.correctIndex,
+          isCorrect: selectedIndex === q.correctIndex,
+          explanation: q.explanation,
+        };
+      });
     } else if (dto.score != null) {
       score = dto.score;
     } else {
       throw new NotFoundException('This quiz has no questions configured yet');
     }
 
-    const attempt = await this.prisma.quizAttempt.upsert({
-      where: { studentId_quizId: { studentId, quizId } },
-      create: {
+    const isPassed = quiz.passingScore != null ? score >= quiz.passingScore : null;
+
+    const attempt = await this.prisma.quizAttempt.create({
+      data: {
         studentId,
         quizId,
         score,
+        totalQuestions,
+        correctCount,
+        isPassed: isPassed ?? undefined,
+        answers,
         isCompleted: true,
-        completedAt: new Date(),
-      },
-      update: {
-        score,
         completedAt: new Date(),
       },
     });
 
-    await this.certificatesService.checkAndIssueCertificate(
-      studentId,
-      quiz.section.courseId,
-    );
+    if (quiz.section) {
+      await this.certificatesService.checkAndIssueCertificate(
+        studentId,
+        quiz.section.courseId,
+      );
+    }
 
     return {
       quizId: attempt.quizId,
       score: attempt.score,
+      totalQuestions: attempt.totalQuestions,
+      correctCount: attempt.correctCount,
       isCompleted: attempt.isCompleted,
       completedAt: attempt.completedAt,
-      passed: quiz.passingScore !== null ? score >= quiz.passingScore : null,
+      passed: isPassed,
       passingScore: quiz.passingScore,
+      breakdown,
     };
   }
 

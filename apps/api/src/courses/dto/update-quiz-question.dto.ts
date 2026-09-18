@@ -1,20 +1,12 @@
-import {
-  ArrayMinSize,
-  IsArray,
-  IsInt,
-  IsOptional,
-  IsString,
-  Min,
-} from 'class-validator';
+import { IsArray, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
-export class UpdateSkillTestQuestionDto {
+export class UpdateQuizQuestionDto {
   @IsOptional()
   @IsString()
   question?: string;
 
   @IsOptional()
   @IsArray()
-  @ArrayMinSize(2)
   @IsString({ each: true })
   options?: string[];
 

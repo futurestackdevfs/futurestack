@@ -18,6 +18,8 @@ import { CreateVideoDto } from './dto/create-video.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
+import { CreateQuizQuestionDto } from './dto/create-quiz-question.dto';
+import { UpdateQuizQuestionDto } from './dto/update-quiz-question.dto';
 import { CreateResourceDto } from './dto/create-resource.dto';
 import { FeatureDto } from './dto/feature.dto';
 import { ReorderItemsDto } from './dto/reorder-items.dto';
@@ -1444,30 +1446,52 @@ export class CoursesService {
   async createQuiz(sectionId: string, dto: CreateQuizDto) {
     this.invalidateCatalog();
     await this.findSectionOrFail(sectionId);
-    const data = await this.resolveQuizData(dto);
+    const data: Record<string, unknown> = { ...dto };
+    delete data.sectionId; // sectionId comes from the route param here
     if (data.totalQuestions == null) data.totalQuestions = 0;
     return this.prisma.quiz.create({ data: { ...data, sectionId } as any });
+  }
+
+  // Standalone quiz — not attached to a course section (formerly SkillTest).
+  async createStandaloneQuiz(dto: CreateQuizDto) {
+    this.invalidateCatalog();
+    const data: Record<string, unknown> = { ...dto };
+    delete data.sectionId;
+    if (data.totalQuestions == null) data.totalQuestions = 0;
+    return this.prisma.quiz.create({ data: { ...data, sectionId: null } as any });
+  }
+
+  async listStandaloneQuizzes() {
+    const quizzes = await this.prisma.quiz.findMany({
+      where: { sectionId: null },
+      orderBy: [{ order: 'asc' }],
+      include: { _count: { select: { questions: true, attempts: true } } },
+    });
+    return quizzes.map((q) => ({
+      ...q,
+      questionCount: q._count.questions,
+      attemptCount: q._count.attempts,
+      _count: undefined,
+    }));
+  }
+
+  // Fetches any quiz by id (standalone or section-linked) with its questions —
+  // used by the admin question editor regardless of where the quiz lives.
+  async getStandaloneQuiz(id: string) {
+    const quiz = await this.prisma.quiz.findUnique({
+      where: { id },
+      include: { questions: { orderBy: { order: 'asc' } } },
+    });
+    if (!quiz) throw new NotFoundException('Quiz not found');
+    return quiz;
   }
 
   async updateQuiz(id: string, dto: UpdateQuizDto) {
     this.invalidateCatalog();
     await this.findQuizOrFail(id);
-    const data = await this.resolveQuizData(dto);
-    return this.prisma.quiz.update({ where: { id }, data });
-  }
-
-  private async resolveQuizData(dto: CreateQuizDto | UpdateQuizDto) {
     const data: Record<string, unknown> = { ...dto };
-    if (dto.skillTestId) {
-      const skillTest = await this.prisma.skillTest.findUnique({
-        where: { id: dto.skillTestId },
-        include: { _count: { select: { questions: true } } },
-      });
-      if (!skillTest) throw new NotFoundException('Skill test not found');
-      data.totalQuestions = skillTest._count.questions;
-      data.passingScore = skillTest.passingScore ?? undefined;
-    }
-    return data;
+    delete data.sectionId;
+    return this.prisma.quiz.update({ where: { id }, data });
   }
 
   async deleteQuiz(id: string) {
@@ -1481,6 +1505,39 @@ export class CoursesService {
     const quiz = await this.prisma.quiz.findUnique({ where: { id } });
     if (!quiz) throw new NotFoundException('Quiz not found');
     return quiz;
+  }
+
+  // ==================== QUIZ QUESTIONS ====================
+
+  async addQuizQuestion(quizId: string, dto: CreateQuizQuestionDto) {
+    this.invalidateCatalog();
+    await this.findQuizOrFail(quizId);
+    const question = await this.prisma.quizQuestion.create({
+      data: { ...dto, quizId },
+    });
+    await this.syncQuizTotalQuestions(quizId);
+    return question;
+  }
+
+  async updateQuizQuestion(id: string, dto: UpdateQuizQuestionDto) {
+    this.invalidateCatalog();
+    const question = await this.prisma.quizQuestion.findUnique({ where: { id } });
+    if (!question) throw new NotFoundException('Question not found');
+    return this.prisma.quizQuestion.update({ where: { id }, data: dto });
+  }
+
+  async deleteQuizQuestion(id: string) {
+    this.invalidateCatalog();
+    const question = await this.prisma.quizQuestion.findUnique({ where: { id } });
+    if (!question) throw new NotFoundException('Question not found');
+    await this.prisma.quizQuestion.delete({ where: { id } });
+    await this.syncQuizTotalQuestions(question.quizId);
+    return { success: true };
+  }
+
+  private async syncQuizTotalQuestions(quizId: string) {
+    const count = await this.prisma.quizQuestion.count({ where: { quizId } });
+    await this.prisma.quiz.update({ where: { id: quizId }, data: { totalQuestions: count } });
   }
 
   // ==================== RESOURCES ====================

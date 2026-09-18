@@ -33,7 +33,6 @@ import { ProjectsModule } from './projects/projects.module';
 import { RefundModule } from './refund/refund.module';
 import { SupportModule } from './support/support.module';
 import { ContactModule } from './contact/contact.module';
-import { SkillTestsModule } from './skill-tests/skill-tests.module';
 
 @Module({
   imports: [
@@ -79,7 +78,6 @@ import { SkillTestsModule } from './skill-tests/skill-tests.module';
     RefundModule,
     SupportModule,
     ContactModule,
-    SkillTestsModule,
   ],
   controllers: [AppController],
   providers: [

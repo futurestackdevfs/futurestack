@@ -85,13 +85,8 @@ const PROJECT_FIELDS: FieldDef[] = [
 
 const SKILLTEST_FIELDS: FieldDef[] = [
   { key: "title", label: "Test Title", type: "text", required: true, full: true, placeholder: "e.g. JavaScript Fundamentals" },
-  { key: "description", label: "Description", type: "textarea", full: true, placeholder: "What this test evaluates…" },
-  { key: "category", label: "Category", type: "text", placeholder: "e.g. Frontend Development" },
-  { key: "skillLevel", label: "Level", type: "select", options: ["BEGINNER", "INTERMEDIATE", "ADVANCED"] },
-  { key: "durationMinutes", label: "Duration (minutes)", type: "number", placeholder: "e.g. 20" },
+  { key: "order", label: "Display Order", type: "number", required: true, placeholder: "e.g. 0" },
   { key: "passingScore", label: "Passing Score (%)", type: "number", placeholder: "e.g. 70" },
-  { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
-  { key: "displayOrder", label: "Display Order", type: "number", placeholder: "e.g. 0" },
 ];
 
 export default function MasterDataView({ searchQuery, refreshSignal, onToast }: {
@@ -133,7 +128,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
         opsFetch("/api/courses"),
         opsFetch("/api/projects/admin/all"),
         opsFetch("/api/admin/trainers/approved"),
-        opsFetch("/api/skill-tests"),
+        opsFetch("/api/courses/quizzes"),
       ]);
       if (cRes.ok) { const d = await cRes.json(); setCourses(Array.isArray(d) ? d : []); }
       if (pRes.ok) { const d = await pRes.json(); setProjects(Array.isArray(d) ? d : []); }
@@ -154,7 +149,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
         ? [r.title, r.code, r.category, r.description, r.trainer?.name]
         : activeTab === "projects"
         ? [r.name, r.techLabel, r.category, r.shortDesc]
-        : [r.title, r.category, r.description];
+        : [r.title];
       return fields.some((v) => v && String(v).toLowerCase().includes(q));
     });
   }, [activeTab, courses, projects, skilltests, searchQuery]);
@@ -326,17 +321,16 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
       const body: Record<string, any> = {};
       for (const [k, v] of Object.entries(formData)) {
         if (k === "id") continue;
-        if (k === "durationMinutes" || k === "passingScore" || k === "displayOrder") {
+        if (k === "passingScore" || k === "order") {
           body[k] = v === "" || v == null ? null : Number(v);
-        } else if (k === "skillLevel") {
-          body[k] = v || null;
         } else {
           body[k] = v;
         }
       }
+      if (body.order == null) body.order = 0;
 
       try {
-        const url = formData.id ? `/api/skill-tests/${formData.id}` : "/api/skill-tests";
+        const url = formData.id ? `/api/courses/quizzes/${formData.id}` : "/api/courses/quizzes";
         const method = formData.id ? "PATCH" : "POST";
         const res = await fetch(url, { method, headers, body: JSON.stringify(body) });
         if (!res.ok) {
@@ -356,7 +350,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
   async function handleDelete() {
     if (!deleting) return;
     try {
-      const url = activeTab === "courses" ? `/api/courses/${deleting.id}` : activeTab === "projects" ? `/api/projects/${deleting.id}` : `/api/skill-tests/${deleting.id}`;
+      const url = activeTab === "courses" ? `/api/courses/${deleting.id}` : activeTab === "projects" ? `/api/projects/${deleting.id}` : `/api/courses/quizzes/${deleting.id}`;
       const r = await opsFetch(url, { method: "DELETE" });
       if (r.ok) {
         if (activeTab === "courses") setCourses((prev) => prev.filter((c) => c.id !== deleting.id));
@@ -446,7 +440,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
                     </>
                   ) : (
                     <>
-                      <Th>Title</Th><Th>Category</Th><Th>Level</Th><Th>Duration</Th><Th>Questions</Th><Th>Status</Th><Th>Actions</Th>
+                      <Th>Title</Th><Th>Pass %</Th><Th>Questions</Th><Th>Attempts</Th><Th>Actions</Th>
                     </>
                   )}
                 </tr>
@@ -480,11 +474,9 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
                     ) : (
                       <>
                         <td className="px-2.5 py-1.5 font-semibold" style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{record.title}</td>
-                        <td className="px-2.5 py-1.5" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{record.category ?? "—"}</td>
-                        <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}><StatusBadge status={record.skillLevel ?? "BEGINNER"} /></td>
-                        <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{record.durationMinutes ? `${record.durationMinutes} min` : "—"}</td>
+                        <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{record.passingScore != null ? `${record.passingScore}%` : "—"}</td>
                         <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{record.questionCount ?? 0}</td>
-                        <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}><StatusBadge status={record.status === "ACTIVE" ? "Active" : record.status === "DRAFT" ? "Draft" : "Archived"} /></td>
+                        <td className="px-2.5 py-1.5 font-mono text-[10px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{record.attemptCount ?? 0}</td>
                       </>
                     )}
                     <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>

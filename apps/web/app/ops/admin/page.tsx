@@ -212,13 +212,8 @@ const SCHEMAS: Record<string, FieldDef[]> = {
   ],
   skilltests: [
     { key: "title", label: "Test Title", type: "text", required: true, full: true, placeholder: "e.g. JavaScript Fundamentals" },
-    { key: "description", label: "Description", type: "textarea", full: true, placeholder: "What this test evaluates…" },
-    { key: "category", label: "Category", type: "text", placeholder: "e.g. Frontend Development" },
-    { key: "skillLevel", label: "Level", type: "select", options: ["BEGINNER", "INTERMEDIATE", "ADVANCED"] },
-    { key: "durationMinutes", label: "Duration (minutes)", type: "number", placeholder: "e.g. 20" },
+    { key: "order", label: "Display Order", type: "number", required: true, placeholder: "e.g. 0" },
     { key: "passingScore", label: "Passing Score (%)", type: "number", placeholder: "e.g. 70" },
-    { key: "status", label: "Status", type: "select", required: true, options: ["DRAFT", "ACTIVE", "ARCHIVED"] },
-    { key: "displayOrder", label: "Display Order", type: "number", placeholder: "e.g. 0" },
   ],
 };
 
@@ -331,12 +326,9 @@ const COLUMNS: Record<string, ColumnDef[]> = {
   ],
   skilltests: [
     { key: "title", label: "Test Title", strong: true },
-    { key: "category", label: "Category", render: (v) => v || "—" },
-    { key: "skillLevel", label: "Level", render: (v) => v ? SKILL_LEVEL_LABELS[v] || v : "—" },
-    { key: "durationMinutes", label: "Duration", render: (v) => (v ? `${v} min` : "—") },
     { key: "passingScore", label: "Pass %", render: (v) => (v != null ? `${v}%` : "—") },
     { key: "questionCount", label: "Questions", mono: true, render: (v) => v ?? 0 },
-    { key: "status", label: "Status", render: (v) => <StatusBadge status={v === "ACTIVE" ? "Active" : v === "DRAFT" ? "Draft" : v === "ARCHIVED" ? "Archived" : v} /> },
+    { key: "attemptCount", label: "Attempts", mono: true, render: (v) => v ?? 0 },
   ],
 };
 
@@ -429,7 +421,7 @@ export default function AdminMasterDataPage() {
       fetch("/api/courses", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => []),
       fetch("/api/admin/trainers/approved", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => []),
       fetch("/api/projects/admin/all", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => []),
-      fetch("/api/skill-tests", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => []),
+      fetch("/api/courses/quizzes", { headers }).then(async (r) => { if (!r.ok) throw new Error(await r.json().then((b) => b.message).catch(() => `HTTP ${r.status}`)); return r.json(); }).catch(() => []),
     ]).then(([statsData, coursesData, trainersData, projectsData, skillTestsData]) => {
       if (cancelled) return;
       if (statsData && typeof statsData.totalCourses === "number") setStats(statsData);
@@ -515,14 +507,8 @@ export default function AdminMasterDataPage() {
       const mappedSkillTests = (Array.isArray(skillTestsData) ? skillTestsData : []).map((s: any) => ({
         id: s.id,
         title: s.title || "",
-        description: s.description || "",
-        category: s.category || "",
-        skillLevel: s.skillLevel || "",
-        durationMinutes: s.durationMinutes ?? null,
+        order: s.order ?? 0,
         passingScore: s.passingScore ?? null,
-        status: s.status || "DRAFT",
-        isFeatured: !!s.isFeatured,
-        displayOrder: s.displayOrder ?? 0,
         questionCount: s.questionCount ?? 0,
         attemptCount: s.attemptCount ?? 0,
       }));
@@ -986,17 +972,16 @@ export default function AdminMasterDataPage() {
         const body: Record<string, any> = {};
         for (const [k, v] of Object.entries(formData)) {
           if (k === "id" || k === "questionCount" || k === "attemptCount") continue;
-          if (k === "durationMinutes" || k === "passingScore" || k === "displayOrder") {
+          if (k === "passingScore" || k === "order") {
             body[k] = v === "" || v == null ? null : Number(v);
-          } else if (k === "skillLevel") {
-            body[k] = v || null;
           } else {
             body[k] = v;
           }
         }
+        if (body.order == null) body.order = 0;
 
         if (formData.id) {
-          const res = await fetch(`/api/skill-tests/${formData.id}`, {
+          const res = await fetch(`/api/courses/quizzes/${formData.id}`, {
             method: "PATCH", headers, body: JSON.stringify(body),
           });
           if (res.ok) {
@@ -1011,7 +996,7 @@ export default function AdminMasterDataPage() {
             return { success: false, error: err.message || "Failed to update skill test" };
           }
         } else {
-          const res = await fetch("/api/skill-tests", {
+          const res = await fetch("/api/courses/quizzes", {
             method: "POST", headers, body: JSON.stringify(body),
           });
           if (res.ok) {
@@ -1117,7 +1102,7 @@ export default function AdminMasterDataPage() {
 
     if (currentEntity === "skilltests" && token) {
       try {
-        const res = await fetch(`/api/skill-tests/${record.id}`, {
+        const res = await fetch(`/api/courses/quizzes/${record.id}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         });

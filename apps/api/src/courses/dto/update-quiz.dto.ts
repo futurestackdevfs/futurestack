@@ -23,5 +23,5 @@ export class UpdateQuizDto {
 
   @IsOptional()
   @IsString()
-  skillTestId?: string;
+  sectionId?: string;
 }

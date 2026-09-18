@@ -111,6 +111,7 @@ export default function MyDashboardPage() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showRibbon, setShowRibbon] = useState(false);
+  const [comingSoon, setComingSoon] = useState<{ icon: string; label: string } | null>(null);
   const pct = useProfileCompletion();
 
   useEffect(() => {
@@ -168,7 +169,38 @@ export default function MyDashboardPage() {
     }
   }, [activeTab, discussionCourseId, enrolledCourses]);
 
-  const renderSection = () => (
+  function openComingSoon(icon: string, label: string) {
+    setComingSoon({ icon, label });
+  }
+
+  function selectTab(tabId: TabId) {
+    setComingSoon(null);
+    setActiveTab(tabId);
+  }
+
+  const renderSection = () => comingSoon ? (
+    <div className="flex-1 flex flex-col items-center justify-center text-center py-16 px-6">
+      <div className="w-[64px] h-[64px] rounded-full flex items-center justify-center text-[28px] mb-4 border border-[var(--border)]"
+        style={{ background: "var(--orange-d)" }}>
+        {comingSoon.icon}
+      </div>
+      <div className="font-['Syne',sans-serif] text-[18px] font-bold text-[var(--text)] mb-1.5">{comingSoon.label}</div>
+      <div className="font-['JetBrains_Mono',monospace] text-[10.5px] font-semibold uppercase tracking-[.14em] px-2.5 py-1 rounded-full mb-3"
+        style={{ background: "var(--orange-d)", color: "var(--orange)" }}>
+        🚧 Coming Soon
+      </div>
+      <div className="text-[12px] text-[var(--text3)] max-w-[320px] leading-[1.6]">
+        We&apos;re working on this feature — check back soon!
+      </div>
+      <button
+        onClick={() => selectTab("overview")}
+        className="mt-5 inline-flex items-center gap-1.5 px-4 py-[8px] rounded-[8px] text-[11.5px] font-semibold text-white cursor-pointer border-none"
+        style={{ background: "var(--orange)" }}
+      >
+        ← Back to Overview
+      </button>
+    </div>
+  ) : (
     <SectionRenderer
       activeTab={activeTab}
       selectedCourseId={selectedCourseId}
@@ -234,8 +266,8 @@ export default function MyDashboardPage() {
             {tabs.map(tab => (
               <button
                 key={tab.id}
-                onClick={() => { setActiveTab(tab.id); if (tab.id !== "courses") setSelectedCourseId(null); }}
-                className={`flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] w-full text-left text-[13px] cursor-pointer transition-all no-underline border-none ${activeTab === tab.id
+                onClick={() => { selectTab(tab.id as TabId); if (tab.id !== "courses") setSelectedCourseId(null); }}
+                className={`flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] w-full text-left text-[13px] cursor-pointer transition-all no-underline border-none ${!comingSoon && activeTab === tab.id
                   ? "bg-[#f05a1a] dark:bg-[#ff6a1a] text-white font-semibold"
                   : "text-[#000000] dark:text-[#b0bac9] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0]"
                   }`}
@@ -275,17 +307,17 @@ export default function MyDashboardPage() {
           {/* Community */}
           <div className="px-2.5 py-0.5">
             <div className="text-[10px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-0.5 px-2">Community</div>
-            <button onClick={() => { setActiveTab("discussion"); setDiscussionCourseId(null); }} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold px-[3px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
-            <button onClick={() => setActiveTab("skilltests")} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></button>
-            <Link href="/leaderboard" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[13px] shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></Link>
-            <Link href="/study-groups" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[13px] shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></Link>
+            <button onClick={() => { setComingSoon(null); setActiveTab("discussion"); setDiscussionCourseId(null); }} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold px-[3px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
+            <button onClick={() => selectTab("skilltests")} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></button>
+            <button onClick={() => openComingSoon("🏆", "Leaderboard")} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></button>
+            <button onClick={() => openComingSoon("🤝", "Study Groups")} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></button>
           </div>
 
           {/* Account */}
           <div className="px-2.5 py-0.5">
             <div className="text-[10px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-0.5 px-2">Account</div>
             <Link href="/profile" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[13px] shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
-            <Link href="/support" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[13px] shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
+            <button onClick={() => openComingSoon("🆘", "Help Center")} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></button>
           </div>
 
           {/* Sidebar Footer */}
@@ -385,8 +417,8 @@ export default function MyDashboardPage() {
               {tabs.map(tab => (
                 <button
                   key={tab.id}
-                  onClick={() => { setActiveTab(tab.id); if (tab.id !== "courses") setSelectedCourseId(null); setSidebarOpen(false); }}
-                  className={`flex items-center gap-2.5 px-2.5 py-[7px] rounded-[6px] w-full text-left text-[14px] cursor-pointer transition-all no-underline border-none ${activeTab === tab.id
+                  onClick={() => { selectTab(tab.id as TabId); if (tab.id !== "courses") setSelectedCourseId(null); setSidebarOpen(false); }}
+                  className={`flex items-center gap-2.5 px-2.5 py-[7px] rounded-[6px] w-full text-left text-[14px] cursor-pointer transition-all no-underline border-none ${!comingSoon && activeTab === tab.id
                     ? "bg-[#f05a1a] dark:bg-[#ff6a1a] text-white font-semibold"
                     : "text-[#000000] dark:text-[#b0bac9] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0]"
                     }`}
@@ -423,16 +455,16 @@ export default function MyDashboardPage() {
             {/* Community */}
             <div className="px-2.5 py-1">
               <div className="text-[11px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-1 px-2">Community</div>
-              <button onClick={() => { setActiveTab("discussion"); setDiscussionCourseId(null); setSidebarOpen(false); }} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[10px] font-semibold px-[4px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
-              <button onClick={() => { setActiveTab("skilltests"); setSidebarOpen(false); }} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></button>
-              <Link href="/leaderboard" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[14px] shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></Link>
-              <Link href="/study-groups" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[14px] shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></Link>
+              <button onClick={() => { setComingSoon(null); setActiveTab("discussion"); setDiscussionCourseId(null); setSidebarOpen(false); }} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[10px] font-semibold px-[4px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
+              <button onClick={() => { selectTab("skilltests"); setSidebarOpen(false); }} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></button>
+              <button onClick={() => { openComingSoon("🏆", "Leaderboard"); setSidebarOpen(false); }} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></button>
+              <button onClick={() => { openComingSoon("🤝", "Study Groups"); setSidebarOpen(false); }} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></button>
             </div>
             {/* Account */}
             <div className="px-2.5 py-1">
               <div className="text-[11px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-1 px-2">Account</div>
               <Link href="/profile" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[14px] shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
-              <Link href="/support" onClick={() => setSidebarOpen(false)} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[14px] shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
+              <button onClick={() => { openComingSoon("🆘", "Help Center"); setSidebarOpen(false); }} className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[13px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></button>
             </div>
             {/* Footer */}
             <div className="mt-3 px-2.5 py-1.5 border-t border-[#e2e6ef] dark:border-[#1e2535] mx-2.5">
@@ -445,12 +477,6 @@ export default function MyDashboardPage() {
       {/* Status Bar — full width */}
       <div className="flex items-center gap-x-2 gap-y-1 px-2 sm:px-4 py-[7px] bg-[var(--surface)] border-t border-[var(--border)] text-[10.5px] font-['JetBrains_Mono',monospace] text-[var(--text3)] flex-shrink-0 flex-wrap sm:flex-nowrap">
         <span className="flex items-center gap-1 text-[var(--green)] font-semibold"><span className="text-[8px]">●</span>Connected</span>
-        <span className="text-[var(--border2)] hidden sm:inline">│</span>
-        <span className="flex items-center gap-1 text-[var(--orange)]">🔥 14-day streak</span>
-        <span className="text-[var(--border2)] hidden sm:inline">│</span>
-        {/* <span className="flex items-center gap-1 text-[var(--blue2)]">⚡ 1,240 XP · Level 6</span> */}
-        <span className="text-[var(--border2)] hidden sm:inline">│</span>
-        <span className="flex items-center gap-1 hidden sm:flex">📅 Next live: Wed 10:00 AM</span>
         <span className="ml-auto flex items-center gap-2 hidden sm:flex">
           <span className="truncate max-w-[120px]">{isLoading ? "—" : `${courseCount} course${courseCount !== 1 ? "s" : ""}`}</span>
           <span className="text-[var(--border2)]">│</span>

@@ -6,17 +6,13 @@ interface TestQuestion {
   id: string;
   question: string;
   options: string[];
-  order: number;
 }
 
 interface TestDetail {
-  id: string;
+  quizId: string;
   title: string;
-  description: string | null;
-  category: string | null;
-  skillLevel: string | null;
-  durationMinutes: number | null;
   passingScore: number | null;
+  hasQuestions: boolean;
   questions: TestQuestion[];
 }
 
@@ -34,9 +30,9 @@ interface SubmitResult {
   score: number;
   totalQuestions: number;
   correctCount: number;
-  isPassed: boolean;
+  passed: boolean | null;
   passingScore: number | null;
-  breakdown: QuestionBreakdown[];
+  breakdown?: QuestionBreakdown[];
 }
 
 interface SkillTestPlayerProps {
@@ -44,6 +40,8 @@ interface SkillTestPlayerProps {
   onExit: () => void;
 }
 
+// Plays a standalone Quiz (sectionId === null) — formerly a "SkillTest".
+// Backed by the Quiz APIs under /api/student/quizzes/:quizId/*.
 export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayerProps) {
   const [test, setTest] = useState<TestDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,20 +50,18 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const submittedRef = useRef(false);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`/api/skill-tests/public/${skillTestId}`, { credentials: "same-origin" })
+    fetch(`/api/student/quizzes/${skillTestId}/questions`, { credentials: "same-origin" })
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load test");
         return r.json();
       })
       .then((data: TestDetail) => {
         setTest(data);
-        if (data.durationMinutes) setSecondsLeft(data.durationMinutes * 60);
       })
       .catch(() => setError("Failed to load this skill test. Please try again."))
       .finally(() => setLoading(false));
@@ -82,7 +78,7 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
           selectedIndex: answers[q.id] ?? -1,
         })),
       };
-      const res = await fetch(`/api/skill-tests/public/${skillTestId}/submit`, {
+      const res = await fetch(`/api/student/quizzes/${skillTestId}/submit`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -99,17 +95,6 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
     }
   }
 
-  useEffect(() => {
-    if (secondsLeft == null || result) return;
-    if (secondsLeft <= 0) {
-      handleSubmit();
-      return;
-    }
-    const t = setTimeout(() => setSecondsLeft((s) => (s != null ? s - 1 : s)), 1000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secondsLeft, result]);
-
   function selectOption(questionId: string, idx: number) {
     setAnswers((prev) => ({ ...prev, [questionId]: idx }));
   }
@@ -119,7 +104,6 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
     setAnswers({});
     setCurrent(0);
     submittedRef.current = false;
-    if (test?.durationMinutes) setSecondsLeft(test.durationMinutes * 60);
   }
 
   if (loading) {
@@ -149,15 +133,15 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl px-6 py-8 flex flex-col items-center text-center gap-3">
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center text-[28px]"
-            style={{ background: result.isPassed ? "var(--green-d)" : "var(--orange-d)" }}
+            style={{ background: result.passed ? "var(--green-d)" : "var(--orange-d)" }}
           >
-            {result.isPassed ? "🏆" : "📊"}
+            {result.passed ? "🏆" : "📊"}
           </div>
-          <div className="font-['Syne',sans-serif] text-[26px] font-[800]" style={{ color: result.isPassed ? "var(--green)" : "var(--orange)" }}>
+          <div className="font-['Syne',sans-serif] text-[26px] font-[800]" style={{ color: result.passed ? "var(--green)" : "var(--orange)" }}>
             {result.score}%
           </div>
           <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>
-            {result.isPassed ? "You passed! 🎉" : "Not quite — keep practicing"}
+            {result.passed ? "You passed! 🎉" : "Not quite — keep practicing"}
           </div>
           <div className="font-mono text-[11px]" style={{ color: "var(--text3)" }}>
             {result.correctCount} / {result.totalQuestions} correct
@@ -173,59 +157,59 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
           </div>
         </div>
 
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--text3)]">{"// review"}</span>
-            <span className="font-['Syne',sans-serif] text-[13.5px] font-bold text-[var(--text)]">Answer Breakdown</span>
-            <span className="flex-1 h-[1px] bg-[var(--border)]" />
-          </div>
-          <div className="flex flex-col gap-2.5">
-            {result.breakdown.map((q, i) => (
-              <div
-                key={q.questionId}
-                className={`bg-[var(--card)] border rounded-xl px-4 py-[14px] ${q.isCorrect ? "border-l-[3px] border-l-[var(--green)]" : "border-l-[3px] border-l-[#dc2626]"}`}
-                style={{ borderTopColor: "var(--border)", borderRightColor: "var(--border)", borderBottomColor: "var(--border)" }}
-              >
-                <div className="flex items-start gap-2 mb-2">
-                  <span className="font-['JetBrains_Mono',monospace] text-[9px] font-bold shrink-0 mt-[2px]" style={{ color: "var(--text3)" }}>Q{i + 1}</span>
-                  <div className="text-[12.5px] font-semibold" style={{ color: "var(--text)" }}>{q.question}</div>
-                </div>
-                <div className="flex flex-col gap-1.5 ml-[22px]">
-                  {q.options.map((opt, oi) => {
-                    const isSelected = oi === q.selectedIndex;
-                    const isCorrectOpt = oi === q.correctIndex;
-                    return (
-                      <div
-                        key={oi}
-                        className="text-[11px] px-2.5 py-[6px] rounded-[6px] flex items-center gap-2"
-                        style={{
-                          background: isCorrectOpt ? "var(--green-d)" : isSelected ? "rgba(220,38,38,.08)" : "var(--panel)",
-                          color: isCorrectOpt ? "var(--green)" : isSelected ? "#dc2626" : "var(--text2)",
-                        }}
-                      >
-                        <span>{isCorrectOpt ? "✓" : isSelected ? "✕" : "○"}</span>
-                        <span>{opt}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-                {q.explanation && (
-                  <div className="ml-[22px] mt-2 text-[10.5px] font-mono" style={{ color: "var(--text3)" }}>
-                    💡 {q.explanation}
+        {result.breakdown && (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--text3)]">{"// review"}</span>
+              <span className="font-['Syne',sans-serif] text-[13.5px] font-bold text-[var(--text)]">Answer Breakdown</span>
+              <span className="flex-1 h-[1px] bg-[var(--border)]" />
+            </div>
+            <div className="flex flex-col gap-2.5">
+              {result.breakdown.map((q, i) => (
+                <div
+                  key={q.questionId}
+                  className={`bg-[var(--card)] border rounded-xl px-4 py-[14px] ${q.isCorrect ? "border-l-[3px] border-l-[var(--green)]" : "border-l-[3px] border-l-[#dc2626]"}`}
+                  style={{ borderTopColor: "var(--border)", borderRightColor: "var(--border)", borderBottomColor: "var(--border)" }}
+                >
+                  <div className="flex items-start gap-2 mb-2">
+                    <span className="font-['JetBrains_Mono',monospace] text-[9px] font-bold shrink-0 mt-[2px]" style={{ color: "var(--text3)" }}>Q{i + 1}</span>
+                    <div className="text-[12.5px] font-semibold" style={{ color: "var(--text)" }}>{q.question}</div>
                   </div>
-                )}
-              </div>
-            ))}
+                  <div className="flex flex-col gap-1.5 ml-[22px]">
+                    {q.options.map((opt, oi) => {
+                      const isSelected = oi === q.selectedIndex;
+                      const isCorrectOpt = oi === q.correctIndex;
+                      return (
+                        <div
+                          key={oi}
+                          className="text-[11px] px-2.5 py-[6px] rounded-[6px] flex items-center gap-2"
+                          style={{
+                            background: isCorrectOpt ? "var(--green-d)" : isSelected ? "rgba(220,38,38,.08)" : "var(--panel)",
+                            color: isCorrectOpt ? "var(--green)" : isSelected ? "#dc2626" : "var(--text2)",
+                          }}
+                        >
+                          <span>{isCorrectOpt ? "✓" : isSelected ? "✕" : "○"}</span>
+                          <span>{opt}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {q.explanation && (
+                    <div className="ml-[22px] mt-2 text-[10.5px] font-mono" style={{ color: "var(--text3)" }}>
+                      💡 {q.explanation}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
 
   const q = test.questions[current];
   const answeredCount = Object.keys(answers).length;
-  const mins = secondsLeft != null ? Math.floor(secondsLeft / 60) : null;
-  const secs = secondsLeft != null ? secondsLeft % 60 : null;
 
   return (
     <div className="flex flex-col gap-4 px-[18px] py-4">
@@ -233,14 +217,6 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
         <button onClick={onExit} className="font-mono text-[9.5px] font-semibold cursor-pointer bg-transparent border-none flex items-center gap-1" style={{ color: "var(--text3)" }}>
           ← Exit Test
         </button>
-        {secondsLeft != null && (
-          <span
-            className="font-['JetBrains_Mono',monospace] text-[11px] font-bold px-3 py-1 rounded-[6px]"
-            style={{ background: secondsLeft < 60 ? "rgba(220,38,38,.1)" : "var(--panel)", color: secondsLeft < 60 ? "#dc2626" : "var(--text2)" }}
-          >
-            ⏱ {mins}:{String(secs).padStart(2, "0")}
-          </span>
-        )}
       </div>
 
       <div>

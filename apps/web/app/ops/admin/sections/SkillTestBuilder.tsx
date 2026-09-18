@@ -67,7 +67,7 @@ export function SkillTestBuilder({
     if (!token || !skillTestId) return;
     setLoading(true);
     setFetchError(null);
-    apiCall(token, `/skill-tests/${skillTestId}`)
+    apiCall(token, `/courses/quizzes/${skillTestId}`)
       .then((data) => {
         const qs: ApiQuestion[] = (data.questions || []).map((q: any) => ({
           id: q.id,
@@ -173,7 +173,7 @@ export function SkillTestBuilder({
       const deleted = orig.filter((o) => !curr.some((c) => c.id === o.id));
       for (const q of deleted) {
         if (q.id.startsWith("new_")) continue;
-        await apiCall(token, `/skill-tests/questions/${q.id}`, { method: "DELETE" });
+        await apiCall(token, `/courses/quizzes/questions/${q.id}`, { method: "DELETE" });
       }
 
       for (const q of curr) {
@@ -186,14 +186,14 @@ export function SkillTestBuilder({
           order: q.order,
         };
         if (isNew) {
-          await apiCall(token, `/skill-tests/${skillTestId}/questions`, {
+          await apiCall(token, `/courses/quizzes/${skillTestId}/questions`, {
             method: "POST",
             body: JSON.stringify(body),
           });
         } else {
           const origQ = orig.find((o) => o.id === q.id);
           if (!origQ || JSON.stringify(origQ) !== JSON.stringify(q)) {
-            await apiCall(token, `/skill-tests/questions/${q.id}`, {
+            await apiCall(token, `/courses/quizzes/questions/${q.id}`, {
               method: "PATCH",
               body: JSON.stringify(body),
             });

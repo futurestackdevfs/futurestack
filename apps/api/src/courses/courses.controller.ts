@@ -26,6 +26,8 @@ import { CreateVideoDto } from './dto/create-video.dto';
 import { UpdateVideoDto } from './dto/update-video.dto';
 import { CreateQuizDto } from './dto/create-quiz.dto';
 import { UpdateQuizDto } from './dto/update-quiz.dto';
+import { CreateQuizQuestionDto } from './dto/create-quiz-question.dto';
+import { UpdateQuizQuestionDto } from './dto/update-quiz-question.dto';
 import { CreateResourceDto } from './dto/create-resource.dto';
 import { CreateHeroSlideDto } from './dto/create-hero-slide.dto';
 import { SetCourseCareerPathDto } from './dto/set-course-career-path.dto';
@@ -170,7 +172,8 @@ export class CoursesController {
   }
 
   // ================================================================
-  // QUIZZES — update/delete + create (nested under section)
+  // QUIZZES — update/delete + create (nested under section), plus
+  // standalone quizzes (sectionId null — formerly the SkillTest catalog)
   // ================================================================
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
@@ -183,6 +186,25 @@ export class CoursesController {
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get('quizzes')
+  listStandaloneQuizzes() {
+    return this.coursesService.listStandaloneQuizzes();
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'CREATE', entity: 'Quiz', idFrom: 'response' })
+  @Post('quizzes')
+  createStandaloneQuiz(@Body() dto: CreateQuizDto) {
+    return this.coursesService.createStandaloneQuiz(dto);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get('quizzes/:id')
+  getStandaloneQuiz(@Param('id') id: string) {
+    return this.coursesService.getStandaloneQuiz(id);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Patch('quizzes/:id')
   updateQuiz(@Param('id') id: string, @Body() dto: UpdateQuizDto) {
     return this.coursesService.updateQuiz(id, dto);
@@ -192,6 +214,31 @@ export class CoursesController {
   @Delete('quizzes/:id')
   deleteQuiz(@Param('id') id: string) {
     return this.coursesService.deleteQuiz(id);
+  }
+
+  // ================================================================
+  // QUIZ QUESTIONS — nested under a quiz id
+  // ================================================================
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post('quizzes/:quizId/questions')
+  addQuizQuestion(
+    @Param('quizId') quizId: string,
+    @Body() dto: CreateQuizQuestionDto,
+  ) {
+    return this.coursesService.addQuizQuestion(quizId, dto);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Patch('quizzes/questions/:id')
+  updateQuizQuestion(@Param('id') id: string, @Body() dto: UpdateQuizQuestionDto) {
+    return this.coursesService.updateQuizQuestion(id, dto);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Delete('quizzes/questions/:id')
+  deleteQuizQuestion(@Param('id') id: string) {
+    return this.coursesService.deleteQuizQuestion(id);
   }
 
   // ================================================================

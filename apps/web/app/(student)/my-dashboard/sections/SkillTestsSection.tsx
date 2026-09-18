@@ -3,35 +3,25 @@
 import { useEffect, useState } from "react";
 import SkillTestPlayer from "./SkillTestPlayer";
 
+// Standalone quizzes — Quiz rows with sectionId === null (formerly the
+// separate SkillTest catalog). Backed by /api/student/quizzes/*.
 interface SkillTestSummary {
   id: string;
   title: string;
-  description: string | null;
-  category: string | null;
-  skillLevel: string | null;
-  durationMinutes: number | null;
   passingScore: number | null;
-  questionCount: number;
+  totalQuestions: number;
 }
 
 interface SkillTestAttempt {
   id: string;
-  skillTestId: string;
+  quizId: string;
   title: string;
-  category: string | null;
   score: number;
-  totalQuestions: number;
-  correctCount: number;
-  isPassed: boolean;
+  totalQuestions: number | null;
+  correctCount: number | null;
+  isPassed: boolean | null;
   completedAt: string;
 }
-
-const LEVEL_LABELS: Record<string, string> = { BEGINNER: "Beginner", INTERMEDIATE: "Intermediate", ADVANCED: "Advanced" };
-const LEVEL_CLS: Record<string, string> = {
-  BEGINNER: "bg-green-500/10 text-[#16a34a] dark:text-[#22c55e]",
-  INTERMEDIATE: "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a]",
-  ADVANCED: "bg-blue-500/10 text-[#2563eb] dark:text-[#3b82f6]",
-};
 
 export default function SkillTestsSection() {
   const [tests, setTests] = useState<SkillTestSummary[]>([]);
@@ -44,8 +34,8 @@ export default function SkillTestsSection() {
     setLoading(true);
     setError(null);
     Promise.all([
-      fetch("/api/skill-tests/public", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : [])),
-      fetch("/api/skill-tests/mine", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : [])),
+      fetch("/api/student/quizzes/standalone", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : [])),
+      fetch("/api/student/quizzes/mine", { credentials: "same-origin" }).then((r) => (r.ok ? r.json() : [])),
     ])
       .then(([testsData, attemptsData]) => {
         setTests(Array.isArray(testsData) ? testsData : []);
@@ -68,8 +58,8 @@ export default function SkillTestsSection() {
 
   const bestByTest = new Map<string, SkillTestAttempt>();
   for (const a of attempts) {
-    const existing = bestByTest.get(a.skillTestId);
-    if (!existing || a.score > existing.score) bestByTest.set(a.skillTestId, a);
+    const existing = bestByTest.get(a.quizId);
+    if (!existing || a.score > existing.score) bestByTest.set(a.quizId, a);
   }
 
   return (
@@ -115,27 +105,12 @@ export default function SkillTestsSection() {
                   key={t.id}
                   className="bg-[var(--card)] border border-[var(--border)] rounded-xl px-4 py-[14px] flex flex-col gap-2.5 transition-all duration-[0.15s] hover:border-[var(--border2)] hover:shadow-[var(--sh)]"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-[13.5px] font-bold text-[var(--text)] mb-[4px] truncate">{t.title}</div>
-                      {t.category && (
-                        <div className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)] uppercase tracking-[.06em]">{t.category}</div>
-                      )}
-                    </div>
-                    {t.skillLevel && (
-                      <span className={`font-['JetBrains_Mono',monospace] text-[8px] font-bold px-[8px] py-[3px] rounded-[20px] shrink-0 ${LEVEL_CLS[t.skillLevel] || ""}`}>
-                        {LEVEL_LABELS[t.skillLevel] || t.skillLevel}
-                      </span>
-                    )}
+                  <div className="min-w-0">
+                    <div className="text-[13.5px] font-bold text-[var(--text)] mb-[4px] truncate">{t.title}</div>
                   </div>
 
-                  {t.description && (
-                    <div className="text-[11.5px] text-[var(--text2)] line-clamp-2">{t.description}</div>
-                  )}
-
                   <div className="flex items-center gap-3 font-['JetBrains_Mono',monospace] text-[9.5px] text-[var(--text3)]">
-                    <span>📝 {t.questionCount} question{t.questionCount !== 1 ? "s" : ""}</span>
-                    {t.durationMinutes != null && <span>⏱ {t.durationMinutes} min</span>}
+                    <span>📝 {t.totalQuestions} question{t.totalQuestions !== 1 ? "s" : ""}</span>
                     {t.passingScore != null && <span>🎯 Pass at {t.passingScore}%</span>}
                   </div>
 
@@ -147,7 +122,7 @@ export default function SkillTestsSection() {
 
                   <button
                     onClick={() => setActiveTestId(t.id)}
-                    disabled={t.questionCount === 0}
+                    disabled={t.totalQuestions === 0}
                     className="mt-1 px-3 py-[8px] rounded-[6px] text-[12px] font-semibold text-white bg-[var(--orange)] shadow-[0_2px_8px_rgba(240,90,26,.3)] hover:bg-[var(--orange2)] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
                     {best ? "Retake Test →" : "Start Test →"}

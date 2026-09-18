@@ -66,6 +66,19 @@ export class StudentController {
   }
 
   @Auth(Role.STUDENT)
+  @Get('quizzes/standalone')
+  async listStandaloneQuizzes() {
+    return this.studentService.listStandaloneQuizzes();
+  }
+
+  @Auth(Role.STUDENT)
+  @Get('quizzes/mine')
+  async myStandaloneQuizAttempts(@Req() req: Request) {
+    const user = req.user as { id: string };
+    return this.studentService.myStandaloneQuizAttempts(user.id);
+  }
+
+  @Auth(Role.STUDENT)
   @Get('quizzes/:quizId/questions')
   async getQuizQuestions(
     @Param('quizId') quizId: string,

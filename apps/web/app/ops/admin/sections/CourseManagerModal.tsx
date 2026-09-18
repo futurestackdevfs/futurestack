@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { CurriculumBuilder } from "./CurriculumBuilder";
 import { ResourceManagerModal } from "./ResourceManagerModal";
-import { SkillTestBuilder } from "./SkillTestBuilder";
 import { MasterDataModal, type FieldDef } from "./MasterDataModal";
+import { CourseSkillTestsTab } from "./CourseSkillTestsTab";
 
 type CourseManagerTab = "curriculum" | "resources" | "skilltest" | "edit";
 
@@ -22,22 +22,6 @@ interface CourseManagerModalProps {
   onClose: () => void;
 }
 
-async function apiCall(token: string, endpoint: string, options?: RequestInit) {
-  const res = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...options?.headers,
-    },
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data?.message || res.statusText || `Request failed (${res.status})`);
-  }
-  return res.json();
-}
-
 const TABS: { key: CourseManagerTab; icon: string; label: string }[] = [
   { key: "curriculum", icon: "📋", label: "Curriculum" },
   { key: "resources", icon: "📎", label: "Resources" },
@@ -49,24 +33,10 @@ export function CourseManagerModal({
   open, courseId, courseName, courseCode, token, fields, editData, extraOptions, onSaveEdit, onCurriculumSaved, onClose,
 }: CourseManagerModalProps) {
   const [activeTab, setActiveTab] = useState<CourseManagerTab>("curriculum");
-  const [skillTest, setSkillTest] = useState<{ id: string; title: string } | null>(null);
-  const [skillTestLoading, setSkillTestLoading] = useState(false);
 
   useEffect(() => {
     if (open) setActiveTab("curriculum");
   }, [open, courseId]);
-
-  useEffect(() => {
-    if (!open || activeTab !== "skilltest" || !token || !courseId) return;
-    setSkillTestLoading(true);
-    apiCall(token, `/skill-tests/by-course/${courseId}`, {
-      method: "POST",
-      body: JSON.stringify({ defaultTitle: `${courseName || courseCode} — Skill Test` }),
-    })
-      .then((test) => setSkillTest({ id: test.id, title: test.title }))
-      .catch(() => setSkillTest(null))
-      .finally(() => setSkillTestLoading(false));
-  }, [open, activeTab, token, courseId, courseName, courseCode]);
 
   if (!open) return null;
 
@@ -150,21 +120,11 @@ export function CourseManagerModal({
             />
           )}
           {activeTab === "skilltest" && (
-            skillTestLoading || !skillTest ? (
-              <div className="text-center py-8 font-mono text-[11px]" style={{ color: "var(--text3)" }}>
-                {skillTestLoading ? "Loading skill test..." : "Failed to load skill test."}
-              </div>
-            ) : (
-              <SkillTestBuilder
-                embedded
-                open={true}
-                skillTestId={skillTest.id}
-                skillTestTitle={skillTest.title}
-                token={token}
-                onSave={() => {}}
-                onClose={onClose}
-              />
-            )
+            <CourseSkillTestsTab
+              courseId={courseId}
+              token={token}
+              onChanged={() => { onCurriculumSaved?.(); }}
+            />
           )}
           {activeTab === "edit" && (
             <MasterDataModal

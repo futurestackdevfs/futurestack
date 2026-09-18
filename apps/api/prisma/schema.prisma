@@ -118,7 +118,6 @@ model User {
   enrollments       Enrollment[]
   videoProgress     VideoProgress[]
   quizAttempts      QuizAttempt[] // ADDED — fixes missing back-relation
-  skillTestAttempts SkillTestAttempt[]
   coursesTaught     Course[]           @relation("CourseTrainer")
   projectsTaught    Project[]          @relation("ProjectTrainer")
   approvalStatus    ApprovalStatus?
@@ -195,7 +194,6 @@ model Course {
   discussions  CourseDiscussion[]
   certificates Certificate[]
   reviews      Review[]
-  skillTests   SkillTest[]
 
   averageRating Float @default(0)
   reviewCount   Int   @default(0)
@@ -257,55 +255,18 @@ model Quiz {
   id             String        @id @default(uuid())
   title          String
   order          Int // same ordering convention as Video.order within a Section
-  section        Section       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  sectionId      String
+  section        Section?      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  sectionId      String? // null = standalone quiz/skill test, not attached to a course section
   totalQuestions Int
   passingScore   Int? // percentage, e.g. 70 — null means no pass/fail gate
   attempts       QuizAttempt[]
-
-  skillTestId String?
-  skillTest   SkillTest? @relation(fields: [skillTestId], references: [id], onDelete: SetNull)
+  questions      QuizQuestion[]
 }
 
-model QuizAttempt {
-  id          String   @id @default(uuid())
-  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  studentId   String
-  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  quizId      String
-  score       Int // percentage, e.g. 91
-  isCompleted Boolean  @default(true) // a submitted attempt is complete by definition
-  completedAt DateTime @default(now())
-
-  @@unique([studentId, quizId]) // one attempt record per student per quiz (latest/best — your call on retake policy)
-}
-
-model SkillTest {
-  id              String       @id @default(uuid())
-  title           String       @unique
-  description     String?
-  category        String?
-  skillLevel      SkillLevel?
-  durationMinutes Int?
-  passingScore    Int? // percentage, e.g. 70
-  status          CourseStatus @default(DRAFT)
-  isFeatured      Boolean      @default(false)
-  displayOrder    Int          @default(0)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @default(now()) @updatedAt
-
-  questions SkillTestQuestion[]
-  attempts  SkillTestAttempt[]
-  quizzes   Quiz[]
-
-  courseId String?
-  course   Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
-}
-
-model SkillTestQuestion {
-  id           String    @id @default(uuid())
-  skillTest    SkillTest @relation(fields: [skillTestId], references: [id], onDelete: Cascade)
-  skillTestId  String
+model QuizQuestion {
+  id           String  @id @default(uuid())
+  quiz         Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId       String
   question     String
   options      String[]
   correctIndex Int
@@ -313,21 +274,22 @@ model SkillTestQuestion {
   order        Int
 }
 
-model SkillTestAttempt {
-  id             String    @id @default(uuid())
-  student        User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+model QuizAttempt {
+  id             String   @id @default(uuid())
+  student        User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
   studentId      String
-  skillTest      SkillTest @relation(fields: [skillTestId], references: [id], onDelete: Cascade)
-  skillTestId    String
-  score          Int // percentage
-  totalQuestions Int
-  correctCount   Int
-  isPassed       Boolean
+  quiz           Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId         String
+  score          Int // percentage, e.g. 91
+  totalQuestions Int?
+  correctCount   Int?
+  isPassed       Boolean?
   answers        Json?
-  completedAt    DateTime  @default(now())
+  isCompleted    Boolean  @default(true) // a submitted attempt is complete by definition
+  completedAt    DateTime @default(now())
 
   @@index([studentId])
-  @@index([skillTestId])
+  @@index([quizId])
 }
 
 model Enrollment {

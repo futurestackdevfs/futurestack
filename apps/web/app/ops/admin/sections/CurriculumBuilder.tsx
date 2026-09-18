@@ -9,7 +9,7 @@ interface ApiVideo {
   id: string; title: string; vdoCipherId: string; durationSeconds: number; order: number; isPreview: boolean;
 }
 interface ApiQuiz {
-  id: string; title: string; order: number; totalQuestions: number; passingScore?: number; skillTestId?: string | null;
+  id: string; title: string; order: number; totalQuestions: number; passingScore?: number;
 }
 interface ApiSection {
   id: string; title: string; order: number; videos: ApiVideo[]; quizzes: ApiQuiz[];
@@ -120,41 +120,10 @@ export function CurriculumBuilder({
   const originalSections = useRef<ApiSection[]>([]);
   const tempIdCounter = useRef(0);
   const [confirmState, setConfirmState] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
-  const [courseSkillTest, setCourseSkillTest] = useState<{ id: string; title: string; passingScore?: number; questionCount: number } | null>(null);
-  const [skillTestEditorOpen, setSkillTestEditorOpen] = useState(false);
-  const [creatingSkillTest, setCreatingSkillTest] = useState(false);
-
-  function refreshCourseSkillTest() {
-    if (!token) return;
-    return apiCall(token, `/skill-tests/by-course/${courseId}`)
-      .then((test) => {
-        if (test) {
-          setCourseSkillTest({
-            id: test.id,
-            title: test.title,
-            passingScore: test.passingScore,
-            questionCount: (test.questions || []).length,
-          });
-        } else {
-          setCourseSkillTest(null);
-        }
-      })
-      .catch(() => setCourseSkillTest(null));
-  }
-
-  async function createCourseSkillTest() {
-    if (!token || creatingSkillTest) return;
-    setCreatingSkillTest(true);
-    try {
-      await apiCall(token, `/skill-tests/by-course/${courseId}`, { method: "POST" });
-      await refreshCourseSkillTest();
-      setSkillTestEditorOpen(true);
-    } catch {
-      // surfaced via courseSkillTest staying null
-    } finally {
-      setCreatingSkillTest(false);
-    }
-  }
+  // Each quiz owns its own questions directly (QuizQuestion) — no shared
+  // course-level skill test anymore. This tracks which quiz's question
+  // editor is currently open.
+  const [quizEditorTarget, setQuizEditorTarget] = useState<{ id: string; title: string } | null>(null);
 
   function nextTempId() { return `new_${--tempIdCounter.current}`; }
 
@@ -196,7 +165,7 @@ export function CurriculumBuilder({
           })),
           quizzes: (s.quizzes || []).map((q: any) => ({
             id: q.id, title: q.title || "", order: q.order ?? 0,
-            totalQuestions: q.totalQuestions ?? 0, passingScore: q.passingScore, skillTestId: q.skillTestId,
+            totalQuestions: q.totalQuestions ?? 0, passingScore: q.passingScore,
           })),
         }));
         setSections(secs);
@@ -207,8 +176,6 @@ export function CurriculumBuilder({
       })
       .catch((e) => { setFetchError(e.message || "Failed to load curriculum"); })
       .finally(() => setLoading(false));
-
-    refreshCourseSkillTest();
   }, [open, courseId, token]);
 
   function refreshSections() {
@@ -290,11 +257,9 @@ export function CurriculumBuilder({
         return updated;
       });
     } else {
-      if (!courseSkillTest) return;
       const newQuiz: ApiQuiz = {
-        id: nextTempId(), title: courseSkillTest.title, order: 0,
-        totalQuestions: courseSkillTest.questionCount, passingScore: courseSkillTest.passingScore,
-        skillTestId: courseSkillTest.id,
+        id: nextTempId(), title: 'New Quiz', order: 0,
+        totalQuestions: 0, passingScore: undefined,
       };
       setSections(prev => {
         const sec = prev.find(s => s.id === sectionId);
@@ -431,7 +396,7 @@ export function CurriculumBuilder({
           for (const q of section.quizzes) {
             await apiCall(token, `/courses/sections/${realSectionId}/quizzes`, {
               method: 'POST',
-              body: JSON.stringify({ title: q.title, order: q.order, totalQuestions: q.totalQuestions, skillTestId: q.skillTestId }),
+              body: JSON.stringify({ title: q.title, order: q.order, totalQuestions: q.totalQuestions, passingScore: q.passingScore ?? undefined }),
             });
           }
         } else if (origSec) {
@@ -474,7 +439,7 @@ export function CurriculumBuilder({
             await apiCall(token, `/courses/quizzes/${q.id}`, { method: 'DELETE' });
           }
           for (const q of newQuizzes) {
-            const body: any = { title: q.title, order: q.order, totalQuestions: q.totalQuestions, skillTestId: q.skillTestId };
+            const body: any = { title: q.title, order: q.order, totalQuestions: q.totalQuestions };
             if (q.passingScore !== undefined) body.passingScore = q.passingScore;
             await apiCall(token, `/courses/sections/${section.id}/quizzes`, {
               method: 'POST',
@@ -685,12 +650,18 @@ export function CurriculumBuilder({
                                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--orange))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, #fff)"; }}
                                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, var(--orange-d))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--orange))"; }}
                               >📤 Upload</button>
-                            ) : (
+                            ) : lesson.id.startsWith('new_') ? (
                               <span className="text-[10px] px-1.5 py-1 rounded text-center whitespace-nowrap"
                                 style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text3)" }}
-                                title="Question count is derived from the linked skill test">
-                                {lesson.totalQuestions} questions
+                                title="Save the curriculum first to add questions">
+                                Save to add questions
                               </span>
+                            ) : (
+                              <button
+                                onClick={() => setQuizEditorTarget({ id: lesson.id, title: lesson.title })}
+                                className="font-mono text-[9px] font-semibold px-2.5 py-1 rounded cursor-pointer whitespace-nowrap"
+                                style={{ background: "var(--btn-bg, var(--blue-d))", color: "var(--btn-text, var(--blue))", border: "1px solid var(--btn-bg, rgba(37,99,235,.2))" }}
+                              >✎ {lesson.totalQuestions} question{lesson.totalQuestions !== 1 ? "s" : ""}</button>
                             )}
                             <button disabled={acting} onClick={() => removeLesson(section.id, lesson)}
                               className="flex items-center justify-center text-[10px] cursor-pointer disabled:opacity-40"
@@ -707,28 +678,11 @@ export function CurriculumBuilder({
                           style={{ color: "var(--btn-text, var(--green))", background: "var(--btn-bg, transparent)" }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
                           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>+ Add Video</button>
-                        {courseSkillTest ? (
-                          <>
-                            <button disabled={acting} onClick={() => addLesson(section.id, "quiz")}
-                              className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 cursor-pointer disabled:opacity-40"
-                              style={{ color: "var(--btn-text, var(--blue))", background: "var(--btn-bg, transparent)" }}
-                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
-                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>+ Add Quiz ({courseSkillTest.questionCount} Q)</button>
-                            <button disabled={acting} onClick={() => setSkillTestEditorOpen(true)}
-                              className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 cursor-pointer disabled:opacity-40"
-                              style={{ color: "var(--btn-text, var(--purple))", background: "var(--btn-bg, transparent)" }}
-                              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
-                              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>✎ Edit Skill Test Questions</button>
-                          </>
-                        ) : (
-                          <button disabled={creatingSkillTest} onClick={createCourseSkillTest}
-                            className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 cursor-pointer disabled:opacity-40"
-                            style={{ color: "var(--btn-text, var(--purple))", background: "var(--btn-bg, transparent)" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>
-                            {creatingSkillTest ? "Creating…" : "+ Create Skill Test for this Course"}
-                          </button>
-                        )}
+                        <button disabled={acting} onClick={() => addLesson(section.id, "quiz")}
+                          className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 cursor-pointer disabled:opacity-40"
+                          style={{ color: "var(--btn-text, var(--blue))", background: "var(--btn-bg, transparent)" }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>+ Add Quiz</button>
                       </div>
                     </div>
                   </div>
@@ -798,15 +752,15 @@ export function CurriculumBuilder({
         videoId={selectedLessonId && !selectedLessonId.startsWith('new_') ? selectedLessonId : undefined}
       />
 
-      {/* Skill Test question editor — opened without leaving Curriculum */}
-      {courseSkillTest && (
+      {/* Quiz question editor — opened without leaving Curriculum */}
+      {quizEditorTarget && (
         <SkillTestBuilder
-          open={skillTestEditorOpen}
-          skillTestId={courseSkillTest.id}
-          skillTestTitle={courseSkillTest.title}
+          open={!!quizEditorTarget}
+          skillTestId={quizEditorTarget.id}
+          skillTestTitle={quizEditorTarget.title}
           token={token}
-          onSave={() => { refreshCourseSkillTest(); }}
-          onClose={() => { setSkillTestEditorOpen(false); refreshCourseSkillTest(); }}
+          onSave={() => { refreshSections(); }}
+          onClose={() => { setQuizEditorTarget(null); refreshSections(); }}
         />
       )}
 
