@@ -5,7 +5,7 @@ const BACKEND = process.env.API_URL ?? 'http://localhost:3002';
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token');
   if (!token) {
-    return NextResponse.redirect(new URL('/auth/login', req.url));
+    return NextResponse.redirect(new URL('/', req.url));
   }
 
   const backendRes = await fetch(`${BACKEND}/auth/me`, {
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (!backendRes.ok) {
-    return NextResponse.redirect(new URL('/auth/login?error=session_expired', req.url));
+    return NextResponse.redirect(new URL('/?error=session_expired', req.url));
   }
 
   const refresh = req.nextUrl.searchParams.get('refresh');

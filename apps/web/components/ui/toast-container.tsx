@@ -108,7 +108,7 @@ export function ToastContainer() {
                     }
                   } catch {}
                 }
-                window.location.href = isOps ? '/auth/staff-login' : '/auth/login';
+                window.location.href = isOps ? '/auth/staff-login' : '/';
               }}
               className="bg-transparent border-none p-0 text-left cursor-pointer underline underline-offset-2"
               style={{ textDecorationColor: 'inherit' }}
