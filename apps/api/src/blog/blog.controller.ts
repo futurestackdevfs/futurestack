@@ -4,6 +4,7 @@ import {
   Header,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -16,8 +17,10 @@ import { PageSizePipe } from '../common/page-size.pipe';
 import { BlogService } from './blog.service';
 import { BlogApiKeyGuard } from './blog-api-key.guard';
 import { CreateBlogPostDto } from './dto/create-blog-post.dto';
+import { UpdateBlogPostDto } from './dto/update-blog-post.dto';
 import { GenerateArticleDto } from './dto/generate-article.dto';
 import { Auth } from '../auth/decorators/auth.decorator';
+import { Audit } from '../audit/audit.decorator';
 
 @Controller()
 export class BlogController {
@@ -53,6 +56,28 @@ export class BlogController {
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   async publishFromDashboard(@Param('id') id: string) {
     return this.blogService.publish(id);
+  }
+
+  // Manual creation — the fallback when AI generation isn't configured/fails.
+  @Post('articles/admin')
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'CREATE', entity: 'BlogPost', idFrom: 'response' })
+  async createManual(@Body() dto: CreateBlogPostDto) {
+    return this.blogService.createManual(dto);
+  }
+
+  @Patch('articles/admin/:id')
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'UPDATE', entity: 'BlogPost', idFrom: 'param' })
+  async updateFromDashboard(@Param('id') id: string, @Body() dto: UpdateBlogPostDto) {
+    return this.blogService.update(id, dto);
+  }
+
+  @Delete('articles/admin/:id')
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'DELETE', entity: 'BlogPost', idFrom: 'param' })
+  async removeFromDashboard(@Param('id') id: string) {
+    return this.blogService.remove(id);
   }
 
   @Get('articles')

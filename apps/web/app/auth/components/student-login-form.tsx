@@ -179,7 +179,7 @@ export function StudentLoginForm() {
           <div className="flex flex-col gap-1">
             <label className="flex items-start gap-1.5 text-[10px] text-[var(--muted)] leading-relaxed">
               <input type="checkbox" className="mt-0.5" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} />
-              I agree to the <a href="#" className="text-[var(--blue)] font-semibold">Terms</a> &amp; <a href="#" className="text-[var(--blue)] font-semibold">Privacy Policy</a>
+              I agree to the <a href="#legal:terms" className="text-[var(--blue)] font-semibold">Terms</a> &amp; <a href="#legal:privacy-policy" className="text-[var(--blue)] font-semibold">Privacy Policy</a>
             </label>
             {errors.terms && <span className="text-[9px] text-red-500">{errors.terms}</span>}
           </div>

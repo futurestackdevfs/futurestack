@@ -55,8 +55,8 @@ export function Footer() {
 
             {[
               { title: "Platform", links: [{ label: "Courses", href: "/courses" }, { label: "R&D Services", href: "/research-and-development" }, { label: "Certifications", href: "#" }, { label: "Live Projects", href: "/live-projects" }] },
-              { title: "Company", links: [{ label: "About Us", href: "/about" }, { label: "Careers", href: "/careers" }, { label: "Blog", href: "#" }, { label: "Contact", href: "#contact" }] },
-              { title: "Support", links: [{ label: "Help Center", href: "/support" }, { label: "FAQs", href: "/faq" }, { label: "Community", href: "#" }, { label: "Refund Policy", href: "#" }] },
+              { title: "Company", links: [{ label: "About Us", href: "/about" }, { label: "Careers", href: "/careers" }, { label: "Blog", href: "/articles" }, { label: "Contact", href: "#contact" }] },
+              { title: "Support", links: [{ label: "Help Center", href: "/support" }, { label: "FAQs", href: "/faq" }, { label: "Terms", href: "#legal:terms" }, { label: "Refund Policy", href: "#legal:refund-policy" }] },
             ].map((group) => (
               <div key={group.title} className="footer-link-col">
                 <h4 className="footer-col-title">{group.title}</h4>
@@ -154,8 +154,13 @@ export function Footer() {
             &copy; {new Date().getFullYear()} FutureStack Inc. All rights reserved.
           </p>
           <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center", justifyContent: "center" }}>
-            {["Privacy Policy", "Cookie Policy", "Sitemap"].map((link) => (
-              <a key={link} href="#" className="footer-bottom-link">{link}</a>
+            {[
+              { label: "Privacy Policy", href: "#legal:privacy-policy" },
+              { label: "Terms", href: "#legal:terms" },
+              { label: "Cookie Policy", href: "#legal:cookie-policy" },
+              { label: "Sitemap", href: "#legal:sitemap" },
+            ].map((link) => (
+              <a key={link.label} href={link.href} className="footer-bottom-link">{link.label}</a>
             ))}
           </div>
         </div>

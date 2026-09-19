@@ -201,7 +201,7 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
   const continueHref = firstCourse ? `/my-dashboard?courseId=${firstCourse.courseId}` : "/courses";
 
   return (
-    <div className="flex flex-col gap-5 relative">
+    <div className="flex flex-col gap-5 relative overflow-x-hidden">
       {/* ambient page glow, sits behind everything */}
       <div className="pointer-events-none absolute -top-6 left-1/4 w-[320px] h-[320px] rounded-full blur-[110px] opacity-[0.06] -z-10" style={{ background: "var(--orange)" }} />
       <div className="pointer-events-none absolute top-1/3 right-0 w-[280px] h-[280px] rounded-full blur-[110px] opacity-[0.05] -z-10" style={{ background: "var(--blue2)" }} />
@@ -220,30 +220,30 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
         <div className="absolute -bottom-20 -right-10 w-[240px] h-[240px] rounded-full blur-[80px] opacity-40 pointer-events-none" style={{ background: "rgba(59,130,246,.3)" }} />
 
         <div className="relative z-[1] flex flex-col md:flex-row">
-          <div className="p-[22px_24px] flex-1">
-            <div className="inline-flex items-center gap-1.5 mb-2.5 px-2.5 py-1 rounded-full border border-[rgba(240,90,26,.3)] bg-[var(--orange-d)] font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--orange)]">
-              <span className="w-[5px] h-[5px] rounded-full bg-[var(--orange)]" style={{ animation: "pulse 1.6s ease infinite" }} />
-              {greeting}, {firstName} · {dateLabel}
+          <div className="p-[16px_18px] sm:p-[22px_24px] flex-1 min-w-0">
+            <div className="inline-flex items-center gap-1.5 mb-2.5 px-2.5 py-1 rounded-full border border-[rgba(240,90,26,.3)] bg-[var(--orange-d)] font-['JetBrains_Mono',monospace] text-[8.5px] sm:text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--orange)]">
+              <span className="w-[5px] h-[5px] rounded-full bg-[var(--orange)] shrink-0" style={{ animation: "pulse 1.6s ease infinite" }} />
+              <span className="truncate">{greeting}, {firstName} · {dateLabel}</span>
             </div>
-            <h1 className="font-['Syne',sans-serif] text-[26px] sm:text-[30px] font-extrabold text-[var(--text)] leading-[1.1] mb-2 m-0 tracking-tight">
+            <h1 className="font-['Syne',sans-serif] text-[21px] sm:text-[26px] md:text-[30px] font-extrabold text-[var(--text)] leading-[1.15] mb-2 m-0 tracking-tight">
               {hasEnrollments ? (
                 <>Keep the <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(90deg,var(--orange),#ff9a5c)" }}>momentum</span> going 🚀</>
               ) : (
                 <>Welcome to <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(90deg,var(--orange),#ff9a5c)" }}>FutureStack</span> 👋</>
               )}
             </h1>
-            <div className="text-[12px] text-[var(--text2)] max-w-[420px] leading-[1.65]">{welcomeBody}</div>
-            <div className="flex flex-wrap gap-2.5 mt-4">
+            <div className="text-[11.5px] sm:text-[12px] text-[var(--text2)] max-w-[420px] leading-[1.65]">{welcomeBody}</div>
+            <div className="flex flex-wrap gap-2 sm:gap-2.5 mt-4">
               <Link
                 href={continueHref}
-                className="group inline-flex items-center gap-2 px-5 py-[9px] rounded-[9px] text-white text-[11.5px] font-bold no-underline transition-all duration-300 hover:-translate-y-[2px]"
+                className="group inline-flex items-center gap-2 px-4 sm:px-5 py-[9px] rounded-[9px] text-white text-[11px] sm:text-[11.5px] font-bold no-underline transition-all duration-300 hover:-translate-y-[2px] max-w-full"
                 style={{ background: "linear-gradient(135deg,var(--orange),#ff8a4c)", boxShadow: "0 4px 18px rgba(240,90,26,.4)" }}
               >
-                <span className="text-[13px] transition-transform group-hover:translate-x-0.5">▶</span> {continueLabel}
+                <span className="text-[13px] transition-transform group-hover:translate-x-0.5 shrink-0">▶</span> <span className="truncate">{continueLabel}</span>
               </Link>
               <Link
                 href="/courses"
-                className="inline-flex items-center gap-1.5 px-4 py-[9px] rounded-[9px] bg-transparent text-[var(--text2)] border border-[var(--border2)] text-[11.5px] font-semibold hover:border-[var(--blue2)] hover:text-[var(--blue2)] hover:bg-[var(--blue-d)] transition-all no-underline"
+                className="inline-flex items-center gap-1.5 px-4 py-[9px] rounded-[9px] bg-transparent text-[var(--text2)] border border-[var(--border2)] text-[11px] sm:text-[11.5px] font-semibold hover:border-[var(--blue2)] hover:text-[var(--blue2)] hover:bg-[var(--blue-d)] transition-all no-underline whitespace-nowrap"
               >
                 🧭 Browse More Courses
               </Link>
@@ -251,10 +251,10 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
           </div>
 
           {hasEnrollments && (
-            <div className="p-[22px_24px] flex items-center gap-4 relative border-t md:border-t-0 md:border-l border-[var(--border)]/60">
-              <div className="relative w-[92px] h-[92px] shrink-0" role="img" aria-label={`Current course progress: ${isLoading ? "loading" : `${ringPct} percent`}`}>
+            <div className="p-[16px_18px] sm:p-[22px_24px] flex items-center gap-4 relative border-t md:border-t-0 md:border-l border-[var(--border)]/60">
+              <div className="relative w-[76px] h-[76px] sm:w-[92px] sm:h-[92px] shrink-0 mx-auto md:mx-0" role="img" aria-label={`Current course progress: ${isLoading ? "loading" : `${ringPct} percent`}`}>
                 <div className="absolute inset-0 rounded-full blur-[16px] opacity-60" style={{ background: "conic-gradient(from 0deg, rgba(240,90,26,.5), transparent 70%)" }} />
-                <svg width="92" height="92" viewBox="0 0 80 80" className="rotate-[-90deg] relative z-[1]" aria-hidden="true">
+                <svg viewBox="0 0 80 80" className="rotate-[-90deg] relative z-[1] w-full h-full" aria-hidden="true">
                   <circle cx="40" cy="40" r="36" fill="none" stroke="var(--border)" strokeWidth="5" />
                   <circle
                     cx="40" cy="40" r="36" fill="none" stroke="url(#ringGrad)" strokeWidth="5"
@@ -295,18 +295,18 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
               { icon: "✅", num: isLoading ? "…" : totalCompleted.toString(), lbl: "Modules Done", accent: "blue" },
               { icon: "🎓", num: certLoading ? "…" : earnedCerts.length.toString(), lbl: "Certificates Earned", accent: "purple" },
             ] as const).map((k, i) => (
-              <GlowCard key={k.lbl} accent={k.accent} className="p-[16px]" style={{ animation: `fadeUp .3s ${i * 0.05}s ease both` }}>
-                <div className="flex items-start gap-3">
+              <GlowCard key={k.lbl} accent={k.accent} className="p-[12px] sm:p-[16px]" style={{ animation: `fadeUp .3s ${i * 0.05}s ease both` }}>
+                <div className="flex items-start gap-2 sm:gap-3">
                   <div
-                    className="w-[38px] h-[38px] rounded-[10px] flex items-center justify-center text-[17px] shrink-0 border"
+                    className="w-[32px] h-[32px] sm:w-[38px] sm:h-[38px] rounded-[9px] sm:rounded-[10px] flex items-center justify-center text-[14px] sm:text-[17px] shrink-0 border"
                     style={{ background: GLOW[k.accent].tint, borderColor: GLOW[k.accent].ring, boxShadow: `0 0 0 3px ${GLOW[k.accent].tint}` }}
                     aria-hidden="true"
                   >
                     {k.icon}
                   </div>
-                  <div>
-                    <div className="font-['Syne',sans-serif] text-[24px] font-extrabold text-[var(--text)] leading-none tracking-tight">{k.num}</div>
-                    <div className="text-[10.5px] text-[var(--text2)] mt-1.5 font-medium">{k.lbl}</div>
+                  <div className="min-w-0">
+                    <div className="font-['Syne',sans-serif] text-[18px] sm:text-[24px] font-extrabold text-[var(--text)] leading-none tracking-tight">{k.num}</div>
+                    <div className="text-[9.5px] sm:text-[10.5px] text-[var(--text2)] mt-1 sm:mt-1.5 font-medium leading-snug">{k.lbl}</div>
                   </div>
                 </div>
               </GlowCard>
@@ -397,18 +397,20 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
                   return (
                     <div
                       key={order.id}
-                      className="flex items-center gap-3 px-3.5 py-2.5 border-b border-[var(--border)] last:border-b-0 transition-colors hover:bg-[var(--bg2)]"
+                      className="flex items-center flex-wrap gap-x-3 gap-y-1.5 px-3 sm:px-3.5 py-2.5 border-b border-[var(--border)] last:border-b-0 transition-colors hover:bg-[var(--bg2)]"
                       style={{ animation: `fadeUp .3s ${i * 0.04}s ease both` }}
                     >
-                      <div className="w-[30px] h-[30px] rounded-[8px] flex items-center justify-center text-[13px] shrink-0 border" style={{ background: "var(--green-d)", borderColor: "rgba(34,197,94,.4)" }} aria-hidden="true">✓</div>
-                      <div className="flex-1 min-w-0">
+                      <div className="w-[28px] h-[28px] sm:w-[30px] sm:h-[30px] rounded-[8px] flex items-center justify-center text-[12px] sm:text-[13px] shrink-0 border" style={{ background: "var(--green-d)", borderColor: "rgba(34,197,94,.4)" }} aria-hidden="true">✓</div>
+                      <div className="flex-1 min-w-[120px]">
                         <div className="text-[11px] font-semibold text-[var(--text)] truncate">{label}</div>
                         <div className="font-['JetBrains_Mono',monospace] text-[8.5px] text-[var(--text3)] mt-0.5">
                           {new Date(order.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                         </div>
                       </div>
-                      <span className="font-['Syne',sans-serif] text-[12.5px] font-extrabold text-[var(--green)] shrink-0">{formatMoney(order.totalAmount, order.currency)}</span>
-                      <span className="font-['JetBrains_Mono',monospace] text-[8px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0" style={{ background: "var(--green-d)", color: "var(--green)" }}>Paid</span>
+                      <div className="flex items-center gap-2 ml-auto shrink-0 pl-[36px] sm:pl-0">
+                        <span className="font-['Syne',sans-serif] text-[12px] sm:text-[12.5px] font-extrabold text-[var(--green)] whitespace-nowrap">{formatMoney(order.totalAmount, order.currency)}</span>
+                        <span className="font-['JetBrains_Mono',monospace] text-[8px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: "var(--green-d)", color: "var(--green)" }}>Paid</span>
+                      </div>
                     </div>
                   );
                 })}

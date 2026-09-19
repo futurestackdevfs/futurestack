@@ -1,6 +1,4 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { showToast } from "@/lib/toast";
 
 interface BlogPost {
   id: string;
@@ -12,14 +10,22 @@ interface BlogPost {
   createdAt: string;
 }
 
+interface ArticlesResponse {
+  data: BlogPost[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+const BACKEND = process.env.API_URL ?? "http://localhost:3002";
+
 export default async function ArticlesPage() {
-  const res = await fetch(`/api/articles?limit=20`, {
+  const res = await fetch(`${BACKEND}/articles?limit=20`, {
     cache: "no-store",
   });
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-    showToast(err.message || "Failed to load blog posts");
     return (
       <div className="py-12 text-center text-[var(--text3)]">
         Failed to load blog posts. Please try again later.
@@ -27,7 +33,8 @@ export default async function ArticlesPage() {
     );
   }
 
-  const data: BlogPost[] = await res.json();
+  const body: ArticlesResponse = await res.json();
+  const data: BlogPost[] = Array.isArray(body) ? body : body?.data ?? [];
 
   if (!data || data.length === 0) {
     return (

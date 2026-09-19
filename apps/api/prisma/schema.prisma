@@ -626,6 +626,22 @@ model PaymentSettings {
   updatedAt            DateTime @updatedAt
 }
 
+model LegalPage {
+  id        String   @id @default(uuid())
+  slug      String   @unique // "terms" | "refund-policy" | "cookie-policy" | "sitemap"
+  title     String
+  content   String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model JobPosting {
+  id          String   @id @default(uuid())
+  title       String
+  duration    String // e.g. "Full-time", "3-month internship", "Contract — 6 months"
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+}
+
 model Lead {
   id           String    @id @default(uuid())
   name         String
