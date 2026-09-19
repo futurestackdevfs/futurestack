@@ -38,7 +38,7 @@ export function Footer() {
         .footer-sub-col { }
         @media (min-width: 900px) { .footer-sub-col { margin-left: -20px; } }
         .footer-col-title {
-          font-size: 14px; font-weight: 700; letter-spacing: .06em;
+          font-size: 14px; font-weight: 800; letter-spacing: .06em;
           text-transform: uppercase; color: var(--muted); margin: 0 0 14px;
         }
       `}</style>
