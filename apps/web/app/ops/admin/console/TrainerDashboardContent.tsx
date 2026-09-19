@@ -101,18 +101,6 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel, searchQu
     }));
   }, [trainers]);
 
-  const sessions = useMemo(() => {
-    const activeCourses = courses.filter((c) => c.status === "ACTIVE").slice(0, 3);
-    const days = ["mon", "tue", "wed", "thu", "fri"];
-    return activeCourses.map((c, i) => ({
-      id: c.id,
-      topic: c.title,
-      day: days[i % days.length],
-      time: `${9 + i * 2}:00`,
-      course: c.category || "General",
-    }));
-  }, [courses]);
-
   const activeCoursesList = useMemo(() => {
     return courses.filter((c) => c.status === "ACTIVE").map((c) => ({
       id: c.id,
@@ -149,16 +137,6 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel, searchQu
               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
             >+ Add {addLabel}</button>
           )}
-          <button className="font-mono text-[10.5px] font-semibold px-3 py-1.5 rounded cursor-pointer"
-            style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border2)"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--border)"; }}
-          >↻ Refresh</button>
-          <button className="font-mono text-[10.5px] font-semibold px-3 py-1.5 rounded cursor-pointer"
-            style={{ background: "var(--orange)", color: "#fff", border: "none" }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-          >+ Schedule Session</button>
         </div>
       </div>
 
@@ -166,10 +144,10 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel, searchQu
       <div className="grid grid-cols-6 rounded overflow-hidden mb-4" style={{ border: "1px solid var(--border)", background: "var(--border)", gap: 1 }}>
         <KPICell label="Total Courses" value={stats?.totalCourses ?? 0} delta={`${stats?.activeCourses ?? 0} active`} color="var(--purple)" />
         <KPICell label="Total Enrollments" value={stats?.totalEnrollments ?? 0} delta={`${stats?.activeEnrollments ?? 0} active`} color="var(--amber)" />
-        <KPICell label="Active Mentees" value={kpi.activeMentees} delta="↑4 mo" deltaClass="up" color="var(--green)" />
+        <KPICell label="Active Mentees" value={kpi.activeMentees} delta="approved trainers" color="var(--green)" />
         <KPICell label="Avg Rating" value={kpi.avgRating} delta={kpi.highestRating ? `Highest ${kpi.highestRating}` : "—"} color="var(--orange)" />
         <KPICell label="Active Courses" value={kpi.activeCourses} delta="running" color="var(--text)" />
-        <KPICell label="Completion" value={`${kpi.completion}%`} delta="↑2pp mo" deltaClass="up" color="var(--green)" />
+        <KPICell label="Completion" value={`${kpi.completion}%`} delta="enrollment ratio" color="var(--text)" />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 14 }}>
@@ -260,7 +238,7 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel, searchQu
           </Panel>
 
           {/* Active Courses */}
-          <Panel title="📚 Active Courses" meta={`${activeCoursesList.length} running`} action={<button className="font-mono text-[9px] font-bold px-2 py-0.5 rounded cursor-pointer" style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }} onClick={() => {}}>View All</button>}>
+          <Panel title="📚 Active Courses" meta={`${activeCoursesList.length} running`}>
             <div>
               {activeCoursesList.slice(0, 7).map((b) => (
                 <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
@@ -281,26 +259,6 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel, searchQu
 
         {/* RIGHT COL */}
         <div>
-          {/* This Week's Sessions */}
-          <Panel title="📅 This Week's Sessions">
-            <div>
-              {sessions.map((s) => (
-                <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "1px solid var(--border)" }}>
-                  <div className="w-6 h-6 rounded flex items-center justify-center text-[11px] shrink-0" style={{ background: "var(--purple-d)", color: "var(--purple)" }}>
-                    {s.topic.includes("React") ? "⚛" : s.topic.includes("REST") || s.topic.includes("API") ? "🔌" : "🔐"}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)" }}>{s.topic}</div>
-                    <div className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>{s.day} {s.time} · {s.course}</div>
-                  </div>
-                </div>
-              ))}
-              {sessions.length === 0 && (
-                <div className="font-mono text-[10.5px] py-2" style={{ color: "var(--text3)" }}>No sessions scheduled.</div>
-              )}
-            </div>
-          </Panel>
-
           {/* Active Mentees */}
           <Panel title="🛠 Active Mentees">
             <div>

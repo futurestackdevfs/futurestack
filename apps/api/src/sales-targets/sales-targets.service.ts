@@ -7,12 +7,19 @@ export class SalesTargetsService {
   constructor(private readonly prisma: PrismaService) {}
 
   private buildTarget(t: any) {
-    const remaining = Math.max(0, t.targetAmount - t.currentAmount);
-    const progressPct = t.targetAmount > 0 ? Math.min(100, Math.round((t.currentAmount / t.targetAmount) * 100)) : 0;
+    // t.targetAmount / t.currentAmount come straight off a Prisma read as
+    // Decimal objects — convert to plain numbers right here, at the top of
+    // the one place that turns a raw SalesTarget row into API shape, so all
+    // the arithmetic below (and the JSON returned to the frontend) stays
+    // exactly as plain-number code.
+    const targetAmount = t.targetAmount?.toNumber?.() ?? t.targetAmount;
+    const currentAmount = t.currentAmount?.toNumber?.() ?? t.currentAmount;
+    const remaining = Math.max(0, targetAmount - currentAmount);
+    const progressPct = targetAmount > 0 ? Math.min(100, Math.round((currentAmount / targetAmount) * 100)) : 0;
     const now = new Date();
     const endDate = new Date(t.endDate);
     const startDate = new Date(t.startDate);
-    const isCompleted = t.currentAmount >= t.targetAmount;
+    const isCompleted = currentAmount >= targetAmount;
     const isActive = now >= startDate && now <= endDate && !isCompleted;
     const isOverdue = now > endDate && !isCompleted;
     const isUpcoming = now < startDate;
@@ -28,8 +35,8 @@ export class SalesTargetsService {
       courseName: t.course?.title ?? 'All Courses',
       courseId: t.courseId,
       period: t.period,
-      targetAmount: t.targetAmount,
-      currentAmount: t.currentAmount,
+      targetAmount,
+      currentAmount,
       remaining,
       progressPct,
       expectedPct,

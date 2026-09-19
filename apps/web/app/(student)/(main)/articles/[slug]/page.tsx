@@ -1,6 +1,4 @@
-import React from "react";
 import ReactMarkdown from "react-markdown";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
 
@@ -16,22 +14,20 @@ interface BlogPost {
   createdAt: string;
 }
 
-export async function generateParams() {
-  return []; 
+const BACKEND = process.env.API_URL ?? "http://localhost:3002";
+
+type PageProps = { params: Promise<{ slug: string }> };
+
+async function fetchPost(slug: string): Promise<BlogPost | null> {
+  const res = await fetch(`${BACKEND}/articles/${slug}`, { cache: "no-store" });
+  if (!res.ok) return null;
+  return res.json();
 }
 
-export async function generateMetadata(
-  params: { slug: string }
-): Promise<Metadata> {
-  const res = await fetch(`/api/articles/${params.slug}`, {
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    notFound();
-  }
-
-  const post = await res.json();
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const post = await fetchPost(slug);
+  if (!post) return {};
 
   return {
     title: post.title,
@@ -39,7 +35,7 @@ export async function generateMetadata(
     openGraph: {
       title: post.title,
       description: post.metaDescription,
-      url: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://your-domain.com'}/articles/${post.slug}`,
+      url: `${process.env.NEXT_PUBLIC_BASE_URL || "https://your-domain.com"}/articles/${post.slug}`,
     },
     twitter: {
       card: "summary",
@@ -49,18 +45,9 @@ export async function generateMetadata(
   };
 }
 
-export default async function BlogPostPage(
-  params: { slug: string }
-) {
-  const res = await fetch(`/api/articles/${params.slug}`, {
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    notFound();
-  }
-
-  const post: BlogPost = await res.json();
+export default async function BlogPostPage({ params }: PageProps) {
+  const { slug } = await params;
+  const post = await fetchPost(slug);
 
   if (!post) {
     notFound();
@@ -90,11 +77,7 @@ export default async function BlogPostPage(
         {post.metaDescription}
       </p>
 
-      <ReactMarkdown
-        components={{}}
-      >
-        {post.content}
-      </ReactMarkdown>
+      <ReactMarkdown>{post.content}</ReactMarkdown>
     </div>
   );
 }

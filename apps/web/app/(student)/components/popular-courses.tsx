@@ -47,7 +47,7 @@ export function PopularCourses() {
         <h2 className="font-['Syne'] text-[17px] font-bold text-[var(--text)]">Popular Courses</h2>
         <Link className="text-[12px] font-semibold text-[var(--blue)] hover:text-[var(--orange)]" href="/courses">View All</Link>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {isLoading
           ? Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden animate-pulse">

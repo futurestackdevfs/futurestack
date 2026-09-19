@@ -46,7 +46,35 @@ const VALUES = [
 
 const MAIL = "careers@futurestack.dev";
 
+interface JobPosting {
+  id: string;
+  title: string;
+  duration: string;
+  description: string | null;
+  createdAt: string;
+}
+
 export default function CareersPage() {
+  const [jobs, setJobs] = useState<JobPosting[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/careers/jobs");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setJobs(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setJobs([]);
+      } finally {
+        if (!cancelled) setJobsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="min-h-screen bg-[var(--bg)] overflow-hidden">
       <style>{`
@@ -127,7 +155,7 @@ export default function CareersPage() {
         </div>
       </section>
 
-      {/* ── OPEN ROLES (empty for now) ── */}
+      {/* ── OPEN ROLES ── */}
       <section id="roles" className="py-9 md:py-14" style={{ background: "var(--panel, rgba(0,0,0,.02))" }}>
         <div className="mx-auto max-w-[900px] px-5 md:px-8">
           <Reveal>
@@ -135,20 +163,50 @@ export default function CareersPage() {
             <p className="text-[14px] text-[var(--muted)] mb-5">We're remote-first within India.</p>
           </Reveal>
 
-          <Reveal>
-            <div className="rounded-2xl border border-dashed border-[var(--border2,var(--border))] bg-[var(--card)] p-8 text-center">
-              <div className="text-[26px] mb-3">📭</div>
-              <div className="text-[15px] font-bold text-[var(--text)]">No open roles right now</div>
-              <p className="text-[13px] text-[var(--muted)] mt-1.5 max-w-[440px] mx-auto">
-                We're not actively hiring at the moment — but we're always happy to hear from people
-                who'd genuinely make FutureStack better.
-              </p>
-              <a href={`mailto:${MAIL}?subject=${encodeURIComponent("Introduction")}`}
-                className="mt-5 inline-block text-white text-[12.5px] font-bold px-5 py-2.5 rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] hover:-translate-y-0.5 transition-all">
-                Introduce yourself →
-              </a>
+          {jobsLoading ? (
+            <Reveal>
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-8 text-center">
+                <div className="text-[13px] text-[var(--muted)]">Loading open positions…</div>
+              </div>
+            </Reveal>
+          ) : jobs.length > 0 ? (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {jobs.map((job, i) => (
+                <Reveal key={job.id} delay={i * 0.05}>
+                  <div className="h-full rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 hover:border-[var(--orange)] hover:-translate-y-0.5 transition-all">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="text-[15px] font-bold text-[var(--text)]">{job.title}</div>
+                      <span className="shrink-0 inline-flex items-center text-[10.5px] font-semibold text-[var(--blue)] bg-[var(--blue-d)] border border-[var(--blue)]/20 rounded-full px-2.5 py-1">
+                        {job.duration}
+                      </span>
+                    </div>
+                    {job.description && (
+                      <p className="text-[12.5px] text-[var(--muted)] leading-relaxed">{job.description}</p>
+                    )}
+                    <a href={`mailto:${MAIL}?subject=${encodeURIComponent(`Application: ${job.title}`)}`}
+                      className="mt-4 inline-block text-[12px] font-bold text-[var(--orange)] hover:underline">
+                      Apply →
+                    </a>
+                  </div>
+                </Reveal>
+              ))}
             </div>
-          </Reveal>
+          ) : (
+            <Reveal>
+              <div className="rounded-2xl border border-dashed border-[var(--border2,var(--border))] bg-[var(--card)] p-8 text-center">
+                <div className="text-[26px] mb-3">📭</div>
+                <div className="text-[15px] font-bold text-[var(--text)]">No open positions right now</div>
+                <p className="text-[13px] text-[var(--muted)] mt-1.5 max-w-[440px] mx-auto">
+                  Check back soon, or reach out at{" "}
+                  <a href={`mailto:${MAIL}`} className="font-semibold text-[var(--blue)] hover:underline">{MAIL}</a>.
+                </p>
+                <a href={`mailto:${MAIL}?subject=${encodeURIComponent("Introduction")}`}
+                  className="mt-5 inline-block text-white text-[12.5px] font-bold px-5 py-2.5 rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] hover:-translate-y-0.5 transition-all">
+                  Introduce yourself →
+                </a>
+              </div>
+            </Reveal>
+          )}
 
           <Reveal>
             <p className="text-[12px] text-[var(--muted)] mt-6 text-center">

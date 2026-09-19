@@ -636,7 +636,7 @@ export class SupportService {
           title: e.course.title,
           thumbnailUrl: e.course.thumbnailUrl,
           status: e.status,
-          amountPaid: e.amountPaid,
+          amountPaid: e.amountPaid.toNumber(),
           enrolledAt: e.enrolledAt,
           progressPercent: totalVideos
             ? Math.round((completedVideos / totalVideos) * 100)
@@ -695,7 +695,10 @@ export class SupportService {
         on: r.course?.title ?? r.project?.name ?? 'Unknown',
         createdAt: r.createdAt,
       })),
-      recentOrders,
+      recentOrders: recentOrders.map((o) => ({
+        ...o,
+        totalAmount: o.totalAmount.toNumber(),
+      })),
       tickets: ticketsRaw.map((t) => ({
         id: t.id,
         ref: this.ref(t.number),
@@ -913,11 +916,11 @@ export class SupportService {
           id: i.id,
           title: i.course?.title ?? i.project?.name ?? 'Unknown',
           type: i.course ? 'course' : i.project ? 'project' : 'unknown',
-          price: i.priceAtPurchase,
+          price: i.priceAtPurchase.toNumber(),
           status: i.status,
         })),
         currency: o.currency,
-        totalAmount: o.totalAmount,
+        totalAmount: o.totalAmount.toNumber(),
         status: o.status,
         razorpayOrderId: o.razorpayOrderId,
         paymentMethod: o.paymentMethod,
@@ -938,7 +941,7 @@ export class SupportService {
     });
     const out: Record<string, { count: number; total: number }> = {};
     for (const g of grouped) {
-      out[g.status] = { count: g._count._all, total: g._sum.totalAmount ?? 0 };
+      out[g.status] = { count: g._count._all, total: g._sum.totalAmount?.toNumber() ?? 0 };
     }
     return out;
   }
@@ -976,12 +979,12 @@ export class SupportService {
       student: order.user,
       currency: order.currency,
       gatewayType: order.gatewayType,
-      subtotal: order.subtotal,
-      discountAmount: order.discountAmount,
+      subtotal: order.subtotal.toNumber(),
+      discountAmount: order.discountAmount.toNumber(),
       discountReason: order.discountReason,
-      gstPercent: order.gstPercent,
-      gstAmount: order.gstAmount,
-      totalAmount: order.totalAmount,
+      gstPercent: order.gstPercent.toNumber(),
+      gstAmount: order.gstAmount.toNumber(),
+      totalAmount: order.totalAmount.toNumber(),
       status: order.status,
       razorpayOrderId: order.razorpayOrderId,
       razorpayPaymentId: order.razorpayPaymentId,
@@ -1002,20 +1005,20 @@ export class SupportService {
         type: i.course ? 'course' : i.project ? 'project' : 'unknown',
         title: i.course?.title ?? i.project?.name ?? 'Unknown',
         image: i.course?.thumbnailUrl ?? i.project?.image ?? null,
-        price: i.priceAtPurchase,
+        price: i.priceAtPurchase.toNumber(),
         currency: i.currency,
         status: i.status,
       })),
       invoice: order.invoices[0]
         ? {
             invoiceNumber: order.invoices[0].invoiceNumber,
-            totalAmount: order.invoices[0].totalAmount,
+            totalAmount: order.invoices[0].totalAmount.toNumber(),
             issuedAt: order.invoices[0].issuedAt,
           }
         : null,
       refunds: order.refunds.map((r) => ({
         id: r.id,
-        amount: r.amount,
+        amount: r.amount.toNumber(),
         reason: r.reason,
         status: r.status,
         on: r.course?.title ?? r.project?.name ?? null,

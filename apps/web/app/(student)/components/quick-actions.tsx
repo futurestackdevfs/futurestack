@@ -3,7 +3,6 @@ import Link from "next/link";
 const actionLinks: Record<string, string> = {
   "Enroll Now": "/courses",
   "Skill Test": "/skill-tests",
-  "Live Classes": "/live-classes",
   "Downloads": "/my-dashboard",
   "Certificates": "/certificates",
   "Ask Doubt": "/my-dashboard",
@@ -13,7 +12,6 @@ export function QuickActions() {
   const actions = [
     { icon: "📝", label: "Enroll Now" },
     { icon: "🎯", label: "Skill Test" },
-    { icon: "📺", label: "Live Classes" },
     { icon: "⬇️", label: "Downloads" },
     { icon: "🏅", label: "Certificates" },
     { icon: "❓", label: "Ask Doubt" },

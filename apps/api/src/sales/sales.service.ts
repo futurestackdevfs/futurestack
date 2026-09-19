@@ -173,7 +173,7 @@ export class SalesService {
       orderWhere.NOT = { userId };
     }
 
-    const [orders, salesStaff] = await Promise.all([
+    const [ordersRaw, salesStaff] = await Promise.all([
       this.prisma.order.findMany({
         where: orderWhere,
         orderBy: { createdAt: 'desc' },
@@ -197,6 +197,13 @@ export class SalesService {
         orderBy: { name: 'asc' },
       }),
     ]);
+
+    // Convert Order's Decimal money columns to plain numbers right at the DB
+    // read boundary, so all the arithmetic/JSON below stays unchanged.
+    const orders = ordersRaw.map((o) => ({
+      ...o,
+      totalAmount: o.totalAmount.toNumber(),
+    }));
 
     /* ── KPIs ── */
     const paid = orders.filter((o) => o.status === OrderStatus.PAID);
@@ -485,7 +492,7 @@ export class SalesService {
       city: lead.city,
       course: lead.course,
       status: lead.status,
-      budget: lead.budget,
+      budget: lead.budget.toNumber(),
       score: lead.score,
       source: lead.source,
       notes: lead.notes,
@@ -499,7 +506,7 @@ export class SalesService {
       order: lead.order
         ? {
             id: lead.order.id,
-            totalAmount: lead.order.totalAmount,
+            totalAmount: lead.order.totalAmount.toNumber(),
             status: lead.order.status,
             paymentMethod: lead.order.paymentMethod,
             batchMode: lead.order.batchMode,
@@ -641,7 +648,7 @@ export class SalesService {
       data.score = computeLeadScore(
         (dto.status ?? existing.status) as PipelineStatus,
         dto.source ?? existing.source,
-        dto.budget ?? existing.budget,
+        dto.budget ?? existing.budget.toNumber(),
         followUpCount,
         dto.lastContact ? new Date(dto.lastContact) : existing.lastContact,
       );
@@ -723,7 +730,7 @@ export class SalesService {
     }
 
     const discount = Math.max(0, Math.min(100, dto.discountPct));
-    const price = course.price;
+    const price = course.price.toNumber();
     const subtotal = price;
     const discountAmount = this.round2((subtotal * discount) / 100);
     const totalBeforeGst = this.round2(subtotal - discountAmount);
@@ -944,7 +951,7 @@ export class SalesService {
       studentName: o.user?.name ?? null,
       studentEmail: o.user?.email ?? null,
       course: o.items[0]?.course?.title ?? null,
-      totalAmount: o.totalAmount,
+      totalAmount: o.totalAmount.toNumber(),
       batchMode: o.batchMode,
       paymentMethod: o.paymentMethod,
       createdAt: o.createdAt.toISOString(),
@@ -986,6 +993,14 @@ export class SalesService {
     const course = order.items[0]?.course;
     if (!course) throw new BadRequestException('Order has no course');
 
+    // Convert Order's Decimal money columns to plain numbers right at the DB
+    // read boundary, so all the arithmetic/receipt fields below stay unchanged.
+    const orderTotalAmount = order.totalAmount.toNumber();
+    const orderSubtotal = order.subtotal.toNumber();
+    const orderDiscountAmount = order.discountAmount.toNumber();
+    const orderGstPercent = order.gstPercent.toNumber();
+    const orderGstAmount = order.gstAmount.toNumber();
+
     const result = await this.prisma.$transaction(async (tx) => {
       const existingEnrollment = await tx.enrollment.findUnique({
         where: {
@@ -1002,7 +1017,7 @@ export class SalesService {
         data: {
           studentId: order.userId,
           courseId: course.id,
-          amountPaid: order.totalAmount,
+          amountPaid: orderTotalAmount,
           orderId: order.id,
           status: 'active',
         },
@@ -1015,14 +1030,14 @@ export class SalesService {
           settings.trainerSharePercent,
         );
         const { trainerShare, platformCut } = computeTrainerShare(
-          order.totalAmount,
+          orderTotalAmount,
           sharePct,
         );
         await tx.revenueLedger.create({
           data: {
             trainerId: course.trainer.id,
             enrollmentId: enrollment.id,
-            gross: order.totalAmount,
+            gross: orderTotalAmount,
             platformCut,
             trainerShare,
           },
@@ -1043,15 +1058,15 @@ export class SalesService {
         studentName: order.user?.name ?? 'Student',
         studentEmail: order.user?.email ?? null,
         courseName: course.title,
-        price: order.subtotal,
+        price: orderSubtotal,
         discountPct:
-          order.subtotal > 0
-            ? Math.round((order.discountAmount / order.subtotal) * 100)
+          orderSubtotal > 0
+            ? Math.round((orderDiscountAmount / orderSubtotal) * 100)
             : 0,
-        discAmt: order.discountAmount,
-        gstPercent: order.gstPercent,
-        gstAmount: order.gstAmount,
-        finalAmt: order.totalAmount,
+        discAmt: orderDiscountAmount,
+        gstPercent: orderGstPercent,
+        gstAmount: orderGstAmount,
+        finalAmt: orderTotalAmount,
         batchMode: order.batchMode,
         paymentMethod: effectiveMethod,
         date: new Date().toISOString(),
@@ -1106,7 +1121,7 @@ export class SalesService {
         ? { id: o.user.id, name: o.user.name, email: o.user.email, phone: o.user.phone }
         : null,
       course: o.items[0]?.course
-        ? { id: o.items[0].course.id, title: o.items[0].course.title, price: o.items[0].course.price, code: o.items[0].course.code }
+        ? { id: o.items[0].course.id, title: o.items[0].course.title, price: o.items[0].course.price.toNumber(), code: o.items[0].course.code }
         : null,
       project: o.items[0]?.project
         ? { id: o.items[0].project.id, name: o.items[0].project.name }
@@ -1114,13 +1129,13 @@ export class SalesService {
       items: o.items.map((it) => ({
         courseTitle: it.course?.title ?? null,
         projectName: it.project?.name ?? null,
-        priceAtPurchase: it.priceAtPurchase,
+        priceAtPurchase: it.priceAtPurchase.toNumber(),
       })),
-      subtotal: o.subtotal,
-      discountAmount: o.discountAmount,
-      gstPercent: o.gstPercent,
-      gstAmount: o.gstAmount,
-      totalAmount: o.totalAmount,
+      subtotal: o.subtotal.toNumber(),
+      discountAmount: o.discountAmount.toNumber(),
+      gstPercent: o.gstPercent.toNumber(),
+      gstAmount: o.gstAmount.toNumber(),
+      totalAmount: o.totalAmount.toNumber(),
       batchMode: o.batchMode,
       paymentMethod: o.paymentMethod,
       razorpayOrderId: o.razorpayOrderId,
@@ -1158,17 +1173,17 @@ export class SalesService {
         ? { id: order.user.id, name: order.user.name, email: order.user.email, phone: order.user.phone, city: order.user.city }
         : null,
       course: order.items[0]?.course
-        ? { id: order.items[0].course.id, title: order.items[0].course.title, price: order.items[0].course.price, code: order.items[0].course.code, description: order.items[0].course.description }
+        ? { id: order.items[0].course.id, title: order.items[0].course.title, price: order.items[0].course.price.toNumber(), code: order.items[0].course.code, description: order.items[0].course.description }
         : null,
       items: order.items.map((it) => ({
         courseTitle: it.course?.title ?? null,
-        priceAtPurchase: it.priceAtPurchase,
+        priceAtPurchase: it.priceAtPurchase.toNumber(),
       })),
-      subtotal: order.subtotal,
-      discountAmount: order.discountAmount,
-      gstPercent: order.gstPercent,
-      gstAmount: order.gstAmount,
-      totalAmount: order.totalAmount,
+      subtotal: order.subtotal.toNumber(),
+      discountAmount: order.discountAmount.toNumber(),
+      gstPercent: order.gstPercent.toNumber(),
+      gstAmount: order.gstAmount.toNumber(),
+      totalAmount: order.totalAmount.toNumber(),
       batchMode: order.batchMode,
       paymentMethod: order.paymentMethod,
       razorpayOrderId: order.razorpayOrderId,

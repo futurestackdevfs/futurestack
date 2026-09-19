@@ -10,10 +10,26 @@ export class PaymentSettingsService {
    * Returns the singleton PaymentSettings row, creating it with the launch
    * defaults (INR on, USD off) on first access if the seed hasn't run yet.
    */
+  /** Converts the Decimal-typed rate/percent columns to plain numbers right
+   *  at the DB read boundary, so every downstream consumer (checkout, cart,
+   *  invoices, admin) keeps doing plain-number arithmetic unchanged. */
+  private toPlainSettings<T extends {
+    gstPercent: { toNumber(): number };
+    gstPercentUsd: { toNumber(): number };
+    usdRate: { toNumber(): number };
+  }>(settings: T) {
+    return {
+      ...settings,
+      gstPercent: settings.gstPercent.toNumber(),
+      gstPercentUsd: settings.gstPercentUsd.toNumber(),
+      usdRate: settings.usdRate.toNumber(),
+    };
+  }
+
   async getSettings() {
     const settings = await this.prisma.paymentSettings.findFirst();
-    if (settings) return settings;
-    return this.prisma.paymentSettings.create({
+    if (settings) return this.toPlainSettings(settings);
+    const created = await this.prisma.paymentSettings.create({
       data: {
         domesticEnabled: true,
         internationalEnabled: false,
@@ -23,6 +39,7 @@ export class PaymentSettingsService {
         // in Payment Settings → Fees & Tax.
       },
     });
+    return this.toPlainSettings(created);
   }
 
   /** Public projection — safe to expose to unauthenticated checkout pages. */
@@ -53,9 +70,10 @@ export class PaymentSettingsService {
         'At least one payment method must remain enabled',
       );
     }
-    return this.prisma.paymentSettings.update({
+    const updated = await this.prisma.paymentSettings.update({
       where: { id: settings.id },
       data: next,
     });
+    return this.toPlainSettings(updated);
   }
 }
