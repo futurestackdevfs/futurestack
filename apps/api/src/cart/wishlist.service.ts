@@ -47,8 +47,8 @@ export class WishlistService {
 
     return {
       items: items.map((i) => {
-        const price = i.course.price;
-        const originalPrice = i.course.originalPrice ?? null;
+        const price = i.course.price.toNumber();
+        const originalPrice = i.course.originalPrice?.toNumber() ?? null;
         let offPct = 0;
         if (originalPrice != null && originalPrice > price) {
           offPct = Math.min(99, Math.round(((originalPrice - price) / originalPrice) * 100));

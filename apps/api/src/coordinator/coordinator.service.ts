@@ -82,14 +82,14 @@ export class CoordinatorService {
 
     const revenueMtd = paid
       .filter((o) => o.createdAt >= monthStart)
-      .reduce((s, o) => s + o.totalAmount, 0);
+      .reduce((s, o) => s + o.totalAmount.toNumber(), 0);
 
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const prevRevenueMtd = paid
       .filter(
         (o) => o.createdAt >= prevMonthStart && o.createdAt < monthStart,
       )
-      .reduce((s, o) => s + o.totalAmount, 0);
+      .reduce((s, o) => s + o.totalAmount.toNumber(), 0);
 
     const revenueDelta =
       prevRevenueMtd > 0
@@ -116,7 +116,7 @@ export class CoordinatorService {
       },
       recentOrders: paid.slice(0, 5).map((o) => ({
         id: o.id,
-        amount: o.totalAmount,
+        amount: o.totalAmount.toNumber(),
         mode: o.batchMode,
         date: o.createdAt,
       })),
@@ -149,7 +149,7 @@ export class CoordinatorService {
       id: c.id,
       title: c.title,
       code: c.code,
-      price: c.price,
+      price: c.price.toNumber(),
       trainer: c.trainer,
       enrolledCount: c.enrollments.length,
       activeStudents: c.enrollments.filter((e) => e.status === 'active')
@@ -439,7 +439,7 @@ export class CoordinatorService {
       }
       summary.total += g._count._all;
       if (g.status === OrderStatus.PAID) {
-        summary.totalRevenue = g._sum.totalAmount ?? 0;
+        summary.totalRevenue = g._sum.totalAmount?.toNumber() ?? 0;
       }
     }
 
@@ -450,12 +450,12 @@ export class CoordinatorService {
         orderNo: o.id.slice(0, 8).toUpperCase(),
         status: o.status,
         currency: o.currency,
-        totalAmount: o.totalAmount,
+        totalAmount: o.totalAmount.toNumber(),
         createdAt: o.createdAt,
         student: o.user,
         items: o.items.map((i) => ({
           title: i.course?.title ?? null,
-          price: i.priceAtPurchase,
+          price: i.priceAtPurchase.toNumber(),
         })),
         enrollmentsCount: o._count.enrollments,
       })),

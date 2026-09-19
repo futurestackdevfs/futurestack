@@ -316,7 +316,7 @@ export class StudentService {
         title: course.title,
         description: course.description,
         thumbnailUrl: course.thumbnailUrl,
-        price: course.price,
+        price: course.price.toNumber(),
         whatYoullLearn: course.whatYoullLearn,
         techStack: course.techStack,
         careerTitle: course.careerTitle,
@@ -720,7 +720,7 @@ export class StudentService {
         completedVideos,
         totalVideos,
         status: orderItem.status || 'active',
-        pricePaid: orderItem.priceAtPurchase,
+        pricePaid: orderItem.priceAtPurchase.toNumber(),
         purchasedAt: orderItem.order.createdAt,
       };
     });
@@ -935,7 +935,18 @@ export class StudentService {
         },
       },
     });
-    return orders;
+    return orders.map((o) => ({
+      ...o,
+      subtotal: o.subtotal.toNumber(),
+      discountAmount: o.discountAmount.toNumber(),
+      gstPercent: o.gstPercent.toNumber(),
+      gstAmount: o.gstAmount.toNumber(),
+      totalAmount: o.totalAmount.toNumber(),
+      items: o.items.map((i) => ({
+        ...i,
+        priceAtPurchase: i.priceAtPurchase.toNumber(),
+      })),
+    }));
   }
 
   // ─────────────────────────────────────────────────────────────

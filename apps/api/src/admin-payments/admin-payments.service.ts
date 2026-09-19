@@ -102,7 +102,7 @@ export class AdminPaymentsService {
       }
       summary.total += g._count._all;
       if (g.status === OrderStatus.PAID) {
-        summary.totalRevenue = g._sum.totalAmount ?? 0;
+        summary.totalRevenue = g._sum.totalAmount?.toNumber() ?? 0;
       }
     }
 
@@ -110,7 +110,7 @@ export class AdminPaymentsService {
       const items = o.items.map((i) => ({
         courseId: i.courseId ?? i.projectId,
         title: i.course?.title ?? i.project?.name ?? 'Item',
-        priceAtPurchase: i.priceAtPurchase,
+        priceAtPurchase: i.priceAtPurchase.toNumber(),
         type: i.projectId ? 'project' as const : 'course' as const,
         orderItemId: i.id,
         itemStatus: i.status ?? null,
@@ -121,9 +121,9 @@ export class AdminPaymentsService {
         status: o.status,
         currency: o.currency,
         gatewayType: o.gatewayType,
-        subtotal: o.subtotal,
-        discountAmount: o.discountAmount,
-        totalAmount: o.totalAmount,
+        subtotal: o.subtotal.toNumber(),
+        discountAmount: o.discountAmount.toNumber(),
+        totalAmount: o.totalAmount.toNumber(),
         createdAt: o.createdAt,
         razorpayOrderId: o.razorpayOrderId,
         razorpayPaymentId: o.razorpayPaymentId,
@@ -203,10 +203,12 @@ export class AdminPaymentsService {
     >();
 
     for (const order of paidOrders) {
-      if (!order.subtotal || order.subtotal <= 0) continue;
+      const orderSubtotal = order.subtotal.toNumber();
+      const orderTotalAmount = order.totalAmount.toNumber();
+      if (!orderSubtotal || orderSubtotal <= 0) continue;
       // Allocate the order discount proportionally across items so gross
       // reconciles exactly with the admin "Revenue (Paid)" KPI (totalAmount).
-      const ratio = order.totalAmount / order.subtotal;
+      const ratio = orderTotalAmount / orderSubtotal;
       for (const item of order.items) {
         const trainer = item.course?.trainer;
         if (!trainer) continue;
@@ -226,7 +228,7 @@ export class AdminPaymentsService {
           trainer.trainerSharePercent,
           defaultSharePct,
         );
-        const effective = Math.round(item.priceAtPurchase * ratio * 100) / 100;
+        const effective = Math.round(item.priceAtPurchase.toNumber() * ratio * 100) / 100;
         const { trainerShare, platformCut } = computeTrainerShare(
           effective,
           pct,

@@ -136,11 +136,15 @@ export class CartService {
     const enriched = items.map((item) => {
       if (item.projectId && item.project) {
         const p = item.project;
-        const price = resolveItemPrice(currency, p.price, p.priceUsd, usdRate);
+        const pPrice = p.price.toNumber();
+        const pPriceUsd = p.priceUsd?.toNumber() ?? null;
+        const pOriginalPrice = p.originalPrice?.toNumber() ?? null;
+        const pOriginalPriceUsd = p.originalPriceUsd?.toNumber() ?? null;
+        const price = resolveItemPrice(currency, pPrice, pPriceUsd, usdRate);
         const originalPrice = resolveItemOriginalPrice(
           currency,
-          p.originalPrice,
-          p.originalPriceUsd,
+          pOriginalPrice,
+          pOriginalPriceUsd,
           usdRate,
         );
         let offPct = 0;
@@ -171,11 +175,15 @@ export class CartService {
       }
 
       const c = item.course!;
-      const price = resolveItemPrice(currency, c.price, c.priceUsd, usdRate);
+      const cPrice = c.price.toNumber();
+      const cPriceUsd = c.priceUsd?.toNumber() ?? null;
+      const cOriginalPrice = c.originalPrice?.toNumber() ?? null;
+      const cOriginalPriceUsd = c.originalPriceUsd?.toNumber() ?? null;
+      const price = resolveItemPrice(currency, cPrice, cPriceUsd, usdRate);
       const originalPrice = resolveItemOriginalPrice(
         currency,
-        c.originalPrice,
-        c.originalPriceUsd,
+        cOriginalPrice,
+        cOriginalPriceUsd,
         usdRate,
       );
       let offPct = 0;
@@ -271,13 +279,13 @@ export class CartService {
     id: string;
     code: string;
     discountType: string;
-    value: number;
+    value: { toNumber(): number } | number;
   }) {
     return {
       id: c.id,
       code: c.code,
       discountType: c.discountType,
-      value: c.value,
+      value: typeof c.value === 'number' ? c.value : c.value.toNumber(),
     };
   }
 

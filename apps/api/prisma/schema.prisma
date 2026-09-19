@@ -165,10 +165,10 @@ model Course {
   title            String       @unique
   description      String?
   thumbnailUrl     String?
-  price            Float
-  originalPrice    Float? // list/strikethrough price (admin-set). null = no discount, display price only.
-  priceUsd         Float? // USD sale price for international checkout. null = auto-convert from `price` via PaymentSettings.usdRate.
-  originalPriceUsd Float? // USD list/strikethrough price. null = no USD discount shown.
+  price            Decimal      @db.Decimal(10, 2)
+  originalPrice    Decimal?     @db.Decimal(10, 2) // list/strikethrough price (admin-set). null = no discount, display price only.
+  priceUsd         Decimal?     @db.Decimal(10, 2) // USD sale price for international checkout. null = auto-convert from `price` via PaymentSettings.usdRate.
+  originalPriceUsd Decimal?     @db.Decimal(10, 2) // USD list/strikethrough price. null = no USD discount shown.
   status           CourseStatus @default(DRAFT)
   isFeatured       Boolean      @default(false)
   displayOrder     Int          @default(0)
@@ -294,11 +294,11 @@ model QuizAttempt {
 
 model Enrollment {
   id         String   @id @default(uuid())
-  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Restrict)
   studentId  String
   course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId   String
-  amountPaid Float
+  amountPaid Decimal  @db.Decimal(10, 2)
   enrolledAt DateTime @default(now())
   status     String   @default("active")
 
@@ -381,7 +381,7 @@ model DiscussionUpvote {
 
 model Certificate {
   id           String   @id @default(uuid())
-  student      User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student      User     @relation(fields: [studentId], references: [id], onDelete: Restrict)
   studentId    String
   course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId     String
@@ -399,9 +399,9 @@ model RevenueLedger {
   trainerId    String
   enrollment   Enrollment @relation(fields: [enrollmentId], references: [id])
   enrollmentId String     @unique
-  gross        Float
-  platformCut  Float
-  trainerShare Float
+  gross        Decimal    @db.Decimal(10, 2)
+  platformCut  Decimal    @db.Decimal(10, 2)
+  trainerShare Decimal    @db.Decimal(10, 2)
   createdAt    DateTime   @default(now())
 }
 
@@ -409,7 +409,7 @@ model Payout {
   id        String   @id @default(uuid())
   trainer   User     @relation("TrainerPayouts", fields: [trainerId], references: [id])
   trainerId String
-  amount    Float
+  amount    Decimal  @db.Decimal(10, 2)
   period    String
   status    String   @default("PENDING")
   createdAt DateTime @default(now())
@@ -528,10 +528,10 @@ model Coupon {
   id                  String       @id @default(uuid())
   code                String       @unique
   discountType        DiscountType
-  value               Float
+  value               Decimal      @db.Decimal(10, 2)
   currency            Currency?
   applicableCourseIds String[]     @default([])
-  minOrderAmount      Float?
+  minOrderAmount      Decimal?     @db.Decimal(10, 2)
   maxUses             Int?
   usedCount           Int          @default(0)
   perUserLimit        Int          @default(1)
@@ -558,16 +558,16 @@ model CouponRedemption {
 
 model Order {
   id                String       @id @default(uuid())
-  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User         @relation(fields: [userId], references: [id], onDelete: Restrict)
   userId            String
   currency          Currency
   gatewayType       GatewayType
-  subtotal          Float
-  discountAmount    Float        @default(0)
+  subtotal          Decimal      @db.Decimal(10, 2)
+  discountAmount    Decimal      @default(0) @db.Decimal(10, 2)
   couponId          String?
-  gstPercent        Float        @default(0) // GST rate snapshot at purchase time (admin-configurable in PaymentSettings)
-  gstAmount         Float        @default(0) // GST amount charged on top of (subtotal - discount)
-  totalAmount       Float
+  gstPercent        Decimal      @default(0) @db.Decimal(10, 4) // GST rate snapshot at purchase time (admin-configurable in PaymentSettings)
+  gstAmount         Decimal      @default(0) @db.Decimal(10, 2) // GST amount charged on top of (subtotal - discount)
+  totalAmount       Decimal      @db.Decimal(10, 2)
   status            OrderStatus  @default(CREATED)
   razorpayOrderId   String       @unique
   razorpayPaymentId String?
@@ -604,7 +604,7 @@ model OrderItem {
   courseId        String?
   project         Project? @relation(fields: [projectId], references: [id])
   projectId       String?
-  priceAtPurchase Float
+  priceAtPurchase Decimal  @db.Decimal(10, 2)
   currency        Currency
   status          String? // for projects: pending | active | refunded
 
@@ -620,9 +620,9 @@ model PaymentSettings {
   domesticEnabled      Boolean  @default(true) // INR (domestic gateway)
   internationalEnabled Boolean  @default(false) // USD (international gateway)
   trainerSharePercent  Int      @default(50) // default % of collected gross the trainer keeps (rest = platform cut)
-  gstPercent           Float    @default(18) // GST % charged on top of every course fee (INR / domestic)
-  gstPercentUsd        Float    @default(0) // GST % for USD orders — export of services is zero-rated by default
-  usdRate              Float    @default(95) // INR per 1 USD — fallback conversion when a course/project has no explicit priceUsd. Fresh rows are seeded from the DEFAULT_USD_RATE env var; this DB default is only a raw safety net. Admin edits the live value.
+  gstPercent           Decimal  @default(18) @db.Decimal(10, 4) // GST % charged on top of every course fee (INR / domestic)
+  gstPercentUsd        Decimal  @default(0) @db.Decimal(10, 4) // GST % for USD orders — export of services is zero-rated by default
+  usdRate              Decimal  @default(95) @db.Decimal(10, 4) // INR per 1 USD — fallback conversion when a course/project has no explicit priceUsd. Fresh rows are seeded from the DEFAULT_USD_RATE env var; this DB default is only a raw safety net. Admin edits the live value.
   updatedAt            DateTime @updatedAt
 }
 
@@ -650,7 +650,7 @@ model Lead {
   city         String?
   course       String? // course interest (free text or from course list)
   status       String    @default("New") // "New" | "Interested" | "Converted" | "Dropped"
-  budget       Float     @default(0)
+  budget       Decimal   @default(0) @db.Decimal(10, 2)
   score        Int       @default(35)
   source       String? // e.g. Website, Referral, Walk-in, Demo
   notes        String? // salesperson notes / follow-up context
@@ -701,10 +701,10 @@ model Project {
   duration            String       @default("")
   sessions            String       @default("")
   seats               Int          @default(0)
-  price               Float        @default(0)
-  originalPrice       Float?
-  priceUsd            Float? // USD sale price for international checkout. null = auto-convert from `price` via PaymentSettings.usdRate.
-  originalPriceUsd    Float? // USD list/strikethrough price. null = no USD discount shown.
+  price               Decimal      @default(0) @db.Decimal(10, 2)
+  originalPrice       Decimal?     @db.Decimal(10, 2)
+  priceUsd            Decimal?     @db.Decimal(10, 2) // USD sale price for international checkout. null = auto-convert from `price` via PaymentSettings.usdRate.
+  originalPriceUsd    Decimal?     @db.Decimal(10, 2) // USD list/strikethrough price. null = no USD discount shown.
   rating              Float        @default(0)
   reviewCount         Int          @default(0)
   status              CourseStatus @default(DRAFT)
@@ -771,8 +771,8 @@ model SalesTarget {
   courseId      String?
   course        Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
   period        String // "monthly" | "quarterly" | "yearly"
-  targetAmount  Float    @default(0)
-  currentAmount Float    @default(0)
+  targetAmount  Decimal  @default(0) @db.Decimal(10, 2)
+  currentAmount Decimal  @default(0) @db.Decimal(10, 2)
   startDate     DateTime
   endDate       DateTime
   createdAt     DateTime @default(now())
@@ -789,12 +789,12 @@ model Invoice {
   orderId         String    @unique
   order           Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   userId          String
-  user            User      @relation("Invoices", fields: [userId], references: [id], onDelete: Cascade)
-  subtotal        Float
-  gstPercent      Float     @default(0)
-  gstAmount       Float     @default(0)
-  discountAmount  Float     @default(0)
-  totalAmount     Float
+  user            User      @relation("Invoices", fields: [userId], references: [id], onDelete: Restrict)
+  subtotal        Decimal   @db.Decimal(10, 2)
+  gstPercent      Decimal   @default(0) @db.Decimal(10, 4)
+  gstAmount       Decimal   @default(0) @db.Decimal(10, 2)
+  discountAmount  Decimal   @default(0) @db.Decimal(10, 2)
+  totalAmount     Decimal   @db.Decimal(10, 2)
   billingFullName String?
   billingEmail    String?
   billingPhone    String?
@@ -815,17 +815,17 @@ model Refund {
   id               String       @id @default(uuid())
   order            Order?       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   orderId          String?
-  student          User         @relation("RefundStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  student          User         @relation("RefundStudent", fields: [studentId], references: [id], onDelete: Restrict)
   studentId        String
   course           Course?      @relation(fields: [courseId], references: [id], onDelete: SetNull)
   courseId         String?
   project          Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
   projectId        String?
-  amount           Float
+  amount           Decimal      @db.Decimal(10, 2)
   reason           String
   status           RefundStatus @default(PENDING)
   razorpayRefundId String?
-  initiatedBy      User         @relation("RefundInitiator", fields: [initiatedById], references: [id], onDelete: Cascade)
+  initiatedBy      User         @relation("RefundInitiator", fields: [initiatedById], references: [id], onDelete: Restrict)
   initiatedById    String
   processedAt      DateTime?
   createdAt        DateTime     @default(now())
