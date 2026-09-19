@@ -33,3 +33,5 @@ services:
         sync: false
       - key: VDOCIPHER_API_KEY
         sync: false
+      - key: VDOCIPHER_WEBHOOK_SECRET
+        sync: false
