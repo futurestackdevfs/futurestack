@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { addLead, markLeadSubmitted } from "@/app/ops/sales/lib/store";
 import { LEAD_COURSE_OPTIONS } from "@/app/ops/sales/lib/data";
 
 interface CareerGuidanceCtx {
@@ -64,8 +63,6 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
     })
       .then(async (r) => {
         if (!r.ok) throw new Error("Could not submit right now — please try again.");
-        addLead(payload);
-        markLeadSubmitted();
         setSuccess(true);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not submit right now — please try again."))
