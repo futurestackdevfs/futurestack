@@ -1,9 +1,10 @@
 import { loadStaffToken, saveStaffToken } from "@/app/auth/lib/token-store";
 import { reportSessionExpired } from "@/app/auth/lib/session-events";
 import { refreshSession } from "@/app/auth/lib/refresh-session";
+import { decodeClaims } from "@/app/auth/lib/token-claims";
 
 function decodeJwtRole(t: string): string | undefined {
-  try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role; } catch { return undefined; }
+  return decodeClaims(t)?.role;
 }
 
 /**

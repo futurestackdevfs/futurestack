@@ -1,3 +1,17 @@
+import {
+  STAFF_CLAIMS_KEY,
+  STAFF_MARKER,
+  STUDENT_CLAIMS_KEY,
+  STUDENT_MARKER,
+  decodeJwtPayload,
+  pickClaims,
+} from './token-claims';
+
+// The access token itself is never persisted here — it lives only in the
+// HttpOnly cookie set by /api/auth/set-token[-staff]. This store keeps just the
+// user id and non-secret claims, and hands out a session marker that the BFF
+// proxy resolves to the real cookie token (see app/api/[...proxy]/route.ts).
+
 const UID_KEY = 'fs_uid';
 const STAFF_UID_KEY = 'fs_staff_uid';
 
@@ -10,50 +24,63 @@ async function hashUserId(uid: string): Promise<string> {
   return `fs_${hex}`;
 }
 
-// ── Student token store ──
-
-export async function saveToken(userId: string, token: string): Promise<void> {
-  const key = await hashUserId(userId);
-  localStorage.setItem(UID_KEY, userId);
-  localStorage.setItem(key, token);
-}
-
-export async function loadToken(): Promise<string | null> {
-  const uid = localStorage.getItem(UID_KEY);
-  if (!uid) return null;
-  const key = await hashUserId(uid);
-  return localStorage.getItem(key);
-}
-
-export async function clearToken(): Promise<void> {
-  const uid = localStorage.getItem(UID_KEY);
-  if (uid) {
-    const key = await hashUserId(uid);
-    localStorage.removeItem(key);
+// Sessions created before the cookie-only change kept the JWT in localStorage
+// under a hashed key. Convert them once (claims kept, JWT dropped) so users
+// stay signed in, and re-sync the cookie from that token.
+async function migrateLegacy(staff: boolean): Promise<void> {
+  const uidKey = staff ? STAFF_UID_KEY : UID_KEY;
+  const claimsKey = staff ? STAFF_CLAIMS_KEY : STUDENT_CLAIMS_KEY;
+  const uid = localStorage.getItem(uidKey);
+  if (!uid) return;
+  const key = `${staff ? 'staff_' : ''}${await hashUserId(uid)}`;
+  const legacy = localStorage.getItem(key);
+  if (!legacy) return;
+  const payload = decodeJwtPayload(legacy);
+  if (payload && !localStorage.getItem(claimsKey)) {
+    localStorage.setItem(claimsKey, JSON.stringify(pickClaims(payload)));
   }
-  localStorage.removeItem(UID_KEY);
+  localStorage.removeItem(key);
+  fetch(staff ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ token: legacy }),
+  }).catch(() => {});
 }
 
-// ── Staff token store (separate from student to prevent cross-portal auth) ──
-
-export async function saveStaffToken(userId: string, token: string): Promise<void> {
-  const key = `staff_${await hashUserId(userId)}`;
-  localStorage.setItem(STAFF_UID_KEY, userId);
-  localStorage.setItem(key, token);
-}
-
-export async function loadStaffToken(): Promise<string | null> {
-  const uid = localStorage.getItem(STAFF_UID_KEY);
-  if (!uid) return null;
-  const key = `staff_${await hashUserId(uid)}`;
-  return localStorage.getItem(key);
-}
-
-export async function clearStaffToken(): Promise<void> {
-  const uid = localStorage.getItem(STAFF_UID_KEY);
-  if (uid) {
-    const key = `staff_${await hashUserId(uid)}`;
-    localStorage.removeItem(key);
+async function save(staff: boolean, userId: string, token: string): Promise<void> {
+  const payload = decodeJwtPayload(token);
+  localStorage.setItem(staff ? STAFF_UID_KEY : UID_KEY, userId);
+  if (payload) {
+    localStorage.setItem(staff ? STAFF_CLAIMS_KEY : STUDENT_CLAIMS_KEY, JSON.stringify(pickClaims(payload)));
   }
-  localStorage.removeItem(STAFF_UID_KEY);
 }
+
+async function load(staff: boolean): Promise<string | null> {
+  await migrateLegacy(staff);
+  const uid = localStorage.getItem(staff ? STAFF_UID_KEY : UID_KEY);
+  if (!uid) return null;
+  if (!localStorage.getItem(staff ? STAFF_CLAIMS_KEY : STUDENT_CLAIMS_KEY)) return null;
+  return staff ? STAFF_MARKER : STUDENT_MARKER;
+}
+
+async function clear(staff: boolean): Promise<void> {
+  const uidKey = staff ? STAFF_UID_KEY : UID_KEY;
+  const uid = localStorage.getItem(uidKey);
+  if (uid) localStorage.removeItem(`${staff ? 'staff_' : ''}${await hashUserId(uid)}`);
+  localStorage.removeItem(uidKey);
+  localStorage.removeItem(staff ? STAFF_CLAIMS_KEY : STUDENT_CLAIMS_KEY);
+}
+
+// ── Student session ──
+
+/** Records the session's user id + claims. `token` is decoded, not stored. */
+export const saveToken = (userId: string, token: string) => save(false, userId, token);
+/** Returns the session marker, or null when there is no student session. */
+export const loadToken = () => load(false);
+export const clearToken = () => clear(false);
+
+// ── Staff session (separate from student to prevent cross-portal auth) ──
+
+export const saveStaffToken = (userId: string, token: string) => save(true, userId, token);
+export const loadStaffToken = () => load(true);
+export const clearStaffToken = () => clear(true);

@@ -2,6 +2,7 @@
 const API = '/api';
 import { reportSessionExpired } from './session-events';
 import { refreshSession } from './refresh-session';
+import { decodeClaims } from './token-claims';
 
 export type User = {
   id?: string;
@@ -16,8 +17,7 @@ export type User = {
 export type AuthResponse = { accessToken: string; user: User };
 
 function decodeJwtRole(t?: string): string | undefined {
-  if (!t) return undefined;
-  try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role; } catch { return undefined; }
+  return decodeClaims(t)?.role;
 }
 
 function isAuthenticated(): boolean {

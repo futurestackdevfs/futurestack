@@ -1,16 +1,8 @@
 import { reportSessionExpired } from '@/app/auth/lib/session-events';
 import { refreshSession } from '@/app/auth/lib/refresh-session';
+import { decodeClaims } from '@/app/auth/lib/token-claims';
 
 // Shared SWR fetcher — handles 401 session expiry and error responses
-function decodeJwt(t?: string): { sub?: string; role?: string } | null {
-  if (!t) return null;
-  try {
-    return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-  } catch {
-    return null;
-  }
-}
-
 async function loadSessionToken(): Promise<string | null> {
   const { loadToken, loadStaffToken } = await import('@/app/auth/lib/token-store');
   const isOps = typeof window !== 'undefined' && window.location.pathname.startsWith('/ops');
@@ -30,7 +22,7 @@ export async function fetcher<T = unknown>(url: string): Promise<T> {
 
   if (res.status === 401 && token) {
     try {
-      const role = decodeJwt(token)?.role;
+      const role = decodeClaims(token)?.role;
       const refreshed = await refreshSession(role);
       if (refreshed) {
         res = await doFetch(refreshed.accessToken);
@@ -42,7 +34,7 @@ export async function fetcher<T = unknown>(url: string): Promise<T> {
 
   if (res.status === 401) {
     if (typeof window !== 'undefined') {
-      reportSessionExpired(decodeJwt(token ?? '')?.role);
+      reportSessionExpired(decodeClaims(token ?? '')?.role);
     }
     throw new Error('Session expired');
   }

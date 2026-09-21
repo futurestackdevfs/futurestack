@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { loadStaffToken } from "@/app/auth/lib/token-store";
+import { decodeClaims } from "@/app/auth/lib/token-claims";
 
 const ROLE_PORTALS: Record<string, string> = {
   ADMIN: "/ops/admin",
@@ -13,11 +14,7 @@ const ROLE_PORTALS: Record<string, string> = {
 };
 
 function decodeJwtRole(t: string): string | undefined {
-  try {
-    return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).role;
-  } catch {
-    return undefined;
-  }
+  return decodeClaims(t)?.role;
 }
 
 /**

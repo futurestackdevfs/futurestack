@@ -14,7 +14,17 @@ async function proxy(req: NextRequest) {
   const ct = req.headers.get('content-type');
   if (ct) headers.set('content-type', ct);
   const auth = req.headers.get('authorization');
-  if (auth) headers.set('authorization', auth);
+  // The browser never holds the access token (it lives in an HttpOnly cookie).
+  // It sends a marker — `Bearer cookie:student` / `Bearer cookie:staff` — and we
+  // swap in the matching cookie's JWT, so the portal is explicit and a student
+  // cookie can never stand in for a staff request (or vice versa).
+  const marker = auth ? /^Bearer\s+cookie:(student|staff)$/i.exec(auth) : null;
+  if (marker) {
+    const cookie = req.cookies.get(marker[1].toLowerCase() === 'staff' ? 'fs_token_staff' : 'fs_token');
+    if (cookie) headers.set('authorization', `Bearer ${cookie.value}`);
+  } else if (auth) {
+    headers.set('authorization', auth);
+  }
 
   // Forward the real client IP so the backend (behind Render's LB) can record
   // it — Vercel sets x-forwarded-for / x-real-ip to the true client address.
@@ -24,6 +34,7 @@ async function proxy(req: NextRequest) {
   // Forward the HttpOnly cookie token as Authorization if no explicit header
   // Try student token first, fallback to staff token
   if (!auth) {
+    // (a marker with a missing cookie stays unauthenticated on purpose)
     const cookie = req.cookies.get('fs_token') ?? req.cookies.get('fs_token_staff');
     if (cookie) headers.set('authorization', `Bearer ${cookie.value}`);
   }

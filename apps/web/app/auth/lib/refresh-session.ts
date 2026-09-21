@@ -50,8 +50,11 @@ export async function refreshSession(role?: string): Promise<RefreshResult> {
         if (role && role !== 'STUDENT') await saveStaffToken(uid, data.accessToken);
         else await saveToken(uid, data.accessToken);
       }
-      // Update the BFF proxy cookie so subsequent calls don't use the expired JWT
-      fetch(role && role !== 'STUDENT' ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
+      // Update the BFF proxy cookie so subsequent calls don't use the expired JWT.
+      // Awaited on purpose: the cookie is now the only place the client's token
+      // lives (requests carry a marker the proxy resolves from it), so returning
+      // before it lands would let the next request go out with the stale JWT.
+      await fetch(role && role !== 'STUDENT' ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token: data.accessToken }),
