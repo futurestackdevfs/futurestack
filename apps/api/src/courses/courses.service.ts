@@ -955,6 +955,21 @@ export class CoursesService {
     return new Map(rows.map((r) => [r.courseId, Number(r.quizCount ?? 0)]));
   }
 
+  private async getQuestionCounts(
+    courseIds: string[],
+  ): Promise<Map<string, number>> {
+    if (courseIds.length === 0) return new Map();
+    const rows: { courseId: string; questionCount: number | null }[] =
+      await this.prisma.$queryRawUnsafe(
+        `SELECT s."courseId", COALESCE(SUM(q."totalQuestions"), 0) as "questionCount"
+         FROM "Section" s JOIN "Quiz" q ON q."sectionId" = s."id"
+         WHERE s."courseId" = ANY($1)
+         GROUP BY s."courseId"`,
+        courseIds,
+      );
+    return new Map(rows.map((r) => [r.courseId, Number(r.questionCount ?? 0)]));
+  }
+
   async findAllCards(opts: {
     page: number;
     perPage: number;
@@ -1045,6 +1060,12 @@ export class CoursesService {
     })) as any[];
 
     const videoStats = await this.getVideoStats(courses.map((c) => c.id));
+    const questionCounts = lean
+      ? new Map<string, number>()
+      : await this.getQuestionCounts(courses.map((c) => c.id));
+    const quizCounts = lean
+      ? new Map<string, number>()
+      : await this.getQuizCounts(courses.map((c) => c.id));
 
     // Build computed card data
     const enrollmentCounts = courses
@@ -1118,6 +1139,8 @@ export class CoursesService {
         mode: 'Self-Paced',
         goal: 'Upskill',
         tech: category,
+        quizCount: quizCounts.get(course.id) ?? 0,
+        questionCount: questionCounts.get(course.id) ?? 0,
         duration: durationLabel,
         price: course.price?.toNumber?.() ?? course.price,
         ...discountInfo(

@@ -190,6 +190,58 @@ async function downloadCertificatePdf(cert: EarnedCert, _studentName: string) {
   }
 }
 
+/** The real certificate design, shown locked with only the essentials filled in. */
+function MinimalLockedCertificate({ title, category, studentName, progressPercent }: { title: string; category: string; studentName: string; progressPercent?: number }) {
+  return (
+    <div className="w-full max-w-[720px] bg-[#FBF9F3] shadow-[0_40px_70px_-30px_rgba(32,42,66,.4),0_10px_30px_rgba(32,42,66,.12)] relative overflow-hidden grayscale-[.55] [animation:fadeUp_.35s_ease_both]">
+      <div className="absolute inset-[14px] border border-[#DCD5C2] pointer-events-none z-[1]" />
+      <div className="absolute top-[14px] left-[14px] w-[30px] h-[30px] border-t-2 border-l-2 border-[#202A42] z-[2]" />
+      <div className="absolute top-[14px] right-[14px] w-[30px] h-[30px] border-t-2 border-r-2 border-[#202A42] z-[2]" />
+      <div className="absolute bottom-[14px] left-[14px] w-[30px] h-[30px] border-b-2 border-l-2 border-[#202A42] z-[2]" />
+      <div className="absolute bottom-[14px] right-[14px] w-[30px] h-[30px] border-b-2 border-r-2 border-[#202A42] z-[2]" />
+      <div className="absolute inset-0 z-0 pointer-events-none opacity-[.5]" style={{ backgroundImage: "linear-gradient(rgba(36,53,111,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(36,53,111,.04) 1px,transparent 1px)", backgroundSize: "34px 34px" }} />
+
+      <div className="absolute top-[26px] right-[26px] flex items-center gap-[6px] bg-[#202A42] text-white font-['Manrope',sans-serif] font-semibold text-[12px] pl-[9px] pr-[13px] py-[6px] rounded-[20px] z-[3] tracking-[.01em]">
+        🔒 Locked
+      </div>
+
+      <div className="relative z-[1] px-[62px] pt-[58px] pb-[42px] text-center">
+        <img src="/images/logo.png" alt="FutureStack" className="h-[56px] w-auto mx-auto mb-[16px] object-contain" />
+        <div className="font-['Manrope',sans-serif] font-bold text-[12px] tracking-[.32em] text-[#E1602C] mb-[6px]">FUTURE STACK</div>
+        <h1 className="font-['Fraunces',serif] italic font-medium text-[30px] text-[#202A42] m-0 mb-[24px]">Certificate of Completion</h1>
+        <div className="w-[60px] h-[2px] bg-[#E1602C] mx-auto mb-[30px]" />
+
+        <img src="/images/stamp.png" alt="FutureStack Academy Seal" className="w-[128px] h-auto mx-auto mb-[26px] block drop-shadow-[0_8px_20px_rgba(32,42,66,.18)]" />
+
+        <p className="font-['Manrope',sans-serif] text-[10.5px] font-bold tracking-[.18em] uppercase text-[#8B8F9C] m-0 mb-[14px]">This certifies that</p>
+        <h2 className="font-['Fraunces',serif] font-semibold text-[clamp(30px,5.5vw,46px)] text-[#202A42] m-0 mb-[24px] leading-[1.1] break-words">{studentName}</h2>
+        <div className="w-full max-w-[440px] mx-auto mb-[26px] h-px bg-[#DCD5C2]" />
+
+        <p className="font-['Manrope',sans-serif] text-[10.5px] font-bold tracking-[.18em] uppercase text-[#8B8F9C] m-0 mb-[12px]">Has successfully completed</p>
+        <h3 className="font-['Fraunces',serif] font-semibold text-[24px] text-[#24356F] m-0 mb-[8px] leading-[1.3]">{title}</h3>
+        <p className="font-['Manrope',sans-serif] text-[11px] font-semibold tracking-[.12em] uppercase text-[#8B8F9C] m-0 mb-[36px]">{category}</p>
+
+        <div className="flex items-end justify-between gap-6 pt-[26px] border-t border-[#DCD5C2] text-left">
+          <div className="w-[34%] min-w-0">
+            <div className="font-['Fraunces',serif] italic font-medium text-[19px] text-[#202A42] border-b border-[#202A42]/25 pb-[7px] mb-[7px] whitespace-nowrap overflow-hidden text-ellipsis">Master Trainer</div>
+            <div className="font-['Manrope',sans-serif] text-[9.5px] font-semibold tracking-[.11em] uppercase text-[#8B8F9C]">Course Instructor</div>
+          </div>
+          <img src="/images/logo.png" alt="FutureStack" className="h-[26px] w-auto object-contain opacity-90 shrink-0 pb-[6px]" />
+          <div className="w-[34%] text-right shrink-0">
+            <div className="font-['Manrope',sans-serif] text-[9.5px] text-[#8B8F9C] mb-[5px] tracking-[.02em] whitespace-nowrap">ID: ••••••••</div>
+            <div className="inline-block font-['Manrope',sans-serif] text-[10.5px] font-bold text-[#E1602C] bg-[#FBEBE1] px-[11px] py-[4px] rounded-[20px]">
+              {progressPercent !== undefined ? `${progressPercent}% complete` : "Not yet issued"}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Logged-in and logged-out users see the same demo layout — no swap to the real-data view after login.
+const DEMO_ONLY = true;
+
 const staticLocked: LockedCert[] = [
   { courseId: "fs-101", courseTitle: "Full-Stack React & Node.js Mastery", category: "Full Stack", price: 4999 },
   { courseId: "ai-201", courseTitle: "Machine Learning with Python", category: "AI / ML", price: 6499 },
@@ -199,7 +251,7 @@ const staticLocked: LockedCert[] = [
   { courseId: "sec-601", courseTitle: "Cybersecurity Fundamentals", category: "Security", price: 3999 },
 ];
 
-function StaticCertificates({ studentName }: { studentName: string }) {
+function StaticCertificates({ studentName, compactLocked }: { studentName: string; compactLocked?: boolean }) {
   const [activeLockedId, setActiveLockedId] = useState<string | null>(staticLocked[0]?.courseId ?? null);
   const activeLocked = staticLocked.find(c => c.courseId === activeLockedId) ?? null;
 
@@ -246,7 +298,9 @@ function StaticCertificates({ studentName }: { studentName: string }) {
 
       {/* ─── RIGHT ─── */}
       <div className="bg-[var(--bg)] flex flex-col items-center gap-5 py-8 px-7 overflow-y-auto">
-        {activeLocked ? (
+        {activeLocked && compactLocked ? (
+          <MinimalLockedCertificate title={activeLocked.courseTitle} category={activeLocked.category} studentName={studentName} />
+        ) : activeLocked ? (
           <div className="w-full max-w-[600px] bg-[#fdfbf6] rounded-lg shadow-[0_8px_32px_rgba(0,0,0,.14),0_2px_8px_rgba(0,0,0,.08)] overflow-hidden relative [animation:fadeUp_.35s_ease_both] grayscale-[.4]">
             <div className="absolute inset-0 pointer-events-none z-0 opacity-[.5]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px,rgba(201,168,76,.15) 1px,transparent 0)", backgroundSize: "14px 14px" }} />
             <div className="absolute right-[-30px] bottom-[-40px] w-[240px] h-[240px] opacity-[.05] pointer-events-none z-0 flex items-center justify-center font-['Inter_Tight',sans-serif] font-[800] text-[160px] text-[#0d1f3c] rotate-[-8deg]">FS</div>
@@ -319,7 +373,7 @@ function StaticCertificates({ studentName }: { studentName: string }) {
   );
 }
 
-export default function CertificatesSection({ embedded, enrolledCount }: { embedded?: boolean; enrolledCount?: number }) {
+export default function CertificatesSection({ embedded, enrolledCount, compactLocked }: { embedded?: boolean; enrolledCount?: number; compactLocked?: boolean }) {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   // `useAuth`'s state is a module-level singleton that persists for the whole
   // SPA session. SSR always renders assuming auth hasn't resolved yet (the
@@ -338,7 +392,7 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
   // and must always fetch real data instead of falling back to the static demo.
   // Either way, never fire the request before auth has resolved to a logged-in
   // user — an unauthenticated call would just 401.
-  const skipApi = !mounted || !isAuthenticated || (embedded && (!enrolledCount || enrolledCount === 0));
+  const skipApi = DEMO_ONLY || !mounted || !isAuthenticated || (embedded && (!enrolledCount || enrolledCount === 0));
   const { data, isLoading: dataLoading, error } = useSWR<CertificatesResponse>(skipApi ? null : "/api/certificates/my");
   const isLoading = !mounted || authLoading || dataLoading;
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -349,11 +403,13 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
   const inProgress = data?.inProgress ?? [];
   const locked = data?.locked ?? [];
 
-  const activeEarned = earned.find(c => c.courseId === activeId) ?? null;
-  const activeInProgress = inProgress.find(c => c.courseId === activeId) ?? null;
+  // Dashboard tab only: nothing picked yet → default to the first certificate.
+  const selectedId = activeId ?? (compactLocked ? (earned[0]?.courseId ?? inProgress[0]?.courseId ?? locked[0]?.courseId ?? null) : null);
+  const activeLockedCert = locked.find(c => c.courseId === selectedId) ?? null;
 
-  const activeItem = activeEarned ?? activeInProgress;
-  const isEarned = !!activeEarned;
+  const activeEarned = earned.find(c => c.courseId === selectedId) ?? null;
+  const activeInProgress = inProgress.find(c => c.courseId === selectedId) ?? null;
+
 
   // Same singleton-race as `isLoading`/`skipApi` above — `user` itself must be
   // gated on `mounted` too, or the very first client render can already show
@@ -380,25 +436,25 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
   // the new certificate to paint before capturing.
   const requestDownload = useCallback((cert: EarnedCert) => {
     if (downloadingId) return;
-    if (activeId === cert.courseId) {
+    if (selectedId === cert.courseId) {
       void runDownload(cert);
     } else {
       pendingDownloadRef.current = cert.courseId;
       setActiveId(cert.courseId);
     }
-  }, [activeId, downloadingId, runDownload]);
+  }, [selectedId, downloadingId, runDownload]);
 
   useEffect(() => {
     const pending = pendingDownloadRef.current;
     if (!pending || downloadingId) return;
     const cert = earned.find((c) => c.courseId === pending);
-    if (!cert || activeId !== pending) return;
+    if (!cert || selectedId !== pending) return;
     pendingDownloadRef.current = null;
     const raf = requestAnimationFrame(() =>
       requestAnimationFrame(() => void runDownload(cert)),
     );
     return () => cancelAnimationFrame(raf);
-  }, [activeId, earned, downloadingId, runDownload]);
+  }, [selectedId, earned, downloadingId, runDownload]);
 
   const summaryStats = [
     { num: earned.length, lbl: "Earned", color: "var(--green)" },
@@ -433,7 +489,7 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
           </div>
         </div>
       ) : error || skipApi ? (
-        <StaticCertificates studentName={studentName} />
+        <StaticCertificates studentName={studentName} compactLocked={compactLocked} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr] flex-1 min-h-0 overflow-hidden">
           {/* ─── LEFT ─── */}
@@ -472,12 +528,12 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
                   <div
                     key={c.courseId}
                     onClick={() => setActiveId(c.courseId)}
-                    className={`flex items-center gap-3 px-5 py-3 border-b border-[var(--border)] cursor-pointer transition-colors duration-100 relative ${activeId === c.courseId ? "bg-[rgba(240,90,26,.05)] border-l-2 border-l-[var(--orange)]" : "hover:bg-[var(--card-h)]"}`}
+                    className={`flex items-center gap-3 px-5 py-3 border-b border-[var(--border)] cursor-pointer transition-colors duration-100 relative ${selectedId === c.courseId ? "bg-[rgba(240,90,26,.05)] border-l-2 border-l-[var(--orange)]" : "hover:bg-[var(--card-h)]"}`}
                   >
                     <div className="w-[38px] h-[38px] rounded-[10px] flex-shrink-0 flex items-center justify-center text-[20px] shadow-[0_2px_8px_rgba(0,0,0,.15)]" style={{ background: getBg(c.courseId) }}>{getEmoji(c.category)}</div>
                     <div className="flex-1 min-w-0">
                       <div className="font-['JetBrains_Mono',monospace] text-[8.5px] text-[var(--text3)] uppercase tracking-[.05em] mb-[2px]">{c.category}</div>
-                      <div className={`text-[12.5px] font-bold text-[var(--text)] truncate ${activeId === c.courseId ? "text-[var(--orange)]" : ""}`}>{c.courseTitle}</div>
+                      <div className={`text-[12.5px] font-bold text-[var(--text)] truncate ${selectedId === c.courseId ? "text-[var(--orange)]" : ""}`}>{c.courseTitle}</div>
                       <div className="flex items-center gap-2 mt-[3px]">
                         <span className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)]">📅 {formatDate(c.issuedAt)}</span>
                         {c.score !== null && <span className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)]">Score: {c.score}%</span>}
@@ -513,7 +569,7 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
                   <div
                     key={c.courseId}
                     onClick={() => setActiveId(c.courseId)}
-                    className={`px-5 py-3 border-b border-[var(--border)] cursor-pointer ${activeId === c.courseId ? "bg-[rgba(240,90,26,.05)] border-l-2 border-l-[var(--orange)]" : "hover:bg-[var(--card-h)]"}`}
+                    className={`px-5 py-3 border-b border-[var(--border)] cursor-pointer ${selectedId === c.courseId ? "bg-[rgba(240,90,26,.05)] border-l-2 border-l-[var(--orange)]" : "hover:bg-[var(--card-h)]"}`}
                   >
                     <div className="flex items-center gap-2.5 mb-2">
                       <div className="w-[34px] h-[34px] rounded-[9px] flex-shrink-0 flex items-center justify-center text-[17px]" style={{ background: getBg(c.courseId) }}>{getEmoji(c.category)}</div>
@@ -545,7 +601,11 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
                   <span className="flex-1 h-[1px] bg-[var(--border)]" />
                 </div>
                 {locked.slice(0, 3).map(c => (
-                  <div key={c.courseId} className="flex items-center gap-3 px-5 py-2.5 border-b border-[var(--border)] opacity-[.55]">
+                  <div
+                    key={c.courseId}
+                    onClick={compactLocked ? () => setActiveId(c.courseId) : undefined}
+                    className={`flex items-center gap-3 px-5 py-2.5 border-b border-[var(--border)] ${compactLocked ? "cursor-pointer transition-colors duration-100" : ""} ${compactLocked && selectedId === c.courseId ? "bg-[rgba(240,90,26,.05)] border-l-2 border-l-[var(--orange)]" : "opacity-[.55]"}`}
+                  >
                     <div className="w-[34px] h-[34px] rounded-[9px] bg-[var(--bg2)] border border-[var(--border)] flex items-center justify-center text-[14px] flex-shrink-0 text-[var(--text3)]">🔒</div>
                     <div className="flex-1">
                       <div className="text-[12px] font-semibold text-[var(--text3)]">{c.courseTitle}</div>
@@ -672,6 +732,13 @@ export default function CertificatesSection({ embedded, enrolledCount }: { embed
                   ))}
                 </div>
               </>
+            ) : compactLocked && (activeInProgress || activeLockedCert) ? (
+              <MinimalLockedCertificate
+                title={(activeInProgress ?? activeLockedCert)!.courseTitle}
+                category={(activeInProgress ?? activeLockedCert)!.category}
+                studentName={studentName}
+                progressPercent={activeInProgress?.progressPercent}
+              />
             ) : activeInProgress ? (
               <div className="w-full max-w-[480px] flex flex-col gap-4">
                 <div className="text-center py-2.5">

@@ -28,7 +28,7 @@ function buildCsp(nonce: string): string {
     // The admin video-upload flow gets a signed URL from VdoCipher's API but
     // the actual file PUT/POST goes straight to S3 (accelerate endpoint) from
     // the browser — *.vdocipher.com alone doesn't cover that origin.
-    "connect-src 'self' https://*.razorpay.com https://*.vdocipher.com https://*.s3-accelerate.amazonaws.com",
+    "connect-src 'self' https://*.razorpay.com https://*.vdocipher.com https://*.s3-accelerate.amazonaws.com https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://*.analytics.google.com",
     "frame-src 'self' https://*.razorpay.com https://*.vdocipher.com",
     "worker-src 'self' blob:",
     "object-src 'none'",

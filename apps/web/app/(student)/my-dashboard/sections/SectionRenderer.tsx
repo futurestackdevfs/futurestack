@@ -53,9 +53,14 @@ const COMPONENT_MAP: Record<string, ReactNode | ((props: any) => ReactNode)> = {
   },
   schedule: () => <ScheduleSection />,
   assignments: () => <AssignmentsSection />,
-  certificates: (props: SectionRendererProps) => <CertificatesSection enrolledCount={props.enrolledCourses.length} />,
+  certificates: (props: SectionRendererProps) => <CertificatesSection enrolledCount={props.enrolledCourses.length} compactLocked />,
   projects: () => <ProjectsSection />,
-  skilltests: () => <SkillTestsSection />,
+  skilltests: (props: SectionRendererProps) => (
+    <SkillTestsSection
+      enrolledCourses={props.enrolledCourses}
+      onOpenCourse={(courseId) => { props.setSelectedCourseId(courseId); props.setActiveTab("courses"); }}
+    />
+  ),
   discussion: (props: SectionRendererProps) => {
     if (props.discussionCourseId) {
       return (
