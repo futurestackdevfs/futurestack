@@ -60,9 +60,10 @@ export class RefundService {
         `${isCourse ? 'Course' : 'Project'} not found in order items`,
       );
     }
-    if (dto.amount > orderItem.priceAtPurchase) {
+    const priceAtPurchase = orderItem.priceAtPurchase.toNumber();
+    if (dto.amount > priceAtPurchase) {
       throw new BadRequestException(
-        `Refund amount ₹${dto.amount} exceeds item price ₹${orderItem.priceAtPurchase}`,
+        `Refund amount ₹${dto.amount} exceeds item price ₹${priceAtPurchase}`,
       );
     }
 
@@ -200,7 +201,7 @@ export class RefundService {
       refundId: refund.id,
       status: refund.status,
       razorpayRefundId: refund.razorpayRefundId,
-      amount: refund.amount,
+      amount: refund.amount.toNumber(),
     };
   }
 
@@ -263,15 +264,22 @@ export class RefundService {
     const summaryMap: Record<string, { count: number; amount: number }> = {};
     let totalRefundAmount = 0;
     for (const g of summary) {
+      const amount = g._sum.amount?.toNumber() ?? 0;
       summaryMap[g.status] = {
         count: g._count._all,
-        amount: g._sum.amount ?? 0,
+        amount,
       };
-      totalRefundAmount += g._sum.amount ?? 0;
+      totalRefundAmount += amount;
     }
 
+    const plainRefunds = refunds.map((r) => ({
+      ...r,
+      amount: r.amount.toNumber(),
+      order: r.order ? { ...r.order, totalAmount: r.order.totalAmount.toNumber() } : r.order,
+    }));
+
     return {
-      refunds,
+      refunds: plainRefunds,
       summary: {
         total,
         totalRefundAmount,
@@ -308,7 +316,11 @@ export class RefundService {
       },
     });
     if (!refund) throw new NotFoundException('Refund not found');
-    return refund;
+    return {
+      ...refund,
+      amount: refund.amount.toNumber(),
+      order: refund.order ? { ...refund.order, totalAmount: refund.order.totalAmount.toNumber() } : refund.order,
+    };
   }
 
   async rejectRefund(id: string) {

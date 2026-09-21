@@ -16,8 +16,28 @@ export class ProjectsService {
 
   // ── PUBLIC ──────────────────────────────────────────────────────
 
+  /** Converts Project's Decimal money columns to plain numbers right at the
+   *  DB read boundary, so JSON responses keep serializing numbers instead of
+   *  Decimal strings. */
+  private toPlainProject<
+    T extends {
+      price: { toNumber(): number };
+      originalPrice: { toNumber(): number } | null;
+      priceUsd: { toNumber(): number } | null;
+      originalPriceUsd: { toNumber(): number } | null;
+    },
+  >(project: T) {
+    return {
+      ...project,
+      price: project.price.toNumber(),
+      originalPrice: project.originalPrice?.toNumber() ?? null,
+      priceUsd: project.priceUsd?.toNumber() ?? null,
+      originalPriceUsd: project.originalPriceUsd?.toNumber() ?? null,
+    };
+  }
+
   async listActive() {
-    return this.prisma.project.findMany({
+    const projects = await this.prisma.project.findMany({
       where: { status: 'ACTIVE' },
       include: {
         trainer: {
@@ -36,6 +56,7 @@ export class ProjectsService {
       },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }],
     });
+    return projects.map((p) => this.toPlainProject(p));
   }
 
   async getById(id: string) {
@@ -62,13 +83,13 @@ export class ProjectsService {
       },
     });
     if (!project) throw new NotFoundException('Project not found');
-    return project;
+    return this.toPlainProject(project);
   }
 
   // ── ADMIN ───────────────────────────────────────────────────────
 
   async listAll() {
-    return this.prisma.project.findMany({
+    const projects = await this.prisma.project.findMany({
       include: {
         trainer: {
           select: { id: true, name: true, email: true },
@@ -77,6 +98,7 @@ export class ProjectsService {
       },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }],
     });
+    return projects.map((p) => this.toPlainProject(p));
   }
 
   async create(dto: CreateProjectDto) {
@@ -89,7 +111,7 @@ export class ProjectsService {
       if (!trainer) throw new BadRequestException('Trainer not found');
     }
 
-    return this.prisma.project.create({
+    const created = await this.prisma.project.create({
       data: {
         name: dto.name,
         image: dto.image ?? null,
@@ -123,6 +145,7 @@ export class ProjectsService {
         displayOrder: dto.displayOrder ?? 0,
       },
     });
+    return this.toPlainProject(created);
   }
 
   async update(id: string, dto: UpdateProjectDto) {
@@ -149,7 +172,8 @@ export class ProjectsService {
       if ((dto as any)[f] !== undefined) data[f] = (dto as any)[f];
     }
 
-    return this.prisma.project.update({ where: { id }, data });
+    const updated = await this.prisma.project.update({ where: { id }, data });
+    return this.toPlainProject(updated);
   }
 
   async delete(id: string) {

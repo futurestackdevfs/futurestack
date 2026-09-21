@@ -197,12 +197,16 @@ export class CoursesService {
         rest._count.enrollments >= trendingThreshold;
       const isNew = createdAt >= fourteenDaysAgo;
 
+      const price = rest.price.toNumber();
+      const originalPrice = rest.originalPrice?.toNumber() ?? null;
       return {
         ...rest,
+        price,
+        originalPrice,
         thumbnailUrl: normalizeThumbnail(rest.thumbnailUrl),
         totalVideos: stats.videoCount,
         durationHours: Math.round(stats.totalSeconds / 3600) || 1,
-        ...discountInfo(rest.price, rest.originalPrice),
+        ...discountInfo(price, originalPrice),
         badge: null,
         badgeClass: '',
       };
@@ -368,10 +372,10 @@ export class CoursesService {
       title: course.title,
       description: course.description ?? '',
       thumbnailUrl: normalizeThumbnail(course.thumbnailUrl),
-      price: course.price,
-      originalPrice: course.originalPrice,
-      offPct: discountInfo(course.price, course.originalPrice).offPct,
-      hasDiscount: discountInfo(course.price, course.originalPrice).hasDiscount,
+      price: course.price.toNumber(),
+      originalPrice: course.originalPrice?.toNumber() ?? null,
+      offPct: discountInfo(course.price.toNumber(), course.originalPrice?.toNumber() ?? null).offPct,
+      hasDiscount: discountInfo(course.price.toNumber(), course.originalPrice?.toNumber() ?? null).hasDiscount,
       whatYoullLearn: course.whatYoullLearn,
       techStack: course.techStack,
       careerTitle: course.careerTitle,
@@ -489,7 +493,7 @@ export class CoursesService {
         rating: r.trainer?.rating ?? 4.7,
         students: `${((r._count.enrollments / 1000) * 10).toFixed(1).replace('.0', '')}k`,
         mentorName: 'Team',
-        ...discountInfo(r.price, r.originalPrice),
+        ...discountInfo(r.price.toNumber(), r.originalPrice?.toNumber() ?? null),
       };
     });
 
@@ -600,10 +604,10 @@ export class CoursesService {
       skillLevel: course.skillLevel,
       description: course.description,
       thumbnailUrl: course.thumbnailUrl,
-      price: course.price,
-      originalPrice: course.originalPrice,
-      offPct: discountInfo(course.price, course.originalPrice).offPct,
-      hasDiscount: discountInfo(course.price, course.originalPrice).hasDiscount,
+      price: course.price.toNumber(),
+      originalPrice: course.originalPrice?.toNumber() ?? null,
+      offPct: discountInfo(course.price.toNumber(), course.originalPrice?.toNumber() ?? null).offPct,
+      hasDiscount: discountInfo(course.price.toNumber(), course.originalPrice?.toNumber() ?? null).hasDiscount,
       whatYoullLearn: course.whatYoullLearn,
       techStack: course.techStack,
       careerTitle: course.careerTitle,
@@ -736,9 +740,9 @@ export class CoursesService {
         skillLevel: c.skillLevel,
         description: c.description,
         thumbnailUrl: c.thumbnailUrl,
-        price: c.price,
-        originalPrice: c.originalPrice,
-        ...discountInfo(c.price, c.originalPrice),
+        price: c.price.toNumber(),
+        originalPrice: c.originalPrice?.toNumber() ?? null,
+        ...discountInfo(c.price.toNumber(), c.originalPrice?.toNumber() ?? null),
         isFeatured: c.isFeatured,
         techStack: c.techStack,
         enrollmentCount: c._count.enrollments,
@@ -1083,8 +1087,11 @@ export class CoursesService {
         goal: 'Upskill',
         tech: category,
         duration: durationLabel,
-        price: course.price,
-        ...discountInfo(course.price, course.originalPrice),
+        price: course.price?.toNumber?.() ?? course.price,
+        ...discountInfo(
+          course.price?.toNumber?.() ?? course.price,
+          course.originalPrice?.toNumber?.() ?? course.originalPrice ?? null,
+        ),
         techStack: course.techStack,
         whatYoullLearn: course.whatYoullLearn,
         careerTitle: course.careerTitle,
@@ -1580,10 +1587,12 @@ export class CoursesService {
     });
 
     const list = enrollments.map((e) => {
+      const amountPaid = e.amountPaid.toNumber();
+      const courseFee = e.course.price.toNumber();
       const paymentMode =
-        e.amountPaid >= e.course.price
+        amountPaid >= courseFee
           ? 'Full'
-          : e.amountPaid > 0
+          : amountPaid > 0
             ? 'EMI'
             : 'Pending';
 
@@ -1592,7 +1601,7 @@ export class CoursesService {
         student: e.student.name,
         batchCode: e.course.code ?? e.course.title.slice(0, 8).toUpperCase(),
         course: e.course.title,
-        courseFee: e.course.price,
+        courseFee,
         paymentMode,
         enrolledOn: e.enrolledAt.toISOString().slice(0, 10),
       };

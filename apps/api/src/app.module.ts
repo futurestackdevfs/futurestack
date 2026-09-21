@@ -24,6 +24,7 @@ import { CouponModule } from './coupon/coupon.module';
 import { CartModule } from './cart/cart.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { PaymentSettingsModule } from './payment-settings/payment-settings.module';
+import { LegalPagesModule } from './legal-pages/legal-pages.module';
 import { AdminPaymentsModule } from './admin-payments/admin-payments.module';
 import { SalesModule } from './sales/sales.module';
 import { SalesTargetsModule } from './sales-targets/sales-targets.module';
@@ -33,6 +34,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { RefundModule } from './refund/refund.module';
 import { SupportModule } from './support/support.module';
 import { ContactModule } from './contact/contact.module';
+import { CareersModule } from './careers/careers.module';
 
 @Module({
   imports: [
@@ -69,6 +71,7 @@ import { ContactModule } from './contact/contact.module';
     CartModule,
     CheckoutModule,
     PaymentSettingsModule,
+    LegalPagesModule,
     AdminPaymentsModule,
     SalesModule,
     SalesTargetsModule,
@@ -78,6 +81,7 @@ import { ContactModule } from './contact/contact.module';
     RefundModule,
     SupportModule,
     ContactModule,
+    CareersModule,
   ],
   controllers: [AppController],
   providers: [

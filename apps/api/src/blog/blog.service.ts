@@ -1,8 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBlogPostDto } from './dto/create-blog-post.dto';
+import { UpdateBlogPostDto } from './dto/update-blog-post.dto';
 import { BlogPost } from '@prisma/client';
 import { AiService } from '../ai/ai.service';
 
@@ -203,6 +204,49 @@ export class BlogService {
         publishedAt: new Date(),
       },
     });
+  }
+
+  /** Manual creation from the admin panel — reuses the same slug/create logic as `create()`. */
+  async createManual(dto: CreateBlogPostDto): Promise<BlogPost> {
+    return this.create(dto);
+  }
+
+  async update(id: string, dto: UpdateBlogPostDto): Promise<BlogPost> {
+    const existing = await this.prisma.blogPost.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Blog post with id "${id}" not found`);
+    }
+
+    let slug = existing.slug;
+    if (dto.slug && dto.slug !== existing.slug) {
+      const clash = await this.prisma.blogPost.findUnique({ where: { slug: dto.slug } });
+      if (clash && clash.id !== id) {
+        throw new BadRequestException(`Slug "${dto.slug}" is already in use`);
+      }
+      slug = dto.slug;
+    }
+
+    const data: Record<string, unknown> = { slug };
+    if (dto.title !== undefined) data.title = dto.title;
+    if (dto.content !== undefined) data.content = dto.content;
+    if (dto.metaDescription !== undefined) data.metaDescription = dto.metaDescription;
+    if (dto.tags !== undefined) data.tags = dto.tags;
+    if (dto.status !== undefined) {
+      data.status = dto.status;
+      if (dto.status === 'published' && !existing.publishedAt) {
+        data.publishedAt = new Date();
+      }
+    }
+
+    return this.prisma.blogPost.update({ where: { id }, data });
+  }
+
+  async remove(id: string): Promise<BlogPost> {
+    const existing = await this.prisma.blogPost.findUnique({ where: { id } });
+    if (!existing) {
+      throw new NotFoundException(`Blog post with id "${id}" not found`);
+    }
+    return this.prisma.blogPost.delete({ where: { id } });
   }
 
   private async generateUniqueSlug(title: string): Promise<string> {

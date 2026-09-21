@@ -396,8 +396,8 @@ export class AdminService {
         code: c.code,
         status: c.status,
         category: c.category,
-        price: c.price,
-        originalPrice: c.originalPrice,
+        price: c.price.toNumber(),
+        originalPrice: c.originalPrice?.toNumber() ?? null,
       })),
       users: users.map((u) => ({
         id: u.id,
@@ -418,7 +418,7 @@ export class AdminService {
         id: o.id,
         orderNo: o.id.slice(0, 8).toUpperCase(),
         status: o.status,
-        totalAmount: o.totalAmount,
+        totalAmount: o.totalAmount.toNumber(),
         currency: o.currency,
         createdAt: o.createdAt,
         studentName: o.user?.name ?? o.billingFullName ?? null,
@@ -429,7 +429,7 @@ export class AdminService {
         id: c.id,
         code: c.code,
         discountType: c.discountType,
-        value: c.value,
+        value: c.value.toNumber(),
         currency: c.currency,
         isActive: c.isActive,
         usedCount: c.usedCount,
@@ -500,10 +500,11 @@ export class AdminService {
     const convertedCount = new Map<string, number>();
     const successValue = new Map<string, number>();
     for (const o of orders) {
+      const totalAmountNum = o.totalAmount.toNumber();
       if (o.salespersonId) {
         salesRevenue.set(
           o.salespersonId,
-          (salesRevenue.get(o.salespersonId) ?? 0) + o.totalAmount,
+          (salesRevenue.get(o.salespersonId) ?? 0) + totalAmountNum,
         );
         if (o.status === OrderStatus.PAID) {
           convertedCount.set(
@@ -512,7 +513,7 @@ export class AdminService {
           );
           successValue.set(
             o.salespersonId,
-            (successValue.get(o.salespersonId) ?? 0) + o.totalAmount,
+            (successValue.get(o.salespersonId) ?? 0) + totalAmountNum,
           );
         }
       }
@@ -554,7 +555,7 @@ export class AdminService {
         status,
         orderStatus: o.status,
         date: o.createdAt.toISOString().slice(0, 10),
-        value: o.totalAmount,
+        value: o.totalAmount.toNumber(),
         salespersonId: o.salespersonId,
       };
     });
@@ -571,7 +572,7 @@ export class AdminService {
         status: l.status,
         orderStatus: 'LEAD',
         date: l.createdAt.toISOString().slice(0, 10),
-        value: l.budget ?? 0,
+        value: l.budget?.toNumber() ?? 0,
         salespersonId: l.salespersonId,
         salespersonName: l.salesperson?.name ?? null,
         email: l.email,
@@ -581,8 +582,8 @@ export class AdminService {
 
     const hot = orders.filter((o) => o.status === OrderStatus.CREATED);
     const paid = orders.filter((o) => o.status === OrderStatus.PAID);
-    const pipelineValue = hot.reduce((s, o) => s + o.totalAmount, 0);
-    const paidValue = paid.reduce((s, o) => s + o.totalAmount, 0);
+    const pipelineValue = hot.reduce((s, o) => s + o.totalAmount.toNumber(), 0);
+    const paidValue = paid.reduce((s, o) => s + o.totalAmount.toNumber(), 0);
     const conversionRate =
       orders.length > 0 ? Math.round((paid.length / orders.length) * 100) : 0;
     const avgDealSize =
@@ -1165,7 +1166,7 @@ export class AdminService {
         studentId: e.studentId,
         courseTitle: e.course.title,
         courseId: e.courseId,
-        amountPaid: e.amountPaid,
+        amountPaid: e.amountPaid.toNumber(),
         status: e.status,
         enrolledAt: e.enrolledAt.toISOString(),
         orderId: e.orderId,
@@ -1207,7 +1208,7 @@ export class AdminService {
       id: enrollment.id,
       studentName: enrollment.student.name,
       courseTitle: enrollment.course.title,
-      amountPaid: enrollment.amountPaid,
+      amountPaid: enrollment.amountPaid.toNumber(),
       status: enrollment.status,
       enrolledAt: enrollment.enrolledAt.toISOString(),
     };
@@ -1242,7 +1243,7 @@ export class AdminService {
       const student = o.user?.name ?? '—';
       const course = o.items[0]?.course?.title ?? '—';
       const salesperson = o.salesperson?.name ?? '—';
-      return `${date},${o.id},${student},${course},${o.totalAmount},${o.gstAmount},${salesperson}`;
+      return `${date},${o.id},${student},${course},${o.totalAmount.toNumber()},${o.gstAmount.toNumber()},${salesperson}`;
     }).join('\n');
 
     return header + rows;
@@ -1260,7 +1261,7 @@ export class AdminService {
     const rows = leads.map((l) => {
       const date = l.createdAt.toISOString().slice(0, 10);
       const salesperson = l.salesperson?.name ?? '—';
-      return `${date},${l.name},${l.email ?? ''},${l.phone ?? ''},${l.course ?? ''},${l.status},${l.source ?? ''},${l.score},${l.budget},${salesperson}`;
+      return `${date},${l.name},${l.email ?? ''},${l.phone ?? ''},${l.course ?? ''},${l.status},${l.source ?? ''},${l.score},${l.budget.toNumber()},${salesperson}`;
     }).join('\n');
 
     return header + rows;
@@ -1283,7 +1284,7 @@ export class AdminService {
       const student = o.user?.name ?? '—';
       const course = o.items[0]?.course?.title ?? '—';
       const salesperson = o.salesperson?.name ?? '—';
-      return `${date},${student},${course},${o.totalAmount},${o.paymentMethod ?? '—'},${salesperson}`;
+      return `${date},${student},${course},${o.totalAmount.toNumber()},${o.paymentMethod ?? '—'},${salesperson}`;
     }).join('\n');
 
     return header + rows;

@@ -21,7 +21,7 @@ async function main() {
   const trainerIds = new Set<string>();
 
   for (const e of enrollments) {
-    const amount = e.amountPaid;
+    const amount = e.amountPaid.toNumber();
     const cut = amount * 0.5;
     const trainerId = e.course.trainerId!;
     trainerIds.add(trainerId);

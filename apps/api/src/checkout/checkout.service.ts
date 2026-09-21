@@ -125,7 +125,12 @@ export class CheckoutService {
         keptCourses.push({
           itemId: item.id,
           courseId: item.courseId,
-          price: resolveItemPrice(currency, item.course.price, item.course.priceUsd, usdRate),
+          price: resolveItemPrice(
+            currency,
+            item.course.price.toNumber(),
+            item.course.priceUsd?.toNumber() ?? null,
+            usdRate,
+          ),
         });
       } else if (item.projectId) {
         if (!item.project || item.project.status !== 'ACTIVE') {
@@ -136,7 +141,12 @@ export class CheckoutService {
           itemId: item.id,
           projectId: item.projectId,
           projectName: item.project.name,
-          price: resolveItemPrice(currency, item.project.price, item.project.priceUsd, usdRate),
+          price: resolveItemPrice(
+            currency,
+            item.project.price.toNumber(),
+            item.project.priceUsd?.toNumber() ?? null,
+            usdRate,
+          ),
           trainerId: item.project.trainerId,
         });
       }
@@ -433,11 +443,12 @@ export class CheckoutService {
               },
             });
 
+            const priceAtPurchase = item.priceAtPurchase.toNumber();
             const created = await tx.enrollment.create({
               data: {
                 studentId: order.userId,
                 courseId: item.courseId!,
-                amountPaid: item.priceAtPurchase,
+                amountPaid: priceAtPurchase,
                 orderId: order.id,
               },
             });
@@ -448,14 +459,14 @@ export class CheckoutService {
                 settings.trainerSharePercent,
               );
               const { trainerShare, platformCut } = computeTrainerShare(
-                item.priceAtPurchase,
+                priceAtPurchase,
                 sharePct,
               );
               await tx.revenueLedger.create({
                 data: {
                   trainerId: course.trainer.id,
                   enrollmentId: created.id,
-                  gross: item.priceAtPurchase,
+                  gross: priceAtPurchase,
                   platformCut,
                   trainerShare,
                 },

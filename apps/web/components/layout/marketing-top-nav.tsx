@@ -379,8 +379,8 @@ export function TopNav() {
         )}
       </div>
 
-      {/* Desktop nav links */}
-      <ul className="hidden md:flex items-center gap-0.5 list-none">
+      {/* Desktop nav links — collapse into the hamburger menu below 1200px */}
+      <ul className="hidden min-[1200px]:flex items-center gap-0.5 list-none">
         <li className="relative group" style={animate ? { animation: `fadeUp .35s .08s ease both` } : {}}>
           <button
             onMouseEnter={() => { loadMegaData(); clearCoursesTimer(); setCoursesMegaOpen(true); }}
@@ -595,10 +595,10 @@ export function TopNav() {
           )}
         </div>
 
-        {/* Hamburger — mobile */}
+        {/* Hamburger — shown below 1200px, holds the nav links that no longer fit */}
         <button
           onClick={() => setMobileOpen(p => !p)}
-          className="md:hidden flex items-center justify-center size-8 rounded-md text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)] transition-all border-none bg-transparent cursor-pointer shrink-0"
+          className="min-[1200px]:hidden flex items-center justify-center size-8 rounded-md text-[var(--muted)] hover:text-[var(--text)] hover:bg-[var(--bg)] transition-all border-none bg-transparent cursor-pointer shrink-0"
           aria-label="Toggle menu"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -609,11 +609,11 @@ export function TopNav() {
 
       {/* Mobile menu overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 top-14 z-50 bg-black/40 md:hidden" onClick={() => setMobileOpen(false)} />
+        <div className="fixed inset-0 top-14 z-50 bg-black/40 min-[1200px]:hidden" onClick={() => setMobileOpen(false)} />
       )}
 
       {/* Mobile menu panel */}
-      <div className={`fixed top-14 right-0 z-50 w-[260px] h-[calc(100vh-56px)] bg-[var(--surface)] border-l border-[var(--border)] shadow-2xl md:hidden overflow-y-auto transition-transform duration-300 font-[family-name:var(--font-dm-sans)] ${mobileOpen ? "translate-x-0" : "translate-x-full"}`}>
+      <div className={`fixed top-14 right-0 z-50 w-[220px] h-[calc(100vh-56px)] bg-[var(--surface)] border-l border-[var(--border)] shadow-2xl min-[1200px]:hidden overflow-y-auto transition-transform duration-300 font-[family-name:var(--font-dm-sans)] ${mobileOpen ? "translate-x-0" : "translate-x-full"}`}>
         {/* Mobile search */}
         <div className="px-3 pt-3 pb-1">
           <div className="flex items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-2.5 gap-1.5 h-[32px] focus-within:border-[var(--blue2)]">

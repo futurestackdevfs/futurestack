@@ -1,44 +1,69 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { opsFetch } from "@/app/ops/lib/ops-fetch";
 
-const batches = [
-  { id: 1, code: "BAT-MERN-WD-04", course: "MERN Stack", instructor: "Aakash Verma", students: 24, capacity: 30, status: "Running" },
-  { id: 2, code: "BAT-PY-WE-02", course: "Python", instructor: "Priya Joshi", students: 31, capacity: 35, status: "Running" },
-  { id: 3, code: "BAT-DS-WD-01", course: "Data Science", instructor: "Dr. Mehta", students: 16, capacity: 20, status: "Upcoming" },
-  { id: 4, code: "BAT-WEB-WE-05", course: "HTML & CSS", instructor: "Aakash Verma", students: 40, capacity: 40, status: "Completed" },
-  { id: 5, code: "BAT-DEVOPS-01", course: "Docker & K8s", instructor: "Rohit Singh", students: 12, capacity: 25, status: "Upcoming" },
-];
+interface Course {
+  id: string;
+  title: string;
+  category: string | null;
+  status: string;
+  trainer?: { name: string } | null;
+  _count?: { enrollments: number };
+}
+
+const STATUS_STYLES: Record<string, { bg: string; fg: string }> = {
+  ACTIVE: { bg: "var(--green-d)", fg: "var(--green)" },
+  DRAFT: { bg: "var(--amber-d)", fg: "var(--amber)" },
+  ARCHIVED: { bg: "var(--red-d)", fg: "var(--red)" },
+};
 
 export default function CoordinatorDashboardContent() {
   const [search, setSearch] = useState("");
-  const filtered = useMemo(() => {
-    if (!search) return batches;
-    const q = search.toLowerCase();
-    return batches.filter((b) => Object.values(b).some((v) => String(v).toLowerCase().includes(q)));
-  }, [search]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const totalStudents = batches.reduce((s, b) => s + b.students, 0);
-  const totalCapacity = batches.reduce((s, b) => s + b.capacity, 0);
+  useEffect(() => {
+    let cancelled = false;
+    opsFetch("/api/courses")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => { if (!cancelled) setCourses(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setCourses([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!search) return courses;
+    const q = search.toLowerCase();
+    return courses.filter((c) => `${c.title} ${c.category ?? ""} ${c.trainer?.name ?? ""}`.toLowerCase().includes(q));
+  }, [courses, search]);
+
+  const active = courses.filter((c) => c.status === "ACTIVE").length;
+  const totalEnrollments = courses.reduce((sum, c) => sum + (c._count?.enrollments ?? 0), 0);
+
+  if (loading) return (
+    <div className="p-4 font-mono text-[11px]" style={{ color: "var(--text3)" }}>Loading coordinator dashboard…</div>
+  );
 
   return (
     <div className="p-4 pb-7">
       <div className="flex items-center justify-between mb-3.5">
         <div className="flex items-center gap-2.5">
           <span className="text-[17px] font-extrabold tracking-tight" style={{ color: "var(--text)" }}>🗂 Coordinator Dashboard</span>
-          <span className="font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>role::coordinator · {batches.length} batches</span>
+          <span className="font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>role::coordinator · {courses.length} courses</span>
         </div>
-        <input placeholder="Search batches…" value={search} onChange={(e) => setSearch(e.target.value)}
+        <input placeholder="Search courses…" value={search} onChange={(e) => setSearch(e.target.value)}
           className="font-mono text-[10.5px] px-2.5 py-1.5 rounded outline-none w-48"
           style={{ border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text)" }} />
       </div>
 
       <div className="grid grid-cols-4 rounded overflow-hidden mb-4" style={{ border: "1px solid var(--border)", background: "var(--border)", gap: 1 }}>
         {[
-          { label: "Active Batches", value: batches.filter((b) => b.status === "Running").length, delta: `${batches.length} total`, color: "var(--blue)" },
-          { label: "Total Students", value: totalStudents, delta: `capacity: ${totalCapacity}`, color: "var(--orange)" },
-          { label: "Fill Rate", value: `${Math.round(totalStudents / totalCapacity * 100)}%`, delta: `${batches.filter((b) => b.students < b.capacity).length} batches open`, color: "var(--green)" },
-          { label: "Pending Alloc.", value: 3, delta: "needs attention", color: "var(--red)" },
+          { label: "Active Courses", value: active, delta: `${courses.length} total`, color: "var(--blue)" },
+          { label: "Total Enrollments", value: totalEnrollments, delta: "across all courses", color: "var(--orange)" },
+          { label: "Avg. Enrollments", value: courses.length > 0 ? Math.round(totalEnrollments / courses.length) : 0, delta: "per course", color: "var(--green)" },
+          { label: "Drafts", value: courses.filter((c) => c.status === "DRAFT").length, delta: "not yet live", color: "var(--amber)" },
         ].map((kpi, i) => (
           <div key={i} style={{ background: "var(--surface)" }} className="px-3.5 py-2.5">
             <div className="font-mono text-[8.5px] uppercase tracking-wider mb-1" style={{ color: "var(--text3)" }}>{kpi.label}</div>
@@ -50,48 +75,42 @@ export default function CoordinatorDashboardContent() {
 
       <div className="rounded overflow-hidden" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between px-3 py-2" style={{ background: "var(--panel)", borderBottom: "1px solid var(--border)" }}>
-          <span className="font-mono text-[10.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>📅 Batch Overview</span>
-          <span className="font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>{filtered.length} batches</span>
+          <span className="font-mono text-[10.5px] font-bold uppercase tracking-wider" style={{ color: "var(--text2)" }}>📚 Course Enrollment Overview</span>
+          <span className="font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>{filtered.length} courses</span>
         </div>
         <table className="w-full border-collapse" style={{ fontSize: 11 }}>
           <thead>
-            <tr>{["Batch Code", "Course", "Instructor", "Students", "Capacity", "Status", "Actions"].map((h) => (
+            <tr>{["Course", "Category", "Trainer", "Enrollments", "Status"].map((h) => (
               <th key={h} className="text-left font-mono text-[8.5px] font-bold uppercase tracking-wider px-2.5 py-1.5"
                 style={{ color: "var(--text3)", borderBottom: "1px solid var(--border2)", background: "var(--panel)" }}>{h}</th>
             ))}</tr>
           </thead>
           <tbody>
-            {filtered.map((b, idx) => (
-              <tr key={b.id}
-                style={{ background: idx % 2 === 0 ? "var(--surface)" : "var(--panel)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--row-h)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? "var(--surface)" : "var(--panel)"; }}
-              >
-                <td className="px-2.5 py-1.5 font-mono font-semibold" style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{b.code}</td>
-                <td className="px-2.5 py-1.5" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{b.course}</td>
-                <td className="px-2.5 py-1.5" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{b.instructor}</td>
-                <td className="px-2.5 py-1.5 font-mono font-semibold" style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{b.students}</td>
-                <td className="px-2.5 py-1.5 font-mono" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{b.capacity}</td>
-                <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
-                  <span className="inline-flex items-center gap-1 font-mono text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
-                    style={{
-                      background: b.status === "Running" ? "var(--green-d)" : b.status === "Upcoming" ? "var(--blue-d)" : "var(--amber-d)",
-                      color: b.status === "Running" ? "var(--green)" : b.status === "Upcoming" ? "var(--blue)" : "var(--amber)",
-                    }}>
-                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: b.status === "Running" ? "var(--green)" : b.status === "Upcoming" ? "var(--blue)" : "var(--amber)" }} />
-                    {b.status}
-                  </span>
-                </td>
-                <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
-                  <div className="flex gap-1">
-                    <button className="w-[22px] h-[22px] flex items-center justify-center rounded text-[11px] cursor-pointer"
-                      style={{ color: "var(--text3)", border: "1px solid var(--border)", background: "var(--surface)" }}>✏</button>
-                    <button className="w-[22px] h-[22px] flex items-center justify-center rounded text-[11px] cursor-pointer"
-                      style={{ color: "var(--text3)", border: "1px solid var(--border)", background: "var(--surface)" }}>👥</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {filtered.map((c, idx) => {
+              const st = STATUS_STYLES[c.status] || STATUS_STYLES.DRAFT;
+              return (
+                <tr key={c.id}
+                  style={{ background: idx % 2 === 0 ? "var(--surface)" : "var(--panel)" }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--row-h)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = idx % 2 === 0 ? "var(--surface)" : "var(--panel)"; }}
+                >
+                  <td className="px-2.5 py-1.5 font-semibold" style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{c.title}</td>
+                  <td className="px-2.5 py-1.5" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{c.category ?? "—"}</td>
+                  <td className="px-2.5 py-1.5" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>{c.trainer?.name ?? "—"}</td>
+                  <td className="px-2.5 py-1.5 font-mono font-semibold" style={{ color: "var(--text)", borderBottom: "1px solid var(--border)" }}>{c._count?.enrollments ?? 0}</td>
+                  <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
+                    <span className="inline-flex items-center gap-1 font-mono text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                      style={{ background: st.bg, color: st.fg }}>
+                      <span style={{ width: 5, height: 5, borderRadius: "50%", background: st.fg }} />
+                      {c.status}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+            {filtered.length === 0 && (
+              <tr><td colSpan={5} className="font-mono text-[10.5px] py-3 text-center" style={{ color: "var(--text3)" }}>No courses found.</td></tr>
+            )}
           </tbody>
         </table>
       </div>

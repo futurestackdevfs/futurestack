@@ -46,8 +46,8 @@ export class TrainerService {
       }),
     ]);
 
-    const totalRevenue = revenueData._sum.trainerShare || 0;
-    const paidOut = pendingPayouts._sum.amount || 0;
+    const totalRevenue = revenueData._sum.trainerShare?.toNumber() || 0;
+    const paidOut = pendingPayouts._sum.amount?.toNumber() || 0;
     const pendingPayout = totalRevenue - paidOut;
 
     const recentEnrollmentsRaw = await this.prisma.enrollment.findMany({
@@ -64,14 +64,14 @@ export class TrainerService {
     const recentEnrollments = recentEnrollmentsRaw.map((e) => ({
       studentName: e.student.name,
       courseTitle: e.course.title,
-      amountPaid: e.amountPaid,
-      trainerShare: e.revenueLedger?.trainerShare || 0,
+      amountPaid: e.amountPaid.toNumber(),
+      trainerShare: e.revenueLedger?.trainerShare.toNumber() || 0,
       enrolledAt: e.enrolledAt,
     }));
 
     const coursesSummary = courses.map((c) => {
       const revenue = c.enrollments.reduce(
-        (sum, e) => sum + (e.revenueLedger?.trainerShare || 0),
+        (sum, e) => sum + (e.revenueLedger?.trainerShare.toNumber() || 0),
         0,
       );
       return {
@@ -145,11 +145,13 @@ export class TrainerService {
     let totalTrainerShare = 0;
 
     for (const order of paidOrders) {
-      if (!order.subtotal || order.subtotal <= 0) continue;
-      const ratio = order.totalAmount / order.subtotal;
+      const orderSubtotal = order.subtotal.toNumber();
+      const orderTotalAmount = order.totalAmount.toNumber();
+      if (!orderSubtotal || orderSubtotal <= 0) continue;
+      const ratio = orderTotalAmount / orderSubtotal;
       for (const item of order.items) {
         if (item.course?.trainerId !== trainerId) continue;
-        const effective = Math.round(item.priceAtPurchase * ratio * 100) / 100;
+        const effective = Math.round(item.priceAtPurchase.toNumber() * ratio * 100) / 100;
         const { trainerShare, platformCut } = computeTrainerShare(
           effective,
           trainerSharePercent,
@@ -193,7 +195,7 @@ export class TrainerService {
 
     const paidOut = payouts
       .filter((p) => p.status === 'PAID')
-      .reduce((sum, p) => sum + p.amount, 0);
+      .reduce((sum, p) => sum + p.amount.toNumber(), 0);
     const pendingPayout = totalTrainerShare - paidOut;
 
     return {
@@ -210,7 +212,7 @@ export class TrainerService {
       payoutHistory: payouts.map((p) => ({
         id: p.id,
         period: p.period,
-        amount: p.amount,
+        amount: p.amount.toNumber(),
         status: p.status,
         createdAt: p.createdAt,
       })),
@@ -364,7 +366,7 @@ export class TrainerService {
       category: p.category,
       level: p.level,
       status: p.status,
-      price: p.price,
+      price: p.price.toNumber(),
       enrolled: p._count.orderItems,
       duration: p.duration,
       updatedAt: p.updatedAt,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import useSWR from "swr";
 
 interface HeroSlide {
@@ -73,14 +74,18 @@ export function Hero() {
     setProgress(0);
   }
 
-  if (!isLoading && slides.length === 0) {
-    return null;
-  }
-
-  if (isLoading) return null;
+  const showDesktopSlider = !isLoading && slides.length > 0;
 
   return (
-    <section
+    <>
+      {/* Mobile/tablet-only — the desktop slider below is hidden under md, so
+          without this, phones/tablets got no hero at all. Self-contained,
+          doesn't depend on slide data. */}
+      <MobileHero />
+
+      {/* Desktop/tablet-and-up slider — unchanged, still hidden below md */}
+      {showDesktopSlider && (
+      <section
       className="relative hidden items-center overflow-hidden rounded-2xl border border-white/6 bg-[var(--hero-bg)] shadow-[var(--shadow-lg)] [animation:fadeUp_.5s_ease_both] md:flex"
       style={{ height: 307 }}
       onMouseEnter={() => setPaused(true)}
@@ -144,6 +149,90 @@ export function Hero() {
           )}
         </div>
       )}
+    </section>
+      )}
+    </>
+  );
+}
+
+/**
+ * Mobile/tablet-only hero (hidden at md and up — the slider above takes over
+ * there). Purely decorative/static, so it doesn't wait on slide data and
+ * renders immediately, matching the site's futuristic theme (glow orbs, grid
+ * backdrop, Syne/JetBrains Mono type) used elsewhere (e.g. the dashboard).
+ */
+const MOBILE_HERO_HIGHLIGHTS = [
+  { icon: "🏆", title: "Industry Certificates", desc: "Recognized by 400+ hiring partners", accent: "#a855f7", tint: "rgba(168,85,247,.16)" },
+  { icon: "🛠️", title: "Real Projects", desc: "Ship a portfolio that gets you hired", accent: "#60a5fa", tint: "rgba(96,165,250,.16)" },
+  { icon: "💼", title: "Placement Support", desc: "Dedicated career guidance & job access", accent: "#4ade80", tint: "rgba(74,222,128,.16)" },
+];
+
+function MobileHero() {
+  const router = useRouter();
+  return (
+    <section
+      className="relative md:hidden overflow-hidden rounded-2xl border border-[var(--border)] flex flex-col [animation:fadeUp_.5s_ease_both]"
+      style={{ minHeight: "80vh", background: "radial-gradient(120% 140% at 0% 0%, rgba(240,90,26,.14), transparent 55%), radial-gradient(100% 120% at 100% 0%, rgba(59,130,246,.14), transparent 55%), var(--hero-bg)" }}
+    >
+      <div
+        className="absolute inset-0 pointer-events-none opacity-[0.4]"
+        style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px)", backgroundSize: "24px 24px" }}
+      />
+      <div className="absolute -top-10 -left-8 w-[160px] h-[160px] rounded-full blur-[60px] opacity-60 pointer-events-none" style={{ background: "rgba(240,90,26,.35)" }} />
+      <div className="absolute -bottom-14 -right-8 w-[180px] h-[180px] rounded-full blur-[70px] opacity-50 pointer-events-none" style={{ background: "rgba(59,130,246,.3)" }} />
+
+      <div className="relative z-[1] flex-1 flex flex-col justify-center px-5 py-6">
+        <div className="inline-flex items-center gap-1.5 mb-3 px-2.5 py-1 rounded-full border border-[rgba(240,90,26,.3)] bg-[var(--orange-d)] font-['JetBrains_Mono',monospace] text-[9px] font-semibold uppercase tracking-[.14em] text-[var(--orange)] w-fit">
+          <span className="w-[5px] h-[5px] rounded-full bg-[var(--orange)]" style={{ animation: "pulse 1.6s ease infinite" }} />
+          Learn · Build · Get Hired
+        </div>
+
+        <h1 className="font-['Syne',sans-serif] text-[26px] font-extrabold leading-[1.15] mb-2 text-white">
+          Your next <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(90deg,#ff9a5c,#60a5fa)" }}>skill upgrade</span> starts here
+        </h1>
+        <p className="text-[12.5px] leading-relaxed mb-4 max-w-[320px]" style={{ color: "rgba(255,255,255,.72)" }}>
+          Industry-recognized certificates, real projects and dedicated placement support — all in one platform.
+        </p>
+
+        <div className="flex flex-wrap gap-2 mb-6">
+          <button
+            onClick={() => router.push("/courses")}
+            className="inline-flex items-center gap-1.5 px-4 py-[9px] rounded-[9px] text-white text-[12px] font-bold border-none"
+            style={{ background: "linear-gradient(135deg,var(--orange),#ff8a4c)", boxShadow: "0 4px 16px rgba(240,90,26,.4)" }}
+          >
+            Browse Courses
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </button>
+          <button
+            onClick={() => router.push("/live-projects")}
+            className="inline-flex items-center gap-1.5 px-4 py-[9px] rounded-[9px] text-[12px] font-bold border border-white/20 bg-white/10 text-white backdrop-blur-sm"
+          >
+            View Projects
+          </button>
+        </div>
+
+        {/* Highlights */}
+        <div className="flex flex-col gap-2.5">
+          {MOBILE_HERO_HIGHLIGHTS.map((h, i) => (
+            <div
+              key={h.title}
+              className="flex items-center gap-3 rounded-[12px] border border-white/10 bg-white/[0.06] backdrop-blur-sm px-3.5 py-3 [animation:fadeUp_.4s_ease_both]"
+              style={{ animationDelay: `${0.1 + i * 0.08}s` }}
+            >
+              <div
+                className="w-9 h-9 rounded-[10px] flex items-center justify-center text-[17px] shrink-0"
+                style={{ background: h.tint, boxShadow: `0 0 0 1px ${h.tint}` }}
+              >
+                {h.icon}
+              </div>
+              <div className="min-w-0">
+                <div className="text-[12.5px] font-bold text-white leading-tight">{h.title}</div>
+                <div className="text-[10.5px] leading-snug mt-0.5" style={{ color: "rgba(255,255,255,.6)" }}>{h.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }

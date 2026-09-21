@@ -148,8 +148,8 @@ export function StaffLoginForm() {
           <div className="flex items-center justify-between text-[11px] text-white/30 shrink-0 pt-8 border-t border-white/[0.06]">
             <span>© 2026 FutureStack Academy</span>
             <div className="flex gap-6">
-              <a href="#" className="text-white/40 hover:text-white/80 transition-colors">Privacy</a>
-              <a href="#" className="text-white/40 hover:text-white/80 transition-colors">Terms</a>
+              <a href="#legal:privacy-policy" className="text-white/40 hover:text-white/80 transition-colors">Privacy</a>
+              <a href="#legal:terms" className="text-white/40 hover:text-white/80 transition-colors">Terms</a>
               <a href="#" className="text-white/40 hover:text-white/80 transition-colors">Support</a>
             </div>
           </div>

@@ -72,9 +72,10 @@ export class CouponService {
         );
     }
 
-    if (coupon.minOrderAmount != null && input.subtotal < coupon.minOrderAmount) {
+    const minOrderAmount = coupon.minOrderAmount?.toNumber() ?? null;
+    if (minOrderAmount != null && input.subtotal < minOrderAmount) {
       throw new BadRequestException(
-        `Minimum order amount of ${coupon.minOrderAmount} ${input.currency} not met`,
+        `Minimum order amount of ${minOrderAmount} ${input.currency} not met`,
       );
     }
 
@@ -96,12 +97,13 @@ export class CouponService {
 
   /** Compute discounted amount in major units. Works in minor units internally. */
   private computeDiscount(coupon: Coupon, subtotal: number): number {
+    const value = coupon.value.toNumber();
     const subtotalMinor = this.toMinor(subtotal);
     if (coupon.discountType === 'PERCENT') {
-      const discountMinor = Math.floor((subtotalMinor * coupon.value) / 100);
+      const discountMinor = Math.floor((subtotalMinor * value) / 100);
       return discountMinor / 100;
     }
-    const flatMinor = this.toMinor(coupon.value);
+    const flatMinor = this.toMinor(value);
     const discountMinor = Math.min(flatMinor, subtotalMinor);
     return discountMinor / 100;
   }
@@ -114,7 +116,7 @@ export class CouponService {
     const existing = await this.prisma.coupon.findUnique({ where: { code } });
     if (existing) throw new ConflictException('A coupon with this code already exists');
     try {
-      return await this.prisma.coupon.create({
+      const created = await this.prisma.coupon.create({
         data: {
           code,
           discountType: dto.discountType,
@@ -130,6 +132,7 @@ export class CouponService {
           createdByAdminId: adminId,
         },
       });
+      return this.toPlainCoupon(created);
     } catch (error) {
       translatePrismaError(error, {
         onConflict: 'A coupon with this code already exists',
@@ -164,7 +167,7 @@ export class CouponService {
       this.prisma.coupon.count(),
     ]);
 
-    return { items, total, page, perPage };
+    return { items: items.map((c) => this.toPlainCoupon(c)), total, page, perPage };
   }
 
   async findOne(id: string) {
@@ -175,7 +178,7 @@ export class CouponService {
       },
     });
     if (!coupon) throw new NotFoundException('Coupon not found');
-    return coupon;
+    return this.toPlainCoupon(coupon);
   }
 
   async update(id: string, dto: UpdateCouponDto) {
@@ -209,7 +212,8 @@ export class CouponService {
     };
 
     try {
-      return await this.prisma.coupon.update({ where: { id }, data });
+      const updated = await this.prisma.coupon.update({ where: { id }, data });
+      return this.toPlainCoupon(updated);
     } catch (e) {
       translatePrismaError(e, {
         onConflict: 'A coupon with this code already exists',
@@ -221,10 +225,11 @@ export class CouponService {
   /** Soft-delete: deactivate (isActive=false). CouponRedemption rows reference Coupon. */
   async deactivate(id: string) {
     try {
-      return await this.prisma.coupon.update({
+      const updated = await this.prisma.coupon.update({
         where: { id },
         data: { isActive: false },
       });
+      return this.toPlainCoupon(updated);
     } catch (e) {
       translatePrismaError(e, { onNotFound: 'Coupon not found' });
     }
@@ -278,10 +283,10 @@ export class CouponService {
         usedAt: r.createdAt,
         orderId: r.orderId,
         orderStatus: order?.status ?? null,
-        amount: order?.totalAmount ?? null,
+        amount: order?.totalAmount?.toNumber() ?? null,
         currency: order?.currency ?? null,
-        discountAmount: order?.discountAmount ?? null,
-        subtotal: order?.subtotal ?? null,
+        discountAmount: order?.discountAmount?.toNumber() ?? null,
+        subtotal: order?.subtotal?.toNumber() ?? null,
         student: order?.user
           ? { id: order.user.id, name: order.user.name, email: order.user.email }
           : null,
@@ -303,6 +308,19 @@ export class CouponService {
 
   private round2(n: number): number {
     return Math.round(n * 100) / 100;
+  }
+
+  /** Converts Coupon's Decimal columns (value, minOrderAmount) to plain
+   *  numbers right at the DB read boundary, so admin CRUD JSON responses
+   *  keep serializing numbers rather than Decimal strings. */
+  private toPlainCoupon<T extends { value: Prisma.Decimal; minOrderAmount: Prisma.Decimal | null }>(
+    coupon: T,
+  ) {
+    return {
+      ...coupon,
+      value: coupon.value.toNumber(),
+      minOrderAmount: coupon.minOrderAmount?.toNumber() ?? null,
+    };
   }
 
   private assertCreateValid(dto: {

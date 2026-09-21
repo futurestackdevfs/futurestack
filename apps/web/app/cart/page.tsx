@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { TopNav } from "@/components/layout/marketing-top-nav";
 import Link from "next/link";
 import { authFetch } from "@/app/auth/lib/auth-fetch";
+import { useAuth } from "@/app/auth/hooks/use-auth";
 import { COUNTRIES, addressFormat, countryName, guessCountry, normalizeCountry } from "@/lib/countries";
 
 interface PaymentSettings {
@@ -299,6 +300,15 @@ function Field({
 }
 
 export default function CartPage() {
+  const { isAuthenticated, isLoading: authHookLoading } = useAuth();
+  // `useAuth` reads a client-only shared singleton that can resolve before this
+  // component's own hydration pass, so its very first client render can already
+  // differ from what the server rendered — a hydration mismatch. Guarding with a
+  // `mounted` flag forces both the SSR pass and the first client render to agree
+  // (always "loading"), and only lets the real auth-dependent UI show after mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const authLoading = !mounted || authHookLoading;
   const [step, setStep] = useState(1);
   const [promoInput, setPromoInput] = useState("");
   const [promoError, setPromoError] = useState("");
@@ -344,11 +354,11 @@ export default function CartPage() {
     isLoading: cartLoading,
     error: cartError,
     mutate,
-  } = useSWR<CartView>(`/api/cart?currency=${activeCurrency}`, cartFetcher, {
-    revalidateOnMount: true,
-    revalidateOnFocus: true,
-    dedupingInterval: 0,
-  });
+  } = useSWR<CartView>(
+    !authLoading && isAuthenticated ? `/api/cart?currency=${activeCurrency}` : null,
+    cartFetcher,
+    { revalidateOnMount: true, revalidateOnFocus: true, dedupingInterval: 0 },
+  );
 
   const items = cart?.items ?? [];
   const totalCount = items.length;
@@ -403,7 +413,7 @@ export default function CartPage() {
   }
 
   const { data: wishlist, mutate: mutateWishlist } = useSWR<WishlistView>(
-    "/api/wishlist",
+    !authLoading && isAuthenticated ? "/api/wishlist" : null,
     wishlistFetcher,
   );
   const wishlistItems = wishlist?.items ?? [];
@@ -444,9 +454,11 @@ export default function CartPage() {
   // The country is only ever auto-guessed (from the browser timezone/locale)
   // when it isn't already known — a stored/entered value is never overridden.
   useEffect(() => {
+    if (authLoading) return;
     let active = true;
     (async () => {
       try {
+        if (!isAuthenticated) throw new Error("not authenticated");
         const res = await authFetch("/api/student/orders");
         if (active && res.ok) {
           const orders = (await res.json()) as {
@@ -494,7 +506,7 @@ export default function CartPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [authLoading, isAuthenticated]);
 
   function saveBilling() {
     const err = validateBilling();
@@ -746,7 +758,22 @@ export default function CartPage() {
               </div>
             </div>
 
-            {cartLoading && !cart ? (
+            {authLoading ? (
+              <Card className="flex flex-col items-center justify-center text-center py-16 px-6">
+                <div className="w-8 h-8 rounded-full border-2 border-[var(--border2)] border-t-[var(--orange)] animate-spin mb-4" />
+                <div className="text-[13px] text-[var(--muted)]">Loading…</div>
+              </Card>
+            ) : !isAuthenticated ? (
+              <Card className="flex flex-col items-center text-center py-14 px-6">
+                <div className="text-[56px] opacity-40 mb-4">🔒</div>
+                <div className="font-['Inter_Tight',sans-serif] text-lg font-bold text-[var(--text)] mb-1.5">Sign in to view your cart</div>
+                <div className="text-[13px] text-[var(--muted)] mb-6 max-w-[340px]">Log in (or create a free account) to add courses to your cart and check out — your cart is saved to your account, not this browser.</div>
+                <div className="flex flex-col sm:flex-row gap-3 w-full max-w-[360px]">
+                  <Link href="/" className="flex-1 px-6 py-2.5 rounded-xl bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13px] font-extrabold shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 no-underline text-center">Sign In</Link>
+                  <Link href="/courses" className="flex-1 px-6 py-2.5 rounded-xl bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)] text-[13px] font-bold no-underline text-center transition-colors duration-150 hover:text-[var(--text)] hover:border-[var(--border)]">Browse Courses</Link>
+                </div>
+              </Card>
+            ) : cartLoading && !cart ? (
               <Card className="flex flex-col items-center justify-center text-center py-16 px-6">
                 <div className="w-8 h-8 rounded-full border-2 border-[var(--border2)] border-t-[var(--orange)] animate-spin mb-4" />
                 <div className="text-[13px] text-[var(--muted)]">Loading your cart…</div>

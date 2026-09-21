@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import { EntityTable, type ColumnDef } from "./EntityTable";
+import BlogPostEditorModal from "./BlogPostEditorModal";
 import { showToast } from "@/lib/toast";
 
 interface BlogPost {
@@ -131,8 +132,28 @@ export default function BlogManager() {
   const [topic, setTopic] = useState("");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<GenResult | null>(null);
+  const [editingPost, setEditingPost] = useState<BlogPost | "new" | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   if (!token) return null;
+
+  async function handleDelete(row: BlogPost) {
+    if (!window.confirm(`Delete article "${row.title}"? This cannot be undone.`)) return;
+    setDeleting(row.id);
+    try {
+      const res = await opsFetch(`/api/articles/admin/${row.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      showToast("Article deleted");
+      setRefreshKey((k) => k + 1);
+    } catch (e: any) {
+      showToast(`Failed to delete: ${e.message}`);
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   async function handleGenerate() {
     setGenerating(true);
@@ -182,14 +203,21 @@ export default function BlogManager() {
         >
           {generating ? "Generating…" : "Generate Article"}
         </button>
+        <button
+          onClick={() => setEditingPost("new")}
+          className="px-4 py-2 rounded-lg text-[12px] font-semibold cursor-pointer"
+          style={{ background: "var(--panel)", color: "var(--text)", border: "1px solid var(--border)" }}
+        >
+          + New Article
+        </button>
       </div>
 
       <EntityTable
         columns={COLUMNS}
         data={posts}
         emptyMessage={`No blog posts found.`}
-        onEdit={() => {}}
-        onDelete={() => {}}
+        onEdit={(row) => setEditingPost(row as BlogPost)}
+        onDelete={handleDelete}
       />
 
       {result && (
@@ -198,6 +226,31 @@ export default function BlogManager() {
           busy={generating}
           onRetry={handleGenerate}
           onClose={() => setResult(null)}
+        />
+      )}
+
+      {editingPost && (
+        <BlogPostEditorModal
+          token={token}
+          post={
+            editingPost === "new"
+              ? null
+              : {
+                  id: editingPost.id,
+                  title: editingPost.title,
+                  slug: editingPost.slug,
+                  metaDescription: editingPost.metaDescription,
+                  tags: editingPost.tags,
+                  content: editingPost.content,
+                  status: editingPost.status,
+                }
+          }
+          onClose={() => setEditingPost(null)}
+          onSaved={() => {
+            setEditingPost(null);
+            setRefreshKey((k) => k + 1);
+            showToast("Article saved");
+          }}
         />
       )}
     </div>

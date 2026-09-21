@@ -10,6 +10,53 @@ import { PrismaService } from '../prisma/prisma.service';
 export class InvoicesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Converts Invoice's Decimal money columns — and its nested Order/OrderItem
+   *  Decimal columns, when included — to plain numbers right at the DB read
+   *  boundary, so JSON responses keep serializing numbers, not Decimal strings. */
+  private toPlainInvoice<
+    T extends {
+      subtotal: { toNumber(): number };
+      gstPercent: { toNumber(): number };
+      gstAmount: { toNumber(): number };
+      discountAmount: { toNumber(): number };
+      totalAmount: { toNumber(): number };
+      order?: {
+        subtotal: { toNumber(): number };
+        gstPercent: { toNumber(): number };
+        gstAmount: { toNumber(): number };
+        discountAmount: { toNumber(): number };
+        totalAmount: { toNumber(): number };
+        items?: { priceAtPurchase: { toNumber(): number } }[];
+        [key: string]: any;
+      };
+    },
+  >(invoice: T) {
+    return {
+      ...invoice,
+      subtotal: invoice.subtotal.toNumber(),
+      gstPercent: invoice.gstPercent.toNumber(),
+      gstAmount: invoice.gstAmount.toNumber(),
+      discountAmount: invoice.discountAmount.toNumber(),
+      totalAmount: invoice.totalAmount.toNumber(),
+      ...(invoice.order && {
+        order: {
+          ...invoice.order,
+          subtotal: invoice.order.subtotal.toNumber(),
+          gstPercent: invoice.order.gstPercent.toNumber(),
+          gstAmount: invoice.order.gstAmount.toNumber(),
+          discountAmount: invoice.order.discountAmount.toNumber(),
+          totalAmount: invoice.order.totalAmount.toNumber(),
+          ...(invoice.order.items && {
+            items: invoice.order.items.map((i) => ({
+              ...i,
+              priceAtPurchase: i.priceAtPurchase.toNumber(),
+            })),
+          }),
+        },
+      }),
+    };
+  }
+
   async generateInvoiceNumber(): Promise<string> {
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
@@ -26,11 +73,11 @@ export class InvoicesService {
     if (!order) throw new NotFoundException('Order not found');
 
     const existing = await this.prisma.invoice.findUnique({ where: { orderId } });
-    if (existing) return existing;
+    if (existing) return this.toPlainInvoice(existing);
 
     const invoiceNumber = await this.generateInvoiceNumber();
 
-    return this.prisma.invoice.create({
+    const created = await this.prisma.invoice.create({
       data: {
         invoiceNumber,
         orderId,
@@ -49,6 +96,7 @@ export class InvoicesService {
         billingPincode: order.billingPincode,
       },
     });
+    return this.toPlainInvoice(created);
   }
 
   async getInvoiceByOrder(
@@ -80,7 +128,7 @@ export class InvoicesService {
       throw new ForbiddenException('You cannot access this invoice');
     }
 
-    return invoice;
+    return this.toPlainInvoice(invoice);
   }
 
   async listInvoices(page = 1, perPage = 20) {
@@ -103,7 +151,7 @@ export class InvoicesService {
     ]);
 
     return {
-      invoices,
+      invoices: invoices.map((i) => this.toPlainInvoice(i)),
       total,
       page,
       perPage,
