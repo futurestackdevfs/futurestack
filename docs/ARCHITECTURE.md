@@ -29,6 +29,7 @@ Browser -> `apps/web/app/api/[...proxy]/route.ts` -> NestJS API (`API_URL`).
 
 ## Security
 
+- **Session tokens**: the access JWT lives only in an HttpOnly cookie (`fs_token` student, `fs_token_staff` staff). The browser stores just the user id and non-secret claims (`fs_claims`, `fs_staff_claims`) and sends a marker (`Authorization: Bearer cookie:student|staff`). The proxy swaps the marker for the matching cookie JWT, so the portal is explicit. See `apps/web/app/auth/lib/token-store.ts` and `token-claims.ts`.
 - `proxy.ts` sets a per-request nonce CSP (`strict-dynamic`) and redirects `/ops/*` to staff login when `fs_token_staff` is missing. This is a coarse gate; the API enforces real authorization.
 - Static headers (nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy) are in `next.config.ts`.
 - API: helmet, compression, `ValidationPipe` (whitelist + forbidNonWhitelisted), Throttler, audit interceptor, Razorpay webhook signature check on the raw body.

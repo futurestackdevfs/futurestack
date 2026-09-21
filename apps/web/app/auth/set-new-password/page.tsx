@@ -5,10 +5,7 @@ import { useRouter } from 'next/navigation';
 import { authApi } from '../lib/auth-api';
 import { showToast } from '@/lib/toast';
 import { loadStaffToken } from '../lib/token-store';
-
-function decodeJwt(t: string) {
-  try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch { return null; }
-}
+import { decodeClaims } from '../lib/token-claims';
 
 const ROLE_DASHBOARDS: Record<string, string> = {
   ADMIN: '/ops/admin',
@@ -62,7 +59,7 @@ function SetNewPasswordForm() {
       let role = 'ADMIN';
       try {
         const token = await loadStaffToken();
-        if (token) role = decodeJwt(token)?.role ?? role;
+        if (token) role = decodeClaims(token)?.role ?? role;
       } catch { /* fall back to default */ }
       setDestRole(role);
 

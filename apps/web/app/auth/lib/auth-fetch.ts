@@ -1,13 +1,5 @@
-function decodeJwt(t?: string): { sub?: string; role?: string } | null {
-  if (!t) return null;
-  try {
-    return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-  } catch {
-    return null;
-  }
-}
-
 import { reportSessionExpired } from './session-events';
+import { decodeClaims } from './token-claims';
 import { refreshSession } from './refresh-session';
 
 /**
@@ -38,7 +30,7 @@ export async function authFetch(input: string, init: RequestInit = {}): Promise<
 
   let res = await doFetch(token);
   if (res.status === 401) {
-    const payload = decodeJwt(token);
+    const payload = decodeClaims(token);
     const role = payload?.role;
     try {
       const refreshed = await refreshSession(role);

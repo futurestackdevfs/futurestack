@@ -4,11 +4,14 @@ import { authApi, type User } from '../lib/auth-api';
 import { saveToken, loadToken, clearToken, loadStaffToken, saveStaffToken, clearStaffToken } from '../lib/token-store';
 import { showToast } from '@/lib/toast';
 import { refreshSession } from '../lib/refresh-session';
+import { decodeClaims } from '../lib/token-claims';
 
-// Decode JWT payload client-side — avoids a network round-trip on every page load.
-// The backend still re-verifies the signature on every API call; this is only for reading claims.
+// Read the user's claims client-side — avoids a network round-trip on every page load.
+// `token` is either a real JWT (right after login/refresh) or the session marker from the
+// token store (claims kept in localStorage). The backend re-verifies the real JWT on every call.
 function decodeJwt(token: string): User {
-  const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+  const payload = decodeClaims(token);
+  if (!payload) throw new Error('No session claims');
   return {
     id: payload.sub as string,
     name: payload.name as string,
@@ -26,9 +29,6 @@ type AuthState = {
 };
 
 const AUTH_EVENT = 'fs:auth';
-// sessionStorage key — set once per tab session so bootstrap skips the cookie sync on F5
-const COOKIE_SYNCED = 'fs_ck';
-
 let shared: AuthState = { user: null, isAuthenticated: false, isLoading: true };
 
 export function emit(next: AuthState) {
@@ -40,31 +40,26 @@ export function emit(next: AuthState) {
 
 let bootstrapped = false;
 
-// Sets the HttpOnly cookie so the BFF proxy can forward it as Authorization.
-// Marks COOKIE_SYNCED in sessionStorage so subsequent bootstraps in this tab skip the call.
+// Sets the HttpOnly cookie the BFF proxy resolves session markers against.
 async function setSessionCookie(token: string, type: 'student' | 'staff' = 'student') {
   await fetch(type === 'staff' ? '/api/auth/set-token-staff' : '/api/auth/set-token', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ token }),
   });
-  sessionStorage.setItem(COOKIE_SYNCED, '1');
 }
 
 async function clearSessionCookie(type: 'student' | 'staff' = 'student') {
   await fetch(type === 'staff' ? '/api/auth/set-token-staff' : '/api/auth/set-token', { method: 'DELETE' });
-  sessionStorage.removeItem(COOKIE_SYNCED);
 }
 
 async function bootstrap() {
   try {
     const isOps = typeof window !== 'undefined' && window.location.pathname.startsWith('/ops');
     let token: string | null = null;
-    let tokenType: 'student' | 'staff' = 'student';
 
     if (isOps) {
       token = await loadStaffToken();
-      tokenType = 'staff';
     } else {
       token = await loadToken();
       // No staff fallback — staff tokens are only valid on /ops/* paths.
@@ -75,9 +70,6 @@ async function bootstrap() {
       return;
     }
     const user = decodeJwt(token);
-    if (!sessionStorage.getItem(COOKIE_SYNCED)) {
-      await setSessionCookie(token, tokenType);
-    }
     emit({ user, isAuthenticated: true, isLoading: false });
   } catch (err) {
     try { await clearToken(); } catch {}

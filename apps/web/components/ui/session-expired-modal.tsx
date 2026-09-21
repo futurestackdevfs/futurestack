@@ -4,6 +4,9 @@ import { useRouter } from 'next/navigation';
 import { emit, useAuth } from '@/app/auth/hooks/use-auth';
 import { refreshSession } from '@/app/auth/lib/refresh-session';
 
+// How long the popup stays up before auto-redirecting to sign in.
+const COUNTDOWN_SECONDS = 120;
+
 function decodeJwt(token: string) {
   try {
     return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
@@ -16,11 +19,11 @@ export function SessionExpiredModal() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const [visible, setVisible] = useState(false);
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
 
   const dismiss = useCallback(() => {
     setVisible(false);
-    setCountdown(10);
+    setCountdown(COUNTDOWN_SECONDS);
     try { sessionStorage.removeItem('fs_last_role'); } catch {}
   }, []);
 
@@ -58,7 +61,7 @@ export function SessionExpiredModal() {
         try { sessionStorage.setItem('fs_last_role', role); } catch {}
       }
       setVisible(true);
-      setCountdown(10);
+      setCountdown(COUNTDOWN_SECONDS);
     };
     window.addEventListener('fs:session-expired', handler);
     return () => window.removeEventListener('fs:session-expired', handler);
@@ -141,7 +144,7 @@ export function SessionExpiredModal() {
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeDasharray={`${2 * Math.PI * 20}`}
-                strokeDashoffset={`${2 * Math.PI * 20 * (1 - countdown / 10)}`}
+                strokeDashoffset={`${2 * Math.PI * 20 * (1 - countdown / COUNTDOWN_SECONDS)}`}
                 className="text-amber-500 transition-all duration-1000 ease-linear"
               />
             </svg>
