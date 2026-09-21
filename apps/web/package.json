@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@future-stack/types": "workspace:*",
+    "@vercel/speed-insights": "^2.0.0",
     "chart.js": "^4.5.1",
     "html-to-image": "^1.11.13",
     "html2canvas": "^1.4.1",

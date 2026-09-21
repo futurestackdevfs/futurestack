@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import useSWR from "swr";
 import SkillTestPlayer from "./SkillTestPlayer";
+import type { EnrolledCourse } from "../../hooks/student-dashboard";
 
 // Standalone quizzes — Quiz rows with sectionId === null (formerly the
 // separate SkillTest catalog). Backed by /api/student/quizzes/*.
@@ -23,12 +25,18 @@ interface SkillTestAttempt {
   completedAt: string;
 }
 
-export default function SkillTestsSection() {
+export default function SkillTestsSection({ enrolledCourses, onOpenCourse }: { enrolledCourses: EnrolledCourse[]; onOpenCourse: (courseId: string) => void }) {
   const [tests, setTests] = useState<SkillTestSummary[]>([]);
   const [attempts, setAttempts] = useState<SkillTestAttempt[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTestId, setActiveTestId] = useState<string | null>(null);
+  const { data: cards } = useSWR<{ data: { id: string; title: string; category: string; quizCount?: number; questionCount?: number }[] }>("/api/courses/public/cards?page=1&perPage=100");
+  const enrolledById = new Map(enrolledCourses.map((c) => [c.courseId, c]));
+  // Only courses that actually have tests; enrolled ones lead.
+  const courseTiles = (cards?.data ?? [])
+    .filter((c) => (c.quizCount ?? 0) > 0)
+    .sort((a, b) => Number(enrolledById.has(b.id)) - Number(enrolledById.has(a.id)));
 
   function loadData() {
     setLoading(true);
@@ -88,46 +96,42 @@ export default function SkillTestsSection() {
           <span className="flex-1 h-[1px] bg-[var(--border)]" />
         </div>
 
-        {loading ? (
-          <div className="px-4 py-10 text-center font-['JetBrains_Mono',monospace] text-[11px] text-[var(--text3)]">Loading skill tests…</div>
-        ) : error ? (
-          <div className="px-4 py-10 text-center font-['JetBrains_Mono',monospace] text-[11px] text-[#dc2626]">{error}</div>
-        ) : tests.length === 0 ? (
-          <div className="px-4 py-10 text-center font-['JetBrains_Mono',monospace] text-[11px] text-[var(--text3)]">
-            No skill tests are available yet. Check back soon.
-          </div>
+        {courseTiles.length === 0 ? (
+          <div className="px-4 py-10 text-center font-['JetBrains_Mono',monospace] text-[11px] text-[var(--text3)]">No courses with skill tests yet.</div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {tests.map((t) => {
-              const best = bestByTest.get(t.id);
+          <div className="flex flex-col gap-2">
+            {courseTiles.map((c) => {
+              const enrolled = enrolledById.get(c.id);
+              const locked = !enrolled;
+              const questions = c.questionCount ?? 0;
+              const tests = c.quizCount ?? 0;
               return (
-                <div
-                  key={t.id}
-                  className="bg-[var(--card)] border border-[var(--border)] rounded-xl px-4 py-[14px] flex flex-col gap-2.5 transition-all duration-[0.15s] hover:border-[var(--border2)] hover:shadow-[var(--sh)]"
+                <button
+                  key={c.id}
+                  type="button"
+                  disabled={locked}
+                  onClick={() => enrolled && onOpenCourse(enrolled.courseId)}
+                  className={`w-full text-left bg-[var(--card)] border border-[var(--border)] rounded-xl px-4 py-3 flex items-center gap-3 transition-all duration-[0.15s] ${locked ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:border-[var(--orange)] hover:shadow-[var(--sh)]"}`}
                 >
-                  <div className="min-w-0">
-                    <div className="text-[13.5px] font-bold text-[var(--text)] mb-[4px] truncate">{t.title}</div>
-                  </div>
-
-                  <div className="flex items-center gap-3 font-['JetBrains_Mono',monospace] text-[9.5px] text-[var(--text3)]">
-                    <span>📝 {t.totalQuestions} question{t.totalQuestions !== 1 ? "s" : ""}</span>
-                    {t.passingScore != null && <span>🎯 Pass at {t.passingScore}%</span>}
-                  </div>
-
-                  {best && (
-                    <div className={`flex items-center gap-1.5 font-['JetBrains_Mono',monospace] text-[9.5px] font-bold px-2.5 py-1 rounded-[6px] w-fit ${best.isPassed ? "bg-green-500/10 text-[#16a34a] dark:text-[#22c55e]" : "bg-orange-500/10 text-[#f05a1a] dark:text-[#ff6a1a]"}`}>
-                      {best.isPassed ? "✓" : "•"} Best score: {best.score}%
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center text-[17px] flex-shrink-0" style={{ background: locked ? "var(--panel)" : "var(--orange-d)" }}>{locked ? "🔒" : "🧪"}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-bold text-[var(--text)] truncate">{c.title}</div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-[3px] font-['JetBrains_Mono',monospace] text-[9.5px] text-[var(--text3)]">
+                      <span className="uppercase tracking-[.05em]">{c.category}</span>
+                      <span>📝 {questions} question{questions !== 1 ? "s" : ""}</span>
+                      <span>🧪 {tests} test{tests !== 1 ? "s" : ""}</span>
+                      {enrolled && <span>{enrolled.progressPercent}% done</span>}
                     </div>
-                  )}
-
-                  <button
-                    onClick={() => setActiveTestId(t.id)}
-                    disabled={t.totalQuestions === 0}
-                    className="mt-1 px-3 py-[8px] rounded-[6px] text-[12px] font-semibold text-white bg-[var(--orange)] shadow-[0_2px_8px_rgba(240,90,26,.3)] hover:bg-[var(--orange2)] transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {best ? "Retake Test →" : "Start Test →"}
-                  </button>
-                </div>
+                    {enrolled && (
+                      <div className="h-[3px] bg-[var(--border)] rounded-full overflow-hidden mt-2 max-w-[260px]">
+                        <div className="h-full rounded-full bg-[var(--orange)]" style={{ width: `${enrolled.progressPercent}%` }} />
+                      </div>
+                    )}
+                  </div>
+                  <span className={`shrink-0 font-['JetBrains_Mono',monospace] text-[10px] font-bold ${locked ? "text-[var(--text3)]" : "text-[var(--orange)]"}`}>
+                    {locked ? "🔒 Enroll to unlock" : enrolled.progressPercent > 0 ? "Continue →" : "Start →"}
+                  </span>
+                </button>
               );
             })}
           </div>

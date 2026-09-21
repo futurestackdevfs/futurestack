@@ -5,6 +5,7 @@ import { ToastContainer } from "@/components/ui/toast-container";
 import { SessionExpiredModal } from "@/components/ui/session-expired-modal";
 import { LegalPageModal } from "@/app/(student)/components/legal-page-modal";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -128,6 +129,7 @@ export default async function RootLayout({
           <SessionExpiredModal />
           <LegalPageModal />
           <GoogleAnalytics nonce={nonce} />
+          <SpeedInsights />
         </Providers>
       </body>
     </html>

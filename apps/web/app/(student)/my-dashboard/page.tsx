@@ -70,36 +70,52 @@ function ProfileCompletionRibbon({ pct, onDismiss }: { pct: number; onDismiss: (
   const router = useRouter();
 
   useEffect(() => {
-    const timer = setTimeout(onDismiss, 120_000);
+    const timer = setTimeout(onDismiss, 15_000);
     return () => clearTimeout(timer);
   }, [onDismiss]);
 
   return (
     <div
-      className="shrink-0 flex items-center gap-2.5 px-4 py-1.5 text-white text-[11px] cursor-pointer transition-all bg-gradient-to-r from-red-600 via-blue-950 to-black"
+      className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 text-white cursor-pointer transition-all bg-gradient-to-r from-[#f05a1a] via-[#ff6a1a] to-[#7c3aed] shadow-[0_4px_20px_rgba(240,90,26,.35)] relative overflow-hidden"
+      style={{ animation: "ribbonIn .45s cubic-bezier(.2,.9,.3,1.3) both" }}
       onClick={() => router.push('/profile')}
       role="button"
       tabIndex={0}
     >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-      </svg>
-      <span className="font-semibold shrink-0">Complete your profile</span>
-      <div className="h-1 rounded-full bg-white/25 overflow-hidden w-[100px]">
-        <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${pct}%` }} />
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent)", backgroundSize: "200% 100%", animation: "shimmer 2.4s linear infinite" }}
+      />
+      <div className="relative z-[1] w-[26px] h-[26px] sm:w-[30px] sm:h-[30px] rounded-full bg-white/20 flex items-center justify-center shrink-0" style={{ animation: "pulseGlow 1.8s ease infinite" }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
       </div>
-      <span className="font-mono text-[10px] tabular-nums tracking-tight">{pct}%</span>
-      <span className="underline decoration-dotted underline-offset-2 text-white/80 ml-auto">Complete Now →</span>
+      <div className="relative z-[1] flex flex-col gap-0.5 flex-1 min-w-[150px] sm:flex-none">
+        <span className="font-bold text-[13px] leading-tight">Complete your profile</span>
+        <span className="text-[10px] text-white/75 leading-tight">Unlock the full experience</span>
+      </div>
+      <div className="relative z-[1] h-1.5 rounded-full bg-white/25 overflow-hidden flex-1 sm:flex-none basis-[80px] min-w-[80px] sm:w-[140px] sm:ml-2">
+        <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${pct}%`, boxShadow: "0 0 8px rgba(255,255,255,.8)" }} />
+      </div>
+      <span className="relative z-[1] font-mono text-[12px] font-bold tabular-nums tracking-tight">{pct}%</span>
+      <span className="relative z-[1] font-semibold text-[12px] sm:text-[13px] underline decoration-dotted underline-offset-2 text-white sm:ml-auto whitespace-nowrap shrink-0">Complete Now →</span>
       <button
         onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-        className="shrink-0 flex items-center justify-center border-none cursor-pointer text-white/60 hover:text-white transition-colors p-0 bg-transparent"
+        className="relative z-[1] shrink-0 flex items-center justify-center w-6 h-6 rounded-full border-none cursor-pointer text-white/70 hover:text-white hover:bg-white/15 transition-colors bg-transparent"
         aria-label="Dismiss"
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
       </button>
+      <style>{`
+        @keyframes ribbonIn { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+        @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,.5); } 50% { box-shadow: 0 0 0 6px rgba(255,255,255,0); } }
+      `}</style>
     </div>
   );
 }
+
 
 export default function MyDashboardPage() {
   const [activeTab, setActiveTab] = useViewParam("overview", "tab", SECTION_ORDER);
@@ -239,7 +255,7 @@ export default function MyDashboardPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)] overflow-hidden bg-[#f4f6fa] dark:bg-[#0b0e14]">
+    <div className="flex flex-col overflow-hidden bg-[#f4f6fa] dark:bg-[#0b0e14]" style={{ height: "calc(100vh - 56px)" }}>
       {showRibbon && pct !== null && pct < 90 && (
         <ProfileCompletionRibbon pct={pct} onDismiss={() => setShowRibbon(false)} />
       )}
@@ -248,7 +264,7 @@ export default function MyDashboardPage() {
           ⚠ {error}
         </div>
       )}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Mobile sidebar FAB */}
         <button
           onClick={() => setSidebarOpen(p => !p)}
@@ -260,7 +276,7 @@ export default function MyDashboardPage() {
 
         {/* LEFT SIDEBAR - desktop only */}
         <aside className="hidden lg:flex sticky top-0 z-40 w-[210px] shrink-0 bg-white dark:bg-[#111520]
-          border-r border-[#e2e6ef] dark:border-[#1e2535] flex-col overflow-y-auto">
+          border-r border-[#e2e6ef] dark:border-[#1e2535] flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Navigation */}
           <div className="p-2.5">
             {tabs.map(tab => (
@@ -327,15 +343,15 @@ export default function MyDashboardPage() {
         </aside>
 
         {/* MAIN CONTENT */}
-        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          <div className="flex-1 overflow-y-auto p-3 lg:p-4 flex flex-col gap-3">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0 min-h-0">
+          <div className="flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden p-3 lg:p-4 flex flex-col gap-3 min-h-0">
             {renderSection()}
           </div>
         </div>
 
         {/* RIGHT PANEL - desktop only */}
         {notifOpen && (
-          <aside className="hidden lg:flex w-[300px] shrink-0 bg-white dark:bg-[#111520] border-l border-[#e2e6ef] dark:border-[#1e2535] flex-col overflow-y-auto">
+          <aside className="hidden lg:flex w-[300px] shrink-0 bg-white dark:bg-[#111520] border-l border-[#e2e6ef] dark:border-[#1e2535] flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="p-4 border-b border-[#e2e6ef] dark:border-[#1e2535]">
               <div className="flex items-center justify-between mb-3">
                 <span className="font-['Syne',sans-serif] text-[14px] font-bold text-[#111827] dark:text-[#e8eaf0]">🔔 Notifications</span>
