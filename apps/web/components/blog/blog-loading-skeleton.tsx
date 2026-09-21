@@ -23,7 +23,7 @@ export function BlogDetailSkeleton() {
         <span className="border rounded px-2 py-1 bg-[var(--bg)]" />
       </div>
       <p className="text-[12px] text-[var(--text3)] mb-8 animate-pulse" />
-      <div className="prose prose-invert light:prose" dangerouslySetInnerHTML={{ __html: "Loading..." }} />
+      <div className="prose prose-invert light:prose">Loading...</div>
     </div>
   );
 }

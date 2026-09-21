@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
   productionBrowserSourceMaps: false,
   reactStrictMode: false,
   // The Content-Security-Policy is set per-request (with a nonce) in
-  // `middleware.ts` — not here — so it can't be static. These are the headers
+  // `proxy.ts` — not here — so it can't be static. These are the headers
   // that are safe to pin statically for every route.
   headers: async () => [
     {
