@@ -83,6 +83,16 @@ export function Hero() {
           doesn't depend on slide data. */}
       <MobileHero />
 
+      {/* Plain banner-shaped placeholder while slide data loads — same 307px box as the slider so nothing jumps. */}
+      {isLoading && (
+        <section
+          aria-busy="true"
+          aria-label="Loading banner"
+          className="hidden md:block rounded-2xl border border-[var(--border)] bg-[var(--card)] animate-pulse"
+          style={{ height: 307 }}
+        />
+      )}
+
       {/* Desktop/tablet-and-up slider — unchanged, still hidden below md */}
       {showDesktopSlider && (
       <section
