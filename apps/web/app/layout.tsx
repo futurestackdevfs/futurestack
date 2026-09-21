@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ToastContainer } from "@/components/ui/toast-container";
 import { SessionExpiredModal } from "@/components/ui/session-expired-modal";
 import { LegalPageModal } from "@/app/(student)/components/legal-page-modal";
+import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -126,6 +127,7 @@ export default async function RootLayout({
           <ToastContainer />
           <SessionExpiredModal />
           <LegalPageModal />
+          <GoogleAnalytics nonce={nonce} />
         </Providers>
       </body>
     </html>

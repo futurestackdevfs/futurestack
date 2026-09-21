@@ -278,6 +278,7 @@ export class AdminService {
         approvalStatus: true,
         trainerSharePercent: true,
         createdAt: true,
+        updatedAt: true,
         lastLoginAt: true,
         _count: { select: { enrollments: true, coursesTaught: true } },
       },

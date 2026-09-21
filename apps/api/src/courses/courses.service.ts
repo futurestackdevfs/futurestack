@@ -887,9 +887,10 @@ export class CoursesService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const [videoStats, quizCounts] = await Promise.all([
+    const [videoStats, quizCounts, lastEditedBy] = await Promise.all([
       this.getVideoStats(courses.map((c) => c.id)),
       this.getQuizCounts(courses.map((c) => c.id)),
+      this.getLastEditedBy(courses.map((c) => c.id)),
     ]);
 
     return courses.map((course) => {
@@ -904,8 +905,39 @@ export class CoursesService {
         totalHours,
         durationWeeks:
           totalHours > 0 ? Math.max(1, Math.round(totalHours / 10)) : 0,
+        lastEditedBy: lastEditedBy.get(course.id) ?? null,
       };
     });
+  }
+
+  /**
+   * Who last created/updated each course, sourced from AuditLog (populated by
+   * the @Audit decorator on the course create/update routes) — one query for
+   * every course id rather than N+1, keeping only the most recent entry per
+   * course since rows come back newest-first.
+   */
+  private async getLastEditedBy(
+    courseIds: string[],
+  ): Promise<Map<string, { name: string; at: Date }>> {
+    if (courseIds.length === 0) return new Map();
+    const rows = await this.prisma.auditLog.findMany({
+      where: {
+        entityType: 'Course',
+        entityId: { in: courseIds },
+        action: { in: ['CREATE', 'UPDATE'] },
+      },
+      select: { entityId: true, actorName: true, actorEmail: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    const map = new Map<string, { name: string; at: Date }>();
+    for (const row of rows) {
+      if (!row.entityId || map.has(row.entityId)) continue;
+      map.set(row.entityId, {
+        name: row.actorName ?? row.actorEmail ?? 'Unknown',
+        at: row.createdAt,
+      });
+    }
+    return map;
   }
 
   private async getQuizCounts(

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
+import { TeamMembersPanel } from "./TeamMembersPanel";
 
 interface Course {
   id: string;
@@ -12,6 +13,7 @@ interface Course {
   _count?: { enrollments: number; sections: number };
   totalLessons?: number;
   totalHours?: number;
+  lastEditedBy?: { name: string; at: string } | null;
 }
 
 const STATUS_STYLES: Record<string, { bg: string; fg: string; label: string }> = {
@@ -98,7 +100,7 @@ export default function ContentMgrDashboardContent({ onAddStaff, addLabel, searc
         </div>
         <table className="w-full border-collapse" style={{ fontSize: 11 }}>
           <thead>
-            <tr>{["Title", "Category", "Sections", "Lessons", "Status", "Last Updated"].map((h) => (
+            <tr>{["Title", "Category", "Sections", "Lessons", "Status", "Last Updated", "Edited By"].map((h) => (
               <th key={h} className="text-left font-mono text-[8.5px] font-bold uppercase tracking-wider px-2.5 py-1.5"
                 style={{ color: "var(--text3)", borderBottom: "1px solid var(--border2)", background: "var(--panel)" }}>{h}</th>
             ))}</tr>
@@ -126,14 +128,30 @@ export default function ContentMgrDashboardContent({ onAddStaff, addLabel, searc
                   <td className="px-2.5 py-1.5 font-mono" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>
                     {c.updatedAt ? new Date(c.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
                   </td>
+                  <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
+                    {c.lastEditedBy ? (
+                      <div>
+                        <div className="font-semibold" style={{ color: "var(--text)" }}>{c.lastEditedBy.name}</div>
+                        <div className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>
+                          {new Date(c.lastEditedBy.at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>—</span>
+                    )}
+                  </td>
                 </tr>
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="font-mono text-[10.5px] py-3 text-center" style={{ color: "var(--text3)" }}>No courses found.</td></tr>
+              <tr><td colSpan={7} className="font-mono text-[10.5px] py-3 text-center" style={{ color: "var(--text3)" }}>No courses found.</td></tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-4">
+        <TeamMembersPanel role="CONTENT_MANAGER" label="Content Manager" />
       </div>
     </div>
   );

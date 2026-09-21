@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
+import { TeamMembersPanel } from "./TeamMembersPanel";
 
 /* ── Types ── */
 interface Course {
@@ -282,6 +283,10 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel, searchQu
           </Panel>
         </div>
 
+      </div>
+
+      <div className="mt-4">
+        <TeamMembersPanel role="TRAINER" label="Trainer" />
       </div>
     </div>
   );
