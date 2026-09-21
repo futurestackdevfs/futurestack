@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
+import { TeamMembersPanel } from "./TeamMembersPanel";
 import { SupportConsoleBody } from "@/app/ops/support/SupportConsoleBody";
 import {
   CATEGORY_LABEL,
@@ -211,6 +212,10 @@ export default function SupportDashboardContent({
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <TeamMembersPanel role="SUPPORT" label="Support" />
       </div>
     </div>
   );

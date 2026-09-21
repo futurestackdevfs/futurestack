@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
+import { TeamMembersPanel } from "./TeamMembersPanel";
 
 interface DashboardKpi {
   totalStudents: number;
@@ -227,6 +228,10 @@ export default function CoordinatorDashboardContent({ onAddStaff, addLabel, sear
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="mt-4">
+        <TeamMembersPanel role="COORDINATOR" label="Coordinator" />
       </div>
     </div>
   );
