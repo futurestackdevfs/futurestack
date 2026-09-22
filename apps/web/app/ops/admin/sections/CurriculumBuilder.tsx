@@ -794,9 +794,9 @@ export function CurriculumBuilder({
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <div
-        className="flex flex-col rounded-lg max-w-full max-h-[88vh]"
+        className="flex flex-col rounded-lg max-w-full h-[88vh]"
         style={{
-          width: 880,
+          width: 1080,
           maxWidth: "96vw",
           background: "var(--surface)",
           border: "1px solid var(--border)",

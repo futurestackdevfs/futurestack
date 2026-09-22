@@ -1,4 +1,4 @@
-import { IsArray, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class UpdateQuizQuestionDto {
   @IsOptional()
@@ -11,9 +11,15 @@ export class UpdateQuizQuestionDto {
   options?: string[];
 
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  correctIndex?: number;
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  correctIndices?: number[];
+
+  @IsOptional()
+  @IsBoolean()
+  isMultiSelect?: boolean;
 
   @IsOptional()
   @IsString()

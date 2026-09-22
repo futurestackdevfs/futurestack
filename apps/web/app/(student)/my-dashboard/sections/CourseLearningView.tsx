@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { loadToken } from "@/app/auth/lib/token-store";
+import { fetcher } from "@/app/lib/fetcher";
 import { StarRating } from "@/components/StarRating";
 import VdoCipherVideoPlayer from "./VdoCipherVideoPlayer";
 import { VideoProgressRing } from "@/components/ui/VideoProgressRing"; // Add this
@@ -108,6 +109,13 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [quizPanelOpen, setQuizPanelOpen] = useState(true);
+  // handleComplete is memoized on [courseId] only, so it can't close over the
+  // latest currentItemId directly — a ref sidesteps that stale-closure trap
+  // without forcing the callback (and everything downstream of its identity,
+  // like VdoCipherVideoPlayer's heartbeat pipeline) to re-create on every
+  // lesson switch.
+  const currentItemIdRef = useRef<string | null>(null);
+  useEffect(() => { currentItemIdRef.current = currentItemId; }, [currentItemId]);
 
   const { data: detail, isLoading } = useSWR<StudentCourseDetail>(
     `/api/student/courses/${courseId}`,
@@ -156,11 +164,32 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
   const category = detail?.course.techStack[0] ?? enrolledCourse.title;
 
   const handleComplete = useCallback(async () => {
-    await mutate(`/api/student/courses/${courseId}`);
-    const refreshed = await fetch(`/api/student/courses/${courseId}`, { credentials: "same-origin" }).then(r => r.json());
-    const allDone = refreshed.sections.every((s: { items: { isCompleted: boolean }[] }) =>
-      s.items.every((item: { isCompleted: boolean }) => item.isCompleted),
-    );
+    // Fetch the fresh course detail (with recomputed isCompleted/isLocked for
+    // every item) and write it straight into the SWR cache ourselves, instead
+    // of firing a background `mutate()` revalidation and then a SECOND,
+    // separate fetch just to read the result. That double round-trip left a
+    // window where the UI could still be showing stale lock/completion state
+    // right after a video finished. Passing the data directly makes the
+    // sidebar (which reads this same cache key) unlock the next item and
+    // show "Done" the moment this resolves — no refresh needed.
+    const refreshed = await fetcher<StudentCourseDetail>(`/api/student/courses/${courseId}`);
+    await mutate(`/api/student/courses/${courseId}`, refreshed, { revalidate: false });
+
+    // Auto-advance ONLY when the very next item is a quiz in the SAME
+    // section — e.g. a video finishing right into its section's quiz. Never
+    // auto-advance video-to-video, and never cross into a new section on
+    // its own; the student has to make that move themselves. Selecting a
+    // video would never auto-play it anyway (VdoCipherVideoPlayer remounts
+    // on item change and always starts on its "tap to play" screen), but a
+    // quiz just needs to appear on screen, so this only bothers with that case.
+    const ownerSection = refreshed.sections.find((s) => s.items.some((i) => i.id === currentItemIdRef.current));
+    const justCompletedIdx = ownerSection?.items.findIndex((i) => i.id === currentItemIdRef.current) ?? -1;
+    const next = ownerSection && justCompletedIdx >= 0 ? ownerSection.items[justCompletedIdx + 1] : undefined;
+    if (next && next.type === "quiz" && !next.isLocked) {
+      setCurrentItemId(next.id);
+    }
+
+    const allDone = refreshed.sections.every((s) => s.items.every((item) => item.isCompleted));
     if (allDone) {
       await mutate("/api/certificates/my");
       setCertEarned(true);
@@ -299,26 +328,26 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
           </div>
 
           {/* Progress info */}
-          <div className="px-3 sm:px-4 py-[10px] sm:py-[14px] border-b border-[var(--border)]">
-            <div className="text-[12px] sm:text-[13px] font-bold text-[var(--text)] mb-[2px] sm:mb-[3px]">
+          <div className="px-4 sm:px-5 py-[16px] sm:py-[22px] border-b border-[var(--border)]" style={{ background: "linear-gradient(180deg, rgba(240,90,26,.03), transparent 60%)" }}>
+            <div className="text-[15.5px] sm:text-[17px] font-bold text-[var(--text)] mb-[3px] sm:mb-[4px]">
               {currentItem?.title ?? course.title}
             </div>
-            <div className="flex items-center gap-[5px] text-[9px] sm:text-[9.5px] text-[var(--text3)] mb-2 sm:mb-3">
+            <div className="flex items-center gap-[5px] text-[12.5px] sm:text-[13px] text-[var(--text3)] mb-3 sm:mb-4">
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="hidden sm:block"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               {currentItem?.type === 'quiz' ? 'Quiz' : 'Video'} · {category}
             </div>
-            <div className="flex justify-between items-center mb-[5px]">
-              <span className="text-[8.5px] sm:text-[9px] font-bold uppercase tracking-[.06em] text-[var(--text3)]">Progress</span>
-              <span className="text-[13px] sm:text-[14px] font-extrabold text-[var(--orange)]">{progress.progressPercent}%</span>
+            <div className="flex justify-between items-center mb-[7px]">
+              <span className="text-[11.5px] sm:text-[12px] font-bold uppercase tracking-[.06em] text-[var(--text3)]">Progress</span>
+              <span className="text-[16.5px] sm:text-[18px] font-extrabold text-[var(--orange)]">{progress.progressPercent}%</span>
             </div>
-            <div className="h-[5px] sm:h-[6px] bg-[var(--border)] rounded-[99px] overflow-hidden mb-[4px] sm:mb-[6px]">
+            <div className="h-[6px] sm:h-[7px] bg-[var(--border)] rounded-[99px] overflow-hidden mb-[6px] sm:mb-[9px]">
               <div className="h-full bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] rounded-[99px] transition-[width_.9s_ease]"
                 style={{ width: `${progress.progressPercent}%` }} />
             </div>
-            <div className="text-[10px] sm:text-[11px] text-[var(--text3)] mb-2 sm:mb-3">
+            <div className="text-[13px] sm:text-[14px] text-[var(--text3)] mb-3 sm:mb-4">
               <strong className="text-[var(--orange)]">{progress.completedItems} of {progress.totalItems}</strong> done
             </div>
-            <button 
+            <button
               onClick={async () => {
                 if (progress.progressPercent === 100) {
                   const res = await fetch(`/api/certificates/claim/${courseId}`, {
@@ -338,8 +367,8 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                   }
                 }
               }}
-              className="w-full py-[8px] sm:py-[9px] rounded-[7px] sm:rounded-[8px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[11px] sm:text-[12px] font-bold flex items-center justify-center gap-[6px] transition-all hover:opacity-90"
-              style={{ boxShadow: "0 3px 14px rgba(240,90,26,.35)" }}>
+              className="w-full py-[11px] sm:py-[12px] rounded-[9px] sm:rounded-[10px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white text-[12px] sm:text-[13px] font-bold flex items-center justify-center gap-[6px] transition-all hover:opacity-90 hover:-translate-y-[1px]"
+              style={{ boxShadow: "0 4px 16px rgba(240,90,26,.4)" }}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               {resumeLabel}
             </button>
@@ -512,7 +541,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
 
           {/* CURRICULUM */}
           <div className={`flex-1 overflow-y-auto ${activeTab === "curriculum" ? "flex flex-col" : "hidden"}`}>
-            <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-3 sm:pt-4 flex flex-col gap-[10px] sm:gap-3">
+            <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-4 sm:pt-5 flex flex-col gap-[14px] sm:gap-4">
               {detail.sections.map((section, si) => {
                 const isOpen = openSections.has(section.id);
                 const hasActive = section.items.some(i => i.id === currentItemId);
@@ -522,18 +551,18 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
 
                 return (
                   <div key={section.id}
-                    className="bg-[var(--card)] border border-[var(--border)] rounded-[10px] overflow-hidden"
-                    style={{ boxShadow: "var(--sh)", borderColor: hasActive ? "rgba(240,90,26,.3)" : undefined }}>
+                    className="bg-[var(--card)] border border-[var(--border)] rounded-[12px] overflow-hidden transition-all"
+                    style={{ boxShadow: hasActive ? "0 4px 18px rgba(240,90,26,.1)" : "var(--sh)", borderColor: hasActive ? "rgba(240,90,26,.3)" : undefined }}>
                     <div onClick={() => toggleSection(section.id)}
-                      className={`flex items-center gap-[8px] sm:gap-[10px] px-3 sm:px-4 py-[10px] sm:py-3 cursor-pointer select-none transition-all ${hasActive ? "bg-[rgba(240,90,26,.04)]" : "bg-[var(--surface)] hover:bg-[var(--card-h)]"}`}>
-                      <span className={`text-[9px] sm:text-[10px] text-[var(--text3)] shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
-                      <span className="text-[8px] sm:text-[9px] font-bold text-[var(--orange)] w-[18px] sm:w-5 shrink-0">{String(si + 1).padStart(2, "0")}</span>
-                      <span className="text-[11.5px] sm:text-[12.5px] font-bold text-[var(--text)] flex-1 truncate">{section.title}</span>
-                      <span className="text-[8.5px] sm:text-[9px] text-[var(--text3)] gap-[8px] sm:gap-[10px] shrink-0 hidden sm:flex">
+                      className={`flex items-center gap-[10px] sm:gap-[12px] px-4 sm:px-5 py-[13px] sm:py-4 cursor-pointer select-none transition-all ${hasActive ? "bg-[rgba(240,90,26,.04)]" : "bg-[var(--surface)] hover:bg-[var(--card-h)]"}`}>
+                      <span className={`text-[12px] sm:text-[13px] text-[var(--text3)] shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
+                      <span className="text-[11px] sm:text-[12px] font-bold text-[var(--orange)] w-[20px] sm:w-6 shrink-0">{String(si + 1).padStart(2, "0")}</span>
+                      <span className="text-[15px] sm:text-[16px] font-bold text-[var(--text)] flex-1 truncate">{section.title}</span>
+                      <span className="text-[11.5px] sm:text-[12px] text-[var(--text3)] gap-[8px] sm:gap-[10px] shrink-0 hidden sm:flex">
                         <span>{section.totalItems} lessons</span>
                         <span>{fmtMins(sectionMinutes)}</span>
                       </span>
-                      <span className="text-[8.5px] sm:text-[9px] font-bold text-[var(--orange)] shrink-0">
+                      <span className="text-[11.5px] sm:text-[12px] font-bold text-[var(--orange)] shrink-0">
                         {section.completedItems}/{section.totalItems}
                       </span>
                     </div>
@@ -541,38 +570,47 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                     <div className={isOpen ? "block" : "hidden"}>
                       {section.items.map(item => {
                         const isSelected = currentItemId === item.id;
-                        const canClick = true;
+                        // Backend already computes strict sequential locking (everything
+                        // after the first incomplete item) — enforce it here instead of
+                        // letting every item be clickable regardless of lock state.
+                        const canClick = !item.isLocked;
 
                         return (
                           <div key={item.id}
-                            onClick={() => setCurrentItemId(item.id)}
-                            className={`flex items-center gap-x-[8px] sm:gap-x-[10px] gap-y-1 px-3 sm:px-4 py-[7px] sm:py-[9px] border-t border-[var(--border)] transition-all ${
-                              isSelected
-                                ? "bg-[rgba(240,90,26,.04)] border-l-[3px] border-l-[var(--orange)] cursor-pointer"
-                                : item.isCompleted
-                                  ? "hover:bg-[var(--card-h)] cursor-pointer opacity-80"
-                                  : "hover:bg-[var(--card-h)] cursor-pointer"
-                            } ${item.type === 'quiz' ? "sm:grid sm:grid-cols-[24px_1fr_auto_auto_auto]" : "sm:grid sm:grid-cols-[24px_1fr_auto_auto_auto]"}`}>
+                            onClick={() => { if (canClick) setCurrentItemId(item.id); }}
+                            aria-disabled={!canClick}
+                            title={!canClick ? "Complete the current lesson to unlock this" : undefined}
+                            className={`flex items-center gap-x-[10px] sm:gap-x-[12px] gap-y-1.5 px-4 sm:px-5 py-[11px] sm:py-[13px] border-t border-[var(--border)] transition-all ${
+                              !canClick
+                                ? "opacity-45 cursor-not-allowed"
+                                : isSelected
+                                  ? "bg-[rgba(240,90,26,.04)] border-l-[3px] border-l-[var(--orange)] cursor-pointer"
+                                  : item.isCompleted
+                                    ? "hover:bg-[var(--card-h)] cursor-pointer opacity-80"
+                                    : "hover:bg-[var(--card-h)] cursor-pointer"
+                            } ${item.type === 'quiz' ? "sm:grid sm:grid-cols-[26px_1fr_auto_auto_auto]" : "sm:grid sm:grid-cols-[26px_1fr_auto_auto_auto]"}`}>
 
                             {/* Status dot */}
-                            <div className={`w-[18px] sm:w-5 h-[18px] sm:h-5 rounded-full flex items-center justify-center text-[8px] sm:text-[9px] font-bold shrink-0 ${
+                            <div className={`w-[20px] sm:w-6 h-[20px] sm:h-6 rounded-full flex items-center justify-center text-[11px] sm:text-[12px] font-bold shrink-0 ${
                               item.isCompleted
                                 ? "bg-green-600 dark:bg-green-500 text-white"
-                                : isSelected
-                                  ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
-                                  : "bg-[var(--orange-d)] text-[var(--orange)]"
+                                : !canClick
+                                  ? "bg-[var(--bg2)] text-[var(--text3)]"
+                                  : isSelected
+                                    ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
+                                    : "bg-[var(--orange-d)] text-[var(--orange)]"
                             }`}
                               style={isSelected ? { boxShadow: "0 2px 8px rgba(240,90,26,.5)" } : {}}>
-                              {item.isCompleted ? "✓" : isSelected ? "▶" : "○"}
+                              {item.isCompleted ? "✓" : !canClick ? "🔒" : isSelected ? "▶" : "○"}
                             </div>
 
                             {/* Title + type */}
                             <div className="flex-1 sm:flex-none min-w-0">
-                              <div className="text-[10.5px] sm:text-[11.5px] font-semibold text-[var(--text)] leading-[1.3] truncate"
+                              <div className="text-[13.5px] sm:text-[14.5px] font-semibold text-[var(--text)] leading-[1.3] truncate"
                                 style={isSelected ? { color: "var(--orange)" } : {}}>
                                 {item.title}
                               </div>
-                              <div className="text-[8.5px] sm:text-[9px] text-[var(--text3)] mt-[1px]">
+                              <div className="text-[11.5px] sm:text-[12px] text-[var(--text3)] mt-[1px]">
                                 {item.type === 'quiz'
                                   ? `📝 Quiz · ${item.totalQuestions ?? '?'} q`
                                   : '📹 Video'}
@@ -580,25 +618,27 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                             </div>
 
                             {/* Duration */}
-                            <div className="text-[9px] sm:text-[10px] text-[var(--text2)] text-right whitespace-nowrap hidden sm:block">
+                            <div className="text-[12px] sm:text-[13px] text-[var(--text2)] text-right whitespace-nowrap hidden sm:block">
                               {item.type === 'video' && item.durationSeconds ? fmtMins(item.durationSeconds) : ''}
                             </div>
 
                             {/* Score */}
-                            <div className="text-[9px] sm:text-[10px] font-bold text-right whitespace-nowrap text-[var(--text3)] hidden sm:block">
+                            <div className="text-[12px] sm:text-[13px] font-bold text-right whitespace-nowrap text-[var(--text3)] hidden sm:block">
                               {item.score != null ? `${item.score}%` : '—'}
                             </div>
 
                             {/* Badge */}
-                            <div className={`text-[7.5px] sm:text-[8px] font-bold px-[5px] sm:px-[7px] py-[1px] sm:py-[2px] rounded-[3px] text-center whitespace-nowrap shrink-0 ${
+                            <div className={`text-[10px] sm:text-[10.5px] font-bold px-[5px] sm:px-[7px] py-[1px] sm:py-[2px] rounded-[3px] text-center whitespace-nowrap shrink-0 ${
                               item.isCompleted
                                 ? "bg-green-500/15 text-green-600 dark:text-green-400"
-                                : isSelected
-                                  ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
-                                  : "bg-[var(--orange-d)] text-[var(--orange)]"
+                                : !canClick
+                                  ? "bg-[var(--bg2)] text-[var(--text3)]"
+                                  : isSelected
+                                    ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
+                                    : "bg-[var(--orange-d)] text-[var(--orange)]"
                             }`}
                               style={{ boxShadow: isSelected ? "0 1px 4px rgba(240,90,26,.3)" : undefined }}>
-                              {item.isCompleted ? "Done" : isSelected ? "Active" : "Ready"}
+                              {item.isCompleted ? "Done" : !canClick ? "Locked" : isSelected ? "Active" : "Ready"}
                             </div>
                           </div>
                         );

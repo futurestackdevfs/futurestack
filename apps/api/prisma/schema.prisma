@@ -269,14 +269,15 @@ model Quiz {
 }
 
 model QuizQuestion {
-  id           String  @id @default(uuid())
-  quiz         Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  quizId       String
-  question     String
-  options      String[]
-  correctIndex Int
-  explanation  String?
-  order        Int
+  id             String   @id @default(uuid())
+  quiz           Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId         String
+  question       String
+  options        String[]
+  correctIndices Int[] // one or more correct option indices — [i] for single-answer, [i,j,...] for multi-select
+  isMultiSelect  Boolean  @default(false) // drives checkbox vs radio on the student player; safe to expose pre-submit (unlike correctIndices)
+  explanation    String?
+  order          Int
 }
 
 model QuizAttempt {

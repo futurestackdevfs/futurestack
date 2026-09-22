@@ -507,6 +507,9 @@ export class StudentService {
         id: q.id,
         question: q.question,
         options: q.options,
+        // Safe to expose pre-submit — tells the player which control to
+        // render (checkbox vs single-select), without revealing correctIndices.
+        isMultiSelect: q.isMultiSelect,
       })),
     };
   }
@@ -514,7 +517,7 @@ export class StudentService {
   async submitQuiz(
     studentId: string,
     quizId: string,
-    dto: { score?: number; answers?: { questionId: string; selectedIndex: number }[] },
+    dto: { score?: number; answers?: { questionId: string; selectedIndices: number[] }[] },
   ) {
     const quiz = await this.findQuizForStudent(studentId, quizId);
 
@@ -527,8 +530,8 @@ export class StudentService {
           questionId: string;
           question: string;
           options: string[];
-          selectedIndex: number;
-          correctIndex: number;
+          selectedIndices: number[];
+          correctIndices: number[];
           isCorrect: boolean;
           explanation: string | null;
         }[]
@@ -536,23 +539,30 @@ export class StudentService {
 
     if (quiz.questions.length > 0) {
       const answerMap = new Map(
-        (dto.answers ?? []).map((a) => [a.questionId, a.selectedIndex]),
+        (dto.answers ?? []).map((a) => [a.questionId, a.selectedIndices]),
       );
-      correctCount = quiz.questions.filter(
-        (q) => answerMap.get(q.id) === q.correctIndex,
+      // A question is correct only when the submitted set of indices is
+      // exactly the correct set — same size, same members, order-independent
+      // (so a multi-select question needs every correct option picked and
+      // nothing extra; a single-answer question is just the length-1 case).
+      const setsEqual = (a: number[], b: number[]) =>
+        a.length === b.length && new Set(a).size === new Set([...a, ...b]).size;
+
+      correctCount = quiz.questions.filter((q) =>
+        setsEqual(answerMap.get(q.id) ?? [], q.correctIndices),
       ).length;
       totalQuestions = quiz.questions.length;
       score = Math.round((correctCount / totalQuestions) * 100);
       answers = dto.answers as any;
       breakdown = quiz.questions.map((q) => {
-        const selectedIndex = answerMap.has(q.id) ? answerMap.get(q.id)! : -1;
+        const selectedIndices = answerMap.get(q.id) ?? [];
         return {
           questionId: q.id,
           question: q.question,
           options: q.options,
-          selectedIndex,
-          correctIndex: q.correctIndex,
-          isCorrect: selectedIndex === q.correctIndex,
+          selectedIndices,
+          correctIndices: q.correctIndices,
+          isCorrect: setsEqual(selectedIndices, q.correctIndices),
           explanation: q.explanation,
         };
       });
