@@ -42,6 +42,7 @@ export default function ContentManagerConsolePage() {
   const [stats, setStats] = useState<CmStats | null>(null);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -117,6 +118,7 @@ export default function ContentManagerConsolePage() {
         user={user}
         currentView={view}
         onSearch={setSearchQuery}
+        onMenuClick={() => setSidebarOpen(true)}
         onSignOut={async () => {
           await clearStaffToken();
           await fetch("/api/auth/set-token-staff", { method: "DELETE" });
@@ -126,7 +128,7 @@ export default function ContentManagerConsolePage() {
       />
 
       <div className="flex" style={{ flex: 1, overflow: "hidden" }}>
-        <ContentManagerSidebar activeView={view} onSwitchView={setView} badges={badges} />
+        <ContentManagerSidebar activeView={view} onSwitchView={setView} badges={badges} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
           {dataLoading ? (

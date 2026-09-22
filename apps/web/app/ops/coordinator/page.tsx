@@ -38,6 +38,7 @@ export default function CoordinatorConsolePage() {
   const [dashboard, setDashboard] = useState<CoordinatorDashboard>(EMPTY_DASHBOARD);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -102,6 +103,7 @@ export default function CoordinatorConsolePage() {
         user={user}
         currentView={view}
         onSearch={setSearchQuery}
+        onMenuClick={() => setSidebarOpen(true)}
         onSignOut={async () => {
           await clearStaffToken();
           await fetch("/api/auth/set-token-staff", { method: "DELETE" });
@@ -111,7 +113,7 @@ export default function CoordinatorConsolePage() {
       />
 
       <div className="flex" style={{ flex: 1, overflow: "hidden" }}>
-        <CoordinatorSidebar activeView={view} onSwitchView={setView} badges={badges} />
+        <CoordinatorSidebar activeView={view} onSwitchView={setView} badges={badges} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
           {dataLoading ? (

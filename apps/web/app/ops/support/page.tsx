@@ -62,6 +62,7 @@ function SupportConsoleInner() {
   const [sample, setSample] = useState<Ticket[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const addToast = useCallback((msg: string) => {
     const id = Date.now();
@@ -87,17 +88,33 @@ function SupportConsoleInner() {
   const loadData = useCallback(async () => {
     setDataLoading(true);
     try {
-      const statsRes = await opsFetch("/api/support/staff/stats");
+      const PAGE_LIMIT = 50, MAX_PAGES = 4;
+      // Stats and the ticket sample's first page are independent — fetch
+      // together. The first page also tells us the real total, so we know
+      // exactly how many more pages (if any) are worth fetching, and can
+      // fetch those concurrently instead of one page at a time.
+      const [statsRes, firstRes] = await Promise.all([
+        opsFetch("/api/support/staff/stats"),
+        opsFetch(`/api/support/staff/tickets?limit=${PAGE_LIMIT}&page=1`),
+      ]);
       if (statsRes.ok) setStats(await statsRes.json());
 
-      // Pull a working set for the analytics panels — most-recently-updated first.
       const acc: Ticket[] = [];
-      for (let page = 1; page <= 4; page++) {
-        const r = await opsFetch(`/api/support/staff/tickets?limit=50&page=${page}`);
-        if (!r.ok) break;
-        const body = await r.json();
-        acc.push(...(body.data ?? []));
-        if (!body.data || body.data.length < 50 || acc.length >= (body.total ?? 0)) break;
+      if (firstRes.ok) {
+        const firstBody = await firstRes.json();
+        acc.push(...(firstBody.data ?? []));
+        const total = firstBody.total ?? 0;
+        const pagesNeeded = Math.min(MAX_PAGES, Math.ceil(total / PAGE_LIMIT));
+        if (pagesNeeded > 1 && (firstBody.data?.length ?? 0) >= PAGE_LIMIT) {
+          const rest = await Promise.all(
+            Array.from({ length: pagesNeeded - 1 }, (_, i) =>
+              opsFetch(`/api/support/staff/tickets?limit=${PAGE_LIMIT}&page=${i + 2}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null),
+            ),
+          );
+          rest.forEach((body) => { if (body?.data) acc.push(...body.data); });
+        }
       }
       setSample(acc);
     } catch {
@@ -136,10 +153,17 @@ function SupportConsoleInner() {
       <OpsTopbar
         role={user}
         breadcrumb={{ title: "support", subtitle: BREADCRUMB[view] ?? "console" }}
+        onMenuClick={() => setSidebarOpen(true)}
       />
 
       <div className="flex" style={{ flex: 1, overflow: "hidden" }}>
-        <SupportSidebar activeView={view} onSwitchView={(v) => { setView(v); setOpenTicketId(null); }} badges={badges} />
+        <SupportSidebar
+          activeView={view}
+          onSwitchView={(v) => { setView(v); setOpenTicketId(null); }}
+          badges={badges}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
 
         <main className="flex-1" style={{ background: "var(--bg)", overflow: ["email", "students", "enrollments", "ratings", "payments"].includes(view) || preset ? "hidden" : "auto" }}>
           {view === "dashboard" && (

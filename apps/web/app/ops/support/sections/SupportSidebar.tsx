@@ -4,6 +4,8 @@ interface SupportSidebarProps {
   activeView: string;
   onSwitchView: (view: string) => void;
   badges?: Record<string, number>;
+  open?: boolean;
+  onClose?: () => void;
 }
 
 interface NavItem {
@@ -52,11 +54,21 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
   },
 ];
 
-export function SupportSidebar({ activeView, onSwitchView, badges = {} }: SupportSidebarProps) {
+export function SupportSidebar({ activeView, onSwitchView, badges = {}, open = false, onClose }: SupportSidebarProps) {
   return (
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-30 md:hidden"
+          style={{ background: "rgba(0,0,0,.4)" }}
+          onClick={onClose}
+        />
+      )}
+
     <aside
       style={{ width: 208, background: "var(--surface)", borderRight: "1px solid var(--border)" }}
-      className="shrink-0 overflow-y-auto flex flex-col"
+      className={`fixed inset-y-0 left-0 z-40 shrink-0 overflow-y-auto flex flex-col transition-transform duration-200
+        ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 md:static md:z-auto`}
     >
       <div style={{ borderBottom: "1px solid var(--border)" }} className="px-3.5 py-2.5 flex items-center gap-2">
         <div className="w-6 h-6 rounded flex items-center justify-center text-[12px] shrink-0" style={{ background: "var(--orange-d)", color: "var(--orange)" }}>🎧</div>
@@ -64,6 +76,7 @@ export function SupportSidebar({ activeView, onSwitchView, badges = {} }: Suppor
           <div className="text-[10.8px] font-semibold" style={{ color: "var(--text)" }}>Support Console</div>
           <div className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>role::support</div>
         </div>
+        <button onClick={onClose} className="ml-auto w-6 h-6 flex items-center justify-center rounded md:hidden" style={{ color: "var(--text3)" }} aria-label="Close menu">✕</button>
       </div>
 
       {NAV_GROUPS.map((group, gi) => (
@@ -76,7 +89,7 @@ export function SupportSidebar({ activeView, onSwitchView, badges = {} }: Suppor
             const badgeCount = item.badgeKey ? badges[item.badgeKey] ?? 0 : 0;
             return (
               <div key={item.view}
-                onClick={() => onSwitchView(item.view)}
+                onClick={() => { onSwitchView(item.view); onClose?.(); }}
                 className="flex items-center gap-2 px-3.5 py-1.5 text-[11.5px] font-medium cursor-pointer"
                 style={{
                   color: isActive ? "var(--orange)" : "var(--text2)",
@@ -102,5 +115,6 @@ export function SupportSidebar({ activeView, onSwitchView, badges = {} }: Suppor
         support-desk · v1.0.0
       </div>
     </aside>
+    </>
   );
 }

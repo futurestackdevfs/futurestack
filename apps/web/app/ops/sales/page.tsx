@@ -47,6 +47,7 @@ export default function SalesConsolePage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [dashboard, setDashboard] = useState<SalesDashboard>(EMPTY_DASHBOARD);
   const [saleOpen, setSaleOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -118,6 +119,7 @@ export default function SalesConsolePage() {
         user={user}
         currentView={view}
         onSearch={setSearchQuery}
+        onMenuClick={() => setSidebarOpen(true)}
         onNewSale={() => setSaleOpen(true)}
         onSignOut={async () => {
           await clearStaffToken();
@@ -128,7 +130,7 @@ export default function SalesConsolePage() {
       />
 
       <div className="flex" style={{ flex: 1, overflow: "hidden" }}>
-        <SalesSidebar activeView={view} onSwitchView={setView} badges={badges} />
+        <SalesSidebar activeView={view} onSwitchView={setView} badges={badges} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
           {dataLoading ? (
