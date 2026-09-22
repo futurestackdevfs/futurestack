@@ -258,7 +258,7 @@ export default function TrainerDashboardPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [token, user]);
+  }, [token, user, profileSubmittedAt]);
 
   function addToast(msg: string, type: "success" | "danger" = "success") {
     const id = Date.now();
