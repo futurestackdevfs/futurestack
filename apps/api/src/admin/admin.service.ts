@@ -127,19 +127,37 @@ export class AdminService {
 
   async listPendingTrainers() {
     const trainers = await this.prisma.user.findMany({
-      where: { role: Role.TRAINER, approvalStatus: 'PENDING' },
+      // Only show applications the trainer has actually submitted — one who
+      // hasn't finished the onboarding form yet has nothing to review.
+      where: {
+        role: Role.TRAINER,
+        approvalStatus: 'PENDING',
+        profileSubmittedAt: { not: null },
+      },
       select: {
         id: true,
         name: true,
         email: true,
+        avatarUrl: true,
         bio: true,
+        phone: true,
+        dob: true,
+        city: true,
+        qualification: true,
+        experience: true,
+        careerPath: true,
+        skills: true,
         yearsExperience: true,
+        profileSubmittedAt: true,
         createdAt: true,
       },
-      orderBy: { createdAt: 'asc' }, // oldest applications first
+      orderBy: { profileSubmittedAt: 'asc' }, // oldest applications first
     });
 
-    return trainers;
+    return trainers.map((t) => ({
+      ...t,
+      dob: t.dob ? t.dob.toISOString().split('T')[0] : null,
+    }));
   }
 
   async approveTrainer(trainerId: string) {
@@ -638,8 +656,11 @@ export class AdminService {
         emailVerified: true,
         mustChangePassword: true,
         passwordExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
-        // Admin-created trainers are pre-approved — no pending review needed
-        ...(dto.role === 'TRAINER' && { approvalStatus: 'APPROVED' }),
+        // Admin-created trainers still go through the same onboarding +
+        // approval gate as self-registered ones — they log in, complete the
+        // required-fields profile form, then wait for approval like anyone
+        // else (see PENDING default on the User model / trainer console).
+        ...(dto.role === 'TRAINER' && { approvalStatus: 'PENDING' }),
       },
     });
 

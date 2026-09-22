@@ -8,7 +8,7 @@ const FOCUS_AREAS = [
     title: "Artificial Intelligence",
     desc: "Applied ML systems, from predictive models to generative copilots, built to solve a real operating problem rather than demo well once.",
     tags: ["Computer vision", "LLMs & RAG", "Predictive ML"],
-    img: "https://images.pexels.com/photos/17483874/pexels-photo-17483874.jpeg?auto=compress&cs=tinysrgb&w=700",
+    img: "https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=700",
   },
   {
     index: "02",
@@ -68,7 +68,7 @@ const CASE_STUDIES = [
     desc: "A vision model that flags soldering defects in real time, cutting manual inspection time on a partner's line by more than half.",
     partner: "Manufacturing partner",
     duration: "8 weeks",
-    img: "https://images.pexels.com/photos/17483874/pexels-photo-17483874.jpeg?auto=compress&cs=tinysrgb&w=700",
+    img: "https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=700",
   },
   {
     domain: "Industrial IoT",

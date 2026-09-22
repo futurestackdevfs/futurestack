@@ -106,3 +106,10 @@ export interface PayoutRecord {
 }
 
 export const INR = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+
+/** Shared with the first-login onboarding wizard and the profile editor. */
+export const TRAINER_CAREER_PATHS = [
+  "Full Stack Developer", "Frontend Developer", "Backend Developer",
+  "Data Scientist", "DevOps Engineer", "AI / ML Engineer",
+  "Cybersecurity Specialist", "Mobile Developer", "Cloud Architect",
+];

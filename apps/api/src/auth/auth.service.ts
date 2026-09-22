@@ -205,12 +205,13 @@ export class AuthService {
   }
 
   /**
-   * Trainer self-registration. Unlike student register(), this does NOT
-   * return an accessToken — the account is created in PENDING state and
-   * can't log in until an admin approves it. validateUser() below enforces
-   * this gate.
+   * Trainer self-registration. Logs the trainer in immediately (like
+   * register()) — the account starts PENDING, but the trainer console gates
+   * on that: first the onboarding form (profileSubmittedAt), then a
+   * "pending approval" banner until an admin approves. See validateUser()
+   * below — a PENDING trainer is allowed to log in; only REJECTED is blocked.
    */
-  async registerTrainer(dto: RegisterTrainerDto): Promise<{ message: string }> {
+  async registerTrainer(dto: RegisterTrainerDto) {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -221,7 +222,7 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
-    await this.prisma.user.create({
+    const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         name: dto.name,
@@ -233,9 +234,25 @@ export class AuthService {
       },
     });
 
+    const rawRefreshToken = await this.createRefreshToken(user.id);
+
     return {
-      message:
-        'Your trainer account has been submitted for review. You will be able to log in once an admin approves it.',
+      accessToken: this.signToken({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+      } as SafeUser),
+      rawRefreshToken,
+      user: {
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+      },
     };
   }
 
@@ -276,14 +293,13 @@ export class AuthService {
       );
     }
 
-    if (user.role === Role.TRAINER && user.approvalStatus !== 'APPROVED') {
-      if (user.approvalStatus === 'REJECTED') {
-        throw new UnauthorizedException(
-          'Your trainer application was not approved',
-        );
-      }
+    // A trainer can log in while PENDING — the console gates them into the
+    // onboarding form, then a "pending approval" banner (see
+    // apps/web/app/ops/trainer/page.tsx). Only a REJECTED application is
+    // blocked outright.
+    if (user.role === Role.TRAINER && user.approvalStatus === 'REJECTED') {
       throw new UnauthorizedException(
-        'Your trainer account is pending admin approval',
+        'Your trainer application was not approved',
       );
     }
 

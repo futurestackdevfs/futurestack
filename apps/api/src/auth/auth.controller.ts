@@ -72,8 +72,14 @@ export class AuthController {
 
   @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('register-trainer')
-  async registerTrainer(@Body() dto: RegisterTrainerDto) {
-    return this.authService.registerTrainer(dto);
+  async registerTrainer(
+    @Body() dto: RegisterTrainerDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, rawRefreshToken, user } =
+      await this.authService.registerTrainer(dto);
+    this.setRefreshTokenCookie(res, rawRefreshToken, Role.TRAINER);
+    return { accessToken, user };
   }
 
   // LocalAuthGuard runs LocalStrategy.validate() against the body,

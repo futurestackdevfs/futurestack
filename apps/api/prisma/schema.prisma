@@ -114,6 +114,11 @@ model User {
   yearsExperience     Int?
   rating              Float?
   trainerSharePercent Int? // per-trainer override (% trainer keeps); null = use global PaymentSettings default
+  // Set once the trainer completes the required-fields onboarding form (first
+  // login gate). Null = onboarding not done yet — the trainer console shows
+  // the onboarding wizard instead of the portal. Independent of approvalStatus:
+  // a trainer can be logged in and mid-review while already having submitted.
+  profileSubmittedAt DateTime?
 
   enrollments       Enrollment[]
   videoProgress     VideoProgress[]

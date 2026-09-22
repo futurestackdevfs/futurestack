@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
+import { showToast } from "@/lib/toast";
 import { TeamMembersPanel } from "./TeamMembersPanel";
+import TrainerApprovalsView from "../../content-manager/console/TrainerApprovalsView";
 
 /* ── Types ── */
 interface Course {
@@ -139,6 +141,11 @@ export default function TrainerDashboardContent({ onAddStaff, addLabel, searchQu
             >+ Add {addLabel}</button>
           )}
         </div>
+      </div>
+
+      {/* Pending trainer applications — filled onboarding profile awaiting approval */}
+      <div className="mb-4 rounded overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+        <TrainerApprovalsView onToast={showToast} />
       </div>
 
       {/* KPI Strip */}

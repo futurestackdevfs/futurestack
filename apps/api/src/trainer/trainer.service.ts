@@ -434,6 +434,8 @@ export class TrainerService {
         skills: true,
         yearsExperience: true,
         rating: true,
+        approvalStatus: true,
+        profileSubmittedAt: true,
         // Trainer stats
         coursesTaught: { select: { id: true } },
         certificates: { select: { id: true } },
@@ -467,6 +469,31 @@ export class TrainerService {
       if (existing) throw new ConflictException('Email is already in use');
     }
 
+    // Onboarding gate: the trainer console shows a blocking "complete your
+    // profile" form until these are all filled, then never again — so once
+    // the merged (existing + incoming) values clear the bar, stamp
+    // profileSubmittedAt (only on the transition into completeness; a later
+    // edit shouldn't reset it).
+    const merged = {
+      phone: dto.phone ?? user.phone,
+      dob: dto.dob ?? user.dob,
+      city: dto.city ?? user.city,
+      qualification: dto.qualification ?? user.qualification,
+      experience: dto.experience ?? user.experience,
+      careerPath: dto.careerPath ?? user.careerPath,
+      skills: dto.skills ?? user.skills,
+      bio: dto.bio ?? user.bio,
+    };
+    const requiredFilled = [
+      merged.phone,
+      merged.dob,
+      merged.city,
+      merged.qualification,
+      merged.experience,
+      merged.careerPath,
+      merged.bio,
+    ].every((v) => v != null && String(v).trim() !== '') && merged.skills.length > 0;
+
     const updated = await this.prisma.user.update({
       where: { id: trainerId },
       data: {
@@ -480,6 +507,9 @@ export class TrainerService {
         experience: dto.experience,
         careerPath: dto.careerPath,
         skills: dto.skills,
+        ...(requiredFilled && !user.profileSubmittedAt
+          ? { profileSubmittedAt: new Date() }
+          : {}),
       },
       select: {
         id: true,
@@ -497,6 +527,8 @@ export class TrainerService {
         skills: true,
         yearsExperience: true,
         rating: true,
+        approvalStatus: true,
+        profileSubmittedAt: true,
       },
     });
 
