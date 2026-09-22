@@ -127,8 +127,8 @@ describe('AuthService', () => {
           }),
         }),
       );
-      expect(result).not.toHaveProperty('accessToken');
-      expect(result.message).toMatch(/submitted for review/);
+      expect(result).toHaveProperty('accessToken');
+      expect(result.user.role).toBe(Role.TRAINER);
     });
   });
 
@@ -170,11 +170,25 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('rejects a trainer whose approval is still PENDING', async () => {
+    it('allows a trainer whose approval is still PENDING to log in (gated by the console, not login)', async () => {
       const bcrypt = require('bcrypt');
       jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(
         makeUser({ role: Role.TRAINER, approvalStatus: 'PENDING' }),
+      );
+
+      const result = await service.validateUser(
+        'trainer@example.com',
+        'correct-password',
+      );
+      expect(result?.approvalStatus).toBe('PENDING');
+    });
+
+    it('rejects a trainer whose approval was REJECTED', async () => {
+      const bcrypt = require('bcrypt');
+      jest.spyOn(bcrypt, 'compare').mockResolvedValue(true as never);
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(
+        makeUser({ role: Role.TRAINER, approvalStatus: 'REJECTED' }),
       );
 
       await expect(

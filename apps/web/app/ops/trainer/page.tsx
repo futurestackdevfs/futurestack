@@ -18,6 +18,7 @@ import StudentRatingsView from "./console/StudentRatingsView";
 import DoubtsView from "./console/DoubtsView";
 import RevenueView from "./console/RevenueView";
 import TrainerProfileView from "./console/TrainerProfileView";
+import TrainerOnboarding from "./console/TrainerOnboarding";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import {
   type TrainerBatch, type TrainerStudent,
@@ -93,7 +94,13 @@ export default function TrainerDashboardPage() {
   const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
   const [reviews, setReviews] = useState<{ id: string; rating: number; studentName: string; courseTitle: string }[]>([]);
   const [sharePct, setSharePct] = useState(50);
-  const [profileComplete, setProfileComplete] = useState(false);
+  // Onboarding gate: null = not yet submitted (show the wizard, full-screen,
+  // no console chrome), undefined = still loading, a string = submitted at
+  // that ISO timestamp. approvalStatus drives the "pending review" ribbon
+  // once the trainer is past onboarding.
+  const [profileSubmittedAt, setProfileSubmittedAt] = useState<string | null | undefined>(undefined);
+  const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   /* ── session + user auth ── */
   useEffect(() => {
@@ -112,23 +119,26 @@ export default function TrainerDashboardPage() {
     })();
   }, []);
 
-  /* ── fetch profile completeness ── */
-  useEffect(() => {
-    if (!user) return;
+  /* ── fetch onboarding + approval status ── */
+  const loadOnboardingStatus = () => {
     opsFetch("/api/trainer/profile")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) return;
-        const required = [data.phone, data.dob, data.city, data.qualification, data.experience, data.careerPath, data.bio];
-        const filled = required.filter((v) => v && String(v).trim()).length;
-        setProfileComplete(filled >= 5);
+        setProfileSubmittedAt(data.profileSubmittedAt ?? null);
+        setApprovalStatus(data.approvalStatus ?? null);
       })
       .catch(() => {});
+  };
+  useEffect(() => {
+    if (!user) return;
+    loadOnboardingStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   /* ── fetch data (admin pattern: Promise.all with token) ── */
   useEffect(() => {
-    if (!token || !user) return;
+    if (!token || !user || !profileSubmittedAt) return;
     let cancelled = false;
 
     (async () => {
@@ -355,26 +365,67 @@ export default function TrainerDashboardPage() {
     behind: students.filter((s) => s.flag === "Falling Behind").length,
   }), [submissions, doubts, students]);
 
+  const signOut = async () => {
+    await clearStaffToken();
+    await fetch("/api/auth/set-token-staff", { method: "DELETE" });
+    setUser(null);
+    window.location.href = "/auth/staff-login";
+  };
+
   if (sessionLoading) return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", color: "var(--text3)" }} className="font-mono text-[11px]">Checking session…</div>;
   if (!user) return null;
+
+  // Still resolving whether onboarding is done — hold on the spinner rather
+  // than flash the wizard or the console.
+  if (profileSubmittedAt === undefined) {
+    return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", color: "var(--text3)" }} className="font-mono text-[11px]">Loading your profile…</div>;
+  }
+
+  // First-login gate: no console until the required-fields form is submitted.
+  if (profileSubmittedAt === null) {
+    return (
+      <RoleGate role="TRAINER">
+        <TrainerOnboarding name={user.name} onSubmitted={loadOnboardingStatus} />
+      </RoleGate>
+    );
+  }
+
+  if (approvalStatus === "REJECTED") {
+    return (
+      <RoleGate role="TRAINER">
+        <div data-theme="light" className="min-h-screen flex items-center justify-center px-4" style={{ background: "#f4f5f8" }}>
+          <div className="w-full max-w-[440px] text-center rounded-2xl bg-white border border-[#e2e6ef] shadow-[0_8px_30px_rgba(20,25,40,.06)] p-8">
+            <div className="w-12 h-12 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "rgba(220,38,38,.1)" }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>
+            </div>
+            <h1 className="text-lg font-bold text-[#12141a] mb-2">Your trainer application wasn&apos;t approved</h1>
+            <p className="text-sm text-[#6b7280] mb-6">Reach out to your FutureStack contact if you think this was a mistake.</p>
+            <button onClick={signOut} className="px-5 py-2 rounded-lg text-[12px] font-bold text-white cursor-pointer border-none" style={{ background: "#12141a" }}>Sign out</button>
+          </div>
+        </div>
+      </RoleGate>
+    );
+  }
 
   return (
     <RoleGate role="TRAINER">
     <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      {approvalStatus !== "APPROVED" && (
+        <div className="shrink-0 flex items-center justify-center gap-2 px-4 py-2 text-center text-[12px] font-semibold" style={{ background: "var(--amber-d)", color: "var(--amber)", borderBottom: "1px solid var(--border)" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
+          <span>Your profile is pending approval — an admin will review it soon. You&apos;ll get full access once it&apos;s approved.</span>
+        </div>
+      )}
       <TrainerTopbar
         user={user}
         currentView={view}
         onSearch={setSearchQuery}
-        onSignOut={async () => {
-          await clearStaffToken();
-          await fetch("/api/auth/set-token-staff", { method: "DELETE" });
-          setUser(null);
-          window.location.href = "/auth/staff-login";
-        }}
+        onSignOut={signOut}
+        onMenuClick={() => setSidebarOpen(true)}
       />
 
       <div className="flex" style={{ flex: 1, overflow: "hidden" }}>
-        <TrainerSidebar activeView={view} onSwitchView={setView} badges={badges} />
+        <TrainerSidebar activeView={view} onSwitchView={setView} badges={badges} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
           {dataLoading ? (
@@ -389,11 +440,10 @@ export default function TrainerDashboardPage() {
                   enrollments={enrollments} payouts={payouts} reviews={reviews}
                   onNavigate={setView}
                   sharePct={sharePct}
-                  profileComplete={profileComplete}
                 />
               )}
-              {view === "batches" && <BatchesView batches={batches} searchQuery={searchQuery} profileComplete={profileComplete} onNavigateProfile={() => setView("profile")} />}
-              {view === "projects" && <MyProjectsView searchQuery={searchQuery} profileComplete={profileComplete} onNavigateProfile={() => setView("profile")} />}
+              {view === "batches" && <BatchesView batches={batches} searchQuery={searchQuery} onNavigateProfile={() => setView("profile")} />}
+              {view === "projects" && <MyProjectsView searchQuery={searchQuery} onNavigateProfile={() => setView("profile")} />}
               {view === "progress" && <ProgressView students={students} searchQuery={searchQuery} onSetFlag={setStudentFlag} onFlagToCoordinator={flagToCoordinator} />}
               {view === "reviews" && <ReviewsView searchQuery={searchQuery} />}
               {view === "doubts" && (

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
+import { TRAINER_CAREER_PATHS } from "../lib/data";
 
 interface TrainerProfile {
   id: string;
@@ -23,12 +24,6 @@ interface TrainerProfile {
   rating: number;
   stats: { courseCount: number; certificateCount: number };
 }
-
-const CAREER_PATHS = [
-  "Full Stack Developer", "Frontend Developer", "Backend Developer",
-  "Data Scientist", "DevOps Engineer", "AI / ML Engineer",
-  "Cybersecurity Specialist", "Mobile Developer", "Cloud Architect",
-];
 
 export default function TrainerProfileView({ userName }: { userName: string }) {
   const [profile, setProfile] = useState<TrainerProfile | null>(null);
@@ -233,7 +228,7 @@ export default function TrainerProfileView({ userName }: { userName: string }) {
                 <label className={labelClass}>Career Path <span className="text-red-500">*</span></label>
                 <select name="careerPath" value={form.careerPath} onChange={handleChange} required className={inputClass + " appearance-none cursor-pointer"}>
                   <option value="" disabled>Select career path</option>
-                  {CAREER_PATHS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {TRAINER_CAREER_PATHS.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div className="md:col-span-2">

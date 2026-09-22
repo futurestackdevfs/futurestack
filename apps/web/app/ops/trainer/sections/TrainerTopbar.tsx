@@ -8,6 +8,7 @@ interface TrainerTopbarProps {
   currentView?: string;
   onSearch?: (q: string) => void;
   onSignOut?: () => void;
+  onMenuClick?: () => void;
 }
 
 const VIEW_LABELS: Record<string, string> = {
@@ -21,7 +22,7 @@ const VIEW_LABELS: Record<string, string> = {
   "revenue": "trainer / revenue",
 };
 
-export function TrainerTopbar({ user, currentView, onSearch, onSignOut }: TrainerTopbarProps) {
+export function TrainerTopbar({ user, currentView, onSearch, onSignOut, onMenuClick }: TrainerTopbarProps) {
   const [isDark, setIsDark] = useState(
     () => typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark",
   );
@@ -55,13 +56,23 @@ export function TrainerTopbar({ user, currentView, onSearch, onSignOut }: Traine
   return (
     <div
       style={{ height: 42, background: "var(--surface)", borderBottom: "1px solid var(--border)" }}
-      className="flex items-center px-3.5 gap-2.5 shrink-0"
+      className="flex items-center px-2.5 sm:px-3.5 gap-1.5 sm:gap-2.5 shrink-0"
     >
+      {/* Menu toggle — mobile/tablet only */}
+      <button
+        onClick={onMenuClick}
+        className="md:hidden flex items-center justify-center w-7 h-7 rounded shrink-0"
+        style={{ color: "var(--text2)" }}
+        aria-label="Open menu"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+      </button>
+
       {/* Logo */}
       <div className="flex items-center gap-2 font-extrabold text-[13px] shrink-0 tracking-wide">
         <Image src="/images/logo.png" alt="FutureStack" width={120} height={28} style={{ height: 38, width: "auto" }} />
-        <span style={{ color: "var(--border2)" }}>/</span>
-        <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="uppercase">
+        <span style={{ color: "var(--border2)" }} className="hidden sm:inline">/</span>
+        <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="hidden sm:inline uppercase">
           OPS CONSOLE
         </span>
       </div>
@@ -69,7 +80,7 @@ export function TrainerTopbar({ user, currentView, onSearch, onSignOut }: Traine
       {/* Breadcrumb */}
       <div
         style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--text3)", borderLeft: "1px solid var(--border)", paddingLeft: 8 }}
-        className="flex items-center gap-1.5"
+        className="hidden lg:flex items-center gap-1.5"
       >
         {VIEW_LABELS[currentView || "dashboard"]?.split("/").map((part, i, arr) => (
           <span key={i} className="flex items-center gap-1.5">
@@ -82,7 +93,7 @@ export function TrainerTopbar({ user, currentView, onSearch, onSignOut }: Traine
       {/* Search */}
       <div
         style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 4, height: 26 }}
-        className="flex-1 max-w-[280px] ml-2 flex items-center gap-1.5 px-2"
+        className="hidden sm:flex flex-1 max-w-[280px] ml-2 items-center gap-1.5 px-2"
       >
         <span style={{ color: "var(--text3)", fontSize: 11 }}>⌕</span>
         <input
@@ -98,11 +109,11 @@ export function TrainerTopbar({ user, currentView, onSearch, onSignOut }: Traine
       </div>
 
       {/* Right */}
-      <div className="ml-auto flex items-center gap-1.5">
+      <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
         {/* Live pill */}
         <div
           style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text3)", border: "1px solid var(--border)", borderRadius: 3, background: "var(--bg)" }}
-          className="flex items-center gap-1 px-2 py-0.5"
+          className="hidden sm:flex items-center gap-1 px-2 py-0.5"
         >
           <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--green)" }} />
           LIVE
@@ -140,12 +151,13 @@ export function TrainerTopbar({ user, currentView, onSearch, onSignOut }: Traine
             >
               {user.initials}
             </div>
-            <div className="text-left">
+            <div className="hidden md:block text-left">
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)", lineHeight: 1.1 }}>{user.name}</div>
               <div style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--purple)", lineHeight: 1.1 }}>{user.role}</div>
             </div>
             <svg
               width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+              className="hidden sm:block"
               style={{ color: "var(--muted)", transform: profileOpen ? "rotate(180deg)" : "", transition: "transform 0.2s", marginLeft: 4 }}
             >
               <polyline points="6 9 12 15 18 9" />
