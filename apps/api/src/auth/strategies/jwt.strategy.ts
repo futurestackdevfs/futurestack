@@ -43,10 +43,20 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     // Any token minted before the last password change is dead — a password
     // reset logs out every existing session immediately.
+    //
+    // `iat` is JWT-spec whole seconds; passwordChangedAt is a DB timestamp
+    // with millisecond precision. setPassword() mints the caller's *new*
+    // token in the same request right after stamping passwordChangedAt, so
+    // both can legitimately land in the same wall-clock second — comparing
+    // raw milliseconds would then reject that brand-new token too (it was
+    // issued microseconds after the stamp, but floors to the same second).
+    // Floor passwordChangedAt to seconds before comparing so a token from
+    // that same second is treated as post-change; anything from an earlier
+    // second is still correctly rejected.
     if (
       user.passwordChangedAt &&
       payload.iat != null &&
-      payload.iat * 1000 < user.passwordChangedAt.getTime()
+      payload.iat < Math.floor(user.passwordChangedAt.getTime() / 1000)
     ) {
       throw new UnauthorizedException('Session ended — password was changed');
     }

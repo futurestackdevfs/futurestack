@@ -125,7 +125,10 @@ export const authApi = {
   },
 
   async setPassword(newPassword: string) {
-    return request<{ message: string }>('/auth/set-password', {
+    // Setting a password stamps passwordChangedAt server-side, which
+    // invalidates the token this call is authenticated with — the backend
+    // hands back a fresh pair, same shape as login().
+    return request<AuthResponse>('/auth/set-password', {
       method: 'POST',
       body: JSON.stringify({ newPassword }),
     });
