@@ -377,6 +377,13 @@ export class AuthService {
    * Sets a brand-new password for a user who was provisioned by an admin
    * (mustChangePassword=true). Used on first login so the staff member can
    * replace their auto-generated temporary password with their own.
+   *
+   * Stamps passwordChangedAt, which — by design (see JwtStrategy.validate /
+   * refreshTokens) — invalidates every token issued before this instant,
+   * including the one the caller is currently authenticated with. So this
+   * must mint and return a fresh access + refresh token, the same way
+   * login() does, or the caller's very next request gets rejected and looks
+   * like an inexplicable logout right after setting a password.
    */
   async setPassword(userId: string, newPassword: string) {
     if (!newPassword || newPassword.length < 8) {
@@ -387,7 +394,7 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
-    await this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
         password: hashedPassword,
@@ -397,7 +404,27 @@ export class AuthService {
       },
     });
 
-    return { message: 'Password has been set successfully' };
+    const rawRefreshToken = await this.createRefreshToken(user.id);
+
+    return {
+      accessToken: this.signToken({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+      } as SafeUser),
+      rawRefreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        emailVerified: user.emailVerified,
+      },
+    };
   }
 
   /**

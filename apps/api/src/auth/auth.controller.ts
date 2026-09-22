@@ -223,8 +223,18 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 900_000 } })
   @UseGuards(JwtAuthGuard)
   @Post('set-password')
-  async setPassword(@Req() req: Request, @Body() dto: SetPasswordDto) {
-    const user = req.user as { id: string };
-    return this.authService.setPassword(user.id, dto.newPassword);
+  async setPassword(
+    @Req() req: Request,
+    @Body() dto: SetPasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const user = req.user as { id: string; role: Role };
+    const { accessToken, rawRefreshToken, user: safeUser } =
+      await this.authService.setPassword(user.id, dto.newPassword);
+    // passwordChangedAt (stamped by setPassword) invalidates the token this
+    // request was authenticated with — hand back a fresh pair, same as
+    // login(), so the caller isn't logged out on its very next request.
+    this.setRefreshTokenCookie(res, rawRefreshToken, user.role);
+    return { accessToken, user: safeUser };
   }
 }

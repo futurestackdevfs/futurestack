@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { authApi } from '../lib/auth-api';
 import { showToast } from '@/lib/toast';
-import { loadStaffToken } from '../lib/token-store';
+import { loadStaffToken, saveStaffToken } from '../lib/token-store';
 import { decodeClaims } from '../lib/token-claims';
 
 const ROLE_DASHBOARDS: Record<string, string> = {
@@ -52,15 +52,25 @@ function SetNewPasswordForm() {
     setIsLoading(true);
     setApiError('');
     try {
-      await authApi.setPassword(newPassword);
+      const { accessToken, user } = await authApi.setPassword(newPassword);
+
+      // The old token this request was authenticated with is now dead
+      // (setPassword stamps passwordChangedAt server-side) — swap in the
+      // fresh one the backend just issued, both in the token store and the
+      // HttpOnly cookie the BFF proxy reads, or the next request on the
+      // dashboard 401s and looks like an inexplicable logout.
+      const uid = decodeClaims(accessToken)?.sub;
+      if (uid) await saveStaffToken(uid, accessToken);
+      await fetch('/api/auth/set-token-staff', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: accessToken }),
+      });
+
       showToast('Password set successfully!');
       setSuccess(true);
 
-      let role = 'ADMIN';
-      try {
-        const token = await loadStaffToken();
-        if (token) role = decodeClaims(token)?.role ?? role;
-      } catch { /* fall back to default */ }
+      const role = user.role || 'ADMIN';
       setDestRole(role);
 
       setTimeout(() => router.replace(ROLE_DASHBOARDS[role] ?? '/ops/admin'), 2000);
