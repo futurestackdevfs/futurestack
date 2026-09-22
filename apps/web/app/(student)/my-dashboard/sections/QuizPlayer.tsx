@@ -16,6 +16,18 @@ interface QuizQuestion {
   id: string;
   question: string;
   options: string[];
+  isMultiSelect: boolean;
+  /** Shuffled display order — each entry is an index into `options` (the real/original index used for grading). Randomized per load/retake. */
+  optionOrder: number[];
+}
+
+function shuffledIndices(n: number): number[] {
+  const arr = Array.from({ length: n }, (_, i) => i);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 export default function QuizPlayer({
@@ -30,13 +42,14 @@ export default function QuizPlayer({
   const [hasQuestions, setHasQuestions] = useState(true);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
-  const [answers, setAnswers] = useState<(number | null)[]>([]);
+  // Per-question list of selected ORIGINAL option indices (not display position) — [] means unanswered.
+  const [answers, setAnswers] = useState<number[][]>([]);
   const [submitted, setSubmitted] = useState(isCompleted);
   const [submitting, setSubmitting] = useState(false);
   const [finalScore, setFinalScore] = useState<number | null>(previousScore ?? null);
   const [showResult, setShowResult] = useState(isCompleted);
 
-  useEffect(() => {
+  const loadQuestions = useCallback(() => {
     let active = true;
     setLoading(true);
     fetch(`/api/student/quizzes/${quizId}/questions`, { credentials: "same-origin" })
@@ -44,8 +57,15 @@ export default function QuizPlayer({
       .then((data) => {
         if (!active) return;
         if (data && data.hasQuestions) {
-          setQuestions(data.questions);
-          setAnswers(new Array(data.questions.length).fill(null));
+          const qs: QuizQuestion[] = data.questions.map((q: any) => ({
+            id: q.id,
+            question: q.question,
+            options: q.options,
+            isMultiSelect: !!q.isMultiSelect,
+            optionOrder: shuffledIndices(q.options.length),
+          }));
+          setQuestions(qs);
+          setAnswers(qs.map(() => []));
           setHasQuestions(true);
         } else {
           setHasQuestions(false);
@@ -62,15 +82,24 @@ export default function QuizPlayer({
     };
   }, [quizId]);
 
+  useEffect(() => loadQuestions(), [loadQuestions]);
+
   const totalQuestions = questions.length;
   const q = questions[currentQ];
-  const answered = answers.filter((a) => a !== null).length;
+  const answered = answers.filter((a) => a.length > 0).length;
 
-  const handleAnswer = (optIdx: number) => {
-    if (submitted) return;
+  const handleAnswer = (originalIdx: number) => {
+    if (submitted || !q) return;
     setAnswers((prev) => {
       const next = [...prev];
-      next[currentQ] = optIdx;
+      const current = next[currentQ] ?? [];
+      if (q.isMultiSelect) {
+        next[currentQ] = current.includes(originalIdx)
+          ? current.filter((i) => i !== originalIdx)
+          : [...current, originalIdx];
+      } else {
+        next[currentQ] = [originalIdx];
+      }
       return next;
     });
   };
@@ -81,7 +110,7 @@ export default function QuizPlayer({
 
     const payloadAnswers = questions.map((question, i) => ({
       questionId: question.id,
-      selectedIndex: answers[i] ?? -1,
+      selectedIndices: answers[i]?.length ? answers[i] : [-1],
     }));
 
     try {
@@ -167,7 +196,7 @@ export default function QuizPlayer({
               className={`w-7 h-7 rounded-[6px] text-[10px] font-bold cursor-pointer border-none transition-all shrink-0 ${
                 i === currentQ
                   ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
-                  : answers[i] !== null
+                  : answers[i]?.length
                     ? "bg-[var(--green)] text-white"
                     : "bg-[var(--bg2)] text-[var(--text3)] border border-[var(--border)]"
               }`}
@@ -210,29 +239,44 @@ export default function QuizPlayer({
           </div>
         ) : q ? (
           <div className="max-w-[760px] mx-auto">
-            <div className="text-[10px] font-bold text-[var(--text3)] uppercase tracking-[.1em] mb-4">
-              Question {currentQ + 1} of {totalQuestions}
+            <div className="text-[10px] font-bold text-[var(--text3)] uppercase tracking-[.1em] mb-4 flex items-center gap-2">
+              <span>Question {currentQ + 1} of {totalQuestions}</span>
+              {q.isMultiSelect && (
+                <span className="px-2 py-0.5 rounded-full bg-[var(--orange-d)] text-[var(--orange)] normal-case tracking-normal">Select all that apply</span>
+              )}
             </div>
             <div className="text-[18px] font-bold text-[var(--text)] mb-7 leading-[1.5]">
               {q.question}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {q.options.map((opt, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleAnswer(i)}
-                  className={`text-left p-4 rounded-[10px] border transition-all cursor-pointer text-[13px] ${
-                    answers[currentQ] === i
-                      ? "border-[var(--orange)] bg-[var(--orange-d)] text-[var(--orange)] font-semibold"
-                      : "border-[var(--border)] bg-[var(--bg)] text-[var(--text2)] hover:border-[var(--border2)] hover:bg-[var(--card-h)]"
-                  }`}
-                >
-                  <span className="font-bold mr-2 text-[var(--text3)]">
-                    {String.fromCharCode(65 + i)}.
-                  </span>
-                  {opt}
-                </button>
-              ))}
+              {q.optionOrder.map((originalIdx, displayIdx) => {
+                const selected = (answers[currentQ] ?? []).includes(originalIdx);
+                return (
+                  <button
+                    key={originalIdx}
+                    onClick={() => handleAnswer(originalIdx)}
+                    className={`text-left p-4 rounded-[10px] border transition-all cursor-pointer text-[13px] flex items-start gap-2.5 ${
+                      selected
+                        ? "border-[var(--orange)] bg-[var(--orange-d)] text-[var(--orange)] font-semibold"
+                        : "border-[var(--border)] bg-[var(--bg)] text-[var(--text2)] hover:border-[var(--border2)] hover:bg-[var(--card-h)]"
+                    }`}
+                  >
+                    <span
+                      className={`shrink-0 mt-0.5 w-4 h-4 flex items-center justify-center text-[9px] font-bold border ${
+                        q.isMultiSelect ? "rounded-[4px]" : "rounded-full"
+                      } ${selected ? "bg-[var(--orange)] border-[var(--orange)] text-white" : "border-[var(--border2)] text-transparent"}`}
+                    >
+                      ✓
+                    </span>
+                    <span>
+                      <span className="font-bold mr-2 text-[var(--text3)]">
+                        {String.fromCharCode(65 + displayIdx)}.
+                      </span>
+                      {q.options[originalIdx]}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -276,9 +320,9 @@ export default function QuizPlayer({
               onClick={() => {
                 setSubmitted(false);
                 setShowResult(false);
-                setAnswers(new Array(totalQuestions).fill(null));
                 setCurrentQ(0);
                 setFinalScore(null);
+                loadQuestions(); // re-fetch + re-shuffle options for a fresh attempt
               }}
               className="px-4 py-2 rounded-[7px] text-[11px] font-semibold bg-[var(--bg2)] text-[var(--text2)] border border-[var(--border)] cursor-pointer hover:bg-[var(--card-h)]"
             >

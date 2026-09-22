@@ -43,6 +43,14 @@ function fmtTime(secs: number): string {
 }
 
 const HEARTBEAT_INTERVAL_MS = 10_000
+// The player's last 'timeupdate' tick before 'ended' fires almost never
+// lands on the exact final integer second (floating-point playback clock),
+// so waiting for position === durationSeconds leaves the progress bar
+// visibly stuck one second short and — worse — makes completion depend
+// entirely on the 'ended' DOM event firing, which iframe-embedded players
+// occasionally miss (tab closed, navigation, autoplay quirks). Treat
+// anything within this many seconds of the end as "done" instead.
+const NEAR_END_EPSILON_SEC = 1
 
 function clampPosition(sec: number, duration: number): number {
   if (!Number.isFinite(sec)) return 0
@@ -204,9 +212,18 @@ export default function VdoCipherVideoPlayer({
       const onTimeUpdate = () => {
         try {
           const positionSec = clampPosition(video.currentTime, durationSeconds)
-          setPosition(positionSec)
-          positionRef.current = positionSec
-          if (!isCompleted) sendProgressHeartbeat(positionSec)
+          // The player's last timeupdate tick before 'ended' almost never lands
+          // exactly on the final second, so waiting for positionSec === durationSeconds
+          // left the bar visibly stuck short of 100% and made completion depend
+          // entirely on the 'ended' event firing (which iframe players sometimes
+          // miss). Snap to "done" once we're within the epsilon instead.
+          const nearEnd = durationSeconds > 0 && positionSec >= durationSeconds - NEAR_END_EPSILON_SEC
+          const effectivePosition = nearEnd ? durationSeconds : positionSec
+          setPosition(effectivePosition)
+          positionRef.current = effectivePosition
+          if (!isCompleted) {
+            sendProgressHeartbeat(effectivePosition, nearEnd ? { force: true } : undefined)
+          }
         } catch {
           // proxy may not be bound yet; ignore until the next tick
         }
@@ -221,13 +238,12 @@ export default function VdoCipherVideoPlayer({
       }
 
       const onEnded = () => {
-        let positionSec = durationSeconds
-        try {
-          positionSec = clampPosition(video.duration ?? durationSeconds, durationSeconds)
-        } catch {
-          // fall back to the known duration below
-        }
-        sendProgressHeartbeat(positionSec, { force: true })
+        // Backup path in case onTimeUpdate's near-end snap above didn't already
+        // catch it — always finish at the full known duration, not whatever
+        // fractional value the proxy reports, so the bar reliably hits 100%.
+        setPosition(durationSeconds)
+        positionRef.current = durationSeconds
+        sendProgressHeartbeat(durationSeconds, { force: true })
         setPlaying(false)
       }
 

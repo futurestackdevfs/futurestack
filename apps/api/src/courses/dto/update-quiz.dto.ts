@@ -10,9 +10,10 @@ export class UpdateQuizDto {
   @Min(0)
   order?: number;
 
+  // 0 is a valid value here too — see CreateQuizDto for why this isn't Min(1).
   @IsOptional()
   @IsInt()
-  @Min(1)
+  @Min(0)
   totalQuestions?: number;
 
   @IsOptional()

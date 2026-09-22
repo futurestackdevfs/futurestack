@@ -110,17 +110,17 @@ function GlowCard({ children, className = "", accent = "orange", style }: { chil
 }
 
 function CourseRecommendations({ courses, isLoading, size = "compact" }: { courses: FeaturedCourse[]; isLoading: boolean; size?: "compact" | "large" }) {
-  const visible = size === "large" ? courses.slice(0, 8) : courses.slice(0, 4);
+  const visible = size === "large" ? courses.slice(0, 8) : courses.slice(0, 5);
+  const gridCols = size === "large" ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-5";
   if (isLoading) {
     return (
-      <div className={`grid gap-3 ${size === "large" ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" : "grid-cols-2 sm:grid-cols-4"}`}>
-        {Array.from({ length: size === "large" ? 8 : 4 }).map((_, i) => (
-          <div key={i} className="rounded-[12px] border border-[var(--border)] bg-[var(--card)] overflow-hidden animate-pulse">
-            <div className="h-[68px] bg-[var(--bg2)]" />
-            <div className="p-2.5 flex flex-col gap-1.5">
-              <div className="h-2.5 bg-[var(--border)] rounded w-4/5" />
-              <div className="h-2 bg-[var(--border)] rounded w-1/2" />
-            </div>
+      <div className={`grid gap-3 ${gridCols}`}>
+        {Array.from({ length: size === "large" ? 8 : 5 }).map((_, i) => (
+          <div key={i} className="rounded-[12px] border border-[var(--border)] bg-[var(--card)] overflow-hidden animate-pulse p-3 flex flex-col gap-2">
+            <div className="h-2.5 bg-[var(--border)] rounded w-4/5" />
+            <div className="h-2 bg-[var(--border)] rounded w-full" />
+            <div className="h-2 bg-[var(--border)] rounded w-2/3" />
+            <div className="h-2.5 bg-[var(--border)] rounded w-1/3 mt-1" />
           </div>
         ))}
       </div>
@@ -128,25 +128,26 @@ function CourseRecommendations({ courses, isLoading, size = "compact" }: { cours
   }
   if (visible.length === 0) return null;
   return (
-    <div className={`grid gap-3 ${size === "large" ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4" : "grid-cols-2 sm:grid-cols-4"}`} style={{ animation: "fadeUp .35s ease both" }}>
+    <div className={`grid gap-3 ${gridCols}`} style={{ animation: "fadeUp .35s ease both" }}>
       {visible.map((c, i) => (
         <Link
           key={c.id}
           href={`/courses/${slugify(c.title)}`}
-          className="group relative overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--card)] no-underline flex flex-col transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(240,90,26,.4)] hover:shadow-[0_12px_28px_rgba(240,90,26,.18)]"
+          className="group relative overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--card)] no-underline flex flex-col p-3 gap-1.5 transition-all duration-300 hover:-translate-y-1 hover:border-[rgba(240,90,26,.4)] hover:shadow-[0_12px_28px_rgba(240,90,26,.18)]"
           style={{ animation: `fadeUp .35s ${i * 0.04}s ease both` }}
         >
-          <div
-            className="h-[68px] relative overflow-hidden bg-cover bg-center"
-            style={{ background: c.thumbnailUrl ? `url(${c.thumbnailUrl}) center/cover` : "linear-gradient(140deg,#0d1f3c,#0a2a1a)" }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: "linear-gradient(135deg,rgba(240,90,26,.25),transparent 60%)" }} />
-          </div>
-          <div className="p-2.5 flex flex-col gap-1">
-            <span className="text-[10.5px] font-semibold text-[var(--text)] leading-[1.3] line-clamp-2">{c.title}</span>
-            <span className="font-['JetBrains_Mono',monospace] text-[8.5px] text-[var(--text3)]">{c.durationHours}h · {c.totalVideos} videos</span>
-          </div>
+          <span className="text-[11px] font-semibold text-[var(--text)] leading-[1.3] line-clamp-2">{c.title}</span>
+          <span className="text-[9.5px] text-[var(--text3)] leading-[1.4] line-clamp-2">{c.description}</span>
+
+          {c.techStack && c.techStack.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-0.5">
+              {c.techStack.slice(0, 3).map((t) => (
+                <span key={t} className="font-['JetBrains_Mono',monospace] text-[7.5px] font-semibold px-1.5 py-[2px] rounded-full" style={{ background: "var(--blue-d)", color: "var(--blue2)" }}>{t}</span>
+              ))}
+            </div>
+          )}
+
+          <span className="font-['JetBrains_Mono',monospace] text-[8.5px] text-[var(--text3)] mt-0.5 pt-1.5 border-t border-[var(--border)]">{c.durationHours}h · {c.totalVideos} videos</span>
         </Link>
       ))}
     </div>
@@ -312,7 +313,6 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
                       className="group relative overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--card)] p-2.5 flex items-center gap-3 no-underline transition-all duration-300 hover:-translate-y-[2px] hover:border-[rgba(240,90,26,.4)] hover:shadow-[0_10px_24px_rgba(240,90,26,.14)]"
                       style={{ animation: `fadeUp .3s ${i * 0.05}s ease both` }}
                     >
-                      <div className="w-[48px] h-[48px] rounded-[9px] bg-[var(--bg2)] shrink-0 bg-cover bg-center border border-[var(--border)]" style={c.thumbnailUrl ? { background: `url(${c.thumbnailUrl}) center/cover` } : undefined} aria-hidden="true" />
                       <div className="flex-1 min-w-0">
                         <div className="text-[11.5px] font-semibold text-[var(--text)] truncate">{c.title}</div>
                         <div className="font-['JetBrains_Mono',monospace] text-[9px] text-[var(--text3)] truncate mt-0.5">

@@ -7,7 +7,8 @@ interface ApiQuestion {
   id: string;
   question: string;
   options: string[];
-  correctIndex: number;
+  correctIndices: number[];
+  isMultiSelect: boolean;
   explanation?: string | null;
   order: number;
 }
@@ -73,7 +74,8 @@ export function SkillTestBuilder({
           id: q.id,
           question: q.question || "",
           options: Array.isArray(q.options) && q.options.length ? q.options : ["", "", "", ""],
-          correctIndex: q.correctIndex ?? 0,
+          correctIndices: Array.isArray(q.correctIndices) && q.correctIndices.length ? q.correctIndices : [0],
+          isMultiSelect: !!q.isMultiSelect,
           explanation: q.explanation || "",
           order: q.order ?? 0,
         })).sort((a: ApiQuestion, b: ApiQuestion) => a.order - b.order);
@@ -112,7 +114,7 @@ export function SkillTestBuilder({
       const maxOrder = prev.reduce((m, q) => Math.max(m, q.order), -1);
       return [
         ...prev,
-        { id: nextTempId(tempIdCounter), question: "", options: ["", "", "", ""], correctIndex: 0, explanation: "", order: maxOrder + 1 },
+        { id: nextTempId(tempIdCounter), question: "", options: ["", "", "", ""], correctIndices: [0], isMultiSelect: false, explanation: "", order: maxOrder + 1 },
       ];
     });
   }
@@ -125,6 +127,26 @@ export function SkillTestBuilder({
   function updateOption(id: string, idx: number, value: string) {
     isDirty.current = true;
     setQuestions((prev) => prev.map((q) => q.id === id ? { ...q, options: q.options.map((o, i) => i === idx ? value : o) } : q));
+  }
+
+  /** Toggle option `oi` as correct for question `id`, respecting single- vs multi-select mode. */
+  function toggleCorrect(id: string, oi: number) {
+    isDirty.current = true;
+    setQuestions((prev) => prev.map((q) => {
+      if (q.id !== id) return q;
+      if (!q.isMultiSelect) return { ...q, correctIndices: [oi] };
+      const has = q.correctIndices.includes(oi);
+      const next = has ? q.correctIndices.filter((i) => i !== oi) : [...q.correctIndices, oi];
+      return { ...q, correctIndices: next.length ? next : q.correctIndices }; // keep at least one marked correct
+    }));
+  }
+
+  /** Flip a question between single-answer (radio) and multi-select (checkbox). */
+  function setMultiSelect(id: string, multi: boolean) {
+    isDirty.current = true;
+    setQuestions((prev) => prev.map((q) => q.id === id
+      ? { ...q, isMultiSelect: multi, correctIndices: multi ? q.correctIndices : [q.correctIndices[0] ?? 0] }
+      : q));
   }
 
   async function removeQuestion(id: string) {
@@ -181,7 +203,8 @@ export function SkillTestBuilder({
         const body = {
           question: q.question,
           options: q.options,
-          correctIndex: q.correctIndex,
+          correctIndices: q.correctIndices,
+          isMultiSelect: q.isMultiSelect,
           explanation: q.explanation || undefined,
           order: q.order,
         };
@@ -271,26 +294,37 @@ export function SkillTestBuilder({
                     </div>
 
                     <div className="px-3 py-2.5 flex flex-col gap-1.5">
-                      {q.options.map((opt, oi) => (
-                        <div key={oi} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name={`correct-${q.id}`}
-                            checked={q.correctIndex === oi}
-                            onChange={() => updateQuestion(q.id, { correctIndex: oi })}
-                            title="Mark as correct answer"
-                          />
-                          <input
-                            value={opt}
-                            onChange={(e) => updateOption(q.id, oi, e.target.value)}
-                            placeholder={`Option ${oi + 1}`}
-                            className="flex-1 text-[11px] px-1.5 py-1 rounded outline-none"
-                            style={{ border: "1px solid var(--border)", background: "var(--bg)", color: q.correctIndex === oi ? "var(--green)" : "var(--text)" }}
-                            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--orange)"; }}
-                            onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
-                          />
-                        </div>
-                      ))}
+                      <label className="flex items-center gap-1.5 self-start cursor-pointer mb-0.5">
+                        <input
+                          type="checkbox"
+                          checked={q.isMultiSelect}
+                          onChange={(e) => setMultiSelect(q.id, e.target.checked)}
+                        />
+                        <span className="font-mono text-[9.5px] font-semibold" style={{ color: "var(--text3)" }}>Allow multiple correct answers</span>
+                      </label>
+                      {q.options.map((opt, oi) => {
+                        const isCorrect = q.correctIndices.includes(oi);
+                        return (
+                          <div key={oi} className="flex items-center gap-2">
+                            <input
+                              type={q.isMultiSelect ? "checkbox" : "radio"}
+                              name={q.isMultiSelect ? undefined : `correct-${q.id}`}
+                              checked={isCorrect}
+                              onChange={() => toggleCorrect(q.id, oi)}
+                              title="Mark as correct answer"
+                            />
+                            <input
+                              value={opt}
+                              onChange={(e) => updateOption(q.id, oi, e.target.value)}
+                              placeholder={`Option ${oi + 1}`}
+                              className="flex-1 text-[11px] px-1.5 py-1 rounded outline-none"
+                              style={{ border: "1px solid var(--border)", background: "var(--bg)", color: isCorrect ? "var(--green)" : "var(--text)" }}
+                              onFocus={(e) => { e.currentTarget.style.borderColor = "var(--orange)"; }}
+                              onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+                            />
+                          </div>
+                        );
+                      })}
                       <button
                         onClick={() => updateQuestion(q.id, { options: [...q.options, ""] })}
                         className="self-start font-mono text-[9.5px] font-semibold mt-0.5 cursor-pointer"
@@ -361,8 +395,8 @@ export function SkillTestBuilder({
       onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
     >
       <div
-        className="flex flex-col rounded-lg max-w-full max-h-[88vh]"
-        style={{ width: 880, maxWidth: "96vw", background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}
+        className="flex flex-col rounded-lg max-w-full h-[88vh]"
+        style={{ width: 1080, maxWidth: "96vw", background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 20px 60px rgba(0,0,0,.3)" }}
       >
         <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
           <div className="flex items-center gap-2 text-[13.5px] font-extrabold" style={{ color: "var(--text)" }}>

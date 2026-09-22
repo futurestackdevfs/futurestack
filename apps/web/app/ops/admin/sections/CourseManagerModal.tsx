@@ -25,7 +25,7 @@ interface CourseManagerModalProps {
 const TABS: { key: CourseManagerTab; icon: string; label: string }[] = [
   { key: "curriculum", icon: "📋", label: "Curriculum" },
   { key: "resources", icon: "📎", label: "Resources" },
-  { key: "skilltest", icon: "🧪", label: "Skill Test" },
+  { key: "skilltest", icon: "🧪", label: "Quiz" },
   { key: "edit", icon: "✏", label: "Edit Details" },
 ];
 
@@ -47,9 +47,9 @@ export function CourseManagerModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="flex flex-col rounded-lg max-w-full max-h-[88vh]"
+        className="flex flex-col rounded-lg max-w-full h-[88vh]"
         style={{
-          width: 940,
+          width: 1080,
           maxWidth: "96vw",
           background: "var(--surface)",
           border: "1px solid var(--border)",

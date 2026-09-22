@@ -535,9 +535,10 @@ export function MasterDataModal({
       }}
     >
       <div
-        className="flex flex-col rounded-lg max-w-full max-h-[88vh]"
+        className="flex flex-col rounded-lg max-w-full h-[88vh]"
         style={{
-          width: 760,
+          width: 1080,
+          maxWidth: "96vw",
           background: "var(--surface)",
           border: "1px solid var(--border)",
           boxShadow: "0 20px 60px rgba(0,0,0,.3)",

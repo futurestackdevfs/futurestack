@@ -6,6 +6,9 @@ interface TestQuestion {
   id: string;
   question: string;
   options: string[];
+  isMultiSelect: boolean;
+  /** Shuffled display order — each entry is an index into `options` (the real/original index used for grading). Randomized per load/retake. */
+  optionOrder: number[];
 }
 
 interface TestDetail {
@@ -20,8 +23,8 @@ interface QuestionBreakdown {
   questionId: string;
   question: string;
   options: string[];
-  selectedIndex: number;
-  correctIndex: number;
+  selectedIndices: number[];
+  correctIndices: number[];
   isCorrect: boolean;
   explanation: string | null;
 }
@@ -40,6 +43,15 @@ interface SkillTestPlayerProps {
   onExit: () => void;
 }
 
+function shuffledIndices(n: number): number[] {
+  const arr = Array.from({ length: n }, (_, i) => i);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // Plays a standalone Quiz (sectionId === null) — formerly a "SkillTest".
 // Backed by the Quiz APIs under /api/student/quizzes/:quizId/*.
 export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayerProps) {
@@ -47,12 +59,13 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [current, setCurrent] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  // questionId -> selected ORIGINAL option indices (not display position).
+  const [answers, setAnswers] = useState<Record<string, number[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const submittedRef = useRef(false);
 
-  useEffect(() => {
+  function load() {
     setLoading(true);
     setError(null);
     fetch(`/api/student/quizzes/${skillTestId}/questions`, { credentials: "same-origin" })
@@ -60,12 +73,21 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
         if (!r.ok) throw new Error("Failed to load test");
         return r.json();
       })
-      .then((data: TestDetail) => {
-        setTest(data);
+      .then((data: any) => {
+        setTest({
+          ...data,
+          questions: (data.questions ?? []).map((q: any) => ({
+            ...q,
+            isMultiSelect: !!q.isMultiSelect,
+            optionOrder: shuffledIndices(q.options.length),
+          })),
+        });
       })
       .catch(() => setError("Failed to load this skill test. Please try again."))
       .finally(() => setLoading(false));
-  }, [skillTestId]);
+  }
+
+  useEffect(() => { load(); }, [skillTestId]);
 
   async function handleSubmit() {
     if (!test || submittedRef.current) return;
@@ -75,7 +97,7 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
       const payload = {
         answers: test.questions.map((q) => ({
           questionId: q.id,
-          selectedIndex: answers[q.id] ?? -1,
+          selectedIndices: answers[q.id]?.length ? answers[q.id] : [-1],
         })),
       };
       const res = await fetch(`/api/student/quizzes/${skillTestId}/submit`, {
@@ -95,8 +117,17 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
     }
   }
 
-  function selectOption(questionId: string, idx: number) {
-    setAnswers((prev) => ({ ...prev, [questionId]: idx }));
+  function selectOption(questionId: string, originalIdx: number, isMultiSelect: boolean) {
+    setAnswers((prev) => {
+      const current = prev[questionId] ?? [];
+      if (isMultiSelect) {
+        const next = current.includes(originalIdx)
+          ? current.filter((i) => i !== originalIdx)
+          : [...current, originalIdx];
+        return { ...prev, [questionId]: next };
+      }
+      return { ...prev, [questionId]: [originalIdx] };
+    });
   }
 
   function retake() {
@@ -104,6 +135,7 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
     setAnswers({});
     setCurrent(0);
     submittedRef.current = false;
+    load(); // re-fetch + re-shuffle options for a fresh attempt
   }
 
   if (loading) {
@@ -173,12 +205,17 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
                 >
                   <div className="flex items-start gap-2 mb-2">
                     <span className="font-['JetBrains_Mono',monospace] text-[9px] font-bold shrink-0 mt-[2px]" style={{ color: "var(--text3)" }}>Q{i + 1}</span>
-                    <div className="text-[12.5px] font-semibold" style={{ color: "var(--text)" }}>{q.question}</div>
+                    <div className="text-[12.5px] font-semibold" style={{ color: "var(--text)" }}>
+                      {q.question}
+                      {q.correctIndices.length > 1 && (
+                        <span className="ml-2 font-mono text-[9px] font-normal normal-case" style={{ color: "var(--text3)" }}>(multiple correct answers)</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex flex-col gap-1.5 ml-[22px]">
                     {q.options.map((opt, oi) => {
-                      const isSelected = oi === q.selectedIndex;
-                      const isCorrectOpt = oi === q.correctIndex;
+                      const isSelected = q.selectedIndices.includes(oi);
+                      const isCorrectOpt = q.correctIndices.includes(oi);
                       return (
                         <div
                           key={oi}
@@ -209,7 +246,7 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
   }
 
   const q = test.questions[current];
-  const answeredCount = Object.keys(answers).length;
+  const answeredCount = Object.values(answers).filter((a) => a.length > 0).length;
 
   return (
     <div className="flex flex-col gap-4 px-[18px] py-4">
@@ -234,21 +271,37 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
 
       {q && (
         <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl px-5 py-5 flex flex-col gap-3">
-          <div className="text-[14px] font-semibold" style={{ color: "var(--text)" }}>{q.question}</div>
+          <div className="text-[14px] font-semibold flex items-center gap-2" style={{ color: "var(--text)" }}>
+            {q.question}
+            {q.isMultiSelect && (
+              <span className="px-2 py-0.5 rounded-full font-mono text-[9px] font-semibold" style={{ background: "var(--orange-d)", color: "var(--orange)" }}>Select all that apply</span>
+            )}
+          </div>
           <div className="flex flex-col gap-2">
-            {q.options.map((opt, oi) => {
-              const selected = answers[q.id] === oi;
+            {q.optionOrder.map((originalIdx) => {
+              const opt = q.options[originalIdx];
+              const selected = (answers[q.id] ?? []).includes(originalIdx);
               return (
                 <button
-                  key={oi}
-                  onClick={() => selectOption(q.id, oi)}
-                  className="text-left px-3.5 py-[10px] rounded-[8px] text-[12.5px] font-medium transition-all cursor-pointer border"
+                  key={originalIdx}
+                  onClick={() => selectOption(q.id, originalIdx, q.isMultiSelect)}
+                  className="text-left px-3.5 py-[10px] rounded-[8px] text-[12.5px] font-medium transition-all cursor-pointer border flex items-center gap-2.5"
                   style={{
                     background: selected ? "var(--orange-d)" : "var(--panel)",
                     borderColor: selected ? "var(--orange)" : "var(--border)",
                     color: selected ? "var(--orange)" : "var(--text2)",
                   }}
                 >
+                  <span
+                    className={`shrink-0 w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold border ${q.isMultiSelect ? "rounded-[4px]" : "rounded-full"}`}
+                    style={{
+                      background: selected ? "var(--orange)" : "transparent",
+                      borderColor: selected ? "var(--orange)" : "var(--border2)",
+                      color: "#fff",
+                    }}
+                  >
+                    {selected ? "✓" : ""}
+                  </span>
                   {opt}
                 </button>
               );
@@ -272,8 +325,8 @@ export default function SkillTestPlayer({ skillTestId, onExit }: SkillTestPlayer
               onClick={() => setCurrent(i)}
               className="w-[22px] h-[22px] rounded-[5px] font-mono text-[9px] font-bold cursor-pointer"
               style={{
-                background: i === current ? "var(--orange)" : answers[qq.id] != null ? "var(--green-d)" : "var(--panel)",
-                color: i === current ? "#fff" : answers[qq.id] != null ? "var(--green)" : "var(--text3)",
+                background: i === current ? "var(--orange)" : answers[qq.id]?.length ? "var(--green-d)" : "var(--panel)",
+                color: i === current ? "#fff" : answers[qq.id]?.length ? "var(--green)" : "var(--text3)",
                 border: "1px solid var(--border)",
               }}
             >

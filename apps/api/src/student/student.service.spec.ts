@@ -238,8 +238,8 @@ describe('StudentService#submitQuiz — server-side scoring', () => {
       passingScore: 60,
       section: { courseId, course: {} },
       questions: [
-        { id: '__spec__q1', question: 'Q1', options: ['a', 'b'], correctIndex: 0, explanation: null },
-        { id: '__spec__q2', question: 'Q2', options: ['a', 'b'], correctIndex: 1, explanation: null },
+        { id: '__spec__q1', question: 'Q1', options: ['a', 'b'], correctIndices: [0], explanation: null },
+        { id: '__spec__q2', question: 'Q2', options: ['a', 'b'], correctIndices: [1], explanation: null },
       ],
     };
   }
@@ -257,8 +257,8 @@ describe('StudentService#submitQuiz — server-side scoring', () => {
     const result = await service.submitQuiz(studentId, quizId, {
       score: 100,
       answers: [
-        { questionId: '__spec__q1', selectedIndex: 0 }, // correct
-        { questionId: '__spec__q2', selectedIndex: 0 }, // wrong (correctIndex is 1)
+        { questionId: '__spec__q1', selectedIndices: [0] }, // correct
+        { questionId: '__spec__q2', selectedIndices: [0] }, // wrong (correctIndices is [1])
       ],
     });
 
@@ -278,8 +278,8 @@ describe('StudentService#submitQuiz — server-side scoring', () => {
 
     const result = await service.submitQuiz(studentId, quizId, {
       answers: [
-        { questionId: '__spec__q1', selectedIndex: 0 },
-        { questionId: '__spec__q2', selectedIndex: 1 },
+        { questionId: '__spec__q1', selectedIndices: [0] },
+        { questionId: '__spec__q2', selectedIndices: [1] },
       ],
     });
 
