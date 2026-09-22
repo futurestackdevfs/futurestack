@@ -8,6 +8,7 @@ interface CoordinatorTopbarProps {
   currentView?: string;
   onSearch?: (q: string) => void;
   onSignOut?: () => void;
+  onMenuClick?: () => void;
 }
 
 const VIEW_LABELS: Record<string, string> = {
@@ -20,7 +21,7 @@ const VIEW_LABELS: Record<string, string> = {
   "escalations": "coordinator / escalations",
 };
 
-export function CoordinatorTopbar({ user, currentView, onSearch, onSignOut }: CoordinatorTopbarProps) {
+export function CoordinatorTopbar({ user, currentView, onSearch, onSignOut, onMenuClick }: CoordinatorTopbarProps) {
   const [isDark, setIsDark] = useState(
     () => typeof document !== "undefined" && document.documentElement.getAttribute("data-theme") === "dark",
   );
@@ -54,19 +55,29 @@ export function CoordinatorTopbar({ user, currentView, onSearch, onSignOut }: Co
   return (
     <div
       style={{ height: 42, background: "var(--surface)", borderBottom: "1px solid var(--border)" }}
-      className="flex items-center px-3.5 gap-2.5 shrink-0"
+      className="flex items-center px-2.5 sm:px-3.5 gap-1.5 sm:gap-2.5 shrink-0"
     >
+      {/* Menu toggle — mobile/tablet only */}
+      <button
+        onClick={onMenuClick}
+        className="md:hidden flex items-center justify-center w-7 h-7 rounded shrink-0"
+        style={{ color: "var(--text2)" }}
+        aria-label="Open menu"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+      </button>
+
       <div className="flex items-center gap-2 font-extrabold text-[13px] shrink-0 tracking-wide">
         <Image src="/images/logo.png" alt="FutureStack" width={120} height={28} style={{ height: 38, width: "auto" }} />
-        <span style={{ color: "var(--border2)" }}>/</span>
-        <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="uppercase">
+        <span style={{ color: "var(--border2)" }} className="hidden sm:inline">/</span>
+        <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="hidden sm:inline uppercase">
           OPS CONSOLE
         </span>
       </div>
 
       <div
         style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--text3)", borderLeft: "1px solid var(--border)", paddingLeft: 8 }}
-        className="flex items-center gap-1.5"
+        className="hidden lg:flex items-center gap-1.5"
       >
         {VIEW_LABELS[currentView || "dashboard"]?.split("/").map((part, i, arr) => (
           <span key={i} className="flex items-center gap-1.5">
@@ -77,7 +88,7 @@ export function CoordinatorTopbar({ user, currentView, onSearch, onSignOut }: Co
       </div>
 
       <div
-        className="flex items-center gap-1.5 px-2 rounded flex-1 max-w-[320px]"
+        className="hidden sm:flex items-center gap-1.5 px-2 rounded flex-1 max-w-[320px]"
         style={{ background: "var(--panel)", border: "1px solid var(--border)", height: 26 }}
       >
         <span style={{ color: "var(--text3)", fontSize: 11 }}>⌕</span>
@@ -91,7 +102,7 @@ export function CoordinatorTopbar({ user, currentView, onSearch, onSignOut }: Co
       </div>
 
       <span
-        className="flex items-center gap-1.5 font-mono text-[8.5px] font-bold px-1.5 py-0.5 rounded"
+        className="hidden sm:flex items-center gap-1.5 font-mono text-[8.5px] font-bold px-1.5 py-0.5 rounded"
         style={{ background: "var(--green-d)", color: "var(--green)" }}
       >
         <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--green)", animation: "pulse 1.5s infinite" }} />
@@ -117,7 +128,7 @@ export function CoordinatorTopbar({ user, currentView, onSearch, onSignOut }: Co
             <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9.5px] font-bold" style={{ background: "var(--blue-d)", color: "var(--blue)" }}>
               {user.initials}
             </span>
-            <span className="text-[11px] font-semibold max-w-[110px] truncate" style={{ color: "var(--text)" }}>{user.name}</span>
+            <span className="hidden md:inline text-[11px] font-semibold max-w-[110px] truncate" style={{ color: "var(--text)" }}>{user.name}</span>
           </button>
 
           {profileOpen && (

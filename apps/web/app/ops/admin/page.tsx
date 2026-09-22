@@ -351,6 +351,7 @@ export default function AdminMasterDataPage() {
   const [expandedCourseId, setExpandedCourseId] = useState<string | number | null>(null);
   const [expandedCurriculums, setExpandedCurriculums] = useState<Record<string|number, any[]>>({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
   const [db, setDb] = useState(DB);
   const [curriculumDb, setCurriculumDb] = useState(CURRICULUM_SEED);
@@ -1455,6 +1456,7 @@ export default function AdminMasterDataPage() {
         onSearch={setSearchQuery}
         onNavigate={handleNavigate}
         onRefresh={handleNavRefresh}
+        onMenuClick={() => setSidebarOpen(true)}
         onMyProfile={() => setProfileModal({ open: true, mode: "profile" })}
         onAccountSettings={() => setProfileModal({ open: true, mode: "settings" })}
                     onSignOut={async () => {
@@ -1466,7 +1468,7 @@ export default function AdminMasterDataPage() {
       />
 
       <div className="flex" style={{ flex: 1, overflow: "hidden" }}>
-        <AdminSidebar activeView={view} onSwitchView={setView} />
+        <AdminSidebar activeView={view} onSwitchView={setView} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
         {view === "admin-dashboard" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>

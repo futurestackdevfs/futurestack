@@ -3,6 +3,8 @@
 interface AdminSidebarProps {
   activeView: string;
   onSwitchView: (view: string) => void;
+  open?: boolean;
+  onClose?: () => void;
 }
 
 interface NavItem {
@@ -53,23 +55,34 @@ const reportNav: NavItem[] = [
   { icon: "▧", label: "Data Reports" },
 ];
 
-export function AdminSidebar({ activeView, onSwitchView }: AdminSidebarProps) {
+export function AdminSidebar({ activeView, onSwitchView, open = false, onClose }: AdminSidebarProps) {
   return (
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-30 md:hidden"
+          style={{ background: "rgba(0,0,0,.4)" }}
+          onClick={onClose}
+        />
+      )}
+
     <aside
       style={{ width: 208, background: "var(--surface)", borderRight: "1px solid var(--border)" }}
-      className="shrink-0 overflow-y-auto flex flex-col"
+      className={`fixed inset-y-0 left-0 z-40 shrink-0 overflow-y-auto flex flex-col transition-transform duration-200
+        ${open ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 md:static md:z-auto`}
     >
       {/* Role Consoles */}
       <div style={{ borderBottom: "1px solid var(--border)" }}>
-        <div className="font-mono text-[9px] font-semibold uppercase tracking-widest px-3.5 pt-2.5 pb-1" style={{ color: "var(--text3)" }}>
+        <div className="font-mono text-[9px] font-semibold uppercase tracking-widest px-3.5 pt-2.5 pb-1 flex items-center justify-between" style={{ color: "var(--text3)" }}>
           Role Consoles
+          <button onClick={onClose} className="w-5 h-5 flex items-center justify-center rounded md:hidden normal-case" style={{ color: "var(--text3)" }} aria-label="Close menu">✕</button>
         </div>
         <div className="px-2 pb-1.5">
           {roles.map((r) => {
             const isActive = activeView === r.view;
             return (
               <div key={r.view}
-                onClick={() => onSwitchView(r.view)}
+                onClick={() => { onSwitchView(r.view); onClose?.(); }}
                 className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer mb-0.5"
                 style={{ background: isActive ? "var(--orange-d)" : "transparent" }}
                 onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = "var(--panel)"; }}
@@ -92,7 +105,7 @@ export function AdminSidebar({ activeView, onSwitchView }: AdminSidebarProps) {
           const isActive = activeView === item.view;
           return (
             <div key={i}
-              onClick={() => item.view && onSwitchView(item.view)}
+              onClick={() => { if (item.view) { onSwitchView(item.view); onClose?.(); } }}
               className="flex items-center gap-2 px-3.5 py-1.5 text-[11.5px] font-medium cursor-pointer"
               style={{
                 color: isActive ? "var(--orange)" : "var(--text2)",
@@ -122,7 +135,7 @@ export function AdminSidebar({ activeView, onSwitchView }: AdminSidebarProps) {
           const isActive = activeView === item.view;
           return (
             <div key={i}
-              onClick={() => item.view && onSwitchView(item.view)}
+              onClick={() => { if (item.view) { onSwitchView(item.view); onClose?.(); } }}
               className="flex items-center gap-2 px-3.5 py-1.5 text-[11.5px] font-medium cursor-pointer"
               style={{
                 color: isActive ? "var(--orange)" : "var(--text2)",
@@ -176,5 +189,6 @@ export function AdminSidebar({ activeView, onSwitchView }: AdminSidebarProps) {
         v1.0.0 · BUILD 2026.06.17
       </div>
     </aside>
+    </>
   );
 }

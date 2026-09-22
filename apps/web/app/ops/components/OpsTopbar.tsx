@@ -8,9 +8,10 @@ interface OpsTopbarProps {
   role: { name: string; email: string; role: string; initials: string };
   breadcrumb: { title: string; subtitle: string };
   onSearch?: (q: string) => void;
+  onMenuClick?: () => void;
 }
 
-export function OpsTopbar({ role, breadcrumb, onSearch }: OpsTopbarProps) {
+export function OpsTopbar({ role, breadcrumb, onSearch, onMenuClick }: OpsTopbarProps) {
   const [isDark, setIsDark] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -42,26 +43,36 @@ export function OpsTopbar({ role, breadcrumb, onSearch }: OpsTopbarProps) {
   return (
     <div
       style={{ height: 42, background: "var(--surface)", borderBottom: "1px solid var(--border)" }}
-      className="flex items-center px-3.5 gap-2.5 shrink-0"
+      className="flex items-center px-2.5 sm:px-3.5 gap-1.5 sm:gap-2.5 shrink-0"
     >
+      {/* Menu toggle — mobile/tablet only */}
+      <button
+        onClick={onMenuClick}
+        className="md:hidden flex items-center justify-center w-7 h-7 rounded shrink-0"
+        style={{ color: "var(--text2)" }}
+        aria-label="Open menu"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+      </button>
+
       <div className="flex items-center gap-2 font-extrabold text-[13px] shrink-0 tracking-wide">
         <Image src="/images/logo.png" alt="FutureStack" width={120} height={22} style={{ height: 38, width: "auto" }} />
-        <span style={{ color: "var(--border2)" }}>/</span>
-        <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="uppercase">
+        <span style={{ color: "var(--border2)" }} className="hidden sm:inline">/</span>
+        <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="hidden sm:inline uppercase">
           OPS CONSOLE
         </span>
       </div>
 
       <div
         style={{ fontFamily: "var(--mono)", fontSize: 10.5, color: "var(--text3)", borderLeft: "1px solid var(--border)", paddingLeft: 8 }}
-        className="flex items-center gap-1.5"
+        className="hidden lg:flex items-center gap-1.5"
       >
         {breadcrumb.title} <span>/</span> <b style={{ color: "var(--text2)", fontWeight: 600 }}>{breadcrumb.subtitle}</b>
       </div>
 
       <div
         style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 4, height: 26 }}
-        className="flex-1 max-w-[280px] ml-2 flex items-center gap-1.5 px-2"
+        className="hidden sm:flex flex-1 max-w-[280px] ml-2 items-center gap-1.5 px-2"
       >
         <span style={{ color: "var(--text3)", fontSize: 11 }}>⌕</span>
         <input
@@ -76,7 +87,7 @@ export function OpsTopbar({ role, breadcrumb, onSearch }: OpsTopbarProps) {
       <div className="ml-auto flex items-center gap-1.5">
         <div
           style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--text3)", border: "1px solid var(--border)", borderRadius: 3, background: "var(--bg)" }}
-          className="flex items-center gap-1 px-2 py-0.5"
+          className="hidden sm:flex items-center gap-1 px-2 py-0.5"
         >
           <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--green)" }} />LIVE
         </div>
@@ -101,7 +112,7 @@ export function OpsTopbar({ role, breadcrumb, onSearch }: OpsTopbarProps) {
               style={{ width: 21, height: 21, borderRadius: 3, background: "linear-gradient(135deg, var(--blue), var(--orange))" }}
               className="flex items-center justify-center font-bold text-[9.5px] text-white shrink-0 font-mono"
             >{role.initials}</div>
-            <div className="text-left">
+            <div className="hidden md:block text-left">
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)", lineHeight: 1.1 }}>{role.name}</div>
               <div style={{ fontFamily: "var(--mono)", fontSize: 9, color: "var(--orange)", lineHeight: 1.1 }}>{role.role}</div>
             </div>

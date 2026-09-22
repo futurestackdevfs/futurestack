@@ -13,6 +13,7 @@ interface AdminTopbarProps {
   onMyProfile?: () => void;
   onAccountSettings?: () => void;
   onSignOut?: () => void;
+  onMenuClick?: () => void;
 }
 
 export interface GlobalSearchResult {
@@ -49,7 +50,7 @@ const VIEW_LABELS: Record<string, string> = {
   "content-manager": "content / dashboard",
 };
 
-export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, onRefresh, onMyProfile, onAccountSettings, onSignOut }: AdminTopbarProps) {
+export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, onRefresh, onMyProfile, onAccountSettings, onSignOut, onMenuClick }: AdminTopbarProps) {
   const [isDark, setIsDark] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -196,13 +197,23 @@ export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, on
         background: "var(--surface)",
         borderBottom: "1px solid var(--border)",
       }}
-      className="flex items-center px-3.5 gap-2.5 shrink-0"
+      className="flex items-center px-2.5 sm:px-3.5 gap-1.5 sm:gap-2.5 shrink-0"
     >
+      {/* Menu toggle — mobile/tablet only */}
+      <button
+        onClick={onMenuClick}
+        className="md:hidden flex items-center justify-center w-7 h-7 rounded shrink-0"
+        style={{ color: "var(--text2)" }}
+        aria-label="Open menu"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+      </button>
+
       {/* Logo */}
       <div className="flex items-center gap-2 font-extrabold text-[13px] shrink-0 tracking-wide">
         <Image src="/images/logo.png" alt="FutureStack" width={120} height={28} style={{ height: 38, width: "auto" }} />
-        <span style={{ color: "var(--border2)" }}>/</span>
-        <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="uppercase">
+        <span style={{ color: "var(--border2)" }} className="hidden sm:inline">/</span>
+        <span style={{ color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.1em" }} className="hidden sm:inline uppercase">
           OPS CONSOLE
         </span>
       </div>
@@ -216,7 +227,7 @@ export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, on
           borderLeft: "1px solid var(--border)",
           paddingLeft: 8,
         }}
-        className="flex items-center gap-1.5"
+        className="hidden lg:flex items-center gap-1.5"
       >
         {VIEW_LABELS[currentView || "admin-dashboard"]?.split("/").map((part, i, arr) => (
           <span key={i} className="flex items-center gap-1.5">
@@ -227,7 +238,7 @@ export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, on
       </div>
 
       {/* Search */}
-      <div ref={searchRef} className="relative flex-1 max-w-[280px] ml-2" style={{ zIndex: 60 }}>
+      <div ref={searchRef} className="hidden sm:block relative flex-1 max-w-[280px] ml-2" style={{ zIndex: 60 }}>
         <div
           style={{
             background: "var(--bg)",
@@ -359,12 +370,12 @@ export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, on
             background: "var(--bg)",
             height: 22,
             padding: "0 8px",
-            display: "flex",
             alignItems: "center",
             gap: 4,
             textDecoration: "none",
             transition: "all .2s",
           }}
+          className="hidden md:flex"
           onMouseEnter={(e) => { e.currentTarget.style.color = "var(--orange)"; e.currentTarget.style.borderColor = "var(--orange)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text3)"; e.currentTarget.style.borderColor = "var(--border)"; }}
         >
@@ -389,7 +400,7 @@ export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, on
             borderRadius: 3,
             background: "var(--bg)",
           }}
-          className="flex items-center gap-1 px-2 py-0.5"
+          className="hidden sm:flex items-center gap-1 px-2 py-0.5"
         >
           <span
             style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--green)" }}
@@ -412,7 +423,7 @@ export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, on
             padding: "0 7px",
             cursor: "pointer",
           }}
-          className="flex items-center gap-1 hover:text-[var(--text2)]"
+          className="hidden lg:flex items-center gap-1 hover:text-[var(--text2)]"
         >
           <span className="text-[11px] leading-none">↻</span>
           Refresh
@@ -495,7 +506,7 @@ export function AdminTopbar({ user, currentView, token, onSearch, onNavigate, on
             >
               {user.initials}
             </div>
-            <div className="text-left">
+            <div className="hidden md:block text-left">
               <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text)", lineHeight: 1.1 }}>
                 {user.name}
               </div>

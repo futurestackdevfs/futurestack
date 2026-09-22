@@ -219,10 +219,11 @@ export default function TrainerProfileView({ userName }: { userName: string }) {
                 <label className={labelClass}>Experience Level <span className="text-red-500">*</span></label>
                 <select name="experience" value={form.experience} onChange={handleChange} required className={inputClass + " appearance-none cursor-pointer"}>
                   <option value="" disabled>Select experience level</option>
-                  <option value="beginner">Beginner</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
+                  <option value="beginner">Beginner (0–2 yrs)</option>
+                  <option value="intermediate">Intermediate (2–5 yrs)</option>
+                  <option value="advanced">Advanced (5+ yrs)</option>
                 </select>
+                <p className="mt-1 text-[10.5px]" style={{ color: "var(--text3)" }}>Beginner: 0–2 yrs · Intermediate: 2–5 yrs · Advanced: 5+ yrs of relevant teaching/industry experience</p>
               </div>
               <div>
                 <label className={labelClass}>Career Path <span className="text-red-500">*</span></label>

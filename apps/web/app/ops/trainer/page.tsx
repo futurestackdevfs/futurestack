@@ -101,6 +101,7 @@ export default function TrainerDashboardPage() {
   const [profileSubmittedAt, setProfileSubmittedAt] = useState<string | null | undefined>(undefined);
   const [approvalStatus, setApprovalStatus] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showApprovedModal, setShowApprovedModal] = useState(false);
 
   /* ── session + user auth ── */
   useEffect(() => {
@@ -127,6 +128,17 @@ export default function TrainerDashboardPage() {
         if (!data) return;
         setProfileSubmittedAt(data.profileSubmittedAt ?? null);
         setApprovalStatus(data.approvalStatus ?? null);
+        // Celebrate approval exactly once — flag it seen per-trainer so a
+        // later reload (still APPROVED) doesn't re-pop the modal.
+        if (data.approvalStatus === "APPROVED" && data.id) {
+          const seenKey = `fs-trainer-approved-seen:${data.id}`;
+          try {
+            if (!localStorage.getItem(seenKey)) {
+              setShowApprovedModal(true);
+              localStorage.setItem(seenKey, "1");
+            }
+          } catch { /* ignore storage errors */ }
+        }
       })
       .catch(() => {});
   };
@@ -151,22 +163,45 @@ export default function TrainerDashboardPage() {
         })
         .catch(() => []);
 
-      /* Fetch discussions for doubts */
       const cards = await coursesPromise;
       if (cancelled) return;
 
       const myCourses: TrainerCourseRaw[] = cards;
-      /* enrich with detail — merge card data (has code) with detail data */
-      const withDetails = await Promise.all(
-        myCourses.map((c) =>
-          opsFetch(`/api/courses/public/${c.id}`)
-            .then((r) => (r.ok ? r.json() : null))
-            .then((detail) => detail ? { ...detail, code: detail.code ?? c.code } : null)
-            .catch(() => null),
+
+      /* Detail-enrichment (needs each course's full record — module count,
+         raw enrollment number, etc. aren't on the card) and everything else
+         (discussions, students, reviews, revenue) are fully independent of
+         each other — discussions only need the raw card's id/title, which
+         we already have. Previously these ran as two sequential stages
+         (await detail-enrichment, THEN fire discussions/students/etc.),
+         paying an extra full network round-trip against the remote DB for
+         no reason. Firing them together removes that stage entirely. */
+      const [withDetails, discussionResults, studentsData, reviewsData, trainerData] = await Promise.all([
+        Promise.all(
+          myCourses.map((c) =>
+            opsFetch(`/api/courses/public/${c.id}`)
+              .then((r) => (r.ok ? r.json() : null))
+              .then((detail) => detail ? { ...detail, code: detail.code ?? c.code } : null)
+              .catch(() => null),
+          ),
         ),
-      );
+        Promise.all(
+          myCourses.map(async (c) => {
+            try {
+              const msgs = await jsonOrThrow<DiscussionMessage[]>(await opsFetch(`/api/discussion/${c.id}?page=1&limit=50`));
+              return (Array.isArray(msgs) ? msgs : []).map((m) => ({ ...m, courseId: c.id, courseTitle: c.title ?? "" }));
+            } catch {
+              return [] as DiscussionMessage[];
+            }
+          }),
+        ),
+        opsFetch("/api/trainer/students").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        opsFetch("/api/trainer/reviews").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+        opsFetch("/api/trainer/revenue").then((r) => (r.ok ? r.json() : null)).catch(() => null),
+      ]);
       if (cancelled) return;
       const enriched: TrainerCourseRaw[] = withDetails.filter(Boolean);
+      const allDiscussions: DiscussionMessage[] = discussionResults.flat();
 
       /* Map to batches for dashboard (courses become the "batches") */
       const fromApi = enriched.map((c, i) => ({
@@ -184,37 +219,6 @@ export default function TrainerDashboardPage() {
           ? new Date(c.updatedAt).toISOString().slice(0, 16).replace("T", " ")
           : new Date().toISOString().slice(0, 16).replace("T", " "),
       }));
-
-      /* Fetch discussions for all courses */
-      const allDiscussions: DiscussionMessage[] = [];
-      for (const c of enriched) {
-        try {
-          const msgs = await jsonOrThrow<DiscussionMessage[]>(
-            await opsFetch(`/api/discussion/${c.id}?page=1&limit=50`),
-          );
-          const withCourse = (Array.isArray(msgs) ? msgs : []).map((m) => ({
-            ...m,
-            courseId: c.id,
-            courseTitle: c.title ?? "",
-          }));
-          allDiscussions.push(...withCourse);
-        } catch { /* skip */ }
-      }
-
-      /* Students from trainer API */
-      const studentsData = await opsFetch("/api/trainer/students")
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null);
-
-      /* Reviews from trainer API */
-      const reviewsData = await opsFetch("/api/trainer/reviews")
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null);
-
-      /* Revenue & payouts from trainer API */
-      const trainerData = await opsFetch("/api/trainer/revenue")
-        .then((r) => (r.ok ? r.json() : null))
-        .catch(() => null);
 
       if (trainerData) {
         setSharePct(trainerData.summary?.trainerSharePercent ?? 50);
@@ -497,10 +501,51 @@ export default function TrainerDashboardPage() {
         ))}
       </div>
 
+      {/* One-time "you're approved" celebration */}
+      {showApprovedModal && (
+        <div
+          className="fixed inset-0 z-[400] flex items-center justify-center px-4"
+          style={{ background: "rgba(10,12,20,.55)", animation: "fade-in .2s ease" }}
+          onClick={() => setShowApprovedModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[420px] text-center rounded-2xl p-8 relative overflow-hidden"
+            style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 24px 60px rgba(0,0,0,.35)", animation: "pop-in .25s cubic-bezier(.34,1.56,.64,1)" }}
+          >
+            <div className="text-[44px] leading-none mb-3" style={{ animation: "bounce-in .5s ease .1s both" }}>🎉</div>
+            <h2 className="text-lg font-bold mb-2" style={{ color: "var(--text)" }}>You&apos;re approved!</h2>
+            <p className="text-[12.5px] mb-6" style={{ color: "var(--text3)" }}>
+              Your trainer profile has been reviewed and approved. You now have full access to the trainer console — welcome aboard!
+            </p>
+            <button
+              onClick={() => setShowApprovedModal(false)}
+              className="px-6 py-2.5 rounded-lg text-[12.5px] font-bold text-white cursor-pointer border-none"
+              style={{ background: "var(--orange)" }}
+            >
+              Let&apos;s go
+            </button>
+          </div>
+        </div>
+      )}
+
       <style jsx global>{`
         @keyframes toast-in {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes pop-in {
+          from { opacity: 0; transform: scale(.9) translateY(6px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes bounce-in {
+          0% { transform: scale(0) rotate(-15deg); opacity: 0; }
+          60% { transform: scale(1.2) rotate(8deg); opacity: 1; }
+          100% { transform: scale(1) rotate(0); }
         }
       `}</style>
     </div>
