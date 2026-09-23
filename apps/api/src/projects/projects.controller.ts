@@ -86,6 +86,12 @@ export class ProjectsController {
     return this.projectsService.deleteVideo(videoId);
   }
 
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get('curriculum/videos/:videoId/status')
+  getCurriculumVideoStatus(@Param('videoId') videoId: string) {
+    return this.projectsService.getCurriculumVideoStatus(videoId);
+  }
+
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Delete('curriculum/sections/:sectionId')

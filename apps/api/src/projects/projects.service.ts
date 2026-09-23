@@ -487,4 +487,13 @@ export class ProjectsService {
     await this.prisma.projectCurriculumVideo.delete({ where: { id: videoId } });
     return { success: true };
   }
+
+  async getCurriculumVideoStatus(videoId: string) {
+    const video = await this.prisma.projectCurriculumVideo.findUnique({
+      where: { id: videoId },
+      select: { id: true, title: true, videoStatus: true, durationSeconds: true, vdoCipherId: true },
+    });
+    if (!video) throw new NotFoundException('Video not found');
+    return video;
+  }
 }
