@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { opsFetch } from "@/app/ops/lib/ops-fetch";
 
 const MAX_SLOT_COUNT = 10;
 const HERO_SLOT_COUNT = 3;
@@ -21,15 +22,8 @@ interface HeroSlideItem {
   displayOrder: number;
 }
 
-async function apiCall(token: string, endpoint: string, options?: RequestInit) {
-  const res = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...options?.headers,
-    },
-  });
+async function apiCall(_token: string, endpoint: string, options?: RequestInit) {
+  const res = await opsFetch(`/api${endpoint}`, options);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.message || `Request failed (${res.status})`);

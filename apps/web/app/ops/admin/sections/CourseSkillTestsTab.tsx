@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { SkillTestBuilder } from "./SkillTestBuilder";
 import { ConfirmDialog, type ConfirmOptions } from "./ConfirmDialog";
+import { opsFetch } from "@/app/ops/lib/ops-fetch";
 
 interface ApiQuiz {
   id: string;
@@ -23,15 +24,8 @@ interface CourseSkillTestsTabProps {
   onChanged?: () => void;
 }
 
-async function apiCall(token: string, endpoint: string, options?: RequestInit) {
-  const res = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...options?.headers,
-    },
-  });
+async function apiCall(_token: string, endpoint: string, options?: RequestInit) {
+  const res = await opsFetch(`/api${endpoint}`, options);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data?.message || res.statusText || `Request failed (${res.status})`);

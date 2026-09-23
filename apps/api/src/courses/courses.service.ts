@@ -1469,12 +1469,11 @@ export class CoursesService {
     this.invalidateCatalog();
     const section = await this.findSectionOrFail(sectionId);
 
-    // The very first video ever added to a course becomes its "intro video" —
-    // playable publicly without enrollment (see getPublicVideoOtp), so a
-    // prospective student always has something to preview before buying.
-    // There's no separate UI for marking a video as preview (CurriculumBuilder
-    // has no such control), so this is the only path that ever sets it — once
-    // the course has any video, every later one defaults to locked (false).
+    // The very first video ever added to a course defaults to its "intro
+    // video" — playable publicly without enrollment (see getPublicVideoOtp),
+    // so a prospective student always has something to preview before buying.
+    // Trainers/admins can also manually flag any other video as a free
+    // preview afterwards via updateVideo (CurriculumBuilder's preview toggle).
     const existingVideoCount = await this.prisma.video.count({
       where: { section: { courseId: section.courseId } },
     });
@@ -1492,7 +1491,15 @@ export class CoursesService {
   async deleteVideo(id: string) {
     this.invalidateCatalog();
     const video = await this.findVideoOrFail(id);
-    await this.vdoCipherService.deleteVideo(video.vdoCipherId);
+    // Placeholder videos (never uploaded — vdoCipherId still holds a
+    // "type:Video" lesson-type tag, or is empty) don't exist on VdoCipher.
+    // Calling their delete API with a garbage id throws and blocks the whole
+    // delete, so only hit VdoCipher for videos that actually made it there.
+    if (video.vdoCipherId && !video.vdoCipherId.startsWith('type:')) {
+      try {
+        await this.vdoCipherService.deleteVideo(video.vdoCipherId);
+      } catch {}
+    }
     await this.prisma.video.delete({ where: { id } });
     return { message: 'Video deleted' };
   }

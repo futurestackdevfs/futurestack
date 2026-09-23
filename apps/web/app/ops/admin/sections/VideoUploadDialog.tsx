@@ -6,7 +6,7 @@ import { startVideoUpload } from "@/lib/upload-manager"
 interface VideoUploadDialogProps {
   isOpen: boolean
   onClose: () => void
-  onUpload: (file: File, metadata: UploadMetadata) => Promise<{ videoId: string, vdoCipherId: string }> |
+  onUpload: (file: File, metadata: UploadMetadata, videoId: string) => Promise<{ videoId: string, vdoCipherId: string }> |
     void
   sectionId: string
   token: string
@@ -107,7 +107,7 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
       token,
       endpoint,
       body,
-      onDone: async () => { await onUpload?.(uploadingFile, uploadingMetadata) },
+      onDone: async (videoId: string) => { await onUpload?.(uploadingFile, uploadingMetadata, videoId) },
     }).catch(() => {
       // Already surfaced to the admin via the widget's error state — this
       // catch only exists to avoid an unhandled-rejection console warning.

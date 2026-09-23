@@ -51,8 +51,11 @@ export async function startVideoUpload(opts: {
   /** Runs once the file has fully reached S3 — e.g. tells the curriculum
    *  builder to refresh and pick up the real video row. Awaited before the
    *  widget flips to "done" so the confirmation reflects reality, not just
-   *  the raw file transfer. */
-  onDone?: () => void | Promise<void>;
+   *  the raw file transfer. Receives the real DB video id the credentials
+   *  endpoint created, so the caller can apply follow-up changes (like
+   *  marking it a free preview) that the upload-credentials endpoint itself
+   *  doesn't know about. */
+  onDone?: (videoId: string) => void | Promise<void>;
 }): Promise<void> {
   const { file, token, endpoint, body, onDone } = opts;
 
@@ -99,7 +102,7 @@ export async function startVideoUpload(opts: {
     });
 
     emit({ status: 'uploading', fileName: file.name, progress: 100 });
-    await onDone?.();
+    await onDone?.(uploadData.videoId);
     emit({ status: 'done', fileName: file.name, progress: 100 });
   } catch (err) {
     emit({
