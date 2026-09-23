@@ -198,21 +198,50 @@ function PreviewPlayer({ videoId, title, durationSeconds }: { videoId: string; t
   const [otp, setOtp] = useState<string | null>(null);
   const [playbackInfo, setPlaybackInfo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handlePlay = () => {
     setStarted(true);
     setLoading(true);
+    setError(null);
+    setProcessing(false);
     fetch(`${API}/courses/public/videos/${videoId}/verification`)
-      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(async (r) => {
+        if (r.ok) return r.json();
+        // The backend returns a plain 400 "Video not ready" while VdoCipher
+        // is still transcoding an upload — that's expected/temporary, not a
+        // real failure, so it gets its own friendly state instead of the
+        // generic error message.
+        const body = await r.json().catch(() => ({}));
+        if (r.status === 400 && body?.message === 'Video not ready') {
+          return Promise.reject('processing');
+        }
+        return Promise.reject('error');
+      })
       .then(data => { setOtp(data.otp); setPlaybackInfo(data.playbackInfo); })
-      .catch(() => setError('Failed to load video preview'))
+      .catch((reason) => {
+        if (reason === 'processing') setProcessing(true);
+        else setError('Failed to load video preview');
+      })
       .finally(() => setLoading(false));
   };
 
   const playerSrc = otp && playbackInfo
     ? `https://player.vdocipher.com/v2/?otp=${otp}&playbackInfo=${playbackInfo}&autoplay=true`
     : null;
+
+  if (processing) {
+    return (
+      <div className="relative bg-black aspect-video flex items-center justify-center">
+        <div className="text-center text-[#64748b] p-4">
+          <div className="text-lg mb-1">⏳</div>
+          <div className="text-xs font-bold text-white mb-0.5">Under Processing</div>
+          <div className="text-[10px]">This video is still being processed — check back shortly.</div>
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (

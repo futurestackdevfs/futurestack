@@ -8,7 +8,7 @@
 // what the admin actually watches. Same singleton + window-event pattern as
 // app/auth/hooks/use-auth.ts's `shared`/`emit`, for consistency.
 
-export type UploadStatus = 'idle' | 'uploading' | 'done' | 'error';
+export type UploadStatus = 'idle' | 'uploading' | 'processing' | 'done' | 'error';
 
 export type UploadState = {
   status: UploadStatus;
@@ -16,6 +16,46 @@ export type UploadState = {
   progress: number;
   error?: string;
 };
+
+/** Poll interval / ceiling while waiting for VdoCipher to finish transcoding
+ *  after the raw file has already reached S3. 5s × 120 = 10 minutes, which
+ *  comfortably covers normal processing time without polling forever. */
+const STATUS_POLL_MS = 5000;
+const STATUS_POLL_MAX_ATTEMPTS = 120;
+
+/** The upload-credentials endpoint tells us which entity the new video
+ *  belongs to (course `Video` vs project `ProjectCurriculumVideo`) — reused
+ *  here to pick the matching status-check route instead of every caller
+ *  having to pass one through explicitly. */
+function deriveStatusEndpoint(uploadEndpoint: string, videoId: string): string | null {
+  if (uploadEndpoint.includes('/admin/videos/upload-credentials')) {
+    return `/api/admin/videos/${videoId}/status`;
+  }
+  if (uploadEndpoint.includes('/curriculum/videos/upload-credentials')) {
+    return `/api/projects/curriculum/videos/${videoId}/status`;
+  }
+  return null;
+}
+
+async function pollUntilReady(statusUrl: string, token: string, fileName: string): Promise<void> {
+  for (let attempt = 0; attempt < STATUS_POLL_MAX_ATTEMPTS; attempt++) {
+    await new Promise((r) => setTimeout(r, STATUS_POLL_MS));
+    try {
+      const res = await fetch(statusUrl, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.videoStatus === 'READY') return;
+        if (data.videoStatus === 'ERROR') throw new Error('Video processing failed on VdoCipher');
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('processing failed')) throw err;
+      // Transient network/poll error — keep trying, the next attempt may succeed.
+    }
+    emit({ status: 'processing', fileName, progress: 100 });
+  }
+  // Gave up waiting — don't hang the widget forever. The webhook will still
+  // flip videoStatus to READY server-side whenever it actually finishes.
+}
 
 const EVENT = 'fs:upload-status';
 
@@ -59,7 +99,7 @@ export async function startVideoUpload(opts: {
 }): Promise<void> {
   const { file, token, endpoint, body, onDone } = opts;
 
-  if (shared.status === 'uploading') {
+  if (shared.status === 'uploading' || shared.status === 'processing') {
     throw new Error('Another video is already uploading — wait for it to finish.');
   }
 
@@ -103,6 +143,12 @@ export async function startVideoUpload(opts: {
 
     emit({ status: 'uploading', fileName: file.name, progress: 100 });
     await onDone?.(uploadData.videoId);
+
+    const statusUrl = deriveStatusEndpoint(endpoint, uploadData.videoId);
+    if (statusUrl) {
+      emit({ status: 'processing', fileName: file.name, progress: 100 });
+      await pollUntilReady(statusUrl, token, file.name);
+    }
     emit({ status: 'done', fileName: file.name, progress: 100 });
   } catch (err) {
     emit({

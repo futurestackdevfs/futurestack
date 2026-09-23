@@ -27,6 +27,12 @@ export function UploadProgressWidget() {
             style={{ borderColor: 'var(--blue-d)', borderTopColor: 'var(--blue)' }}
           />
         )}
+        {state.status === 'processing' && (
+          <div
+            className="w-8 h-8 rounded-full border-2 shrink-0 animate-spin"
+            style={{ borderColor: 'var(--orange-d)', borderTopColor: 'var(--orange)' }}
+          />
+        )}
         {state.status === 'done' && (
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white text-[14px]"
@@ -47,15 +53,18 @@ export function UploadProgressWidget() {
         <div className="min-w-0 flex-1">
           <div className="text-[12.5px] font-semibold truncate" style={{ color: 'var(--text)' }}>
             {state.status === 'uploading' && `Uploading video… ${state.progress}%`}
-            {state.status === 'done' && 'Upload complete'}
+            {state.status === 'processing' && 'Processing video…'}
+            {state.status === 'done' && 'Video ready ✓'}
             {state.status === 'error' && 'Upload failed'}
           </div>
           <div className="text-[10.5px] truncate" style={{ color: 'var(--text3)' }}>
-            {state.status === 'error' ? state.error : state.fileName}
+            {state.status === 'error' ? state.error
+              : state.status === 'processing' ? `${state.fileName} — VdoCipher is transcoding it, this can take a few minutes`
+              : state.fileName}
           </div>
         </div>
 
-        {state.status !== 'uploading' && (
+        {state.status !== 'uploading' && state.status !== 'processing' && (
           <button
             onClick={dismissUpload}
             className="shrink-0 w-5 h-5 rounded flex items-center justify-center text-[11px] cursor-pointer border-none bg-transparent"
@@ -75,6 +84,17 @@ export function UploadProgressWidget() {
           />
         </div>
       )}
+      {state.status === 'processing' && (
+        <div className="h-1 overflow-hidden" style={{ background: 'var(--border)' }}>
+          <div className="h-full w-1/3 [animation:upload-processing-sweep_1.2s_ease-in-out_infinite]" style={{ background: 'var(--orange)' }} />
+        </div>
+      )}
+      <style jsx>{`
+        @keyframes upload-processing-sweep {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(300%); }
+        }
+      `}</style>
     </div>
   );
 }
