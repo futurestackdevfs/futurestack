@@ -1,4 +1,4 @@
-import { IsArray, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsOptional, IsString } from 'class-validator';
 
 export class CurriculumVideoDto {
   @IsString()
@@ -11,6 +11,10 @@ export class CurriculumVideoDto {
   @IsOptional()
   @IsInt()
   durationSeconds?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isPreview?: boolean;
 }
 
 export class CurriculumItemDto {

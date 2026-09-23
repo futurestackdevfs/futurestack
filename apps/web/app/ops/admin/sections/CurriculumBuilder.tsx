@@ -720,7 +720,7 @@ export function CurriculumBuilder({
                           </div>
                           {lesson.kind === "video" && lesson.isPreview && (
                             <div className="font-mono text-[9px] px-1.5 pb-1" style={{ color: "var(--green)" }}>
-                              ⓘ Ye video sabko dikhega — playable publicly, without login or enrollment.
+                              ⓘ This video is visible to everyone — playable publicly, without login or enrollment.
                             </div>
                           )}
                           </div>

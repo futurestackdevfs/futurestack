@@ -50,6 +50,7 @@ export default function ProjectBuilderView({ searchQuery, refreshSignal, onToast
 
   function handleSaveCurriculum() {
     onToast("Project curriculum saved", "success");
+    setPbOpen(false);
     opsFetch("/api/projects/admin/all").then((r) => r.ok ? r.json() : []).then((data) => {
       if (Array.isArray(data)) setProjects(data);
     }).catch(() => {});

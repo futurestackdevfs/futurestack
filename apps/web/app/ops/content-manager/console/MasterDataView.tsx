@@ -367,6 +367,7 @@ export default function MasterDataView({ searchQuery, refreshSignal, onToast }: 
   function handleSaveCurriculum() {
     loadData();
     onToast("Curriculum saved", "success");
+    setPbOpen(false);
   }
 
   return (
