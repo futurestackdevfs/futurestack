@@ -195,6 +195,13 @@ export class ProjectsService {
 
     if (dto.items.length === 0) return { success: true };
 
+    // Exactly one video across the whole curriculum is ever the free
+    // preview. If the incoming payload already flags one, keep it; otherwise
+    // fall back to the very first video of the first item (mirrors courses'
+    // "first video ever added" auto-preview rule).
+    const hasExplicitPreview = dto.items.some((item) => item.videos?.some((v) => v.isPreview));
+    let previewAssigned = false;
+
     // Create curriculum items with videos
     for (let i = 0; i < dto.items.length; i++) {
       const item = dto.items[i];
@@ -210,13 +217,18 @@ export class ProjectsService {
 
       if (item.videos && item.videos.length > 0) {
         await this.prisma.projectCurriculumVideo.createMany({
-          data: item.videos.map((v, vi) => ({
-            curriculumId: curriculum.id,
-            title: v.title,
-            vdoCipherId: v.vdoCipherId || null,
-            durationSeconds: v.durationSeconds || 0,
-            order: vi,
-          })),
+          data: item.videos.map((v, vi) => {
+            const isPreview = hasExplicitPreview ? !!v.isPreview : !previewAssigned;
+            if (isPreview) previewAssigned = true;
+            return {
+              curriculumId: curriculum.id,
+              title: v.title,
+              vdoCipherId: v.vdoCipherId || null,
+              durationSeconds: v.durationSeconds || 0,
+              isPreview,
+              order: vi,
+            };
+          }),
         });
       }
     }
