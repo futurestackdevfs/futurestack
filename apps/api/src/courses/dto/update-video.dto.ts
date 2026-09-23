@@ -1,10 +1,14 @@
-import { IsInt, IsOptional, IsString, Min, IsEnum } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Min, IsEnum } from 'class-validator';
 import { VideoStatus } from '@prisma/client';
 
 export class UpdateVideoDto {
   @IsOptional()
   @IsString()
   title?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isPreview?: boolean;
 
   @IsOptional()
   @IsString()

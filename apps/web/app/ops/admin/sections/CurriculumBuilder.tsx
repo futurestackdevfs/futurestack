@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { VideoUploadDialog } from "./VideoUploadDialog"
 import { ConfirmDialog, type ConfirmOptions } from "./ConfirmDialog"
 import { SkillTestBuilder } from "./SkillTestBuilder"
+import { opsFetch } from "@/app/ops/lib/ops-fetch"
 
 interface ApiVideo {
   id: string; title: string; vdoCipherId: string; durationSeconds: number; order: number; isPreview: boolean;
@@ -83,15 +84,13 @@ function mergeLessons(sections: ApiSection[]): MergedSection[] {
   }).sort((a, b) => a.order - b.order);
 }
 
-async function apiCall(token: string, endpoint: string, options?: RequestInit) {
-  const res = await fetch(`/api${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...options?.headers,
-    },
-  });
+// `token` param kept for call-site compatibility, but opsFetch resolves the
+// current staff token itself and silently refreshes it on a 401 (the access
+// token expires after 15m) instead of just throwing — that refresh is what
+// was missing here, causing every screen using this local apiCall to blank
+// out to empty/zero state after 15 minutes until a couple of manual reloads.
+async function apiCall(_token: string, endpoint: string, options?: RequestInit) {
+  const res = await opsFetch(`/api${endpoint}`, options);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data?.message || res.statusText || `Request failed (${res.status})`);
@@ -161,7 +160,7 @@ export function CurriculumBuilder({
           id: s.id, title: s.title || "", order: s.order ?? 0,
           videos: (s.videos || []).map((v: any) => ({
             id: v.id, title: v.title || "", vdoCipherId: v.vdoCipherId || "",
-            durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0,
+            durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0, isPreview: v.isPreview ?? false,
           })),
           quizzes: (s.quizzes || []).map((q: any) => ({
             id: q.id, title: q.title || "", order: q.order ?? 0,
@@ -188,7 +187,7 @@ export function CurriculumBuilder({
           id: s.id, title: s.title || "", order: s.order ?? 0,
           videos: (s.videos || []).map((v: any) => ({
             id: v.id, title: v.title || "", vdoCipherId: v.vdoCipherId || "",
-            durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0,
+            durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0, isPreview: v.isPreview ?? false,
           })),
           quizzes: (s.quizzes || []).map((q: any) => ({
             id: q.id, title: q.title || "", order: q.order ?? 0,
@@ -213,6 +212,25 @@ export function CurriculumBuilder({
       return updated;
     });
     isDirty.current = true;
+  }
+
+  // Slim "+ Add Preview Video" control: drops a single auto-preview video,
+  // pinned first (lowest order) in the first section — creating one if none
+  // exist yet. Only one preview video is allowed per course, so the button
+  // that calls this disappears once any video has isPreview: true.
+  function addPreviewVideo() {
+    if (!token) return;
+    isDirty.current = true;
+    setSections(prev => {
+      const target = prev[0] ?? { id: nextTempId(), title: 'New Section', order: 0, videos: [], quizzes: [] };
+      const minOrder = Math.min(0, ...target.videos.map(v => v.order), ...target.quizzes.map(q => q.order));
+      const newVideo: ApiVideo = { id: nextTempId(), title: 'Free Preview Video', vdoCipherId: 'type:Video', durationSeconds: 600, order: minOrder - 1, isPreview: true };
+      const updated = prev[0]
+        ? prev.map(s => s.id === target.id ? { ...s, videos: [newVideo, ...s.videos] } : s)
+        : [{ ...target, videos: [newVideo] }];
+      setDisplaySections(mergeLessons(updated));
+      return updated;
+    });
   }
 
   function removeSection(sectionId: string) {
@@ -243,9 +261,9 @@ export function CurriculumBuilder({
   function addLesson(sectionId: string, kind: "video" | "quiz") {
     if (!token) return;
     if (kind === "video") {
-      // isPreview is server-decided (createVideo auto-marks the course's very
-      // first video) — this local placeholder is just for optimistic UI until
-      // the real value comes back from the save/refetch.
+      // isPreview is server-decided on save (first video ever added to a
+      // course is auto-marked) — this local placeholder is just optimistic UI
+      // until the real value comes back from save/refetch.
       const newVideo: ApiVideo = { id: nextTempId(), title: 'New Video', vdoCipherId: 'type:Video', durationSeconds: 600, order: 0, isPreview: false };
       setSections(prev => {
         const sec = prev.find(s => s.id === sectionId);
@@ -387,10 +405,19 @@ export function CurriculumBuilder({
 
           // Create its videos
           for (const v of section.videos) {
-            await apiCall(token, `/courses/sections/${realSectionId}/videos`, {
+            const createdVideo = await apiCall(token, `/courses/sections/${realSectionId}/videos`, {
               method: 'POST',
               body: JSON.stringify({ title: v.title, vdoCipherId: v.vdoCipherId || '', durationSeconds: v.durationSeconds, order: v.order }),
             });
+            // isPreview is server-decided on create (first video ever = auto preview);
+            // if the admin explicitly asked for this one to be a free preview and the
+            // server didn't already mark it so, flip it with a follow-up PATCH.
+            if (v.isPreview && createdVideo && !createdVideo.isPreview) {
+              await apiCall(token, `/courses/videos/${createdVideo.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ isPreview: true }),
+              });
+            }
           }
           // Create its quizzes
           for (const q of section.quizzes) {
@@ -411,21 +438,28 @@ export function CurriculumBuilder({
           // Handle video changes
           const deletedVids = origSec.videos.filter(ov => !section.videos.some(cv => cv.id === ov.id));
           const newVids = section.videos.filter(cv => cv.id.startsWith('new_'));
-          const updatedVids = section.videos.filter(cv => !cv.id.startsWith('new_') && origSec.videos.some(ov => ov.id === cv.id && (ov.title !== cv.title || ov.vdoCipherId !== cv.vdoCipherId)));
+          const updatedVids = section.videos.filter(cv => !cv.id.startsWith('new_') && origSec.videos.some(ov => ov.id === cv.id && (ov.title !== cv.title || ov.vdoCipherId !== cv.vdoCipherId || ov.isPreview !== cv.isPreview)));
 
           for (const v of deletedVids) {
             await apiCall(token, `/courses/videos/${v.id}`, { method: 'DELETE' });
           }
           for (const v of newVids) {
-            await apiCall(token, `/courses/sections/${section.id}/videos`, {
+            const createdVideo = await apiCall(token, `/courses/sections/${section.id}/videos`, {
               method: 'POST',
               body: JSON.stringify({ title: v.title, vdoCipherId: v.vdoCipherId || '', durationSeconds: v.durationSeconds, order: v.order }),
             });
+            if (v.isPreview && createdVideo && !createdVideo.isPreview) {
+              await apiCall(token, `/courses/videos/${createdVideo.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ isPreview: true }),
+              });
+            }
           }
           for (const v of updatedVids) {
             const body: any = {};
             if (v.title !== origSec.videos.find(ov => ov.id === v.id)?.title) body.title = v.title;
             if (v.vdoCipherId !== origSec.videos.find(ov => ov.id === v.id)?.vdoCipherId) body.vdoCipherId = v.vdoCipherId;
+            if (v.isPreview !== origSec.videos.find(ov => ov.id === v.id)?.isPreview) body.isPreview = v.isPreview;
             if (Object.keys(body).length) {
               await apiCall(token, `/courses/videos/${v.id}`, { method: 'PATCH', body: JSON.stringify(body) });
             }
@@ -521,7 +555,7 @@ export function CurriculumBuilder({
           ) : fetchError ? (
             <div className="flex flex-col items-center gap-2 py-8">
               <div className="font-mono text-[11px]" style={{ color: "var(--red)" }}>✕ {fetchError}</div>
-              <button onClick={() => { if (!token) { setFetchError("Session expired — please re-login"); return; } setLoading(true); setFetchError(null); apiCall(token, `/courses/${courseId}`).then((data) => { if (!data || typeof data !== "object") { setFetchError("Invalid response"); return; } const secs = (data.sections || []).map((s: any) => ({ id: s.id, title: s.title || "", order: s.order ?? 0, videos: (s.videos || []).map((v: any) => ({ id: v.id, title: v.title || "", vdoCipherId: v.vdoCipherId || "", durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0 })), quizzes: (s.quizzes || []).map((q: any) => ({ id: q.id, title: q.title || "", order: q.order ?? 0, totalQuestions: q.totalQuestions ?? 0, passingScore: q.passingScore })) })); setSections(secs); setDisplaySections(mergeLessons(secs)); }).catch((e) => setFetchError(e.message || "Failed to load")).finally(() => setLoading(false)); }}
+              <button onClick={() => { if (!token) { setFetchError("Session expired — please re-login"); return; } setLoading(true); setFetchError(null); apiCall(token, `/courses/${courseId}`).then((data) => { if (!data || typeof data !== "object") { setFetchError("Invalid response"); return; } const secs = (data.sections || []).map((s: any) => ({ id: s.id, title: s.title || "", order: s.order ?? 0, videos: (s.videos || []).map((v: any) => ({ id: v.id, title: v.title || "", vdoCipherId: v.vdoCipherId || "", durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0, isPreview: v.isPreview ?? false })), quizzes: (s.quizzes || []).map((q: any) => ({ id: q.id, title: q.title || "", order: q.order ?? 0, totalQuestions: q.totalQuestions ?? 0, passingScore: q.passingScore })) })); setSections(secs); setDisplaySections(mergeLessons(secs)); }).catch((e) => setFetchError(e.message || "Failed to load")).finally(() => setLoading(false)); }}
                 className="font-mono text-[10px] font-semibold px-2.5 py-1 rounded cursor-pointer"
                 style={{ border: "1px solid var(--border)", color: "var(--btn-text, var(--text2))", background: "var(--btn-bg, var(--surface))" }}
               >↻ Retry</button>
@@ -540,6 +574,16 @@ export function CurriculumBuilder({
                   <span>{totalLessons} lessons</span>
                 </div>
               </div>
+
+              {/* Add Preview Video — slim, disappears once a preview video exists */}
+              {!sections.some(s => s.videos.some(v => v.isPreview)) && (
+                <button disabled={acting} onClick={addPreviewVideo}
+                  title="Adds a single video pinned first in the curriculum, playable publicly without login or enrollment."
+                  className="font-mono text-[10px] font-semibold inline-flex items-center gap-1 py-1 mb-2 cursor-pointer disabled:opacity-40"
+                  style={{ color: "var(--btn-text, var(--green))", background: "var(--btn-bg, transparent)" }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "underline"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecoration = "none"; }}>🎬 + Add Preview Video</button>
+              )}
 
               {/* Sections */}
               {displaySections.map((section, si) => {
@@ -576,7 +620,11 @@ export function CurriculumBuilder({
                         <div className="text-center py-3 font-mono text-[10px]" style={{ color: "var(--text3)" }}>No lessons yet</div>
                       ) : (
                         section.lessons.map((lesson, li) => (
-                          <div key={lesson.id} className="grid gap-2 items-center py-1" style={{ gridTemplateColumns: "24px 1.6fr 1fr auto 28px" }}>
+                          <div key={lesson.id}>
+                          <div className="grid gap-2 items-center py-1 px-1.5 rounded"
+                            style={lesson.kind === "video" && lesson.isPreview
+                              ? { gridTemplateColumns: "24px 1.6fr 1fr auto 28px", background: "var(--green-d, rgba(34,197,94,.1))", border: "1px solid rgba(34,197,94,.3)" }
+                              : { gridTemplateColumns: "24px 1.6fr 1fr auto 28px" }}>
                             <span className="font-mono text-[9px] text-center" style={{ color: "var(--text3)" }}>{li + 1}</span>
                             <div className="flex items-center gap-1.5 min-w-0">
                               <input
@@ -593,9 +641,9 @@ export function CurriculumBuilder({
                                 <span
                                   className="shrink-0 font-mono text-[8px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
                                   style={{ color: "var(--green)", background: "var(--green-d, rgba(34,197,94,.12))", border: "1px solid rgba(34,197,94,.3)" }}
-                                  title="This is the course's intro video — playable publicly, without login or enrollment, as a free preview."
+                                  title="Playable publicly, without login or enrollment — this is always the first video and cannot be changed."
                                 >
-                                  🎬 Intro · Public
+                                  🎬 Free Preview
                                 </span>
                               )}
                             </div>
@@ -670,6 +718,12 @@ export function CurriculumBuilder({
                               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--text3))"; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, transparent)"; }}
                               title="Remove Lesson">🗑</button>
                           </div>
+                          {lesson.kind === "video" && lesson.isPreview && (
+                            <div className="font-mono text-[9px] px-1.5 pb-1" style={{ color: "var(--green)" }}>
+                              ⓘ Ye video sabko dikhega — playable publicly, without login or enrollment.
+                            </div>
+                          )}
+                          </div>
                         ))
                       )}
                       <div className="flex gap-2 mt-1.5">
@@ -690,7 +744,7 @@ export function CurriculumBuilder({
               })}
 
               {/* Add Section */}
-              <button disabled={acting} onClick={addSection}
+              <button disabled={acting} onClick={() => addSection()}
                 className="w-full py-2.5 rounded font-mono text-[11px] font-semibold text-center cursor-pointer disabled:opacity-40"
                 style={{ border: "1.5px dashed var(--btn-bg, var(--border2))", color: "var(--btn-text, var(--text3))", background: "var(--btn-bg, var(--panel))" }}
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = "var(--btn-bg-hover, var(--orange))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--orange))"; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--orange-d))"; }}
@@ -727,9 +781,18 @@ export function CurriculumBuilder({
           setUploadDialogOpen(false);
           setSelectedLessonId(null);
         }}
-        onUpload={async (_file: any, _metadata: any) => {
+        onUpload={async (_file: any, _metadata: any, videoId: string) => {
           // Remove local-only placeholder (new_ prefix) — real records are refreshed
           const lessonIdToRemove = selectedLessonId;
+          // The upload-credentials endpoint creates the real Video row itself,
+          // completely bypassing courses.service's isPreview logic — it always
+          // comes back isPreview:false. If the local placeholder had been
+          // flagged as a preview (e.g. via "+ Add Preview Video"), carry that
+          // over now with an explicit PATCH, since this is the only place that
+          // ever learns the real video id for an upload-created video.
+          const wasPreview = lessonIdToRemove
+            ? sections.some(s => s.videos.some(v => v.id === lessonIdToRemove && v.isPreview))
+            : false;
           if (lessonIdToRemove && lessonIdToRemove.startsWith('new_')) {
             setSections(prev => {
               const updated = prev.map(s => ({
@@ -742,6 +805,9 @@ export function CurriculumBuilder({
           }
           setSelectedLessonId(null);
           isDirty.current = true;
+          if (wasPreview && videoId) {
+            try { await apiCall(token, `/courses/videos/${videoId}`, { method: 'PATCH', body: JSON.stringify({ isPreview: true }) }); } catch {}
+          }
           try { await refreshSections(); } catch {}
           return { videoId: '', vdoCipherId: '' };
         }}
