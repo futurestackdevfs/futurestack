@@ -47,7 +47,11 @@ async function proxy(req: NextRequest) {
     ? await req.arrayBuffer()
     : undefined;
 
-  const isPublicGet = req.method === 'GET' && path.includes('/public/');
+  // "/public/" GETs are cached below, but OTP/playback-token endpoints must
+  // never be — each one issues a single-use VdoCipher OTP, and serving a
+  // cached response hands the same OTP to a second viewer/reload, which
+  // VdoCipher then rejects with "Error 2049: Embed code reused".
+  const isPublicGet = req.method === 'GET' && path.includes('/public/') && !path.includes('/verification');
 
   let backendRes: Response;
   try {

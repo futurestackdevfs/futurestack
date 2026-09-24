@@ -7,6 +7,7 @@ import useSWR, { useSWRConfig } from "swr";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { loadToken } from "@/app/auth/lib/token-store";
 import { showToast } from "@/lib/toast";
+import { useCareerGuidance } from "@/app/(student)/components/career-guidance";
 
 interface CourseCard {
   id: string;
@@ -171,6 +172,7 @@ function FacetPanel({
 }
 
 export default function CoursesPage() {
+  const { openLead } = useCareerGuidance();
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [selectedFilters, setSelectedFilters] = useState<Set<string>>(new Set());
   const router = useRouter();
@@ -631,17 +633,27 @@ export default function CoursesPage() {
           )}
 
           {/* CTA */}
-          <div className="relative mt-10 overflow-hidden rounded-2xl border border-[var(--border)]" style={{ background: "linear-gradient(120deg, var(--blue-dim) 0%, var(--orange-pale, #FFF0EA) 100%)" }}>
-            <div className="pointer-events-none absolute -right-10 -top-10 h-52 w-52 rounded-full" style={{ background: "radial-gradient(circle, rgba(240,78,0,.10) 0%, transparent 70%)" }} />
-            <div className="pointer-events-none absolute -bottom-16 left-[30%] h-44 w-44 rounded-full" style={{ background: "radial-gradient(circle, rgba(41,82,204,.09) 0%, transparent 70%)" }} />
+          <div className="group relative mt-10 overflow-hidden rounded-2xl border border-[var(--border)]" style={{ background: "linear-gradient(120deg, #0b1120 0%, #1a1030 100%)" }}>
+            <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full transition-transform duration-500 group-hover:scale-110" style={{ background: "radial-gradient(circle, rgba(255,106,26,.28) 0%, transparent 70%)" }} />
+            <div className="pointer-events-none absolute -bottom-20 left-[25%] h-56 w-56 rounded-full" style={{ background: "radial-gradient(circle, rgba(41,82,204,.22) 0%, transparent 70%)" }} />
+            <div className="pointer-events-none absolute inset-0 opacity-[0.04]" style={{ backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)", backgroundSize: "18px 18px" }} />
             <div className="relative z-[1] flex flex-col items-start justify-between gap-6 p-6 md:flex-row md:items-center md:p-8">
               <div>
-                <h2 className="font-['Syne',sans-serif] text-lg font-extrabold text-[var(--text)]">Not sure which course is right for you?</h2>
-                <p className="mt-1 max-w-[500px] text-[13.5px] text-[var(--muted)]">Talk to a Future Stack Career Advisor — get a personalized learning roadmap aligned to your goals, skills, and dream role. Free 30-minute session, no commitment.</p>
+                <span className="mb-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.04em]" style={{ background: "rgba(255,106,26,.18)", color: "var(--orange2)" }}>
+                  <span className="h-[5px] w-[5px] rounded-full bg-[#4ade80]" />
+                  Free Career Guidance
+                </span>
+                <h2 className="font-['Syne',sans-serif] text-lg font-extrabold text-white">Not sure which course is right for you?</h2>
+                <p className="mt-1 max-w-[500px] text-[13.5px]" style={{ color: "#9ba8be" }}>Talk to a Future Stack Career Advisor — get a personalized learning roadmap aligned to your goals, skills, and dream role. Free 30-minute session, no commitment.</p>
               </div>
               <div className="flex shrink-0 items-center gap-2.5">
-                <button className="rounded-lg px-5 py-2.5 text-[13.5px] font-bold text-white transition-[opacity,transform] hover:-translate-y-0.5 hover:opacity-90" style={{ background: "linear-gradient(135deg, var(--orange) 0%, var(--orange2) 100%)", boxShadow: "0 4px 14px rgba(240,78,0,.28)" }}>Book a Free Session</button>
-                <button className="rounded-lg border-2 border-[var(--blue)] bg-transparent px-5 py-2.5 text-[13.5px] font-bold text-[var(--blue)] transition-colors hover:bg-[var(--blue-dim)]">Take the Quiz →</button>
+                <button
+                  onClick={() => openLead("courses_page_cta")}
+                  className="rounded-lg px-5 py-2.5 text-[13.5px] font-bold text-white transition-[opacity,transform] hover:-translate-y-0.5 hover:opacity-90"
+                  style={{ background: "linear-gradient(135deg, var(--orange) 0%, var(--orange2) 100%)", boxShadow: "0 4px 14px rgba(240,78,0,.35)" }}
+                >
+                  Book a Free Session
+                </button>
               </div>
             </div>
           </div>
