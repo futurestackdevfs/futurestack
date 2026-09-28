@@ -164,6 +164,7 @@ export interface SaleResult {
   createAccount?: boolean;
   tempPassword?: string | null;
   emailSent?: boolean;
+  payLink?: string | null;
 }
 
 export interface PendingOrder {
@@ -175,5 +176,7 @@ export interface PendingOrder {
   totalAmount: number;
   batchMode: "Online" | "Offline" | null;
   paymentMethod: string | null;
+  paymentProofUrl: string | null;
+  isOnline: boolean;
   createdAt: string;
 }

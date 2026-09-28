@@ -170,6 +170,7 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
         createAccount: data.createAccount,
         tempPassword: data.tempPassword ?? null,
         emailSent: data.emailSent,
+        payLink: data.payLink ?? null,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sale failed");
@@ -241,7 +242,34 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
               </div>
             </div>
 
-            {result?.emailSent && (
+            {result?.payLink && (
+              <div className="rounded p-3 mb-3" style={{ background: "var(--blue-d)", border: "1px solid var(--blue)" }}>
+                <div className="font-mono text-[9px] font-bold mb-1.5" style={{ color: "var(--blue)" }}>
+                  {result.emailSent ? `✓ Payment link emailed to ${result.studentEmail ?? "the student"}` : "Payment link (email not sent)"}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    readOnly
+                    value={result.payLink}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="flex-1 rounded px-2 py-1.5 text-[10px] font-mono outline-none"
+                    style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+                  />
+                  <button
+                    onClick={() => { navigator.clipboard?.writeText(result.payLink!); }}
+                    className="rounded px-2.5 py-1.5 font-mono text-[9px] font-bold cursor-pointer shrink-0"
+                    style={{ background: "var(--blue)", color: "#fff", border: "1px solid var(--blue)" }}
+                  >
+                    COPY
+                  </button>
+                </div>
+                <div className="font-mono text-[8.5px] mt-1.5" style={{ color: "var(--text3)" }}>
+                  Only the student, logged in, can open and pay this link — enrollment confirms automatically once they pay, no manual step needed.
+                </div>
+              </div>
+            )}
+
+            {!result?.payLink && result?.emailSent && (
               <div className="rounded p-3 mb-3 font-mono text-[9px]" style={{ background: "var(--green-d)", border: "1px solid var(--green)", color: "var(--green)" }}>
                 ✓ Enrollment email sent to {result.studentEmail ?? "the student"}
               </div>
@@ -267,9 +295,11 @@ export function SaleModal({ open, onClose, onComplete, onError }: SaleModalProps
               </div>
             )}
 
-            <div className="rounded p-3 mb-3 font-mono text-[9px]" style={{ background: "var(--blue-d)", border: "1px solid var(--blue)", color: "var(--blue)" }}>
-              → Confirm payment from the <b>Converted</b> tab once the payment is received — receipt will be generated + emailed.
-            </div>
+            {!result?.payLink && (
+              <div className="rounded p-3 mb-3 font-mono text-[9px]" style={{ background: "var(--blue-d)", border: "1px solid var(--blue)", color: "var(--blue)" }}>
+                → Upload a payment receipt/screenshot, then confirm payment from the <b>Converted</b> tab — receipt will be generated + emailed.
+              </div>
+            )}
 
             <button
               onClick={handleClose}

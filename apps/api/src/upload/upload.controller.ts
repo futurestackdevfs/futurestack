@@ -78,6 +78,31 @@ export class UploadController {
     return this.processUpload(file, safeFolder);
   }
 
+  // Sales payment-proof uploads (cash/offline sale receipts). Images only, 5MB.
+  @Auth(Role.SALES, Role.ADMIN, Role.COORDINATOR)
+  @Post('payment-proof')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      fileFilter: (_req, file, cb) => {
+        if (!/\.(jpg|jpeg|png|webp|gif)$/i.test(file.originalname)) {
+          return cb(
+            new BadRequestException(
+              'Only image files are allowed (jpg, jpeg, png, webp, gif)',
+            ),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    }),
+  )
+  async uploadPaymentProof(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('No file uploaded');
+    return this.processUpload(file, 'receipts');
+  }
+
   // Course Resource uploads: Admins & Content Managers. Any resource type. Max 50MB.
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Post('resource')

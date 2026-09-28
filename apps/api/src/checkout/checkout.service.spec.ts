@@ -274,7 +274,7 @@ describe('CheckoutService#finalizeOrder — idempotency', () => {
     (tx as any).course = { findUnique: jest.fn().mockResolvedValue({ id: '__spec__course-react', trainer: null }) };
     (tx as any).enrollment = { create: jest.fn().mockResolvedValue({ id: '__spec__enr-new' }) };
     (tx as any).orderItem.updateMany = jest.fn().mockResolvedValue({});
-    (tx as any).cart = { update: jest.fn().mockResolvedValue({}) };
+    (tx as any).cart = { upsert: jest.fn().mockResolvedValue({}) };
     (tx as any).user = { findUnique: jest.fn().mockResolvedValue({ email: '__spec__student@example.com' }) };
     (tx as any).lead = { findFirst: jest.fn().mockResolvedValue(null) };
 
