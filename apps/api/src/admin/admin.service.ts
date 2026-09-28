@@ -213,7 +213,7 @@ export class AdminService {
   }
 
   async listApprovedTrainers() {
-    return this.prisma.user.findMany({
+    const trainers = await this.prisma.user.findMany({
       where: { role: Role.TRAINER, approvalStatus: 'APPROVED' },
       select: {
         id: true,
@@ -232,6 +232,41 @@ export class AdminService {
         _count: { select: { coursesTaught: true, projectsTaught: true } },
       },
       orderBy: { name: 'asc' },
+    });
+    if (trainers.length === 0) return trainers;
+
+    const trainerIds = trainers.map((t) => t.id);
+    const [revenueByTrainer, paidByTrainer] = await Promise.all([
+      this.prisma.revenueLedger.groupBy({
+        by: ['trainerId'],
+        where: { trainerId: { in: trainerIds } },
+        _sum: { gross: true, trainerShare: true, platformCut: true },
+      }),
+      this.prisma.payout.groupBy({
+        by: ['trainerId'],
+        where: { trainerId: { in: trainerIds }, status: 'PAID' },
+        _sum: { amount: true },
+      }),
+    ]);
+    const revenueMap = new Map(revenueByTrainer.map((r) => [r.trainerId, r]));
+    const paidMap = new Map(paidByTrainer.map((p) => [p.trainerId, p._sum.amount?.toNumber() ?? 0]));
+
+    return trainers.map((t) => {
+      const rev = revenueMap.get(t.id);
+      const totalSales = rev?._sum.gross?.toNumber() ?? 0;
+      const trainerShare = rev?._sum.trainerShare?.toNumber() ?? 0;
+      const platformCut = rev?._sum.platformCut?.toNumber() ?? 0;
+      const paidOut = paidMap.get(t.id) ?? 0;
+      return {
+        ...t,
+        revenue: {
+          totalSales,
+          trainerShare,
+          platformCut,
+          paidOut,
+          pendingPayout: trainerShare - paidOut,
+        },
+      };
     });
   }
 
@@ -1173,8 +1208,16 @@ export class AdminService {
         orderBy: { enrolledAt: 'desc' },
         include: {
           student: { select: { id: true, name: true, email: true } },
-          course: { select: { id: true, title: true } },
-          order: { select: { id: true, status: true } },
+          course: {
+            select: {
+              id: true,
+              title: true,
+              category: true,
+              trainer: { select: { id: true, name: true, email: true, trainerSharePercent: true } },
+            },
+          },
+          order: true,
+          revenueLedger: true,
         },
       }),
       this.prisma.enrollment.count({ where }),
@@ -1187,12 +1230,49 @@ export class AdminService {
         studentEmail: e.student.email,
         studentId: e.studentId,
         courseTitle: e.course.title,
+        courseCategory: e.course.category,
         courseId: e.courseId,
         amountPaid: e.amountPaid.toNumber(),
         status: e.status,
         enrolledAt: e.enrolledAt.toISOString(),
+        trainer: e.course.trainer
+          ? {
+              id: e.course.trainer.id,
+              name: e.course.trainer.name,
+              email: e.course.trainer.email,
+              sharePercent: e.course.trainer.trainerSharePercent,
+            }
+          : null,
+        order: e.order
+          ? {
+              id: e.order.id,
+              status: e.order.status,
+              currency: e.order.currency,
+              gatewayType: e.order.gatewayType,
+              subtotal: e.order.subtotal.toNumber(),
+              discountAmount: e.order.discountAmount.toNumber(),
+              gstPercent: e.order.gstPercent.toNumber(),
+              gstAmount: e.order.gstAmount.toNumber(),
+              totalAmount: e.order.totalAmount.toNumber(),
+              paymentMethod: e.order.paymentMethod,
+              razorpayOrderId: e.order.razorpayOrderId,
+              razorpayPaymentId: e.order.razorpayPaymentId,
+              batchMode: e.order.batchMode,
+              createdAt: e.order.createdAt.toISOString(),
+            }
+          : null,
+        // Legacy flat fields — kept so existing callers/older frontend builds
+        // don't break while the richer `order`/`trainer`/`revenue` objects
+        // above are the ones the updated Enrollment Manager UI reads from.
         orderId: e.orderId,
         orderStatus: e.order?.status ?? null,
+        revenue: e.revenueLedger
+          ? {
+              gross: e.revenueLedger.gross.toNumber(),
+              trainerShare: e.revenueLedger.trainerShare.toNumber(),
+              platformCut: e.revenueLedger.platformCut.toNumber(),
+            }
+          : null,
       })),
       total,
       page,
