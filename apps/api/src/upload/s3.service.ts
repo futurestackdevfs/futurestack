@@ -14,7 +14,8 @@ export type S3Folder =
   | 'banners'
   | 'discussions'
   | 'resources'
-  | 'projects';
+  | 'projects'
+  | 'receipts';
 
 @Injectable()
 export class S3Service implements OnModuleInit {

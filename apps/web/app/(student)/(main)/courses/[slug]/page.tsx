@@ -11,6 +11,7 @@ import { authFetch } from "@/app/auth/lib/auth-fetch";
 import { StarRating } from "@/components/StarRating";
 import { ReviewForm } from "@/components/ReviewForm";
 import { showToast } from "@/lib/toast";
+import { RoadmapView } from "@/components/RoadmapTree";
 
 const API = '/api';
 const fetcher = async (url: string) => {
@@ -59,6 +60,19 @@ interface CourseDetail {
     quizzes: { id: string | null; title: string; totalQuestions: number | null; order: number }[];
   }[];
   resources: { id: string; title: string; fileType: string; fileUrl: string; fileSizeLabel: string | null }[];
+  roadmap: {
+    title: string;
+    summary: string;
+    prerequisites: string[];
+    phases: {
+      phase: "Beginner" | "Intermediate" | "Advanced";
+      nodes: {
+        title: string;
+        description: string;
+        chips: { title: string; kind: "must" | "pick-one" | "optional"; lessonTitles: string[] }[];
+      }[];
+    }[];
+  } | null;
 }
 
 interface CourseCard {
@@ -568,15 +582,16 @@ export default function CourseDetailPage() {
           {/* Tabs */}
           <div className="flex gap-0 bg-white dark:bg-[#111520] border border-[var(--border)] dark:border-[#1e2535] rounded-xl p-1 mb-4 shadow-sm overflow-x-auto">
             {[
-              { id: "overview", label: "Overview" },
-              { id: "curriculum", label: "Curriculum" },
-              { id: "projects", label: "Projects" },
-              { id: "reviews", label: "Reviews" },
+              { id: "overview", label: "Overview", mobileHidden: true },
+              ...(course.roadmap ? [{ id: "roadmap", label: "Roadmap", mobileHidden: false }] : []),
+              { id: "curriculum", label: "Curriculum", mobileHidden: false },
+              { id: "projects", label: "Projects", mobileHidden: false },
+              { id: "reviews", label: "Reviews", mobileHidden: true },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 py-[9px] px-3 rounded-[10px] text-[13px] font-semibold text-center transition-all whitespace-nowrap ${activeTab === tab.id
+                className={`${tab.mobileHidden ? "hidden sm:block" : ""} flex-1 py-[9px] px-3 rounded-[10px] text-[13px] font-semibold text-center transition-all whitespace-nowrap ${activeTab === tab.id
                     ? "bg-[linear-gradient(135deg,#1A3BA0_0%,#2952CC_100%)] text-white shadow-[0_2px_8px_rgba(41,82,204,.3)]"
                     : "text-[#6B7280] dark:text-[#7a859a] hover:bg-[var(--bg)] hover:text-[#111827] dark:hover:text-[#e8eaf0]"
                   }`}>
@@ -715,6 +730,13 @@ export default function CourseDetailPage() {
                   );
                 })}
               </div>
+            </SectionCard>
+          )}
+
+          {/* ══ ROADMAP ══ */}
+          {activeTab === "roadmap" && course.roadmap && (
+            <SectionCard>
+              <RoadmapView roadmap={course.roadmap} />
             </SectionCard>
           )}
 

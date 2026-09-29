@@ -10,6 +10,7 @@ import { CertificatesService } from '../certificates/certificates.service';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
 import { S3Service } from '../upload/s3.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { parseStoredRoadmap } from '../courses/courses.service';
 
 export interface NextVideo {
   id: string;
@@ -322,6 +323,7 @@ export class StudentService {
         careerTitle: course.careerTitle,
         careerBody: course.careerBody,
       },
+      roadmap: parseStoredRoadmap(course.roadmap),
       instructor: course.trainer
         ? {
             id: course.trainer.id,

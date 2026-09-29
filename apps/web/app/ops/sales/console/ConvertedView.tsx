@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
+import { loadStaffToken } from "@/app/auth/lib/token-store";
 import type { LeadRecord, PendingOrder, SaleReceipt, SalesLead } from "../lib/types";
 import { Panel, Th, Td, Pill, ViewHeader } from "../sections/ui";
 
@@ -91,7 +92,10 @@ export default function ConvertedView({ pipeline, searchQuery, refreshSignal, on
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [pending, setPending] = useState<PendingOrder[]>([]);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<SaleReceipt | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadTargetRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const [lRes, pRes] = await Promise.all([
@@ -151,6 +155,49 @@ export default function ConvertedView({ pipeline, searchQuery, refreshSignal, on
 
   const total = converted.reduce((s, l) => s + l.amount, 0);
   const pendingTotal = pending.reduce((s, o) => s + o.totalAmount, 0);
+
+  function triggerUpload(orderId: string) {
+    uploadTargetRef.current = orderId;
+    fileInputRef.current?.click();
+  }
+
+  async function handleProofSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const orderId = uploadTargetRef.current;
+    e.target.value = "";
+    if (!file || !orderId) return;
+    setUploadingId(orderId);
+    try {
+      const token = await loadStaffToken();
+      const fd = new FormData();
+      fd.append("file", file);
+      // Raw fetch, not opsFetch — opsFetch always forces Content-Type:
+      // application/json, which breaks multipart/form-data uploads (the
+      // browser needs to set its own boundary header).
+      const uploadRes = await fetch("/api/upload/payment-proof", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const uploadBody = await uploadRes.json().catch(() => ({}));
+      if (!uploadRes.ok || !uploadBody?.url) throw new Error(uploadBody?.message ?? "Upload failed");
+
+      const attachRes = await opsFetch(`/api/sales/orders/${orderId}/payment-proof`, {
+        method: "PATCH",
+        body: JSON.stringify({ url: uploadBody.url }),
+      });
+      if (!attachRes.ok) {
+        const e2 = await attachRes.json().catch(() => ({ message: `${attachRes.status}` }));
+        throw new Error(e2.message ?? "Could not save proof");
+      }
+      setPending((prev) => prev.map((o) => (o.id === orderId ? { ...o, paymentProofUrl: uploadBody.url } : o)));
+      onToast?.("Payment proof uploaded", "success");
+    } catch (err) {
+      onToast?.(err instanceof Error ? err.message : "Upload failed", "danger");
+    } finally {
+      setUploadingId(null);
+    }
+  }
 
   async function handleConfirm(order: PendingOrder) {
     setConfirmingId(order.id);
@@ -213,14 +260,35 @@ export default function ConvertedView({ pipeline, searchQuery, refreshSignal, on
                     <Td mono>{fmtDate(o.createdAt)}</Td>
                     <Td mono color="var(--amber)">{fmtRupee(o.totalAmount)}</Td>
                     <Td>
-                      <button
-                        onClick={() => handleConfirm(o)}
-                        disabled={confirmingId === o.id}
-                        className="rounded px-2.5 py-1 font-mono text-[9px] font-bold cursor-pointer"
-                        style={{ background: "var(--green)", color: "#fff", border: "1px solid var(--green)", opacity: confirmingId === o.id ? 0.6 : 1 }}
-                      >
-                        {confirmingId === o.id ? "CONFIRMING…" : "✓ CONFIRM PAYMENT"}
-                      </button>
+                      {o.isOnline ? (
+                        <span className="font-mono text-[9px]" style={{ color: "var(--blue)" }}>
+                          ⏳ Awaiting student payment via link
+                        </span>
+                      ) : !o.paymentProofUrl ? (
+                        <button
+                          onClick={() => triggerUpload(o.id)}
+                          disabled={uploadingId === o.id}
+                          className="rounded px-2.5 py-1 font-mono text-[9px] font-bold cursor-pointer"
+                          style={{ background: "var(--amber)", color: "#fff", border: "1px solid var(--amber)", opacity: uploadingId === o.id ? 0.6 : 1 }}
+                        >
+                          {uploadingId === o.id ? "UPLOADING…" : "📎 UPLOAD PROOF"}
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <a href={o.paymentProofUrl} target="_blank" rel="noreferrer"
+                            className="font-mono text-[9px] font-bold underline" style={{ color: "var(--green)" }}>
+                            ✓ Proof
+                          </a>
+                          <button
+                            onClick={() => handleConfirm(o)}
+                            disabled={confirmingId === o.id}
+                            className="rounded px-2.5 py-1 font-mono text-[9px] font-bold cursor-pointer"
+                            style={{ background: "var(--green)", color: "#fff", border: "1px solid var(--green)", opacity: confirmingId === o.id ? 0.6 : 1 }}
+                          >
+                            {confirmingId === o.id ? "CONFIRMING…" : "✓ CONFIRM"}
+                          </button>
+                        </div>
+                      )}
                     </Td>
                   </tr>
                 ))}
@@ -229,6 +297,8 @@ export default function ConvertedView({ pipeline, searchQuery, refreshSignal, on
           </div>
         )}
       </Panel>
+
+      <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleProofSelected} />
 
       <Panel title="Converted Students" count={`${converted.length} RECORDS`}>
         {converted.length === 0 ? (

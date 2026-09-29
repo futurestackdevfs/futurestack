@@ -9,6 +9,8 @@ interface Props {
   user: DashboardUser | null;
   enrolledCourses: EnrolledCourse[];
   isLoading: boolean;
+  onOpenCourse: (courseId: string) => void;
+  onNavigateTab: (tab: string) => void;
 }
 
 interface EarnedCert {
@@ -154,7 +156,7 @@ function CourseRecommendations({ courses, isLoading, size = "compact" }: { cours
   );
 }
 
-export default function OverviewSection({ user, enrolledCourses, isLoading }: Props) {
+export default function OverviewSection({ user, enrolledCourses, isLoading, onOpenCourse, onNavigateTab }: Props) {
   const { data: certData, isLoading: certLoading } = useSWR<CertificatesResponse>(user ? "/api/certificates/my" : null);
   const { data: featuredCourses, isLoading: featuredLoading } = useSWR<FeaturedCourse[]>("/api/courses/public/featured-courses");
   const { data: orders, isLoading: ordersLoading } = useSWR<Order[]>(user ? "/api/student/orders" : null);
@@ -186,11 +188,11 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
     : allCoursesCompleted
       ? "View Certificates"
       : "Browse Courses";
-  const continueHref = firstCourse
-    ? `/my-dashboard?courseId=${firstCourse.courseId}`
+  const continueAction = firstCourse
+    ? () => onOpenCourse(firstCourse.courseId)
     : allCoursesCompleted
-      ? "/my-dashboard?tab=certificates"
-      : "/courses";
+      ? () => onNavigateTab("certificates")
+      : null; // null => plain Link to /courses
 
   return (
     <div className="flex flex-col gap-5 relative shrink-0 overflow-x-clip [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -217,13 +219,24 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
               Welcome to <span className="bg-clip-text text-transparent" style={{ backgroundImage: "linear-gradient(90deg,var(--orange),#ff9a5c)" }}>FutureStack</span>, {firstName} 👋
             </h1>
             <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-2.5 mt-3 sm:mt-4">
-              <Link
-                href={continueHref}
-                className="group inline-flex items-center gap-2 px-4 sm:px-5 py-[10px] sm:py-[9px] rounded-[9px] text-white text-[12px] sm:text-[11.5px] font-bold no-underline transition-all duration-300 hover:-translate-y-[2px] w-full sm:w-auto sm:max-w-full min-w-0 justify-center sm:justify-start"
-                style={{ background: "linear-gradient(135deg,var(--orange),#ff8a4c)", boxShadow: "0 4px 18px rgba(240,90,26,.4)" }}
-              >
-                <span className="text-[13px] transition-transform group-hover:translate-x-0.5 shrink-0">▶</span> <span className="truncate">{continueLabel}</span>
-              </Link>
+              {continueAction ? (
+                <button
+                  type="button"
+                  onClick={continueAction}
+                  className="group inline-flex items-center gap-2 px-4 sm:px-5 py-[10px] sm:py-[9px] rounded-[9px] text-white text-[12px] sm:text-[11.5px] font-bold no-underline transition-all duration-300 hover:-translate-y-[2px] w-full sm:w-auto sm:max-w-full min-w-0 justify-center sm:justify-start border-none cursor-pointer"
+                  style={{ background: "linear-gradient(135deg,var(--orange),#ff8a4c)", boxShadow: "0 4px 18px rgba(240,90,26,.4)" }}
+                >
+                  <span className="text-[13px] transition-transform group-hover:translate-x-0.5 shrink-0">▶</span> <span className="truncate">{continueLabel}</span>
+                </button>
+              ) : (
+                <Link
+                  href="/courses"
+                  className="group inline-flex items-center gap-2 px-4 sm:px-5 py-[10px] sm:py-[9px] rounded-[9px] text-white text-[12px] sm:text-[11.5px] font-bold no-underline transition-all duration-300 hover:-translate-y-[2px] w-full sm:w-auto sm:max-w-full min-w-0 justify-center sm:justify-start"
+                  style={{ background: "linear-gradient(135deg,var(--orange),#ff8a4c)", boxShadow: "0 4px 18px rgba(240,90,26,.4)" }}
+                >
+                  <span className="text-[13px] transition-transform group-hover:translate-x-0.5 shrink-0">▶</span> <span className="truncate">{continueLabel}</span>
+                </Link>
+              )}
               <Link
                 href="/courses"
                 className="inline-flex items-center justify-center gap-1.5 px-4 py-[10px] sm:py-[9px] rounded-[9px] bg-transparent text-[var(--text2)] border border-[var(--border2)] text-[12px] sm:text-[11.5px] w-full sm:w-auto font-semibold hover:border-[var(--blue2)] hover:text-[var(--blue2)] hover:bg-[var(--blue-d)] transition-all no-underline whitespace-nowrap"
@@ -307,10 +320,11 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
                   </div>
                 ) : (
                   resumeCourses.map((c, i) => (
-                    <Link
+                    <button
                       key={c.courseId}
-                      href={`/my-dashboard?courseId=${c.courseId}`}
-                      className="group relative overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--card)] p-2.5 flex items-center gap-3 no-underline transition-all duration-300 hover:-translate-y-[2px] hover:border-[rgba(240,90,26,.4)] hover:shadow-[0_10px_24px_rgba(240,90,26,.14)]"
+                      type="button"
+                      onClick={() => onOpenCourse(c.courseId)}
+                      className="group relative overflow-hidden rounded-[12px] border border-[var(--border)] bg-[var(--card)] p-2.5 flex items-center gap-3 no-underline transition-all duration-300 hover:-translate-y-[2px] hover:border-[rgba(240,90,26,.4)] hover:shadow-[0_10px_24px_rgba(240,90,26,.14)] w-full text-left cursor-pointer"
                       style={{ animation: `fadeUp .3s ${i * 0.05}s ease both` }}
                     >
                       <div className="flex-1 min-w-0">
@@ -323,7 +337,7 @@ export default function OverviewSection({ user, enrolledCourses, isLoading }: Pr
                         </div>
                       </div>
                       <span className="font-['Syne',sans-serif] text-[13px] font-extrabold text-[var(--orange)] shrink-0">{c.progressPercent}%</span>
-                    </Link>
+                    </button>
                   ))
                 )}
               </div>

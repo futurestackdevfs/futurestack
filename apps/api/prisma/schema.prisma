@@ -192,6 +192,12 @@ model Course {
   code           String?     @unique // internal course code
   skillLevel     SkillLevel?
 
+  // AI-generated learning roadmap (stages/milestones synthesized from the curriculum's
+  // lesson titles + a bit of general industry context). Regenerable from the admin panel;
+  // null until the admin generates it once. See apps/api/src/courses/roadmap/.
+  roadmap            Json?
+  roadmapGeneratedAt DateTime?
+
   sections     Section[]
   enrollments  Enrollment[]
   tracks       TrackCourse[]
@@ -591,6 +597,7 @@ model Order {
   billingCountry    String? // ISO 3166-1 alpha-2, e.g. "IN", "US". Drives currency + invoice format.
   batchMode         String? // "Online" | "Offline" — set by the sales console for manually collected sales
   discountReason    String? // salesperson notes for a manual discount
+  paymentProofUrl   String? // Offline/Cash sales: receipt/screenshot the sales rep uploads before Confirm Payment is allowed
   items             OrderItem[]
   enrollments       Enrollment[]
   leads             Lead[]

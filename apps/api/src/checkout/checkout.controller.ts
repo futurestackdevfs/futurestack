@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
@@ -18,6 +18,13 @@ export class CheckoutController {
   createOrder(@Req() req: Request, @Body() dto: CreateOrderDto) {
     const user = req.user as { id: string };
     return this.checkoutService.createOrder(user.id, dto);
+  }
+
+  @Auth(Role.STUDENT)
+  @Get('pending-order/:orderId')
+  getPendingOrder(@Req() req: Request, @Param('orderId') orderId: string) {
+    const user = req.user as { id: string };
+    return this.checkoutService.getPendingOrder(user.id, orderId);
   }
 
   @Auth(Role.STUDENT)

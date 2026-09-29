@@ -35,3 +35,19 @@ services:
         sync: false
       - key: VDOCIPHER_WEBHOOK_SECRET
         sync: false
+      # AI blog-article generation (Claude), in-process — see apps/api/src/ai and
+      # apps/api/src/blog/pipeline. No separate service/deploy needed.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-haiku-4-5-20251001
+      - key: ANTHROPIC_EFFORT
+        value: low
+      - key: ANTHROPIC_RESEARCH_EFFORT
+        value: low
+      - key: ANTHROPIC_MAX_TOKENS
+        value: "3000"
+      - key: MAX_CONCURRENT_GENERATIONS
+        value: "1"
+      - key: MAX_GENERATIONS_PER_DAY
+        value: "10"

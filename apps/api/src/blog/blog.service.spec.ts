@@ -1,10 +1,11 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { BlogService } from './blog.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiProviderError } from '../ai/ai.errors';
+import { BlogGenerationService } from './pipeline/blog-generation.service';
 
-// Fully mocked PrismaService / AiService / ConfigService — no live DB
-// connection is ever opened, and no real OpenAI or Hacker News network call
-// is ever made by this file (global fetch is mocked below too).
+// Fully mocked PrismaService / BlogGenerationService — no live DB connection
+// is ever opened and no request to the AI provider is ever made.
 function makePrismaMock() {
   return {
     blogPost: {
@@ -38,21 +39,12 @@ function makePostRow(overrides: Partial<Record<string, any>> = {}) {
 describe('BlogService', () => {
   let service: BlogService;
   let prisma: ReturnType<typeof makePrismaMock>;
-  let ai: { completeJson: jest.Mock; model: string };
-  let config: { get: jest.Mock };
-  let fetchSpy: jest.SpyInstance;
+  let generation: { start: jest.Mock; getJob: jest.Mock };
 
   beforeEach(() => {
     prisma = makePrismaMock();
-    ai = { completeJson: jest.fn(), model: 'gpt-mock' };
-    config = { get: jest.fn().mockReturnValue(undefined) };
-    service = new BlogService(prisma, ai as any, config as any);
-    // Stub global fetch so pickTrendingTopic() never makes a real network call.
-    fetchSpy = jest.spyOn(global, 'fetch' as any).mockRejectedValue(new Error('no network in tests'));
-  });
-
-  afterEach(() => {
-    fetchSpy.mockRestore();
+    generation = { start: jest.fn(), getJob: jest.fn() };
+    service = new BlogService(prisma, generation as unknown as BlogGenerationService);
   });
 
   describe('create() / generateUniqueSlug()', () => {
@@ -114,42 +106,49 @@ describe('BlogService', () => {
     });
   });
 
-  describe('generateArticle() — AI failure handling', () => {
-    it('propagates an error from the AI outline call rather than silently creating a bad post', async () => {
-      ai.completeJson.mockRejectedValue(new Error('OpenAI request failed'));
+  describe('AI generation (delegated to BlogGenerationService)', () => {
+    it('starts a job and returns its id', () => {
+      generation.start.mockReturnValue({ jobId: 'job-1' });
 
-      await expect(service.generateArticle('Some topic')).rejects.toThrow(
-        'OpenAI request failed',
-      );
-      expect(prisma.blogPost.create).not.toHaveBeenCalled();
+      expect(service.startGeneration('Some topic')).toEqual({ jobId: 'job-1' });
+
+      expect(generation.start).toHaveBeenCalledWith('Some topic', undefined);
+      expect(prisma.blogPost.create).not.toHaveBeenCalled(); // the pipeline saves the draft, not this call
     });
 
-    it('falls back to a generic topic when the Hacker News fetch fails and no topic was given', async () => {
-      ai.completeJson
-        .mockResolvedValueOnce({
-          angle: 'a',
-          audience: 'devs',
-          keyPoints: ['p1'],
-          seoKeywords: ['k1'],
-        })
-        .mockResolvedValueOnce({
-          title: '__spec__ Generated Title',
-          content: 'body',
-          metaDescription: 'meta',
-          tags: ['tag1'],
-        });
-      (prisma.blogPost.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.blogPost.create as jest.Mock).mockResolvedValue(
-        makePostRow({ title: '__spec__ Generated Title' }),
-      );
-
-      const result = await service.generateArticle();
-
-      expect(fetchSpy).toHaveBeenCalled();
-      expect(result.title).toBe('__spec__ Generated Title');
-      expect(prisma.blogPost.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ status: 'draft' }),
+    it('maps an AiProviderError to a 503 with the reason/retryable the dashboard expects', () => {
+      generation.start.mockImplementation(() => {
+        throw new AiProviderError('busy', 'Too many generations in progress.', true);
       });
+
+      let err: ServiceUnavailableException | undefined;
+      try {
+        service.startGeneration('t');
+      } catch (e) {
+        err = e as ServiceUnavailableException;
+      }
+      expect(err).toBeInstanceOf(ServiceUnavailableException);
+      expect(err!.getResponse()).toMatchObject({ statusCode: 503, message: 'Too many generations in progress.', reason: 'busy', retryable: true });
+    });
+
+    it('rethrows a non-AiProviderError unchanged', () => {
+      generation.start.mockImplementation(() => {
+        throw new Error('unexpected');
+      });
+      expect(() => service.startGeneration('t')).toThrow('unexpected');
+    });
+
+    it('returns job progress unchanged', () => {
+      const job = { id: 'job-1', status: 'running', stage: 'write' };
+      generation.getJob.mockReturnValue(job);
+
+      expect(service.getGeneration('job-1')).toBe(job);
+      expect(generation.getJob).toHaveBeenCalledWith('job-1');
+    });
+
+    it('404s an unknown or expired job', () => {
+      generation.getJob.mockReturnValue(undefined);
+      expect(() => service.getGeneration('missing')).toThrow(NotFoundException);
     });
   });
 

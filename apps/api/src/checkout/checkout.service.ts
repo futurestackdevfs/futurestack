@@ -498,9 +498,14 @@ export class CheckoutService {
         });
       }
 
-      await tx.cart.update({
+      // upsert, not update: a student who never opened their cart (e.g. an
+      // account a sales rep created, or one enrolled via a direct pay link)
+      // has no Cart row yet — update() would throw P2025 and roll back the
+      // whole finalize transaction.
+      await tx.cart.upsert({
         where: { userId: order.userId },
-        data: { items: { deleteMany: {} }, couponId: null },
+        create: { userId: order.userId },
+        update: { items: { deleteMany: {} }, couponId: null },
       });
 
       /* Auto-attribution: this student paid online. If they have an active
@@ -543,6 +548,33 @@ export class CheckoutService {
 
       return enrollments;
     });
+  }
+
+  /**
+   * Fetches a single CREATED order for the "Pay Now" flow (e.g. a sales-rep
+   * generated pay link) — scoped strictly to the requesting student so a
+   * shared link can never be used to pay (or even see) someone else's order.
+   */
+  async getPendingOrder(userId: string, orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { items: { include: { course: { select: { title: true } } } } },
+    });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.userId !== userId) {
+      throw new ForbiddenException('This payment link is not for your account');
+    }
+    if (order.status !== 'CREATED') {
+      throw new BadRequestException(`This order is already ${order.status.toLowerCase()}`);
+    }
+    return {
+      orderId: order.id,
+      razorpayOrderId: order.razorpayOrderId,
+      amount: order.totalAmount.toNumber(),
+      currency: order.currency,
+      keyId: this.razorpayClient.getKeyId(),
+      courseTitle: order.items[0]?.course?.title ?? 'Course',
+    };
   }
 
   /** Handles a parsed Razorpay webhook event. Never throws to the caller. */

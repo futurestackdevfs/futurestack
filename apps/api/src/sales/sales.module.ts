@@ -4,9 +4,10 @@ import { PublicLeadsController } from './public-leads.controller';
 import { SalesService } from './sales.service';
 import { PaymentSettingsModule } from '../payment-settings/payment-settings.module';
 import { MailModule } from '../mail/mail.module';
+import { CheckoutModule } from '../checkout/checkout.module';
 
 @Module({
-  imports: [PaymentSettingsModule, MailModule],
+  imports: [PaymentSettingsModule, MailModule, CheckoutModule],
   controllers: [SalesController, PublicLeadsController],
   providers: [SalesService],
 })

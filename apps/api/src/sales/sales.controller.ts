@@ -71,6 +71,16 @@ export class SalesController {
     );
   }
 
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Patch('orders/:id/payment-proof')
+  attachPaymentProof(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body('url') url: string,
+  ) {
+    return this.salesService.attachPaymentProof(req.user.id, req.user.role, id, url);
+  }
+
   /* ── All enrollments (orders) for this salesperson ── */
 
   @Get('orders')

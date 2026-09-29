@@ -11,5 +11,6 @@ import { RazorpayClientService } from './razorpay-client.service';
   imports: [CartModule, CouponModule, PaymentSettingsModule],
   controllers: [CheckoutController, WebhookController],
   providers: [CheckoutService, RazorpayClientService],
+  exports: [RazorpayClientService],
 })
 export class CheckoutModule {}

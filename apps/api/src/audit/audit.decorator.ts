@@ -9,7 +9,8 @@ export type AuditAction =
   | 'APPROVE'
   | 'REJECT'
   | 'REFUND'
-  | 'DEACTIVATE';
+  | 'DEACTIVATE'
+  | 'GENERATE';
 
 export interface AuditMeta {
   /** Verb recorded on the row. */

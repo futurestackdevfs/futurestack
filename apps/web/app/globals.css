@@ -31,6 +31,7 @@ a {
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
@@ -39,6 +40,16 @@ body {
   color: var(--text);
   font-size: 14px;
   line-height: 1.6;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* `body` is a flex column (see layout.tsx); flex items default to
+   min-width:auto, so they refuse to shrink below their content's natural
+   width. That lets long headings/paragraphs push wider than the viewport
+   instead of wrapping, clipped only by the overflow-x:hidden above. */
+body > * {
+  min-width: 0;
 }
 
 @layer base {

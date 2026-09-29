@@ -226,6 +226,93 @@ export class MailService {
   }
 
   /**
+   * Sent for an Online manual sale (sales console → batchMode "Online") — the
+   * link is the actionable step: it opens a login-gated "Pay Now" page for
+   * this exact order (no cart involved) and triggers the Razorpay checkout
+   * popup directly. Failures are logged, never thrown.
+   */
+  async sendPaymentLinkEmail(
+    to: string,
+    data: {
+      studentName: string;
+      courseName: string;
+      payLink: string;
+      finalAmt: number;
+      isNewStudent: boolean;
+      loginEmail: string;
+      tempPassword: string | null;
+    },
+  ): Promise<void> {
+    try {
+      const credsHtml = data.isNewStudent
+        ? `
+          <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:18px 20px;margin:0 0 22px">
+            <div style="font-size:12px;font-weight:bold;color:#c2410c;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Your account is ready</div>
+            <table style="border-collapse:collapse;font-size:14px">
+              <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Login ID</td><td style="padding:4px 0;font-family:monospace;font-weight:700;color:#111827">${data.loginEmail}</td></tr>
+              <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Temporary password</td><td style="padding:4px 0;font-family:monospace;font-weight:700;color:#ff6b00">${data.tempPassword}</td></tr>
+            </table>
+            <p style="font-size:13px;color:#9a3412;font-weight:600;margin:12px 0 0">⚠️ This password is valid for 10 minutes only — log in right away and set a new password.</p>
+          </div>`
+        : '';
+
+      const text = [
+        `Hi ${data.studentName},`,
+        ``,
+        `Please complete your payment for ${data.courseName} at Future Stack.`,
+        ``,
+        `Course:  ${data.courseName}`,
+        `Amount:  ₹${data.finalAmt.toLocaleString('en-IN')}`,
+        ``,
+        data.isNewStudent
+          ? `Your Future Stack account has been created:\nEmail: ${data.loginEmail}\nTemporary password: ${data.tempPassword}\n\n⚠️ This password is valid for 10 minutes only.\n\n`
+          : ``,
+        `Pay now (log in required): ${data.payLink}`,
+        `This link is only valid for your account — please don't share it.`,
+        ``,
+        `— Future Stack team`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const html = this.fsShell(
+        'Complete your payment',
+        'One step left to unlock your course',
+        `
+        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${data.studentName}</strong>,</p>
+        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">Please complete your payment for <strong>${data.courseName}</strong> to unlock full access.</p>
+
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;margin:0 0 22px">
+          <div style="font-size:12px;font-weight:bold;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Order summary</div>
+          <table style="border-collapse:collapse;font-size:14px">
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Course</td><td style="padding:4px 0;font-weight:600;color:#111827">${data.courseName}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Amount due</td><td style="padding:4px 0;font-weight:600;color:#111827">₹${data.finalAmt.toLocaleString('en-IN')}</td></tr>
+          </table>
+        </div>
+
+        ${credsHtml}
+
+        <div style="text-align:center;margin:0 0 22px">
+          <a href="${data.payLink}" style="display:inline-block;background:linear-gradient(135deg,#ff6b00,#2563eb);color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:10px">Pay Now</a>
+        </div>
+        <p style="font-size:12px;color:#9ca3af;margin:0 0 18px">You'll need to log in to complete this — this link is tied to your account only.</p>
+
+        <p style="font-size:14px;color:#374151;margin:0">— <strong>Future Stack team</strong></p>
+      `,
+      );
+
+      await this.client.inboxes.messages.send(this.inboxId, {
+        to,
+        subject: `Complete your payment for ${data.courseName} 💳`,
+        text,
+        html,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to send payment link email to ${to}`, error);
+    }
+  }
+
+  /**
    * Sent when a pending sale's payment is confirmed (order → PAID). Carries
    * the final receipt + course link. Failures are logged, never thrown.
    */

@@ -5,6 +5,7 @@ allowBuilds:
   '@prisma/engines': true
   bcrypt: true
   core-js: false
+  esbuild: true
   prisma: true
   sharp: true
   unrs-resolver: true

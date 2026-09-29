@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
@@ -19,6 +20,7 @@ import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { CreatePublicLeadDto } from './dto/create-public-lead.dto';
 import { MailService } from '../mail/mail.service';
+import { RazorpayClientService } from '../checkout/razorpay-client.service';
 
 type PipelineStatus = 'New' | 'Interested' | 'Converted' | 'Dropped';
 
@@ -151,6 +153,7 @@ export class SalesService {
     private readonly paymentSettings: PaymentSettingsService,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
+    private readonly razorpayClient: RazorpayClientService,
   ) {}
 
   private round2(n: number): number {
@@ -836,7 +839,9 @@ export class SalesService {
           gstAmount,
           totalAmount,
           status: OrderStatus.CREATED,
-          razorpayOrderId: `MANUAL-${orderId}`,
+          // Placeholder — overwritten below once we know whether this is an
+          // Online (real Razorpay order) or Offline (MANUAL-<id>) sale.
+          razorpayOrderId: orderId,
           paymentMethod: dto.paymentMethod,
           billingFullName: createAcct && isNew ? dto.name : dto.name ?? undefined,
           billingEmail: createAcct && isNew ? dto.email : undefined,
@@ -911,8 +916,62 @@ export class SalesService {
       };
     });
 
+    let payLink: string | null = null;
+    if (result.batchMode === 'Online') {
+      // Real Razorpay order — the student pays this directly via the /pay
+      // link (login-gated, no cart involved). finalizeOrder() (shared with
+      // the normal checkout/webhook path) creates the Enrollment +
+      // RevenueLedger automatically once Razorpay confirms payment.
+      try {
+        const rzpOrder = await this.razorpayClient.getClient().orders.create({
+          amount: Math.round(result.finalAmt * 100),
+          currency: 'INR',
+          receipt: result.orderId,
+        });
+        await this.prisma.order.update({
+          where: { id: result.orderId },
+          data: { razorpayOrderId: rzpOrder.id },
+        });
+        payLink = `${this.frontendUrl}/pay/${result.orderId}`;
+      } catch (e) {
+        // Roll back — never leave a CREATED order with a fake razorpayOrderId
+        // that can't actually be paid.
+        await this.prisma.order.delete({ where: { id: result.orderId } });
+        if (result.leadConverted && dto.leadId) {
+          // The order's FK (onDelete: SetNull) already cleared lead.orderId,
+          // but the pipeline status must also revert — the sale it was
+          // "converted" for never actually went through.
+          await this.prisma.lead.update({
+            where: { id: dto.leadId },
+            data: { status: 'Interested', score: 60 },
+          });
+        }
+        throw new ServiceUnavailableException(
+          'Payment gateway unavailable, please try again',
+        );
+      }
+    } else {
+      await this.prisma.order.update({
+        where: { id: result.orderId },
+        data: { razorpayOrderId: `MANUAL-${result.orderId}` },
+      });
+    }
+
     let emailSent = false;
-    if (dto.sendEmail && result.studentEmail && result.createAccount) {
+    if (dto.sendEmail && result.studentEmail && payLink) {
+      // Online: the email itself IS the actionable step (payment link) — send
+      // it regardless of whether the account is new or existing.
+      await this.mailService.sendPaymentLinkEmail(result.studentEmail, {
+        studentName: result.studentName ?? 'Student',
+        courseName: result.courseName,
+        payLink,
+        finalAmt: result.finalAmt,
+        isNewStudent: result.isNewStudent,
+        loginEmail: result.studentEmail,
+        tempPassword: result.tempPassword,
+      });
+      emailSent = true;
+    } else if (dto.sendEmail && result.studentEmail && result.createAccount) {
       await this.mailService.sendSaleProcessingEmail(result.studentEmail, {
         studentName: result.studentName ?? 'Student',
         courseName: result.courseName,
@@ -926,15 +985,20 @@ export class SalesService {
       emailSent = true;
     }
 
-    return { ...result, emailSent };
+    return { ...result, emailSent, payLink };
   }
 
   /* ── Pending payments (UNDER PROCESSING orders) ── */
 
   async listPendingOrders(userId: string, role: Role) {
+    // Sales-attributed CREATED orders only — both Offline (MANUAL-<id>,
+    // waiting for a rep to confirm cash/proof) and Online (real Razorpay
+    // order, waiting for the student to pay via their link) show up here so
+    // reps can see what's outstanding, even though only Offline ones get a
+    // manual "Confirm Payment" action.
     const where: Prisma.OrderWhereInput = {
       status: OrderStatus.CREATED,
-      razorpayOrderId: { startsWith: 'MANUAL-' },
+      salespersonId: { not: null },
     };
     if (role !== Role.ADMIN) where.salespersonId = userId;
     const orders = await this.prisma.order.findMany({
@@ -954,8 +1018,30 @@ export class SalesService {
       totalAmount: o.totalAmount.toNumber(),
       batchMode: o.batchMode,
       paymentMethod: o.paymentMethod,
+      paymentProofUrl: o.paymentProofUrl,
+      isOnline: !o.razorpayOrderId.startsWith('MANUAL-'),
       createdAt: o.createdAt.toISOString(),
     }));
+  }
+
+  /**
+   * Attaches an uploaded payment-proof image URL to an Offline/Cash order —
+   * required before confirmPayment() will allow that order to be marked PAID.
+   */
+  async attachPaymentProof(userId: string, role: Role, orderId: string, url: string) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (role !== Role.ADMIN && order.salespersonId !== userId) {
+      throw new NotFoundException('Order not found');
+    }
+    if (order.status !== OrderStatus.CREATED) {
+      throw new BadRequestException('Order is not pending payment');
+    }
+    return this.prisma.order.update({
+      where: { id: orderId },
+      data: { paymentProofUrl: url },
+      select: { id: true, paymentProofUrl: true },
+    });
   }
 
   /**
@@ -989,6 +1075,19 @@ export class SalesService {
     }
     if (order.status !== OrderStatus.CREATED) {
       throw new BadRequestException('Order is not pending payment');
+    }
+    // Online sales confirm themselves automatically via the Razorpay webhook
+    // once the student pays through their link — manual confirmation here
+    // would let a rep mark it PAID without any real payment ever happening.
+    if (!order.razorpayOrderId.startsWith('MANUAL-')) {
+      throw new BadRequestException(
+        'This is an online sale — it confirms automatically once the student completes payment via their link',
+      );
+    }
+    if (!order.paymentProofUrl) {
+      throw new BadRequestException(
+        'Upload a payment receipt/screenshot before confirming this sale',
+      );
     }
     const course = order.items[0]?.course;
     if (!course) throw new BadRequestException('Order has no course');

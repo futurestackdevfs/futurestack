@@ -12,6 +12,7 @@ import type { EnrolledCourse } from "../../hooks/student-dashboard";
 import DiscussionTab from "./DiscussionTab";
 import VideoPlayer from "./VideoPlayer";
 import QuizPlayer from "./QuizPlayer";
+import { RoadmapView, type RoadmapData } from "@/components/RoadmapTree";
 
 interface CurriculumItem {
   type: 'video' | 'quiz';
@@ -65,6 +66,7 @@ interface StudentCourseDetail {
     fileSizeLabel: string | null;
   }[];
   sections: CourseSection[];
+  roadmap: RoadmapData | null;
 }
 
 interface Props {
@@ -74,11 +76,12 @@ interface Props {
   onViewCertificate?: () => void;
 }
 
-const TABS = ["curriculum", "overview", "resources", "discussion"] as const;
+const TABS = ["curriculum", "roadmap", "overview", "resources", "discussion"] as const;
 type Tab = (typeof TABS)[number];
 
 const TAB_LABELS: Record<Tab, { label: string; icon: string; badge?: string }> = {
   curriculum: { label: "Curriculum", icon: "📋" },
+  roadmap: { label: "Roadmap", icon: "🗺️" },
   overview: { label: "Overview", icon: "ℹ️" },
   resources: { label: "Resources", icon: "📎" },
   discussion: { label: "Discussion", icon: "💬" },
@@ -513,7 +516,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
           ) : (
           <>
           <div className="flex bg-[var(--surface)] border-b border-[var(--border)] shrink-0">
-            {TABS.map(tab => {
+            {TABS.filter(tab => tab !== "roadmap" || detail.roadmap).map(tab => {
               const info = TAB_LABELS[tab];
               return (
                 <button key={tab} onClick={() => setActiveTab(tab)}
@@ -557,12 +560,12 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                       className={`flex items-center gap-[10px] sm:gap-[12px] px-4 sm:px-5 py-[13px] sm:py-4 cursor-pointer select-none transition-all ${hasActive ? "bg-[rgba(240,90,26,.04)]" : "bg-[var(--surface)] hover:bg-[var(--card-h)]"}`}>
                       <span className={`text-[12px] sm:text-[13px] text-[var(--text3)] shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`}>▶</span>
                       <span className="text-[11px] sm:text-[12px] font-bold text-[var(--orange)] w-[20px] sm:w-6 shrink-0">{String(si + 1).padStart(2, "0")}</span>
-                      <span className="text-[15px] sm:text-[16px] font-bold text-[var(--text)] flex-1 truncate">{section.title}</span>
-                      <span className="text-[11.5px] sm:text-[12px] text-[var(--text3)] gap-[8px] sm:gap-[10px] shrink-0 hidden sm:flex">
+                      <span className="text-[13px] sm:text-[14px] font-bold text-[var(--text)] flex-1 truncate">{section.title}</span>
+                      <span className="text-[10.5px] sm:text-[11px] text-[var(--text3)] gap-[8px] sm:gap-[10px] shrink-0 hidden sm:flex">
                         <span>{section.totalItems} lessons</span>
                         <span>{fmtMins(sectionMinutes)}</span>
                       </span>
-                      <span className="text-[11.5px] sm:text-[12px] font-bold text-[var(--orange)] shrink-0">
+                      <span className="text-[10.5px] sm:text-[11px] font-bold text-[var(--orange)] shrink-0">
                         {section.completedItems}/{section.totalItems}
                       </span>
                     </div>
@@ -606,11 +609,11 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
 
                             {/* Title + type */}
                             <div className="flex-1 sm:flex-none min-w-0">
-                              <div className="text-[13.5px] sm:text-[14.5px] font-semibold text-[var(--text)] leading-[1.3] truncate"
+                              <div className="text-[12px] sm:text-[13px] font-semibold text-[var(--text)] leading-[1.3] truncate"
                                 style={isSelected ? { color: "var(--orange)" } : {}}>
                                 {item.title}
                               </div>
-                              <div className="text-[11.5px] sm:text-[12px] text-[var(--text3)] mt-[1px]">
+                              <div className="text-[10.5px] sm:text-[11px] text-[var(--text3)] mt-[1px]">
                                 {item.type === 'quiz'
                                   ? `📝 Quiz · ${item.totalQuestions ?? '?'} q`
                                   : '📹 Video'}
@@ -618,12 +621,12 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                             </div>
 
                             {/* Duration */}
-                            <div className="text-[12px] sm:text-[13px] text-[var(--text2)] text-right whitespace-nowrap hidden sm:block">
+                            <div className="text-[10.5px] sm:text-[11.5px] text-[var(--text2)] text-right whitespace-nowrap hidden sm:block">
                               {item.type === 'video' && item.durationSeconds ? fmtMins(item.durationSeconds) : ''}
                             </div>
 
                             {/* Score */}
-                            <div className="text-[12px] sm:text-[13px] font-bold text-right whitespace-nowrap text-[var(--text3)] hidden sm:block">
+                            <div className="text-[10.5px] sm:text-[11.5px] font-bold text-right whitespace-nowrap text-[var(--text3)] hidden sm:block">
                               {item.score != null ? `${item.score}%` : '—'}
                             </div>
 
@@ -649,6 +652,15 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
               })}
             </div>
           </div>
+
+          {/* ROADMAP */}
+          {detail.roadmap && (
+            <div className={`flex-1 overflow-y-auto ${activeTab === "roadmap" ? "flex flex-col" : "hidden"}`}>
+              <div className="px-3 sm:px-5 pt-5 sm:pt-7 pb-4 sm:pb-5">
+                <RoadmapView roadmap={detail.roadmap} />
+              </div>
+            </div>
+          )}
 
           {/* OVERVIEW */}
           <div className={`flex-1 overflow-y-auto ${activeTab === "overview" ? "flex flex-col" : "hidden"}`}>
