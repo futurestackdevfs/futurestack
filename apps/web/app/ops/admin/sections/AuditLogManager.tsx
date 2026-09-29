@@ -20,10 +20,10 @@ interface AuditRow {
   createdAt: string;
 }
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 10;
 
-const ACTIONS = ["", "CREATE", "UPDATE", "DELETE", "DEACTIVATE", "APPROVE", "REJECT", "REFUND"];
-const ENTITIES = ["", "Coupon", "Course", "Track", "HeroSlide", "Enrollment", "Refund", "PaymentSettings", "Trainer", "Staff", "User"];
+const ACTIONS = ["", "CREATE", "UPDATE", "DELETE", "DEACTIVATE", "APPROVE", "REJECT", "REFUND", "GENERATE"];
+const ENTITIES = ["", "Coupon", "Course", "BlogPost", "Track", "HeroSlide", "Enrollment", "Refund", "PaymentSettings", "Trainer", "Staff", "User"];
 
 const ACTION_COLOR: Record<string, { fg: string; bg: string }> = {
   CREATE: { fg: "var(--green)", bg: "var(--green-d)" },
@@ -33,6 +33,7 @@ const ACTION_COLOR: Record<string, { fg: string; bg: string }> = {
   APPROVE: { fg: "var(--green)", bg: "var(--green-d)" },
   REJECT: { fg: "var(--red)", bg: "var(--red-d)" },
   REFUND: { fg: "var(--purple)", bg: "var(--purple-d)" },
+  GENERATE: { fg: "var(--pink)", bg: "var(--pink-d)" },
 };
 
 function actionColor(a: string) {

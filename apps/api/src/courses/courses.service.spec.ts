@@ -81,7 +81,7 @@ describe('CoursesService', () => {
 
   beforeEach(() => {
     prisma = makePrismaMock();
-    service = new CoursesService(prisma, makeVdoCipherMock(), makeS3Mock());
+    service = new CoursesService(prisma, makeVdoCipherMock(), makeS3Mock(), { start: jest.fn(), getJob: jest.fn(), cancel: jest.fn() } as any);
   });
 
   describe('createCourse()', () => {

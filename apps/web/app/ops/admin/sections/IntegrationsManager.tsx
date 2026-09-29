@@ -8,6 +8,14 @@ interface IntegrationField {
   present: boolean;
 }
 
+interface IntegrationUsage {
+  generations: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
 interface IntegrationStatus {
   key: string;
   label: string;
@@ -15,6 +23,10 @@ interface IntegrationStatus {
   fields: IntegrationField[];
   webhookConfigured?: boolean;
   webhookRoute?: string;
+  /** Extra plain informational lines (e.g. model name) — no check/cross icon. */
+  info?: string[];
+  /** Cumulative token/cache usage across every completed AI generation (from the audit log). */
+  usage?: IntegrationUsage;
 }
 
 const ICONS: Record<string, string> = {
@@ -23,6 +35,7 @@ const ICONS: Record<string, string> = {
   storage: "🗄",
   google: "🔑",
   email: "✉",
+  claude: "✨",
 };
 
 interface Props {
@@ -120,6 +133,31 @@ export default function IntegrationsManager({ onOpenPaymentSettings }: Props) {
                     <span className="font-mono" style={{ color: "var(--text2)" }}>{f.name}</span>
                   </div>
                 ))}
+
+                {item.info?.map((line) => (
+                  <div key={line} className="font-mono text-[11px]" style={{ color: "var(--text3)" }}>{line}</div>
+                ))}
+
+                {item.usage && (
+                  <div
+                    className="mt-1.5 pt-1.5 flex flex-col gap-1"
+                    style={{ borderTop: "1px solid var(--border)" }}
+                  >
+                    <div className="font-mono text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: "var(--text3)" }}>
+                      Usage · {item.usage.generations} generation{item.usage.generations === 1 ? "" : "s"}
+                    </div>
+                    {item.usage.generations === 0 ? (
+                      <div className="text-[10.5px]" style={{ color: "var(--text3)" }}>No completed generations yet.</div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[10.5px]" style={{ color: "var(--text2)" }}>
+                        <span>Input tokens</span><span className="text-right font-semibold" style={{ color: "var(--text)" }}>{item.usage.inputTokens.toLocaleString()}</span>
+                        <span>Output tokens</span><span className="text-right font-semibold" style={{ color: "var(--text)" }}>{item.usage.outputTokens.toLocaleString()}</span>
+                        <span>Cache read</span><span className="text-right font-semibold" style={{ color: "var(--text)" }}>{item.usage.cacheReadTokens.toLocaleString()}</span>
+                        <span>Cache written</span><span className="text-right font-semibold" style={{ color: "var(--text)" }}>{item.usage.cacheWriteTokens.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {item.webhookRoute && (
                   <div

@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Header,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -440,6 +441,29 @@ export class CoursesController {
     @Body() dto: SetCourseCareerPathDto,
   ) {
     return this.coursesService.setCourseCareerPath(id, dto.title);
+  }
+
+  // AI-generated course roadmap. Regenerating overwrites the previous one.
+  // Background job (like blog generation) — returns a job id immediately.
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post(':courseId/roadmap/generate')
+  @HttpCode(202)
+  @Audit({ action: 'GENERATE', entity: 'Course', idFrom: 'param', idParam: 'courseId' })
+  generateRoadmap(@Param('courseId') courseId: string, @Req() req: Request) {
+    const user = req.user as { id: string; email: string; name: string; role: string };
+    return this.coursesService.startRoadmapGeneration(courseId, { id: user.id, role: user.role, email: user.email, name: user.name });
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get(':courseId/roadmap/generate/:jobId')
+  roadmapGenerationStatus(@Param('jobId') jobId: string) {
+    return this.coursesService.getRoadmapGeneration(jobId);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Delete(':courseId/roadmap/generate/:jobId')
+  cancelRoadmapGeneration(@Param('jobId') jobId: string) {
+    return this.coursesService.cancelRoadmapGeneration(jobId);
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)

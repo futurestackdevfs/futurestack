@@ -30,7 +30,13 @@ interface SectionRendererProps {
 
 const COMPONENT_MAP: Record<string, ReactNode | ((props: any) => ReactNode)> = {
   overview: (props: SectionRendererProps) => (
-    <OverviewSection user={props.data?.user ?? null} enrolledCourses={props.enrolledCourses} isLoading={props.isLoading} />
+    <OverviewSection
+      user={props.data?.user ?? null}
+      enrolledCourses={props.enrolledCourses}
+      isLoading={props.isLoading}
+      onOpenCourse={(courseId) => { props.setSelectedCourseId(courseId); props.setActiveTab("courses"); }}
+      onNavigateTab={(tab) => props.setActiveTab(tab)}
+    />
   ),
   courses: (props: SectionRendererProps) => {
     if (props.selectedCourseId && props.selectedCourse) {

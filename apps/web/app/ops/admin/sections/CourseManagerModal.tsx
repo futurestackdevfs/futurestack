@@ -5,8 +5,9 @@ import { CurriculumBuilder } from "./CurriculumBuilder";
 import { ResourceManagerModal } from "./ResourceManagerModal";
 import { MasterDataModal, type FieldDef } from "./MasterDataModal";
 import { CourseSkillTestsTab } from "./CourseSkillTestsTab";
+import { CourseRoadmapTab } from "./CourseRoadmapTab";
 
-type CourseManagerTab = "curriculum" | "resources" | "skilltest" | "edit";
+type CourseManagerTab = "curriculum" | "resources" | "skilltest" | "roadmap" | "edit";
 
 interface CourseManagerModalProps {
   open: boolean;
@@ -26,6 +27,7 @@ const TABS: { key: CourseManagerTab; icon: string; label: string }[] = [
   { key: "curriculum", icon: "📋", label: "Curriculum" },
   { key: "resources", icon: "📎", label: "Resources" },
   { key: "skilltest", icon: "🧪", label: "Quiz" },
+  { key: "roadmap", icon: "🗺", label: "Roadmap" },
   { key: "edit", icon: "✏", label: "Edit Details" },
 ];
 
@@ -121,6 +123,13 @@ export function CourseManagerModal({
           )}
           {activeTab === "skilltest" && (
             <CourseSkillTestsTab
+              courseId={courseId}
+              token={token}
+              onChanged={() => { onCurriculumSaved?.(); }}
+            />
+          )}
+          {activeTab === "roadmap" && (
+            <CourseRoadmapTab
               courseId={courseId}
               token={token}
               onChanged={() => { onCurriculumSaved?.(); }}

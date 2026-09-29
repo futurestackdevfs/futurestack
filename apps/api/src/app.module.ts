@@ -3,9 +3,9 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
-import { BlogApiKeyGuard } from './blog/blog-api-key.guard';
 import { validateEnv } from './config.validation';
 import { PrismaModule } from './prisma/prisma.module';
+import { AiModule } from './ai/ai.module';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { AppController } from './app.controller';
@@ -54,6 +54,7 @@ import { CareersModule } from './careers/careers.module';
       }),
     }),
     PrismaModule,
+    AiModule,
     AuditModule,
     AuthModule,
     StudentModule,
@@ -90,7 +91,6 @@ import { CareersModule } from './careers/careers.module';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
-    BlogApiKeyGuard,
   ],
 })
 export class AppModule {}

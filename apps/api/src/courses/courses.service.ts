@@ -3,11 +3,16 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
 import { S3Service } from '../upload/s3.service';
+import { AiProviderError } from '../ai/ai.errors';
+import { AuditActor } from '../audit/audit.service';
+import { CourseRoadmapService, RoadmapJob } from './roadmap/course-roadmap.service';
+import { RoadmapSchema } from './roadmap/roadmap-schemas';
 import { CreateTrackDto } from './dto/create-track.dto';
 import { UpdateTrackDto } from './dto/update-track.dto';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -37,6 +42,19 @@ function slugify(text: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
+}
+
+/**
+ * Validates a stored `Course.roadmap` JSON blob against the current schema
+ * before it's ever returned to a client. Guards against roadmaps saved under
+ * an older schema version (the shape changed once already, from
+ * stages/skills to nodes/topics) — rather than crash the frontend, treat a
+ * stale/invalid shape as "not generated yet" so the admin can regenerate it.
+ */
+export function parseStoredRoadmap(raw: unknown): ReturnType<typeof RoadmapSchema.parse> | null {
+  if (!raw) return null;
+  const result = RoadmapSchema.safeParse(raw);
+  return result.success ? result.data : null;
 }
 
 // DB values are sometimes stored as bare relative paths (e.g. "images/foo.png")
@@ -79,7 +97,41 @@ export class CoursesService {
     private readonly prisma: PrismaService,
     private readonly vdoCipherService: VdoCipherService,
     private readonly s3Service: S3Service,
+    private readonly roadmapService: CourseRoadmapService,
   ) {}
+
+  /** Starts background roadmap generation for a course; returns a job id right away. */
+  startRoadmapGeneration(courseId: string, actor?: AuditActor): { jobId: string } {
+    try {
+      return this.roadmapService.start(courseId, actor);
+    } catch (err) {
+      throw this.toRoadmapHttpError(err);
+    }
+  }
+
+  getRoadmapGeneration(jobId: string): RoadmapJob {
+    const job = this.roadmapService.getJob(jobId);
+    if (!job) throw new NotFoundException('Roadmap generation job not found or expired');
+    return job;
+  }
+
+  cancelRoadmapGeneration(jobId: string): { cancelled: true } {
+    this.roadmapService.cancel(jobId);
+    return { cancelled: true };
+  }
+
+  private toRoadmapHttpError(err: unknown): ServiceUnavailableException {
+    if (err instanceof AiProviderError) {
+      return new ServiceUnavailableException({
+        statusCode: 503,
+        error: 'Roadmap Generation Failed',
+        message: err.message,
+        reason: err.code,
+        retryable: err.retryable,
+      });
+    }
+    throw err;
+  }
 
   // Cached-response key prefixes for the public course/track catalog. Hero
   // slides are tracked separately so a hero edit doesn't evict the whole
@@ -425,6 +477,7 @@ export class CoursesService {
           totalQuestions: q.totalQuestions,
         })),
       })),
+      roadmap: parseStoredRoadmap(course.roadmap),
     };
     this.catalogCache.set(CACHE_KEY, result);
     return result;
@@ -1294,7 +1347,7 @@ export class CoursesService {
       },
     });
     if (!course) throw new NotFoundException('Course not found');
-    return course;
+    return { ...course, roadmap: parseStoredRoadmap(course.roadmap) };
   }
 
   async updateCourse(id: string, dto: UpdateCourseDto) {

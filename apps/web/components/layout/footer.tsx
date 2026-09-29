@@ -41,14 +41,43 @@ export function Footer() {
           font-size: 14px; font-weight: 800; letter-spacing: .06em;
           text-transform: uppercase; color: var(--muted); margin: 0 0 14px;
         }
+        .footer-container { margin: 0 auto; padding: 0 40px; }
+        .footer-bottom-wrap { margin-top: 36px; border-top: 1px solid var(--border); }
+        .footer-bottom-inner {
+          padding: 16px 40px; display: flex; flex-direction: row; flex-wrap: wrap;
+          justify-content: space-between; align-items: center; gap: 10px; text-align: center;
+        }
+        .footer-brand-logo { height: 46px; width: auto; margin-bottom: 12px; }
+        .footer-brand-desc { color: var(--muted); font-size: 15px; line-height: 1.7; margin: 0; }
+        .footer-copy { color: var(--muted); font-size: 14px; margin: 0; }
+        .footer-bottom-links { display: flex; gap: 18px; flex-wrap: wrap; align-items: center; justify-content: center; }
+
+        @media (max-width: 639px) {
+          .footer-top { padding: 28px 0 14px; }
+          .footer-container { padding: 0 20px; }
+          .footer-grid { gap: 26px; }
+          .footer-col-title { font-size: 12.5px; margin-bottom: 10px; }
+          .footer-link { font-size: 13.5px; }
+          .footer-brand-logo { height: 38px; margin-bottom: 10px; }
+          .footer-brand-desc { font-size: 13.5px; line-height: 1.6; }
+          .footer-social-link { width: 32px; height: 32px; font-size: 13px; }
+          .footer-bottom-wrap { margin-top: 22px; }
+          .footer-bottom-inner { padding: 14px 20px; gap: 12px; justify-content: center; }
+          .footer-copy { font-size: 12.5px; text-align: center; }
+          .footer-bottom-links { gap: 12px 16px; }
+          .footer-bottom-link { font-size: 12.5px; }
+          .footer-newsletter-input { height: 34px !important; font-size: 13px !important; }
+          .footer-newsletter-btn { height: 34px !important; font-size: 13px !important; padding: 0 12px !important; }
+          .footer-staff-login { margin-top: 12px !important; padding: 6px 12px !important; font-size: 12px !important; }
+        }
       `}</style>
 
       <div className="footer-top">
-        <div style={{ margin: "0 auto", padding: "0 40px" }}>
+        <div className="footer-container">
           <div className="footer-grid">
             <div className="footer-brand-col">
-              <Image src="/images/logo.png" alt="FutureStack" width={140} height={46} style={{ height: 46, width: "auto", marginBottom: 12 }} />
-              <p style={{ color: "var(--muted)", fontSize: 15, lineHeight: 1.7, margin: 0 }}>
+              <Image src="/images/logo.png" alt="FutureStack" width={140} height={46} className="footer-brand-logo" />
+              <p className="footer-brand-desc">
                 Think. Create. Conquer. Build real-world skills with industry-certified courses and hands-on projects.
               </p>
             </div>
@@ -74,6 +103,7 @@ export function Footer() {
                 <input
                   type="email"
                   placeholder="Email address"
+                  className="footer-newsletter-input"
                   style={{
                     flex: 1,
                     minWidth: 140,
@@ -88,6 +118,7 @@ export function Footer() {
                   }}
                 />
                 <button
+                  className="footer-newsletter-btn"
                   style={{
                     height: 38,
                     border: "none",
@@ -114,6 +145,7 @@ export function Footer() {
               </div>
               <a
                 href="/auth/staff-login"
+                className="footer-staff-login"
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -143,17 +175,12 @@ export function Footer() {
         </div>
       </div>
 
-      <div
-        style={{
-          marginTop: 36,
-          borderTop: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ padding: "16px 40px", display: "flex", flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 10, textAlign: "center" }}>
-          <p style={{ color: "var(--muted)", fontSize: 14, margin: 0 }}>
+      <div className="footer-bottom-wrap">
+        <div className="footer-bottom-inner">
+          <p className="footer-copy">
             &copy; {new Date().getFullYear()} FutureStack Inc. All rights reserved.
           </p>
-          <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center", justifyContent: "center" }}>
+          <div className="footer-bottom-links">
             {[
               { label: "Privacy Policy", href: "#legal:privacy-policy" },
               { label: "Terms", href: "#legal:terms" },

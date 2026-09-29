@@ -55,7 +55,7 @@ interface Props {
   searchQuery?: string;
 }
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 10;
 
 export default function EnrollmentsManager({ searchQuery = "" }: Props) {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);

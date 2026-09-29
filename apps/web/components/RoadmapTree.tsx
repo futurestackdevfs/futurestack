@@ -1,0 +1,417 @@
+"use client";
+
+export type ChipKind = "must" | "pick-one" | "optional";
+
+export interface RoadmapChipData {
+  title: string;
+  kind: ChipKind;
+  lessonTitles: string[];
+}
+export interface RoadmapNodeData {
+  title: string;
+  description: string;
+  chips: RoadmapChipData[];
+}
+export interface RoadmapPhaseData {
+  phase: "Beginner" | "Intermediate" | "Advanced";
+  nodes: RoadmapNodeData[];
+}
+export interface RoadmapData {
+  title: string;
+  summary: string;
+  prerequisites: string[];
+  phases: RoadmapPhaseData[];
+}
+
+const LEVEL: Record<string, { k: string; bg: string; label: string; tagline: string; icon: string }> = {
+  Beginner: { k: "var(--green)", bg: "var(--green-d)", label: "Beginner", tagline: "Learn the core", icon: "●" },
+  Intermediate: { k: "var(--amber)", bg: "var(--amber-d)", label: "Intermediate", tagline: "Patterns and ecosystem", icon: "◆" },
+  Advanced: { k: "var(--purple)", bg: "var(--purple-d)", label: "Advanced", tagline: "Ship it to production", icon: "▲" },
+};
+
+const CHIP_LABEL: Record<ChipKind, string> = { must: "Must learn", "pick-one": "Pick one", optional: "Optional or later" };
+
+function Chip({ chip, levelK, levelBg, onSide }: { chip: RoadmapChipData; levelK: string; levelBg: string; onSide: "left" | "right" }) {
+  const style: React.CSSProperties =
+    chip.kind === "must"
+      ? { background: levelBg, border: `1px solid ${levelK}`, color: levelK, fontWeight: 500 }
+      : chip.kind === "pick-one"
+        ? { background: "var(--panel)", border: `1px dashed ${levelK}`, color: "var(--text)", fontWeight: 400 }
+        : { background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text3)", fontWeight: 400 };
+
+  // Inline (not just the .rm-chip class) because Tailwind's preflight reset
+  // sets `button { padding: 0 }`, which otherwise fights the class-based rule.
+  const sizeStyle: React.CSSProperties = {
+    padding: "var(--rm-chip-py) var(--rm-chip-px)",
+    fontSize: "var(--rm-chip-fs)",
+    minWidth: "var(--rm-chip-min-w)",
+    maxWidth: "var(--rm-chip-max-w)",
+  };
+
+  return (
+    <button
+      type="button"
+      className={`rm-chip relative outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${onSide === "right" ? "rm-chip-r" : "rm-chip-l"}`}
+      style={{ ...style, ...sizeStyle }}
+      title={chip.lessonTitles.length ? `Lesson: ${chip.lessonTitles.join(", ")}` : chip.title}
+      onClick={() => {
+        const fn = (window as any).sendPrompt;
+        if (typeof fn === "function") fn(`${chip.title} kya hai, explain karo`);
+        else console.log(`${chip.title}: ${CHIP_LABEL[chip.kind]}`);
+      }}
+    >
+      {chip.title}
+      {chip.lessonTitles.length > 0 && <span className="ml-1 opacity-70">▸</span>}
+    </button>
+  );
+}
+
+/**
+ * roadmap.sh-style spine diagram: one continuous vertical line, a start and
+ * end node, three level dividers, main topic nodes on the spine (numbered
+ * continuously), and sub-topic chips alternating left/right of the spine
+ * with real connector lines. Fixed width, grows downward only — never wider
+ * than its container. All sizing (node width, fonts, padding) scales down at
+ * two breakpoints (tablet/laptop and mobile) via the CSS below, not just a
+ * single all-or-nothing mobile switch.
+ */
+export function RoadmapTree({ roadmap }: { roadmap: RoadmapData }) {
+  let counter = 0;
+
+  return (
+    <div className="rm-spine w-full max-w-[720px] mx-auto">
+      <div className="relative flex flex-col items-stretch">
+        {/* spine line — scoped to this wrapper only, so it never runs through the legend above */}
+        <div className="rm-line absolute left-1/2 -translate-x-1/2 top-0 bottom-0" style={{ background: "var(--border2)", zIndex: 0 }} />
+
+        {/* start node */}
+        <div className="rm-endnode-wrap flex justify-center" style={{ position: "relative", zIndex: 1 }}>
+          <div className="rm-endnode relative z-[1] rounded-[12px] text-center" style={{ background: "var(--btn-bg, #111827)", color: "var(--btn-text, #fff)", opacity: 0.9 }}>
+            <div className="rm-endnode-title font-medium">Prerequisites</div>
+            <div className="rm-endnode-sub opacity-70">{roadmap.prerequisites.length ? roadmap.prerequisites.join(", ") : "None — start here"}</div>
+          </div>
+        </div>
+
+        {roadmap.phases.map((phase) => {
+          const lv = LEVEL[phase.phase] ?? LEVEL.Beginner;
+          return (
+            <div key={phase.phase} className="flex flex-col items-stretch">
+              {/* level pill */}
+              <div className="rm-pill-wrap flex justify-center" style={{ position: "relative", zIndex: 1 }}>
+                <div
+                  className="rm-pill relative z-[1] inline-flex items-center rounded-full"
+                  style={{ background: "var(--surface)", color: lv.k, border: `1.5px solid ${lv.k}` }}
+                >
+                  <span aria-hidden>{lv.icon}</span>
+                  <span className="font-medium">{lv.label}</span>
+                  <span className="opacity-70">— {lv.tagline}</span>
+                </div>
+              </div>
+
+              {phase.nodes.map((node, ni) => {
+                counter++;
+                const side: "left" | "right" = counter % 2 === 1 ? "right" : "left";
+                return (
+                  <div key={ni} className="rm-row grid items-center">
+                    {/* left column */}
+                    <div
+                      className={`flex justify-end min-w-0 ${side === "left" && node.chips.length > 0 ? "rm-side rm-side-l" : ""}`}
+                      style={{ ["--tick" as string]: lv.k }}
+                    >
+                      {side === "left" && node.chips.length > 0 && (
+                        <ul className="rm-bracket rm-bracket-l flex flex-col min-w-0 max-w-full" style={{ borderColor: lv.k, ["--tick" as string]: lv.k }}>
+                          {node.chips.map((chip, ci) => (
+                            <li key={ci} className="rm-tick rm-tick-l">
+                              <Chip chip={chip} levelK={lv.k} levelBg={lv.bg} onSide="left" />
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    {/* node (center, on the spine) */}
+                    <div
+                      className="rm-node relative z-[1] w-full rounded-[12px] text-center"
+                      style={{ background: "var(--surface)", border: `1.5px solid ${lv.k}`, padding: "var(--rm-node-py) var(--rm-node-px)" }}
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span
+                          className="rm-node-num rounded-full flex items-center justify-center font-medium flex-shrink-0"
+                          style={{ background: lv.k, color: "var(--btn-text, #fff)" }}
+                        >
+                          {counter}
+                        </span>
+                        <span className="rm-node-title font-medium" style={{ color: "var(--text)" }}>{node.title}</span>
+                      </div>
+                      <div className="rm-node-desc" style={{ color: "var(--text3)" }}>{node.description}</div>
+                    </div>
+
+                    {/* right column */}
+                    <div
+                      className={`flex justify-start min-w-0 ${side === "right" && node.chips.length > 0 ? "rm-side rm-side-r" : ""}`}
+                      style={{ ["--tick" as string]: lv.k }}
+                    >
+                      {side === "right" && node.chips.length > 0 && (
+                        <ul className="rm-bracket rm-bracket-r flex flex-col min-w-0 max-w-full" style={{ borderColor: lv.k, ["--tick" as string]: lv.k }}>
+                          {node.chips.map((chip, ci) => (
+                            <li key={ci} className="rm-tick rm-tick-r">
+                              <Chip chip={chip} levelK={lv.k} levelBg={lv.bg} onSide="right" />
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+
+        {/* end node */}
+        <div className="rm-endnode-wrap flex justify-center" style={{ position: "relative", zIndex: 1 }}>
+          <div className="rm-endnode relative z-[1] inline-flex items-center rounded-[12px]" style={{ background: "var(--btn-bg, #111827)", color: "var(--btn-text, #fff)", opacity: 0.9 }}>
+            <svg className="rm-check" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></svg>
+            <span className="rm-endnode-title font-medium">Job-ready {roadmap.title.replace(/roadmap/i, "").trim()}</span>
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        .rm-spine {
+          --rm-node-w: 190px;
+          --rm-node-py: 22px;
+          --rm-node-px: 28px;
+          --rm-col-gap: 0.75rem;
+          --rm-row-py: 0.9rem;
+          --rm-title-fs: 13px;
+          --rm-desc-fs: 11px;
+          --rm-num-size: 20px;
+          --rm-num-fs: 10px;
+          --rm-chip-fs: 14px;
+          --rm-chip-py: 2px;
+          --rm-chip-px: 12px;
+          --rm-chip-min-w: 110px;
+          --rm-chip-max-w: 240px;
+          --rm-pill-fs: 13px;
+          --rm-pill-py: 10px;
+          --rm-pill-px: 18px;
+          --rm-endnode-fs: 13px;
+          --rm-endnode-sub-fs: 11px;
+          --rm-endnode-py: 14px;
+          --rm-endnode-px: 22px;
+          --rm-check: 14px;
+          --rm-gap-y: 1.5rem;
+        }
+        .rm-line {
+          width: 2px;
+        }
+        .rm-endnode-wrap {
+          margin-bottom: var(--rm-gap-y);
+        }
+        .rm-pill-wrap {
+          margin: 1rem 0;
+        }
+        .rm-endnode {
+          padding: var(--rm-endnode-py) var(--rm-endnode-px);
+          gap: 8px;
+        }
+        .rm-endnode-title {
+          font-size: var(--rm-endnode-fs);
+        }
+        .rm-endnode-sub {
+          font-size: var(--rm-endnode-sub-fs);
+          margin-top: 2px;
+        }
+        .rm-check {
+          width: var(--rm-check);
+          height: var(--rm-check);
+        }
+        .rm-pill {
+          gap: 8px;
+          font-size: var(--rm-pill-fs);
+          padding: var(--rm-pill-py) var(--rm-pill-px);
+        }
+        .rm-row {
+          grid-template-columns: minmax(0, 1fr) var(--rm-node-w) minmax(0, 1fr);
+          gap: var(--rm-col-gap);
+          padding: var(--rm-row-py) 0;
+        }
+        .rm-node {
+          padding: var(--rm-node-py) var(--rm-node-px);
+        }
+        .rm-node-num {
+          width: var(--rm-num-size);
+          height: var(--rm-num-size);
+          font-size: var(--rm-num-fs);
+        }
+        .rm-node-title {
+          font-size: var(--rm-title-fs);
+        }
+        .rm-node-desc {
+          font-size: var(--rm-desc-fs);
+        }
+        .rm-side {
+          position: relative;
+        }
+        /*
+         * Bridges the exact grid gap between the bracket's border and the
+         * node box — width is the live --rm-col-gap var (not a fixed px),
+         * anchored flush to the column edge (right/left: 0) so it always
+         * touches both the bracket border on one end and the node on the
+         * other, at every breakpoint.
+         */
+        .rm-side-l::after,
+        .rm-side-r::after {
+          content: "";
+          position: absolute;
+          top: 50%;
+          height: 0;
+          width: var(--rm-col-gap);
+          border-top: 1.5px solid var(--tick);
+        }
+        .rm-side-l::after {
+          /* the gap sits OUTSIDE this column, to its right — push the box's
+             right edge out past the column boundary by exactly one gap so
+             it spans column-edge -> node-edge, not backwards into the chips */
+          right: calc(-1 * var(--rm-col-gap));
+        }
+        .rm-side-r::after {
+          left: calc(-1 * var(--rm-col-gap));
+        }
+        .rm-bracket {
+          list-style: none;
+          margin: 0;
+          gap: 16px;
+        }
+        .rm-bracket-l {
+          border-right: 1.5px solid;
+          padding-right: 8px;
+        }
+        .rm-bracket-r {
+          border-left: 1.5px solid;
+          padding-left: 8px;
+        }
+        .rm-tick {
+          position: relative;
+          min-height: 28px;
+          max-width: 100%;
+          display: flex;
+          align-items: center;
+        }
+        .rm-tick-l {
+          justify-content: flex-end;
+        }
+        .rm-tick-l::after {
+          content: "";
+          position: absolute;
+          right: -9px;
+          top: 50%;
+          width: 9px;
+          height: 0;
+          border-top: 1.5px solid;
+          border-color: var(--tick);
+        }
+        .rm-tick-r {
+          justify-content: flex-start;
+        }
+        .rm-tick-r::after {
+          content: "";
+          position: absolute;
+          left: -9px;
+          top: 50%;
+          width: 9px;
+          height: 0;
+          border-top: 1.5px solid;
+          border-color: var(--tick);
+        }
+        .rm-chip {
+          font-size: var(--rm-chip-fs);
+          padding: var(--rm-chip-py) var(--rm-chip-px);
+          border-radius: 8px;
+          line-height: 1.3;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          width: 100%;
+          min-width: var(--rm-chip-min-w);
+          max-width: var(--rm-chip-max-w);
+          text-align: center;
+          cursor: pointer;
+          transition: transform 0.12s ease;
+        }
+        .rm-chip:hover {
+          transform: translateY(-1px);
+        }
+
+        /*
+         * Mobile: SAME layout as desktop (spine + alternating left/right
+         * branches) — nothing about the structure changes, only sizes shrink
+         * so it fits a small screen. Desktop (anything above this breakpoint)
+         * is completely untouched by this block.
+         */
+        @media (max-width: 640px) {
+          .rm-spine {
+            --rm-node-w: 118px;
+            --rm-node-py: 1px;
+            --rm-node-px: 1px;
+            --rm-col-gap: 0.35rem;
+            --rm-row-py: 0.5rem;
+            --rm-title-fs: 10.5px;
+            --rm-desc-fs: 8.5px;
+            --rm-num-size: 16px;
+            --rm-num-fs: 8px;
+            --rm-chip-fs: 9.5px;
+            --rm-chip-py: 1px;
+            --rm-chip-px: 1px;
+            --rm-chip-min-w: 74px;
+            --rm-chip-max-w: 108px;
+            --rm-pill-fs: 10.5px;
+            --rm-pill-py: 6px;
+            --rm-pill-px: 12px;
+            --rm-endnode-fs: 10.5px;
+            --rm-endnode-sub-fs: 9px;
+            --rm-endnode-py: 8px;
+            --rm-endnode-px: 13px;
+            --rm-check: 11px;
+            --rm-gap-y: 1.1rem;
+          }
+          .rm-bracket,
+          .rm-tick {
+            gap: 8px;
+          }
+          .rm-tick {
+            min-height: 22px;
+          }
+          .rm-chip {
+            white-space: normal;
+          }
+          .rm-node-num {
+            display: none;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/** Full roadmap: title/summary header + the spine diagram. */
+export function RoadmapView({ roadmap }: { roadmap: RoadmapData }) {
+  return (
+    <div className="flex flex-col gap-6 sm:gap-8 w-full">
+      <div className="text-center px-2">
+        <div className="inline-block px-2.5 py-1 rounded-full text-[9.5px] sm:text-[10.5px] font-extrabold uppercase tracking-[1px] bg-[#EEF2FF] dark:bg-[#1a1f3a] text-[#2952CC] dark:text-[#8ab4ff] mb-2.5 sm:mb-3">
+          Roadmap
+        </div>
+        <h3 className="font-['Instrument_Serif',serif] italic text-[18px] sm:text-[22px] md:text-[26px] text-[#0D1F5C] dark:text-[#aabcf0] mb-1.5 sm:mb-2">
+          {roadmap.title}
+        </h3>
+        <p className="text-[11.5px] sm:text-[13px] text-[#6B7280] dark:text-[#7a859a] leading-[1.6] sm:leading-[1.7] max-w-[560px] mx-auto">
+          {roadmap.summary}
+        </p>
+      </div>
+
+      <RoadmapTree roadmap={roadmap} />
+    </div>
+  );
+}

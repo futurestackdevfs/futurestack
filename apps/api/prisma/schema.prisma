@@ -192,6 +192,12 @@ model Course {
   code           String?     @unique // internal course code
   skillLevel     SkillLevel?
 
+  // AI-generated learning roadmap (stages/milestones synthesized from the curriculum's
+  // lesson titles + a bit of general industry context). Regenerable from the admin panel;
+  // null until the admin generates it once. See apps/api/src/courses/roadmap/.
+  roadmap            Json?
+  roadmapGeneratedAt DateTime?
+
   sections     Section[]
   enrollments  Enrollment[]
   tracks       TrackCourse[]

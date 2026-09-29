@@ -15,6 +15,7 @@ import { CreateStaffDto } from './dto/create-staff.dto';
 import { UploadVideoDto } from './dto/upload-video.dto';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
 import { S3Service } from '../upload/s3.service';
+import { AiProviderService } from '../ai/ai-provider.service';
 import { TTLCache } from '../common/ttl-cache';
 import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 import { UpdateTrainerShareDto } from './dto/update-trainer-share.dto';
@@ -32,12 +33,13 @@ export class AdminService {
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
     private readonly s3Service: S3Service,
+    private readonly aiProviderService: AiProviderService,
   ) {}
 
   // Reports which env vars are PRESENT for each third-party integration —
   // never their values. Only presence/absence booleans leave this method,
   // by design, so this endpoint can never leak credential material.
-  getIntegrationsStatus() {
+  async getIntegrationsStatus() {
     const has = (name: string) => Boolean(this.configService.get<string>(name));
 
     const razorpayFields = ['RAZORPAY_KEY_ID', 'RAZORPAY_KEY_SECRET'].map((name) => ({
@@ -88,7 +90,48 @@ export class AdminService {
         configured: emailFields.every((f) => f.present),
         fields: emailFields,
       },
+      {
+        key: 'claude',
+        label: 'Claude AI (Anthropic)',
+        configured: this.aiProviderService.isConfigured,
+        fields: [{ name: 'ANTHROPIC_API_KEY', present: this.aiProviderService.isConfigured }],
+        info: this.aiProviderService.isConfigured ? [`Model: ${this.aiProviderService.modelName}`] : undefined,
+        usage: await this.getClaudeUsageSummary(),
+      },
     ];
+  }
+
+  /**
+   * Aggregates token/cache usage across every completed GENERATE audit entry
+   * (blog articles + course roadmaps both write one with `meta.usage` on
+   * success — see BlogGenerationService/CourseRoadmapService) so the
+   * Integrations card shows real cumulative spend, not just "configured".
+   */
+  private async getClaudeUsageSummary() {
+    const rows = await this.prisma.auditLog.findMany({
+      where: { action: 'GENERATE' },
+      orderBy: { createdAt: 'desc' },
+      take: 1000,
+      select: { meta: true },
+    });
+
+    let generations = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cacheReadTokens = 0;
+    let cacheWriteTokens = 0;
+
+    for (const row of rows) {
+      const meta = row.meta as { stage?: string; usage?: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number } } | null;
+      if (!meta || meta.stage !== 'completed' || !meta.usage) continue;
+      generations++;
+      inputTokens += meta.usage.inputTokens ?? 0;
+      outputTokens += meta.usage.outputTokens ?? 0;
+      cacheReadTokens += meta.usage.cacheReadTokens ?? 0;
+      cacheWriteTokens += meta.usage.cacheWriteTokens ?? 0;
+    }
+
+    return { generations, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens };
   }
 
   async listAllTrainers() {
