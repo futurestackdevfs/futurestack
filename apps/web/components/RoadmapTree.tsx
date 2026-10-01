@@ -1,5 +1,9 @@
 "use client";
 
+import { useMemo, useState } from "react";
+import type { Roadmap as StageRoadmap, TopicKind } from "@/lib/roadmap-types";
+import { RoadmapDetailTree } from "@/components/roadmaps/RoadmapDetailTree";
+
 export type ChipKind = "must" | "pick-one" | "optional";
 
 export interface RoadmapChipData {
@@ -395,23 +399,121 @@ export function RoadmapTree({ roadmap }: { roadmap: RoadmapData }) {
   );
 }
 
-/** Full roadmap: title/summary header + the spine diagram. */
+const PHASE_TAGLINE: Record<RoadmapPhaseData["phase"], string> = {
+  Beginner: "Learn the core",
+  Intermediate: "Patterns and ecosystem",
+  Advanced: "Ship it to production",
+};
+
+/** must-learn chips map to "core", optional/later chips to "future stack", pick-one alternatives stay "alternative". */
+const CHIP_KIND_TO_TOPIC_KIND: Record<ChipKind, TopicKind> = {
+  must: "c",
+  "pick-one": "o",
+  optional: "f",
+};
+
+function mono(title: string) {
+  const words = title.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "RM";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+function slugify(title: string) {
+  return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "roadmap";
+}
+
+/** Adapts the AI-generated per-course roadmap into the shared stage-tree shape used by /roadmaps. */
+export function toStageRoadmap(roadmap: RoadmapData): StageRoadmap {
+  return {
+    id: slugify(roadmap.title),
+    name: roadmap.title,
+    mono: mono(roadmap.title),
+    cat: "",
+    level: "",
+    duration: "",
+    course: roadmap.title,
+    summary: roadmap.summary,
+    roles: [],
+    prereq: roadmap.prerequisites.length ? roadmap.prerequisites.join(", ") : "None — start here",
+    stages: roadmap.phases.map((phase) => ({
+      t: phase.phase,
+      why: PHASE_TAGLINE[phase.phase],
+      g: phase.nodes.map((node) => [
+        node.title,
+        node.chips.map((chip): [string, TopicKind] => [chip.title, CHIP_KIND_TO_TOPIC_KIND[chip.kind]]),
+      ]),
+    })),
+    // The AI-generated roadmap doesn't carry an explicit topic dependency graph
+    // (only must/pick-one/optional per chip), so there are no need/unlocks links to draw.
+    rels: [],
+  };
+}
+
+/** Full roadmap: title/summary header + the same stage-tree diagram used on /roadmaps/[id]. */
 export function RoadmapView({ roadmap }: { roadmap: RoadmapData }) {
+  const stageRoadmap = useMemo(() => toStageRoadmap(roadmap), [roadmap]);
+  const [sel, setSel] = useState<string | null>(null);
+  const [linkMode, setLinkMode] = useState<"sel" | "all">("sel");
+  const [highlight, setHighlight] = useState<"all" | "c" | "f">("all");
+
   return (
-    <div className="flex flex-col gap-6 sm:gap-8 w-full">
-      <div className="text-center px-2">
-        <div className="inline-block px-2.5 py-1 rounded-full text-[9.5px] sm:text-[10.5px] font-extrabold uppercase tracking-[1px] bg-[#EEF2FF] dark:bg-[#1a1f3a] text-[#2952CC] dark:text-[#8ab4ff] mb-2.5 sm:mb-3">
-          Roadmap
+    <div className="flex flex-col gap-5 sm:gap-6 w-full">
+      <div className="flex flex-wrap items-center gap-3">
+        <RmSeg label="Show" value={highlight} onChange={setHighlight as (v: string) => void} options={[
+          { v: "all", label: "All topics" }, { v: "c", label: "Core" }, { v: "f", label: "Future stack" },
+        ]} />
+        <RmSeg label="Links" value={linkMode} onChange={setLinkMode as (v: string) => void} options={[
+          { v: "sel", label: "Selected topic" }, { v: "all", label: "All relations" },
+        ]} />
+        <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] w-full text-gray-600 dark:text-gray-300">
+          <RmSwatch style={{ background: "#e8effd", borderColor: "#2563eb" }} label="Core" />
+          <RmSwatch style={{ background: "#fdece3", borderColor: "#e0521a" }} label="Future stack" />
+          <RmSwatch style={{ background: "#f1f3f7", borderColor: "#9ca3af", borderStyle: "dashed" }} label="Alternative, pick one" />
         </div>
-        <h3 className="font-['Instrument_Serif',serif] italic text-[18px] sm:text-[22px] md:text-[26px] text-[#0D1F5C] dark:text-[#aabcf0] mb-1.5 sm:mb-2">
-          {roadmap.title}
-        </h3>
-        <p className="text-[11.5px] sm:text-[13px] text-[#6B7280] dark:text-[#7a859a] leading-[1.6] sm:leading-[1.7] max-w-[560px] mx-auto">
-          {roadmap.summary}
-        </p>
       </div>
 
-      <RoadmapTree roadmap={roadmap} />
+      <RoadmapDetailTree
+        roadmap={stageRoadmap}
+        sel={sel}
+        onSelect={setSel}
+        highlight={highlight}
+        linkMode={linkMode}
+      />
     </div>
+  );
+}
+
+function RmSeg<T extends string>({ label, value, onChange, options }: { label: string; value: T; onChange: (v: T) => void; options: { v: T; label: string }[] }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="text-[11px] font-bold uppercase tracking-wide mr-0.5 text-gray-500 dark:text-gray-400">{label}</span>
+      {options.map((o) => {
+        const active = value === o.v;
+        return (
+          <button
+            key={o.v}
+            type="button"
+            onClick={() => onChange(o.v)}
+            className={`rounded-full px-3 py-1.5 text-[12.5px] font-semibold border ${
+              active
+                ? "bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900 dark:border-white"
+                : "bg-white text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600"
+            }`}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RmSwatch({ style, label }: { style: React.CSSProperties; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <i className="inline-block w-3 h-3 rounded" style={{ border: "1.5px solid", ...style }} />
+      {label}
+    </span>
   );
 }

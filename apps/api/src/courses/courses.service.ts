@@ -5,7 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
 import { S3Service } from '../upload/s3.service';
@@ -549,6 +549,56 @@ export class CoursesService {
         ...discountInfo(r.price.toNumber(), r.originalPrice?.toNumber() ?? null),
       };
     });
+
+    this.catalogCache.set(CACHE_KEY, result);
+    return result;
+  }
+
+  /**
+   * Lightweight cards for the /roadmaps listing page — every ACTIVE course
+   * that has a generated roadmap, with counts derived from the stored
+   * roadmap JSON (not the full phases/nodes/chips tree, to keep the payload
+   * small). The detail page fetches the full roadmap separately via the
+   * existing `publicCourseBySlug`.
+   */
+  async publicRoadmapCards() {
+    const CACHE_KEY = 'roadmap-cards';
+    const cached = this.catalogCache.get(CACHE_KEY);
+    if (cached) return cached;
+
+    const courses = await this.prisma.course.findMany({
+      where: { status: 'ACTIVE', roadmap: { not: Prisma.JsonNull } },
+      select: { id: true, title: true, category: true, skillLevel: true, roadmap: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const result = courses
+      .map((c) => {
+        const roadmap = parseStoredRoadmap(c.roadmap);
+        if (!roadmap) return null;
+        let topics = 0, future = 0;
+        roadmap.phases.forEach((phase) =>
+          phase.nodes.forEach((node) =>
+            node.chips.forEach((chip) => {
+              topics++;
+              if (chip.kind === 'optional') future++;
+            }),
+          ),
+        );
+        return {
+          id: c.id,
+          slug: slugify(c.title),
+          title: roadmap.title,
+          summary: roadmap.summary,
+          category: c.category ?? 'General',
+          level: SKILL_LEVEL_LABELS[c.skillLevel ?? 'INTERMEDIATE'],
+          stages: roadmap.phases.length,
+          topics,
+          future,
+          roles: [] as string[],
+        };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null);
 
     this.catalogCache.set(CACHE_KEY, result);
     return result;
