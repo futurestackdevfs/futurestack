@@ -123,6 +123,20 @@ button {
   --btn-bg: #111827;
   --btn-bg-hover: #000000;
   --btn-text: #ffffff;
+  --rm-core: #2563eb;
+  --rm-core-soft: #e8effd;
+  --rm-future: #e0521a;
+  --rm-future-soft: #fdece3;
+  --rm-alt-soft: #f1f3f7;
+  --rm-done: #16a34a;
+  --rm-stage-bg: #111827;
+  --rm-stage-ink: #ffffff;
+  --rm-line: #c9d0dd;
+  /* This project's global --text2/--muted are forced pure black in light
+     mode (see above), but the roadmap design relies on a lighter gray
+     text hierarchy — scope its own tokens instead of fighting the app-wide ones. */
+  --rm-text2: #374151;
+  --rm-muted: #6b7280;
 }
 
 [data-theme="dark"] {
@@ -162,6 +176,17 @@ button {
   --invert-icon: 1;
   --mono: 'DM Sans', system-ui, sans-serif;
   --overlay: rgba(0, 0, 0, .6);
+  --rm-core: #6f9bff;
+  --rm-core-soft: #16264a;
+  --rm-future: #ff8a4c;
+  --rm-future-soft: #3a2014;
+  --rm-alt-soft: #1b2130;
+  --rm-done: #34d399;
+  --rm-stage-bg: #e8eaf0;
+  --rm-stage-ink: #0b0e14;
+  --rm-line: #33405a;
+  --rm-text2: #b0bac9;
+  --rm-muted: #7a859a;
 }
 
 @keyframes spin {

@@ -296,6 +296,12 @@ export class CoursesController {
     });
   }
 
+  @Get('public/roadmaps')
+  @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
+  publicRoadmapCards() {
+    return this.coursesService.publicRoadmapCards();
+  }
+
   @Get('public/slug/:slug')
   @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   publicCourseBySlug(@Param('slug') slug: string) {
