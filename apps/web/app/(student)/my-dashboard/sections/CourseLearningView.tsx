@@ -657,7 +657,13 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
           {detail.roadmap && (
             <div className={`flex-1 overflow-y-auto ${activeTab === "roadmap" ? "flex flex-col" : "hidden"}`}>
               <div className="px-3 sm:px-5 pt-5 sm:pt-7 pb-4 sm:pb-5">
-                <RoadmapView roadmap={detail.roadmap} />
+                <RoadmapView
+                  roadmap={detail.roadmap}
+                  onJumpToVideo={(videoId) => {
+                    setCurrentItemId(videoId);
+                    setActiveTab("curriculum");
+                  }}
+                />
               </div>
             </div>
           )}

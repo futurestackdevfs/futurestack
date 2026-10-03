@@ -18,14 +18,23 @@ interface FlatTopic {
   stageNum: string;
   stageT: string;
   group: string;
+  videoId?: string | null;
 }
 
 export interface RoadmapDetailTreeProps {
   roadmap: Roadmap;
   sel: string | null;
   onSelect: (topic: string | null) => void;
-  highlight: "all" | "c" | "f";
+  highlight: "all" | "c" | "f" | "todo";
   linkMode: "sel" | "all";
+  /** Called when a topic chip's "watch" button is clicked — only shown for
+   *  topics with a linked video. Omit to hide the button entirely (e.g. on
+   *  pages with no video player, like the public course listing). */
+  onJumpToVideo?: (videoId: string) => void;
+  /** Per-topic "learned" state, keyed by topic label — optional; omit to hide
+   *  the checkbox + "Mark as learned" affordances entirely. */
+  done?: Record<string, boolean>;
+  onToggleDone?: (topic: string) => void;
 }
 
 /** Builds the needs/unlocks adjacency and a flat info map once per roadmap. */
@@ -37,8 +46,8 @@ function useGraph(roadmap: Roadmap) {
     roadmap.stages.forEach((s, si) => {
       const num = String(si + 1).padStart(2, "0");
       s.g.forEach(([gname, items]) => {
-        items.forEach(([label, k]) => {
-          info[label] = { label, kind: k, stageIdx: si, stageNum: num, stageT: s.t, group: gname };
+        items.forEach(([label, k, videoId]) => {
+          info[label] = { label, kind: k, stageIdx: si, stageNum: num, stageT: s.t, group: gname, videoId };
         });
       });
     });
@@ -51,7 +60,7 @@ function useGraph(roadmap: Roadmap) {
   }, [roadmap]);
 }
 
-export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode }: RoadmapDetailTreeProps) {
+export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode, onJumpToVideo, done, onToggleDone }: RoadmapDetailTreeProps) {
   const { info, needs, unlocks } = useGraph(roadmap);
   const treeRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -76,7 +85,7 @@ export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode 
     p.setAttribute("class", cls);
     if (marker) p.setAttribute("marker-end", `url(#${marker})`);
     g.appendChild(p);
-  }, [box]);
+  }, []);
 
   const link = useCallback((a: string, b: string, cls: string, marker: string) => {
     const relsG = relsGRef.current, tree = treeRef.current;
@@ -200,8 +209,8 @@ export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode 
                 <div className="rd-side-col left">
                   {s.g.map(([gname, items], gi) => (gi % 2 === 0 ? null : (
                     <Group key={gname} stageIdx={si} gname={gname} items={items} right={false}
-                      info={info} needs={needs} unlocks={unlocks} sel={sel}
-                      onSelect={onSelect} nodeEls={nodeEls} />
+                      needs={needs} unlocks={unlocks} sel={sel}
+                      onSelect={onSelect} nodeEls={nodeEls} onJumpToVideo={onJumpToVideo} done={done} />
                   )))}
                 </div>
 
@@ -216,8 +225,8 @@ export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode 
                 <div className="rd-side-col right">
                   {s.g.map(([gname, items], gi) => (gi % 2 === 0 ? (
                     <Group key={gname} stageIdx={si} gname={gname} items={items} right={true}
-                      info={info} needs={needs} unlocks={unlocks} sel={sel}
-                      onSelect={onSelect} nodeEls={nodeEls} />
+                      needs={needs} unlocks={unlocks} sel={sel}
+                      onSelect={onSelect} nodeEls={nodeEls} onJumpToVideo={onJumpToVideo} done={done} />
                   ) : null))}
                 </div>
               </div>
@@ -232,8 +241,18 @@ export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode 
           <div className="rm-panel-kicker">Stage {selInfo.stageNum} · {selInfo.stageT} · {selInfo.group}</div>
           <h3 className="rm-panel-title">{sel}</h3>
           <div className="rm-panel-type">{TYPE_LABEL[selInfo.kind]}</div>
-          <TopicList title="Learn first" cls="need" ids={needs[sel]} onJump={onSelect} nodeEls={nodeEls} empty="Nothing required. You can start here." />
-          <TopicList title="Unlocks next" cls="next" ids={unlocks[sel]} onJump={onSelect} nodeEls={nodeEls} empty="End of this branch." />
+          {selInfo.videoId && onJumpToVideo && (
+            <button type="button" className="rm-panel-watch" onClick={() => onJumpToVideo(selInfo.videoId!)}>
+              ▶ Watch this topic&apos;s video
+            </button>
+          )}
+          {done && onToggleDone && (
+            <button type="button" className="rm-panel-mark" aria-pressed={!!done[sel]} onClick={() => onToggleDone(sel)}>
+              {done[sel] ? "Learned ✓ (undo)" : "Mark as learned"}
+            </button>
+          )}
+          <TopicList title="Learn first" cls="need" ids={needs[sel]} onJump={onSelect} nodeEls={nodeEls} empty="Nothing required. You can start here." done={done} />
+          <TopicList title="Unlocks next" cls="next" ids={unlocks[sel]} onJump={onSelect} nodeEls={nodeEls} empty="End of this branch." done={done} />
         </aside>
       )}
 
@@ -282,13 +301,19 @@ export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode 
         .rd-topic.c { background: var(--rm-core-soft); border-color: color-mix(in srgb, var(--rm-core) 35%, transparent); }
         .rd-topic.f { background: var(--rm-future-soft); border-color: color-mix(in srgb, var(--rm-future) 40%, transparent); }
         .rd-topic.o { background: var(--rm-alt-soft); border: 1px dashed var(--border2); color: var(--rm-text2); }
+        .rd-topic .box { width: 13px; height: 13px; border: 1.5px solid currentColor; border-radius: 3px; flex: none; opacity: .55; display: grid; place-items: center; }
+        .rd-topic.done .box { background: var(--rm-done); border-color: var(--rm-done); opacity: 1; }
+        .rd-topic.done .txt { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text) 40%, transparent); }
         .rd-topic .deg { font-size: 10px; font-weight: 700; color: var(--rm-muted); font-variant-numeric: tabular-nums; }
+        .rd-topic .vid { font-size: 9px; opacity: .6; line-height: 1; transition: opacity .15s ease, transform .15s ease; }
+        .rd-topic .vid:hover { opacity: 1; transform: scale(1.15); }
         .rd-topic.sel { box-shadow: 0 0 0 2px var(--text); }
         .rd-topic.need { box-shadow: 0 0 0 2px var(--rm-core); }
         .rd-topic.next { box-shadow: 0 0 0 2px var(--rm-future); }
         .rd-tree.focus .rd-topic:not(.sel):not(.need):not(.next) { opacity: .28; }
         .rd-tree.hl-c .rd-topic:not(.c),
-        .rd-tree.hl-f .rd-topic:not(.f) { opacity: .2; }
+        .rd-tree.hl-f .rd-topic:not(.f),
+        .rd-tree.hl-todo .rd-topic.done { opacity: .2; }
 
         .rd-tree.narrow .rd-row { grid-template-columns: 1fr; gap: 12px; padding-block: 16px; }
         .rd-tree.narrow .rd-center { align-items: stretch; order: -1; }
@@ -309,6 +334,10 @@ export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode 
         .rm-panel-kicker { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--rm-muted); padding-right: 34px; }
         .rm-panel-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; line-height: 1.15; padding-right: 30px; text-wrap: balance; margin-top: -6px; color: var(--text); }
         .rm-panel-type { font-size: 12.5px; color: var(--rm-text2); margin-top: -4px; }
+        .rm-panel-watch { justify-self: start; font-size: 12.5px; font-weight: 600; border-radius: 8px; padding: 7px 12px; border: 1px solid var(--orange); background: var(--orange-d); color: var(--orange); }
+        .rm-panel-watch:hover { background: var(--orange); color: #fff; }
+        .rm-panel-mark { justify-self: start; font-size: 13px; font-weight: 600; border-radius: 8px; padding: 8px 14px; border: 1px solid var(--rm-done); background: var(--rm-done); color: #fff; }
+        .rm-panel-mark[aria-pressed="true"] { background: transparent; color: var(--rm-done); }
 
         @media (max-width: 768px) { .rd-tree-wrap { padding: 4px 12px 16px; } }
       `}</style>
@@ -317,33 +346,50 @@ export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode 
 }
 
 function Group({
-  stageIdx, gname, items, right, info, needs, unlocks, sel, onSelect, nodeEls,
+  stageIdx, gname, items, right, needs, unlocks, sel, onSelect, nodeEls, onJumpToVideo, done,
 }: {
-  stageIdx: number; gname: string; items: Array<[string, TopicKind]>; right: boolean;
-  info: Record<string, FlatTopic>; needs: Record<string, string[]>; unlocks: Record<string, string[]>;
+  stageIdx: number; gname: string; items: Array<[string, TopicKind, (string | null | undefined)?]>; right: boolean;
+  needs: Record<string, string[]>; unlocks: Record<string, string[]>;
   sel: string | null; onSelect: (t: string | null) => void;
   nodeEls: React.MutableRefObject<Record<string, HTMLButtonElement | null>>;
+  onJumpToVideo?: (videoId: string) => void;
+  done?: Record<string, boolean>;
 }) {
   const deg = (label: string) => (needs[label]?.length ?? 0) + (unlocks[label]?.length ?? 0);
   return (
     <div className="rd-group">
       <div className="rd-gnode" data-gnode data-stage={stageIdx} data-right={right ? "1" : "0"}>{gname}</div>
       <ul className="rd-topics">
-        {items.map(([label, k]) => {
+        {items.map(([label, k, videoId]) => {
           const d = deg(label);
           const isSel = sel === label;
           const isNeed = sel ? (needs[sel] || []).includes(label) : false;
           const isNext = sel ? (unlocks[sel] || []).includes(label) : false;
+          const isDone = !!done?.[label];
           return (
             <li key={label}>
               <button
                 type="button"
                 ref={(el) => { nodeEls.current[label] = el; }}
-                className={`rd-topic ${k}${isSel ? " sel" : ""}${isNeed ? " need" : ""}${isNext ? " next" : ""}`}
-                aria-label={`${label}. ${TYPE_LABEL[k]}. ${d} related topics.`}
+                className={`rd-topic ${k}${isSel ? " sel" : ""}${isNeed ? " need" : ""}${isNext ? " next" : ""}${isDone ? " done" : ""}`}
+                aria-label={`${label}. ${TYPE_LABEL[k]}. ${d} related topics.${isDone ? " Learned." : ""}`}
+                aria-pressed={done ? isDone : undefined}
                 onClick={() => onSelect(sel === label ? null : label)}
               >
+                {done && <span className="box" aria-hidden="true" />}
                 <span className="txt">{label}</span>
+                {videoId && (
+                  <span
+                    role="button"
+                    tabIndex={onJumpToVideo ? 0 : -1}
+                    className="vid"
+                    title="This topic's video"
+                    aria-label={`Watch the video for ${label}`}
+                    onClick={(e) => { e.stopPropagation(); onJumpToVideo?.(videoId); }}
+                  >
+                    ▶
+                  </span>
+                )}
                 <span className="deg">{d || ""}</span>
               </button>
             </li>
@@ -355,10 +401,11 @@ function Group({
 }
 
 function TopicList({
-  title, cls, ids, onJump, nodeEls, empty,
+  title, cls, ids, onJump, nodeEls, empty, done,
 }: {
   title: string; cls: "need" | "next"; ids?: string[];
   onJump: (t: string) => void; nodeEls: React.MutableRefObject<Record<string, HTMLButtonElement | null>>; empty: string;
+  done?: Record<string, boolean>;
 }) {
   return (
     <div className={`rm-plist ${cls}`}>
@@ -380,7 +427,7 @@ function TopicList({
                 nodeEls.current[id]?.focus({ preventScroll: true });
               }}
             >
-              {id}
+              {(done?.[id] ? "✓ " : "") + id}
             </button>
           ))
         )}

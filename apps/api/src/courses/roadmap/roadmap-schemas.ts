@@ -34,6 +34,11 @@ export const RoadmapPhaseWireSchema = z.object({
   nodes: z.array(RoadmapNodeWireSchema).describe('2-6 main topic nodes belonging to this phase'),
 });
 
+export const RoadmapRelWireSchema = z.tuple([
+  z.string().describe('Chip title that must be learned FIRST — copied VERBATIM from one of the chips above'),
+  z.string().describe('Chip title it UNLOCKS/leads into — copied VERBATIM from one of the chips above'),
+]);
+
 export const RoadmapWireSchema = z.object({
   title: z.string().describe('Roadmap title, e.g. "Full-Stack Developer Roadmap"'),
   summary: z.string().describe('One or two sentences: what this path takes you from -> to'),
@@ -43,6 +48,11 @@ export const RoadmapWireSchema = z.object({
     .describe(
       'Exactly 3 phases in order: Beginner, Intermediate, Advanced. Be complete — cover every topic a real developer roadmap for this subject would include, the way roadmap.sh does it, using only short titles (no long descriptions on chips).',
     ),
+  rels: z
+    .array(RoadmapRelWireSchema)
+    .describe(
+      'Prerequisite links BETWEEN CHIPS across the whole roadmap, as [learnFirst, unlocks] pairs using chip titles copied verbatim (e.g. ["useState", "useEffect"], ["JSX", "Components"]). Only real, meaningful dependencies — not every chip needs a link. 15-40 pairs for a typical roadmap. Both titles must exactly match a chip title declared above.',
+    ),
 });
 
 /** What we actually accept and save on the course. */
@@ -50,6 +60,12 @@ export const RoadmapChipSchema = z.object({
   title: z.string().trim().min(1).max(40),
   kind: ChipKind,
   lessonTitles: z.array(z.string().trim().min(1).max(200)).max(30),
+  // Which curriculum video this chip's content comes from. Auto-filled by
+  // matching `lessonTitles` against the course's actual video titles right
+  // after generation; admin can override it from the roadmap tab's "Link
+  // videos" dropdown (see CourseRoadmapTab.tsx) when the auto-match is wrong
+  // or a lesson title was ambiguous/missing.
+  videoId: z.string().nullable().optional(),
 });
 
 export const RoadmapNodeSchema = z.object({
@@ -63,11 +79,17 @@ export const RoadmapPhaseSchema = z.object({
   nodes: z.array(RoadmapNodeSchema).min(1).max(8),
 });
 
+export const RoadmapRelSchema = z.tuple([z.string().trim().min(1).max(40), z.string().trim().min(1).max(40)]);
+
 export const RoadmapSchema = z.object({
   title: z.string().trim().min(3).max(100),
   summary: z.string().trim().min(10).max(300),
   prerequisites: z.array(z.string().trim().min(1).max(40)).max(6),
   phases: z.array(RoadmapPhaseSchema).min(3).max(3),
+  // [learnFirst, unlocks] pairs between chip titles — optional/defaulted so
+  // roadmaps saved before this field existed still parse as "no links" rather
+  // than failing validation.
+  rels: z.array(RoadmapRelSchema).max(80).default([]),
 });
 
 export type RoadmapChip = z.infer<typeof RoadmapChipSchema>;

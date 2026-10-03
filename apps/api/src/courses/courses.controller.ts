@@ -472,6 +472,25 @@ export class CoursesController {
     return this.coursesService.cancelRoadmapGeneration(jobId);
   }
 
+  // Manual override for which video a roadmap chip links to — doesn't touch
+  // the AI; just re-points the stored roadmap's chip.videoId entries.
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Patch(':courseId/roadmap/video-links')
+  @Audit({ action: 'UPDATE', entity: 'Course', idFrom: 'param', idParam: 'courseId' })
+  updateRoadmapVideoLinks(
+    @Param('courseId') courseId: string,
+    @Body() body: { links: { phase: number; node: number; chip: number; videoId: string | null }[] },
+    @Req() req: Request,
+  ) {
+    const user = req.user as { id: string; email: string; name: string; role: string };
+    return this.coursesService.updateRoadmapVideoLinks(courseId, body.links ?? [], {
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      name: user.name,
+    });
+  }
+
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Post(':courseId/sections')
   createSection(
