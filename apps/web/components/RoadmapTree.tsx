@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { Roadmap as StageRoadmap, TopicKind } from "@/lib/roadmap-types";
+import { useEffect, useMemo, useState } from "react";
+import type { Roadmap as StageRoadmap, RoadmapTopic, TopicKind } from "@/lib/roadmap-types";
 import { RoadmapDetailTree } from "@/components/roadmaps/RoadmapDetailTree";
 
 export type ChipKind = "must" | "pick-one" | "optional";
@@ -10,6 +10,10 @@ export interface RoadmapChipData {
   title: string;
   kind: ChipKind;
   lessonTitles: string[];
+  /** The curriculum video this chip's content comes from — auto-matched at
+   *  generation time from `lessonTitles`, editable by admins. Null/undefined
+   *  means no match (or the admin explicitly unlinked it). */
+  videoId?: string | null;
 }
 export interface RoadmapNodeData {
   title: string;
@@ -25,6 +29,8 @@ export interface RoadmapData {
   summary: string;
   prerequisites: string[];
   phases: RoadmapPhaseData[];
+  /** [learnFirst, unlocks] pairs between chip titles — AI-generated, optional for roadmaps saved before this field existed. */
+  rels?: Array<[string, string]>;
 }
 
 const LEVEL: Record<string, { k: string; bg: string; label: string; tagline: string; icon: string }> = {
@@ -441,28 +447,59 @@ export function toStageRoadmap(roadmap: RoadmapData): StageRoadmap {
       why: PHASE_TAGLINE[phase.phase],
       g: phase.nodes.map((node) => [
         node.title,
-        node.chips.map((chip): [string, TopicKind] => [chip.title, CHIP_KIND_TO_TOPIC_KIND[chip.kind]]),
+        node.chips.map((chip): RoadmapTopic => [chip.title, CHIP_KIND_TO_TOPIC_KIND[chip.kind], chip.videoId]),
       ]),
     })),
-    // The AI-generated roadmap doesn't carry an explicit topic dependency graph
-    // (only must/pick-one/optional per chip), so there are no need/unlocks links to draw.
-    rels: [],
+    // AI-generated [learnFirst, unlocks] chip pairs — absent on roadmaps saved
+    // before this field existed, so default to no links rather than crash.
+    rels: roadmap.rels ?? [],
   };
 }
 
 /** Full roadmap: title/summary header + the same stage-tree diagram used on /roadmaps/[id]. */
-export function RoadmapView({ roadmap }: { roadmap: RoadmapData }) {
+function loadDone(key: string): Record<string, boolean> {
+  try { return JSON.parse(localStorage.getItem(`fs-roadmap-progress-${key}`) || "{}") || {}; } catch { return {}; }
+}
+function saveDone(key: string, done: Record<string, boolean>) {
+  try { localStorage.setItem(`fs-roadmap-progress-${key}`, JSON.stringify(done)); } catch { /* ignore */ }
+}
+
+export function RoadmapView({
+  roadmap, onJumpToVideo, trackProgress = true,
+}: {
+  roadmap: RoadmapData;
+  onJumpToVideo?: (videoId: string) => void;
+  /** Set false to hide the "mark as learned" checkboxes/panel button entirely (e.g. admin preview). */
+  trackProgress?: boolean;
+}) {
   const stageRoadmap = useMemo(() => toStageRoadmap(roadmap), [roadmap]);
+  const progressKey = stageRoadmap.id;
   const [sel, setSel] = useState<string | null>(null);
   const [linkMode, setLinkMode] = useState<"sel" | "all">("sel");
-  const [highlight, setHighlight] = useState<"all" | "c" | "f">("all");
+  const [highlight, setHighlight] = useState<"all" | "c" | "f" | "todo">("all");
+  const [done, setDone] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (trackProgress) setDone(loadDone(progressKey));
+  }, [progressKey, trackProgress]);
+
+  function toggleDone(topic: string) {
+    setDone((prev) => {
+      const next = { ...prev };
+      if (next[topic]) delete next[topic]; else next[topic] = true;
+      saveDone(progressKey, next);
+      return next;
+    });
+  }
 
   return (
     <div className="flex flex-col gap-5 sm:gap-6 w-full">
       <div className="flex flex-wrap items-center gap-3">
-        <RmSeg label="Show" value={highlight} onChange={setHighlight as (v: string) => void} options={[
-          { v: "all", label: "All topics" }, { v: "c", label: "Core" }, { v: "f", label: "Future stack" },
-        ]} />
+        <RmSeg label="Show" value={highlight} onChange={setHighlight as (v: string) => void} options={
+          trackProgress
+            ? [{ v: "all", label: "All topics" }, { v: "c", label: "Core" }, { v: "f", label: "Future stack" }, { v: "todo", label: "Not learned yet" }]
+            : [{ v: "all", label: "All topics" }, { v: "c", label: "Core" }, { v: "f", label: "Future stack" }]
+        } />
         <RmSeg label="Links" value={linkMode} onChange={setLinkMode as (v: string) => void} options={[
           { v: "sel", label: "Selected topic" }, { v: "all", label: "All relations" },
         ]} />
@@ -479,6 +516,9 @@ export function RoadmapView({ roadmap }: { roadmap: RoadmapData }) {
         onSelect={setSel}
         highlight={highlight}
         linkMode={linkMode}
+        onJumpToVideo={onJumpToVideo}
+        done={trackProgress ? done : undefined}
+        onToggleDone={trackProgress ? toggleDone : undefined}
       />
     </div>
   );

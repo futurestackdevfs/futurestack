@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AiUsage } from '../../ai/ai-provider.service';
 import { AiProviderError } from '../../ai/ai.errors';
@@ -6,7 +6,14 @@ import { AuditActor, AuditService } from '../../audit/audit.service';
 import { GenerationGate } from '../../ai/generation-gate';
 import { RoadmapGenerator } from './roadmap-generator';
 import { RoadmapJobStore, RoadmapJobView } from './roadmap-job-store';
-import { Roadmap } from './roadmap-schemas';
+import { Roadmap, RoadmapSchema } from './roadmap-schemas';
+
+export interface RoadmapVideoLinkUpdate {
+  phase: number;
+  node: number;
+  chip: number;
+  videoId: string | null;
+}
 
 export type RoadmapFailureReason =
   | 'not_configured'
@@ -104,6 +111,37 @@ export class CourseRoadmapService {
     this.store.update(jobId, { status: 'failed', error: { code: 'cancelled', message: 'Roadmap generation was cancelled.', retryable: false } });
   }
 
+  /**
+   * Admin override: point one or more chips at a different (or no) video than
+   * the auto-match picked, without re-running generation. Index-addressed
+   * (phase/node/chip) against the currently saved roadmap — the admin UI
+   * reads the same indices it's displaying, so a stale index just no-ops
+   * rather than corrupting an unrelated chip.
+   */
+  async updateVideoLinks(courseId: string, updates: RoadmapVideoLinkUpdate[], actor?: AuditActor): Promise<Roadmap> {
+    const course = await this.prisma.course.findUnique({ where: { id: courseId }, select: { roadmap: true } });
+    if (!course) throw new NotFoundException('Course not found.');
+    const parsed = RoadmapSchema.safeParse(course.roadmap);
+    if (!parsed.success) throw new BadRequestException('This course has no valid roadmap to edit yet.');
+
+    const roadmap = parsed.data;
+    for (const u of updates) {
+      const chip = roadmap.phases[u.phase]?.nodes[u.node]?.chips[u.chip];
+      if (chip) chip.videoId = u.videoId;
+    }
+
+    await this.prisma.course.update({ where: { id: courseId }, data: { roadmap: roadmap as object } });
+    if (actor) {
+      void this.auditService.record(actor, {
+        action: 'UPDATE',
+        entityType: 'Course',
+        entityId: courseId,
+        meta: { stage: 'roadmap_video_links', updated: updates.length },
+      });
+    }
+    return roadmap;
+  }
+
   getJob(jobId: string): RoadmapJob | undefined {
     const job = this.store.get(jobId);
     if (!job) return undefined;
@@ -126,7 +164,7 @@ export class CourseRoadmapService {
           techStack: true,
           sections: {
             orderBy: { order: 'asc' },
-            select: { title: true, videos: { orderBy: { order: 'asc' }, select: { title: true } } },
+            select: { title: true, videos: { orderBy: { order: 'asc' }, select: { id: true, title: true } } },
           },
         },
       });
@@ -144,6 +182,28 @@ export class CourseRoadmapService {
       );
 
       if (signal.aborted) throw new AiProviderError('cancelled', 'Roadmap generation was cancelled.', false);
+
+      // Auto-link each chip to the curriculum video its `lessonTitles` came
+      // from — exact (case/whitespace-insensitive) title match against the
+      // course's real videos. Admin can fix/override any miss from the
+      // roadmap tab's video-link dropdowns; this is just a best-effort default.
+      const videoByTitle = new Map<string, string>();
+      for (const s of course.sections) for (const v of s.videos) videoByTitle.set(v.title.trim().toLowerCase(), v.id);
+      const chipTitles = new Set<string>();
+      for (const phase of roadmap.phases) {
+        for (const node of phase.nodes) {
+          for (const chip of node.chips) {
+            const match = chip.lessonTitles.map((t) => videoByTitle.get(t.trim().toLowerCase())).find(Boolean);
+            chip.videoId = match ?? null;
+            chipTitles.add(chip.title);
+          }
+        }
+      }
+
+      // Drop any rel the model hallucinated referencing a chip title that
+      // doesn't actually exist in this roadmap, instead of failing the whole
+      // generation over a near-miss — the UI already no-ops on dangling ids.
+      roadmap.rels = roadmap.rels.filter(([a, b]) => chipTitles.has(a) && chipTitles.has(b));
 
       this.store.update(id, { stage: 'saving' });
       try {

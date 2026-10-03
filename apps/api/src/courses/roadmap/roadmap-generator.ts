@@ -24,10 +24,11 @@ const SYSTEM = [
   'Be complete — cover every major topic a real developer roadmap for this subject would include, from absolute basics through job-ready and into advanced/specialized territory. Also list 2-4 short prerequisite topics the learner should already know before starting (e.g. for a React course: "JavaScript, HTML, CSS") — an empty array only if there are truly none.',
   'The course\'s curriculum (below) is a REFERENCE, not a boundary — use your own broad, well-established knowledge of how this subject is actually taught and used in the industry. Fill in prerequisites, adjacent tools, and concepts the course assumes, even if no lesson covers them.',
   'Where a chip clearly corresponds to a real lesson in the curriculum, list that lesson title verbatim (copy exactly, never rephrase or invent one) — most chips may have zero matching lessons, and that is expected and fine.',
+  'Also fill `rels`: real prerequisite links BETWEEN CHIPS, as [learnFirst, unlocks] pairs of chip titles copied verbatim — e.g. ["JSX", "Components"], ["useState", "useEffect"]. These should span phases too (a Beginner chip can unlock an Intermediate one). Only meaningful dependencies, not every possible pair — aim for 15-40 pairs on a typical roadmap.',
   UNTRUSTED_RULE,
 ].join('\n');
 
-const MAX_TOKENS = 5000;
+const MAX_TOKENS = 6500;
 
 @Injectable()
 export class RoadmapGenerator {

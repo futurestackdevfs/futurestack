@@ -120,6 +120,18 @@ export class CoursesService {
     return { cancelled: true };
   }
 
+  async updateRoadmapVideoLinks(
+    courseId: string,
+    updates: { phase: number; node: number; chip: number; videoId: string | null }[],
+    actor?: AuditActor,
+  ) {
+    const roadmap = await this.roadmapService.updateVideoLinks(courseId, updates, actor);
+    this.catalogCache.delete(`course:${courseId}`);
+    this.catalogCache.deleteByPrefix('slug:');
+    this.catalogCache.delete('roadmap-cards');
+    return roadmap;
+  }
+
   private toRoadmapHttpError(err: unknown): ServiceUnavailableException {
     if (err instanceof AiProviderError) {
       return new ServiceUnavailableException({

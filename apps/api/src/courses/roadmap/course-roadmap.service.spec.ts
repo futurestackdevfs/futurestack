@@ -32,7 +32,9 @@ function fakeAudit() {
 const ROADMAP = {
   title: 'r',
   summary: 's',
-  phases: [{ phase: 'Beginner', nodes: [{ title: 't', description: 'd', children: [{ title: 'c', description: 'd', leaves: ['x'], lessonTitles: ['Intro to HTML'] }] }] }],
+  prerequisites: [],
+  phases: [{ phase: 'Beginner', nodes: [{ title: 't', description: 'd', chips: [{ title: 'c', kind: 'must', lessonTitles: ['Intro to HTML'] }] }] }],
+  rels: [],
 };
 
 const USAGE = { model: 'claude-haiku-4-5', inputTokens: 100, outputTokens: 400, cacheReadTokens: 0, cacheWriteTokens: 90 };

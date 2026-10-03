@@ -36,6 +36,13 @@ function countTopics(roadmap: RoadmapData) {
   return { topics, future };
 }
 
+function loadDone(slug: string): Record<string, boolean> {
+  try { return JSON.parse(localStorage.getItem(`fs-roadmap-progress-${slug}`) || "{}") || {}; } catch { return {}; }
+}
+function saveDone(slug: string, done: Record<string, boolean>) {
+  try { localStorage.setItem(`fs-roadmap-progress-${slug}`, JSON.stringify(done)); } catch { /* ignore */ }
+}
+
 export default function RoadmapDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -43,18 +50,34 @@ export default function RoadmapDetailPage() {
   const [related, setRelated] = useState<RelatedRoadmap[]>([]);
   const [sel, setSel] = useState<string | null>(null);
   const [linkMode, setLinkMode] = useState<"sel" | "all">("sel");
-  const [highlight, setHighlight] = useState<"all" | "c" | "f">("all");
+  const [highlight, setHighlight] = useState<"all" | "c" | "f" | "todo">("all");
+  const [done, setDone] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
     setCourse(undefined);
     setSel(null);
+    setDone(loadDone(params.id));
     fetch(`/api/courses/public/slug/${params.id}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((c: CourseDetail | null) => { if (!cancelled) setCourse(c); })
       .catch(() => { if (!cancelled) setCourse(null); });
     return () => { cancelled = true; };
   }, [params.id]);
+
+  function toggleDone(topic: string) {
+    setDone((prev) => {
+      const next = { ...prev };
+      if (next[topic]) delete next[topic]; else next[topic] = true;
+      saveDone(params.id, next);
+      return next;
+    });
+  }
+
+  function resetProgress() {
+    setDone({});
+    saveDone(params.id, {});
+  }
 
   useEffect(() => {
     if (!course) return;
@@ -133,6 +156,26 @@ export default function RoadmapDetailPage() {
         </div>
 
         <aside className="grid gap-3.5 content-start border-t xl:border-t-0 xl:border-l pt-4 xl:pt-0 xl:pl-6" style={{ borderColor: "var(--border)" }}>
+          {counts.topics > 0 && (
+            <div className="flex items-center gap-3.5">
+              <svg viewBox="0 0 80 80" width="64" height="64" className="shrink-0 -rotate-90">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="var(--border)" strokeWidth="8" />
+                <circle
+                  cx="40" cy="40" r="34" fill="none" stroke="var(--rm-done, #16a34a)" strokeWidth="8" strokeLinecap="round"
+                  strokeDasharray={213.63} strokeDashoffset={213.63 * (1 - Object.keys(done).filter((k) => done[k]).length / counts.topics)}
+                  style={{ transition: "stroke-dashoffset .4s ease" }}
+                />
+              </svg>
+              <div>
+                <span className="font-bold text-[22px] leading-none block" style={{ color: "var(--text)" }}>
+                  {Math.round((Object.keys(done).filter((k) => done[k]).length / counts.topics) * 100)}%
+                </span>
+                <small className="text-[11px]" style={{ color: "var(--rm-muted)" }}>
+                  {Object.keys(done).filter((k) => done[k]).length} / {counts.topics} learned
+                </small>
+              </div>
+            </div>
+          )}
           <button
             type="button"
             onClick={() => router.push(`/courses/${course.slug}`)}
@@ -142,13 +185,18 @@ export default function RoadmapDetailPage() {
             View the course
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           </button>
+          {Object.keys(done).length > 0 && (
+            <button type="button" onClick={resetProgress} className="text-[12px] underline justify-self-start" style={{ color: "var(--rm-muted)" }}>
+              Reset my progress
+            </button>
+          )}
         </aside>
       </section>
 
       {/* Toolbar */}
       <section className="flex flex-wrap items-center gap-3 md:gap-5">
         <Seg label="Show" value={highlight} onChange={setHighlight as (v: string) => void} options={[
-          { v: "all", label: "All topics" }, { v: "c", label: "Core" }, { v: "f", label: "Future stack" },
+          { v: "all", label: "All topics" }, { v: "c", label: "Core" }, { v: "f", label: "Future stack" }, { v: "todo", label: "Not learned yet" },
         ]} />
         <Seg label="Links" value={linkMode} onChange={setLinkMode as (v: string) => void} options={[
           { v: "sel", label: "Selected topic" }, { v: "all", label: "All relations" },
@@ -170,6 +218,8 @@ export default function RoadmapDetailPage() {
         onSelect={setSel}
         highlight={highlight}
         linkMode={linkMode}
+        done={done}
+        onToggleDone={toggleDone}
       />
 
       {/* Related */}

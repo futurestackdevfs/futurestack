@@ -27,6 +27,7 @@ const roadmap: Roadmap = {
       ],
     },
   ],
+  rels: [],
 };
 
 describe('sanitizeRoadmapLessonTitles', () => {
