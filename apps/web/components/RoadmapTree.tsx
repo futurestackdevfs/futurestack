@@ -30,7 +30,7 @@ export interface RoadmapData {
   prerequisites: string[];
   phases: RoadmapPhaseData[];
   /** [learnFirst, unlocks] pairs between chip titles — AI-generated, optional for roadmaps saved before this field existed. */
-  rels?: Array<[string, string]>;
+  rels?: Array<{ learnFirst: string; unlocks: string }>;
 }
 
 const LEVEL: Record<string, { k: string; bg: string; label: string; tagline: string; icon: string }> = {
@@ -452,7 +452,7 @@ export function toStageRoadmap(roadmap: RoadmapData): StageRoadmap {
     })),
     // AI-generated [learnFirst, unlocks] chip pairs — absent on roadmaps saved
     // before this field existed, so default to no links rather than crash.
-    rels: roadmap.rels ?? [],
+    rels: (roadmap.rels ?? []).map((r): [string, string] => [r.learnFirst, r.unlocks]),
   };
 }
 

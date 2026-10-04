@@ -463,7 +463,7 @@ export default function CourseDetailPage() {
   const reviewCount = (course as { reviewCount?: number } | undefined)?.reviewCount ?? reviewsTotal;
   const displayReviewCount = reviewCount || course?.students || 0;
 
-  const freePreviewVideo = course?.sections?.[0]?.videos?.[0] ?? null;
+  const freePreviewVideo = course?.sections?.flatMap(s => s.videos).find(v => v.isPreview) ?? null;
 
   if (isLoading) {
     return (
@@ -486,7 +486,15 @@ export default function CourseDetailPage() {
     const items: SectionItem[] = [
       ...s.videos.map(v => ({ kind: 'video' as const, ...v })),
       ...s.quizzes.map(q => ({ kind: 'quiz' as const, ...q })),
-    ].sort((a, b) => a.order - b.order);
+    ].sort((a, b) => {
+      // The free-preview video always leads its section, regardless of where
+      // it was inserted in the curriculum — that's the one visitors should
+      // see and click first, not wherever it happened to land in `order`.
+      const aPreview = a.kind === 'video' && a.isPreview;
+      const bPreview = b.kind === 'video' && b.isPreview;
+      if (aPreview !== bPreview) return aPreview ? -1 : 1;
+      return a.order - b.order;
+    });
     return { section: s, items, index: si };
   });
 
@@ -665,7 +673,6 @@ export default function CourseDetailPage() {
 
               <div className="flex flex-col gap-2">
                 {sectionModules.map(({ section, items, index }) => {
-                  const isFirst = index === 0;
                   return (
                     <div key={section.id}>
                       <div className="flex items-center justify-between p-3 rounded-[10px] bg-[linear-gradient(120deg,#07153D,#0D1F5C)] text-white mb-2 mt-2 first:mt-0">
@@ -681,7 +688,7 @@ export default function CourseDetailPage() {
 
                       {items.map((item) => {
                         const isVideo = item.kind === 'video';
-                        const isFree = isFirst && isVideo && item.id === freePreviewVideo?.id;
+                        const isFree = isVideo && item.id === freePreviewVideo?.id;
                         return (
                           <div key={`${item.kind}-${item.id ?? section.id}-${item.order}`} className={`flex items-center gap-3 p-3 rounded-[10px] border border-[var(--border)] dark:border-[#1e2535] bg-white dark:bg-[#111520] transition-all ${isFree ? "hover:border-[#22C55E]/50 hover:shadow-sm hover:translate-x-[2px]" : "opacity-65 bg-[#F9FAFB] dark:bg-[#0b0e14]"}`}>
                             <div className={`w-7 h-7 rounded-[6px] flex items-center justify-center text-[11px] font-extrabold flex-shrink-0 ${isFree ? "bg-[linear-gradient(135deg,#22C55E,#16A34A)] text-white" : "bg-[#E5E7EB] dark:bg-[#1e2535] text-[#6B7280] dark:text-[#7a859a]"}`}>

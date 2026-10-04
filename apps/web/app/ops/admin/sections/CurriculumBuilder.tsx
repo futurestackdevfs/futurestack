@@ -72,7 +72,12 @@ function mergeLessons(sections: ApiSection[]): MergedSection[] {
         durationLabel: formatDuration(q), durationSeconds: 0, totalQuestions: q.totalQuestions,
         isPreview: false,
       })),
-    ].sort((a, b) => a.order - b.order);
+    ].sort((a, b) => {
+      // Free-preview video always leads its section regardless of when it
+      // was added, same as the public course page.
+      if (a.isPreview !== b.isPreview) return a.isPreview ? -1 : 1;
+      return a.order - b.order;
+    });
 
     return {
       id: s.id,
@@ -292,29 +297,49 @@ export function CurriculumBuilder({
     isDirty.current = true;
   }
 
-  function removeLesson(sectionId: string, lesson: MergedLesson) {
+  async function removeLesson(sectionId: string, lesson: MergedLesson) {
     if (!token) return;
     const kindLabel = lesson.kind === "video" ? "Video" : "Quiz";
     const lessonId = lesson.id;
     const lessonKind = lesson.kind;
-    askConfirm({
+
+    const ok = await askConfirm({
       title: `Delete ${kindLabel}?`,
       message: `Are you sure you want to remove this ${kindLabel.toLowerCase()}?\nThis cannot be undone.`,
       confirmLabel: 'Delete',
       danger: true,
-    }).then(ok => {
-      if (!ok) return;
-      isDirty.current = true;
-      setSections(prev => {
-        const updated = prev.map(s => {
-          if (s.id !== sectionId) return s;
-          if (lessonKind === "video") return { ...s, videos: s.videos.filter(v => v.id !== lessonId) };
-          return { ...s, quizzes: s.quizzes.filter(q => q.id !== lessonId) };
-        });
-        setDisplaySections(mergeLessons(updated));
-        return updated;
-      });
     });
+    if (!ok) return;
+
+    // Remove from the local list right away for instant feedback.
+    const stripFromSections = (list: ApiSection[]) => list.map(s => {
+      if (s.id !== sectionId && !(lessonKind === "video" ? s.videos.some(v => v.id === lessonId) : s.quizzes.some(q => q.id === lessonId))) return s;
+      if (lessonKind === "video") return { ...s, videos: s.videos.filter(v => v.id !== lessonId) };
+      return { ...s, quizzes: s.quizzes.filter(q => q.id !== lessonId) };
+    });
+    setSections(prev => {
+      const updated = stripFromSections(prev);
+      setDisplaySections(mergeLessons(updated));
+      return updated;
+    });
+
+    // Persist immediately — don't wait for the Save button. Only locally-
+    // created, never-saved items (id still 'new_...') have nothing to delete
+    // on the server.
+    if (!lessonId.startsWith('new_')) {
+      isDirty.current = true;
+      try {
+        const path = lessonKind === "video" ? `/courses/videos/${lessonId}` : `/courses/quizzes/${lessonId}`;
+        await apiCall(token, path, { method: 'DELETE' });
+        // Keep the "original" snapshot in sync (search all sections, since a
+        // video's actual section can drift server-side — see the preview-
+        // video auto-reposition logic) so a later Save doesn't try to redo
+        // (or undo) this deletion against stale data.
+        originalSections.current = stripFromSections(originalSections.current);
+      } catch (e: any) {
+        setFetchError(e?.message || `Couldn't delete that ${kindLabel.toLowerCase()} — it may already be gone, or the server is unreachable.`);
+      }
+    }
   }
 
   function saveLessonTitle(sectionId: string, lessonId: string, title: string) {
@@ -363,19 +388,22 @@ export function CurriculumBuilder({
   async function handleSave() {
     if (!token) return;
 
-    // Check if any video is still a placeholder (not uploaded)
+    // Warn (don't block) if any video is still a placeholder (not uploaded).
+    // This must never stop the save outright — e.g. deleting that very
+    // placeholder is a valid way to resolve the warning, and a hard block
+    // here used to silently swallow deletes/edits along with it.
     const hasPlaceholder = sections.some(s =>
       s.videos.some(v => v.vdoCipherId?.startsWith('type:'))
     );
     if (hasPlaceholder) {
-      await askConfirm({
+      const proceed = await askConfirm({
         title: 'Videos Not Uploaded',
-        message: 'Some videos are still placeholders — they have not been uploaded yet.\nPlease upload the video first.',
-        confirmLabel: 'OK, Got It',
+        message: 'Some videos are still placeholders — they have not been uploaded yet.\nSave anyway? (any other changes, like deletions, will still go through)',
+        confirmLabel: 'Save Anyway',
         cancelLabel: 'Go Back',
         danger: true,
       });
-      return;
+      if (!proceed) return;
     }
 
     setActing(true);
@@ -388,6 +416,19 @@ export function CurriculumBuilder({
       for (const sec of deletedSections) {
         if (sec.id.startsWith('new_')) continue; // never saved to backend
         await apiCall(token, `/courses/sections/${sec.id}`, { method: 'DELETE' });
+      }
+
+      // Video deletions are detected across the WHOLE course (not scoped to
+      // "same video id within the same section id") — a video can move
+      // sections server-side on its own (e.g. the "make this the free
+      // preview" flow pins it to the first section), so a per-section id
+      // match can wrongly conclude nothing was deleted when a video vanished
+      // from one section's list but the client's section grouping is stale.
+      const currVideoIds = new Set(curr.flatMap(s => s.videos.map(v => v.id)));
+      const allOrigVideos = orig.flatMap(s => s.videos);
+      const globallyDeletedVids = allOrigVideos.filter(ov => !currVideoIds.has(ov.id));
+      for (const v of globallyDeletedVids) {
+        await apiCall(token, `/courses/videos/${v.id}`, { method: 'DELETE' });
       }
 
       // 2. CREATE new sections + their lessons, UPDATE existing
@@ -435,14 +476,10 @@ export function CurriculumBuilder({
             });
           }
 
-          // Handle video changes
-          const deletedVids = origSec.videos.filter(ov => !section.videos.some(cv => cv.id === ov.id));
+          // Handle video changes (deletions are already handled globally above)
           const newVids = section.videos.filter(cv => cv.id.startsWith('new_'));
           const updatedVids = section.videos.filter(cv => !cv.id.startsWith('new_') && origSec.videos.some(ov => ov.id === cv.id && (ov.title !== cv.title || ov.vdoCipherId !== cv.vdoCipherId || ov.isPreview !== cv.isPreview)));
 
-          for (const v of deletedVids) {
-            await apiCall(token, `/courses/videos/${v.id}`, { method: 'DELETE' });
-          }
           for (const v of newVids) {
             const createdVideo = await apiCall(token, `/courses/sections/${section.id}/videos`, {
               method: 'POST',
