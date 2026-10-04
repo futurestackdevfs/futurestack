@@ -203,7 +203,7 @@ export class CourseRoadmapService {
       // Drop any rel the model hallucinated referencing a chip title that
       // doesn't actually exist in this roadmap, instead of failing the whole
       // generation over a near-miss — the UI already no-ops on dangling ids.
-      roadmap.rels = roadmap.rels.filter(([a, b]) => chipTitles.has(a) && chipTitles.has(b));
+      roadmap.rels = roadmap.rels.filter((r) => chipTitles.has(r.learnFirst) && chipTitles.has(r.unlocks));
 
       this.store.update(id, { stage: 'saving' });
       try {

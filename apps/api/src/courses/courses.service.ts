@@ -1599,7 +1599,35 @@ export class CoursesService {
 
   async updateVideo(id: string, dto: UpdateVideoDto) {
     this.invalidateCatalog();
-    await this.findVideoOrFail(id);
+    const video = await this.findVideoOrFail(id);
+
+    // The public preview endpoint (getPublicVideoOtp) only ever trusts the
+    // literal first video of the literal first section, regardless of the
+    // isPreview flag — so flipping isPreview on here without also moving the
+    // video to that position would silently 404 on the public page (as it
+    // did before this fix). Force it to the front, and make sure it's the
+    // only preview video in the course (the player only plays one anyway).
+    if (dto.isPreview === true) {
+      const section = await this.prisma.section.findUnique({ where: { id: video.sectionId }, select: { courseId: true } });
+      const firstSection = section
+        ? await this.prisma.section.findFirst({ where: { courseId: section.courseId }, orderBy: { order: 'asc' } })
+        : null;
+
+      if (firstSection) {
+        const lowest = await this.prisma.video.aggregate({ where: { sectionId: firstSection.id }, _min: { order: true } });
+        const newOrder = Math.min(lowest._min.order ?? 0, video.sectionId === firstSection.id ? video.order : 0) - 1;
+
+        await this.prisma.video.updateMany({
+          where: { section: { courseId: section!.courseId }, isPreview: true, id: { not: id } },
+          data: { isPreview: false },
+        });
+        return this.prisma.video.update({
+          where: { id },
+          data: { ...dto, sectionId: firstSection.id, order: newOrder },
+        });
+      }
+    }
+
     return this.prisma.video.update({ where: { id }, data: dto });
   }
 
