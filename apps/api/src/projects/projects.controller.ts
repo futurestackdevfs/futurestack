@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Header,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -39,6 +40,12 @@ export class ProjectsController {
   @Header('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=300')
   listActive() {
     return this.projectsService.listActive();
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Get('public/curriculum-videos/:videoId/verification')
+  getPublicCurriculumVideoOtp(@Param('videoId') videoId: string) {
+    return this.projectsService.getPublicCurriculumVideoOtp(videoId);
   }
 
   // ── ADMIN (static routes BEFORE :id) ───────────────────────────
@@ -86,10 +93,23 @@ export class ProjectsController {
     return this.projectsService.deleteVideo(videoId);
   }
 
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Patch('curriculum/videos/:videoId')
+  updateCurriculumVideo(@Param('videoId') videoId: string, @Body() dto: { title?: string; isPreview?: boolean }) {
+    return this.projectsService.updateCurriculumVideo(videoId, dto);
+  }
+
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
   @Get('curriculum/videos/:videoId/status')
   getCurriculumVideoStatus(@Param('videoId') videoId: string) {
     return this.projectsService.getCurriculumVideoStatus(videoId);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get('curriculum/videos/:videoId/preview-otp')
+  getAdminCurriculumVideoOtp(@Param('videoId') videoId: string) {
+    return this.projectsService.getAdminCurriculumVideoOtp(videoId);
   }
 
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -194,6 +214,58 @@ export class ProjectsController {
     @Body() dto: UpdateCurriculumDto,
   ) {
     return this.projectsService.replaceCurriculum(id, dto);
+  }
+
+  // ── AI-GENERATED PROJECT ROADMAP ────────────────────────────────
+  // Same shape/flow as courses' roadmap (background job, poll, cancel,
+  // video-link overrides, manual tree edits) — see CoursesController.
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Post(':id/roadmap/generate')
+  @HttpCode(202)
+  generateRoadmap(@Param('id') id: string, @Req() req: Request) {
+    const user = req.user as { id: string; email: string; name: string; role: string };
+    return this.projectsService.startRoadmapGeneration(id, { id: user.id, role: user.role, email: user.email, name: user.name });
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get(':id/roadmap/generate/:jobId')
+  roadmapGenerationStatus(@Param('jobId') jobId: string) {
+    return this.projectsService.getRoadmapGeneration(jobId);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Delete(':id/roadmap/generate/:jobId')
+  cancelRoadmapGeneration(@Param('jobId') jobId: string) {
+    return this.projectsService.cancelRoadmapGeneration(jobId);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Patch(':id/roadmap/video-links')
+  updateRoadmapVideoLinks(
+    @Param('id') id: string,
+    @Body() body: { links: { phase: number; node: number; chip: number; videoId: string | null }[] },
+    @Req() req: Request,
+  ) {
+    const user = req.user as { id: string; email: string; name: string; role: string };
+    return this.projectsService.updateRoadmapVideoLinks(id, body.links ?? [], {
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      name: user.name,
+    });
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Patch(':id/roadmap')
+  updateRoadmapContent(@Param('id') id: string, @Body() body: unknown, @Req() req: Request) {
+    const user = req.user as { id: string; email: string; name: string; role: string };
+    return this.projectsService.updateRoadmapContent(id, body, {
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      name: user.name,
+    });
   }
 
   @Throttle({ default: { limit: 30, ttl: 60_000 } })

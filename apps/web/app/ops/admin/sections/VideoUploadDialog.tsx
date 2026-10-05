@@ -83,13 +83,19 @@ export function VideoUploadDialog({ isOpen, onClose, onUpload, sectionId, token,
     }
 
     const endpoint = uploadEndpoint || '/api/admin/videos/upload-credentials'
-    const body = uploadBody || {
-      title: formData.title,
+    // A caller-supplied uploadBody (e.g. ProjectCurriculumBuilder) is built
+    // before a file is ever selected, so its filename/contentType/order are
+    // stale placeholders — always overlay the real values computed here from
+    // the actually-selected file, instead of trusting uploadBody as-is.
+    const body = {
+      ...(uploadBody || {
+        title: formData.title,
+        sectionId,
+        ...(videoId ? { videoId } : {}),
+      }),
       filename: formData.filename,
       contentType: formData.contentType,
-      sectionId,
-      order: formData.order,
-      ...(videoId ? { videoId } : {}),
+      order: uploadBody?.order ?? formData.order,
     }
     const uploadingFile = file
     const uploadingMetadata = formData

@@ -1,5 +1,8 @@
 'use client';
 
+import { refreshSession } from '@/app/auth/lib/refresh-session';
+import { decodeClaims } from '@/app/auth/lib/token-claims';
+
 // Runs a video upload independent of any component's lifecycle — the caller
 // (VideoUploadDialog) closes its modal the instant "Upload & Process" is
 // clicked, so the XHR here must survive that dialog (and potentially the
@@ -37,14 +40,37 @@ function deriveStatusEndpoint(uploadEndpoint: string, videoId: string): string |
   return null;
 }
 
-async function pollUntilReady(statusUrl: string, token: string, fileName: string): Promise<void> {
+// The access token lives ~15 minutes — a large video upload or a long status-
+// poll loop routinely outlasts that. A plain 401 here used to surface as
+// "Failed to get upload credentials" with no recovery; this mirrors
+// opsFetch's silent refresh-and-retry so an expired token mid-upload doesn't
+// kill it. Returns whichever token actually worked, so the caller keeps using
+// the fresh one for the rest of the upload (status polling, etc).
+async function fetchWithRefresh(doFetch: (t: string) => Promise<Response>, token: string): Promise<{ res: Response; token: string }> {
+  let res = await doFetch(token);
+  if (res.status === 401) {
+    const role = decodeClaims(token)?.role;
+    const refreshed = await refreshSession(role).catch(() => null);
+    if (refreshed?.accessToken) {
+      token = refreshed.accessToken;
+      res = await doFetch(token);
+    }
+  }
+  return { res, token };
+}
+
+async function pollUntilReady(statusUrl: string, token: string, fileName: string): Promise<string> {
   for (let attempt = 0; attempt < STATUS_POLL_MAX_ATTEMPTS; attempt++) {
     await new Promise((r) => setTimeout(r, STATUS_POLL_MS));
     try {
-      const res = await fetch(statusUrl, { headers: { Authorization: `Bearer ${token}` } });
+      const { res, token: nextToken } = await fetchWithRefresh(
+        (t) => fetch(statusUrl, { headers: { Authorization: `Bearer ${t}` } }),
+        token,
+      );
+      token = nextToken;
       if (res.ok) {
         const data = await res.json();
-        if (data.videoStatus === 'READY') return;
+        if (data.videoStatus === 'READY') return token;
         if (data.videoStatus === 'ERROR') throw new Error('Video processing failed on VdoCipher');
       }
     } catch (err) {
@@ -55,6 +81,7 @@ async function pollUntilReady(statusUrl: string, token: string, fileName: string
   }
   // Gave up waiting — don't hang the widget forever. The webhook will still
   // flip videoStatus to READY server-side whenever it actually finishes.
+  return token;
 }
 
 const EVENT = 'fs:upload-status';
@@ -97,7 +124,8 @@ export async function startVideoUpload(opts: {
    *  doesn't know about. */
   onDone?: (videoId: string) => void | Promise<void>;
 }): Promise<void> {
-  const { file, token, endpoint, body, onDone } = opts;
+  let { token } = opts;
+  const { file, endpoint, body, onDone } = opts;
 
   if (shared.status === 'uploading' || shared.status === 'processing') {
     throw new Error('Another video is already uploading — wait for it to finish.');
@@ -106,11 +134,15 @@ export async function startVideoUpload(opts: {
   emit({ status: 'uploading', fileName: file.name, progress: 0 });
 
   try {
-    const credRes = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    });
+    const { res: credRes, token: freshToken } = await fetchWithRefresh(
+      (t) => fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+        body: JSON.stringify(body),
+      }),
+      token,
+    );
+    token = freshToken;
     if (!credRes.ok) throw new Error('Failed to get upload credentials');
     const uploadData = await credRes.json();
 

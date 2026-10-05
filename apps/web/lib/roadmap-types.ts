@@ -5,7 +5,8 @@
 export type TopicKind = "c" | "f" | "o";
 /** [topic label, kind, linked video id (if any)] */
 export type RoadmapTopic = [string, TopicKind, string | null | undefined];
-export type RoadmapGroup = [string, RoadmapTopic[]];
+/** [group/node title, topics, one-line node description (if any)] */
+export type RoadmapGroup = [string, RoadmapTopic[], string?];
 export interface RoadmapStage {
   t: string;
   why: string;

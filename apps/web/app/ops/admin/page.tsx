@@ -15,7 +15,7 @@ import { EntityTabs, type EntityTab } from "./sections/EntityTabs";
 import { EntityTable, StatusBadge, YesNoBadge, type ColumnDef } from "./sections/EntityTable";
 import { MasterDataModal, type FieldDef } from "./sections/MasterDataModal";
 import { ConfirmDialog, type ConfirmOptions } from "./sections/ConfirmDialog";
-import { ProjectCurriculumBuilder } from "./sections/ProjectCurriculumBuilder";
+import { ProjectManagerModal } from "./sections/ProjectManagerModal";
 import { SkillTestBuilder } from "./sections/SkillTestBuilder";
 import { CourseManagerModal } from "./sections/CourseManagerModal";
 import { ProfileModal } from "./sections/ProfileModal";
@@ -342,8 +342,8 @@ export default function AdminMasterDataPage() {
   const [currentEntity, setCurrentEntity] = useState("courses");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<any>(null);
-  const [pbOpen, setPbOpen] = useState(false);
-  const [pbProject, setPbProject] = useState<{ name: string; id: string } | null>(null);
+  const [pmOpen, setPmOpen] = useState(false);
+  const [pmProject, setPmProject] = useState<any>(null);
   const [stOpen, setStOpen] = useState(false);
   const [stTest, setStTest] = useState<{ title: string; id: string } | null>(null);
   const [cmOpen, setCmOpen] = useState(false);
@@ -673,19 +673,23 @@ export default function AdminMasterDataPage() {
     };
   }
 
+  // Projects: pass the record through, deriving the USD discount % from the
+  // stored originalPriceUsd so the form's discount field pre-fills.
+  function mapProjectRecordToForm(record: any): Record<string, any> {
+    const discountPercentUsd =
+      record.originalPriceUsd != null &&
+      record.priceUsd != null &&
+      Number(record.originalPriceUsd) > Number(record.priceUsd)
+        ? String(Math.round(((Number(record.originalPriceUsd) - Number(record.priceUsd)) / Number(record.originalPriceUsd)) * 100))
+        : "";
+    return { ...record, priceUsd: record.priceUsd ?? "", discountPercentUsd };
+  }
+
   function openEditModal(record: any) {
     if (currentEntity === "courses") {
       setEditingRecord(mapCourseRecordToForm(record));
     } else {
-      // Projects: pass the record through, deriving the USD discount % from the
-      // stored originalPriceUsd so the form's discount field pre-fills.
-      const discountPercentUsd =
-        record.originalPriceUsd != null &&
-        record.priceUsd != null &&
-        Number(record.originalPriceUsd) > Number(record.priceUsd)
-          ? String(Math.round(((Number(record.originalPriceUsd) - Number(record.priceUsd)) / Number(record.originalPriceUsd)) * 100))
-          : "";
-      setEditingRecord({ ...record, priceUsd: record.priceUsd ?? "", discountPercentUsd });
+      setEditingRecord(mapProjectRecordToForm(record));
     }
     setModalOpen(true);
   }
@@ -1158,21 +1162,16 @@ export default function AdminMasterDataPage() {
     setRefreshKey((k) => k + 1);
   }
 
-  /* ── Project Curriculum Builder ── */
-  function openProjectCurriculumBuilder(project: any) {
-    setPbProject({ name: project.name, id: project.id });
-    setPbOpen(true);
+  /* ── Project Manager (Curriculum / Roadmap / Edit) ── */
+  function openProjectManager(project: any) {
+    setPmProject(project);
+    setPmOpen(true);
   }
 
-  function saveProjectCurriculum() {
-    addToast(`Project curriculum saved`);
-    setPbOpen(false);
-    setPbProject(null);
-  }
-
-  function closeProjectCurriculumBuilder() {
-    setPbOpen(false);
-    setPbProject(null);
+  function closeProjectManager() {
+    setPmOpen(false);
+    setPmProject(null);
+    setRefreshKey((k) => k + 1);
   }
 
   /* ── Expandable Course Curriculum ── */
@@ -1567,8 +1566,7 @@ export default function AdminMasterDataPage() {
                   <EntityTable
                     columns={COLUMNS[currentEntity]} data={filteredData}
                     onEdit={currentEntity === "courses" ? undefined : openEditModal} onDelete={deleteRecord}
-                    onManageCourse={currentEntity === "courses" ? openCourseManager : undefined}
-                    onManageCurriculum={currentEntity === "projects" ? openProjectCurriculumBuilder : undefined}
+                    onManageCourse={currentEntity === "courses" ? openCourseManager : currentEntity === "projects" ? openProjectManager : undefined}
                     onManageQuestions={currentEntity === "skilltests" ? openSkillTestBuilder : undefined}
                     emptyMessage={`No ${ENTITY_NAMES[currentEntity].toLowerCase()}s found.`}
                     expandedId={currentEntity === "courses" ? expandedCourseId : undefined}
@@ -1621,14 +1619,18 @@ export default function AdminMasterDataPage() {
         onCancel={() => resolveConfirm(false)}
       />
 
-      {/* Project Curriculum Builder Modal */}
-      <ProjectCurriculumBuilder
-        open={pbOpen}
-        projectId={pbProject?.id || ""}
-        projectName={pbProject?.name || ""}
+      {/* Unified Project Manager Modal (Curriculum / Roadmap / Edit) */}
+      <ProjectManagerModal
+        open={pmOpen}
+        projectId={pmProject?.id || ""}
+        projectName={pmProject?.title || pmProject?.name || ""}
         token={token || ""}
-        onSave={saveProjectCurriculum}
-        onClose={closeProjectCurriculumBuilder}
+        fields={SCHEMAS.projects}
+        editData={pmProject ? mapProjectRecordToForm(pmProject) : {}}
+        extraOptions={extraOptions}
+        onSaveEdit={saveRecord}
+        onCurriculumSaved={() => setRefreshKey((k) => k + 1)}
+        onClose={closeProjectManager}
       />
 
       {/* Skill Test Builder Modal */}

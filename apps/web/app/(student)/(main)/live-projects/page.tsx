@@ -7,6 +7,7 @@ import useSWR, { useSWRConfig } from "swr";
 import { authFetch } from "@/app/auth/lib/auth-fetch";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { showToast } from "@/lib/toast";
+import { RoadmapView, type RoadmapData } from "@/components/RoadmapTree";
 
 /** Signed-out users get a friendly prompt + the login form highlighted. */
 function promptLogin(router: ReturnType<typeof useRouter>, pathname: string | null) {
@@ -33,6 +34,8 @@ interface Project {
   highlights: string[];
   prereqs: string[];
   curriculum: { week: string; title: string; desc: string }[];
+  previewVideo: { id: string; durationSeconds: number } | null;
+  roadmap: RoadmapData | null;
   trainer: string;
   trainerRole: string;
   trainerBio: string;
@@ -72,6 +75,13 @@ function mapApiProject(p: any): Project {
     curriculum: Array.isArray(p.curriculum)
       ? p.curriculum.map((c: any) => ({ week: c.week || "", title: c.title || "", desc: c.desc || "" }))
       : [],
+    previewVideo: Array.isArray(p.curriculum)
+      ? (() => {
+          const v = p.curriculum.flatMap((c: any) => c.videos || []).find((v: any) => v.isPreview);
+          return v ? { id: v.id, durationSeconds: v.durationSeconds ?? 0 } : null;
+        })()
+      : null,
+    roadmap: p.roadmap && Array.isArray(p.roadmap.phases) ? p.roadmap : null,
     trainer: p.trainer?.name || "TBD",
     trainerRole: p.trainer
       ? `${p.trainer.role === "TRAINER" ? "Trainer" : ""} · ${p.trainer.yearsExperience ?? 0} yrs exp.`
@@ -345,6 +355,112 @@ function ProjectCard({ project: p, onDetail, onBuy }: { project: Project; onDeta
   );
 }
 
+const fmtDur = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+
+/* ── Public preview player (VdoCipher, no auth) — mirrors the course
+ *    detail page's PreviewPlayer, pointed at the project curriculum
+ *    video's public verification endpoint instead. ───────────────── */
+function PreviewPlayer({ videoId, title, durationSeconds, fullBleed }: { videoId: string; title: string; durationSeconds: number; fullBleed?: boolean }) {
+  const sizeClass = fullBleed ? "w-full h-[42vh] sm:h-[58vh] md:h-[68vh]" : "w-full aspect-video";
+  const [started, setStarted] = useState(false);
+  const [otp, setOtp] = useState<string | null>(null);
+  const [playbackInfo, setPlaybackInfo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handlePlay = () => {
+    setStarted(true);
+    setLoading(true);
+    setError(null);
+    setProcessing(false);
+    fetch(`/api/projects/public/curriculum-videos/${videoId}/verification`)
+      .then(async (r) => {
+        if (r.ok) return r.json();
+        const body = await r.json().catch(() => ({}));
+        if (r.status === 400 && body?.message === 'Video not ready') {
+          return Promise.reject('processing');
+        }
+        return Promise.reject('error');
+      })
+      .then(data => { setOtp(data.otp); setPlaybackInfo(data.playbackInfo); })
+      .catch((reason) => {
+        if (reason === 'processing') setProcessing(true);
+        else setError('Failed to load video preview');
+      })
+      .finally(() => setLoading(false));
+  };
+
+  const playerSrc = otp && playbackInfo
+    ? `https://player.vdocipher.com/v2/?otp=${otp}&playbackInfo=${playbackInfo}&autoplay=true`
+    : null;
+
+  if (processing) {
+    return (
+      <div className={`relative bg-black flex items-center justify-center ${sizeClass}`}>
+        <div className="text-center text-[#64748b] p-4">
+          <div className="text-lg mb-1">⏳</div>
+          <div className="text-xs font-bold text-white mb-0.5">Under Processing</div>
+          <div className="text-[10px]">This video is still being processed — check back shortly.</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={`relative bg-black flex items-center justify-center ${sizeClass}`}>
+        <div className="text-center text-[#64748b] p-4">
+          <div className="text-lg mb-1">⚠️</div>
+          <div className="text-xs font-bold text-white mb-0.5">Preview Unavailable</div>
+          <div className="text-[10px]">{error}</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`relative bg-black overflow-hidden ${fullBleed ? "" : "rounded-[10px] sm:rounded-[12px]"} ${sizeClass}`}>
+      {started && playerSrc ? (
+        <iframe
+          src={playerSrc}
+          style={{ width: '100%', height: '100%', border: 'none' }}
+          allow="encrypted-media; autoplay"
+          allowFullScreen
+          title={title}
+        />
+      ) : null}
+
+      {started && !playerSrc && loading ? (
+        <div className="absolute inset-0 flex items-center justify-center bg-black">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-6 h-6 border-2 border-[#F04E00] border-t-transparent rounded-full animate-spin" />
+            <span className="text-[#64748b] text-[10px]">Loading preview...</span>
+          </div>
+        </div>
+      ) : null}
+
+      {!started && (
+        <div className="absolute inset-0 bg-black flex items-center justify-center">
+          <button
+            onClick={handlePlay}
+            className="w-16 h-16 rounded-full bg-[linear-gradient(135deg,#F04E00,#FF6B2B)] flex items-center justify-center transition-all hover:scale-110 cursor-pointer border-none shadow-[0_6px_28px_rgba(240,78,0,.5)]"
+            aria-label="Play free preview"
+          >
+            <div className="w-0 h-0 border-solid border-t-[14px] border-b-[14px] border-l-[24px] border-transparent border-l-white ml-[5px]" />
+          </button>
+          <div className="absolute top-3 left-3 bg-[linear-gradient(135deg,#22C55E,#16A34A)] text-white px-3 py-[3px] rounded-[5px] text-[10.5px] font-bold uppercase tracking-[.4px] shadow-[0_2px_8px_rgba(34,197,94,.4)]">
+            Free Preview
+          </div>
+          <div className="absolute bottom-[12px] right-[12px] bg-black/65 text-white text-[11px] px-[9px] py-[3px] rounded-[4px] font-mono">
+            {fmtDur(durationSeconds)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── DETAIL MODAL ──────────────────────────────────────────────── */
 
 function DetailModal({ project: p, onClose, onBuy }: { project: Project; onClose: () => void; onBuy: (id: string) => void }) {
@@ -353,33 +469,47 @@ function DetailModal({ project: p, onClose, onBuy }: { project: Project; onClose
   return (
     <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center sm:p-5 bg-black/60 backdrop-blur-[3px] opacity-100 pointer-events-auto transition-opacity overflow-hidden" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-[var(--surface)] rounded-t-[18px] sm:rounded-[18px] w-full sm:w-[95vw] max-w-[calc(100vw-16px)] max-h-[95vh] sm:max-h-[95vh] overflow-y-auto overflow-x-hidden shadow-[var(--shadow-lg)] border border-[var(--border)] transform translate-y-0 transition-transform">
-        {/* Hero */}
-        <div className="relative p-4 sm:p-6 pb-4 sm:pb-5 text-white overflow-hidden" style={{ background: p.thumbGradient }}>
-          {p.image && (
-            <img src={p.image} alt="" className="absolute inset-0 w-full h-full min-w-full min-h-full object-cover opacity-30" />
-          )}
-          <button onClick={onClose} className="absolute top-3 right-3 sm:top-3.5 sm:right-3.5 w-[28px] h-[28px] sm:w-[30px] sm:h-[30px] rounded-[7px] sm:rounded-[8px] border border-white/25 bg-white/10 text-white text-[13px] sm:text-[15px] flex items-center justify-center cursor-pointer hover:bg-white/20 transition-colors z-10">✕</button>
-          <div className="flex gap-1.5 sm:gap-2 mb-2 sm:mb-2.5">
-            <span className={`text-[8px] sm:text-[9px] font-bold tracking-widest uppercase px-2 sm:px-[9px] py-[2px] sm:py-[3px] rounded-[4px] sm:rounded-[5px] ${badgeColor(p.level)}`}>{p.badge}</span>
-            <span className="text-[9px] sm:text-[10.5px] font-bold bg-white/12 text-white/75 px-2 sm:px-[9px] py-[2px] sm:py-[3px] rounded-[4px] sm:rounded-[5px]">{p.techLabel}</span>
+        {/* Hero — compact, no background image */}
+        <div className="relative p-3 sm:p-4 pb-2.5 sm:pb-3 text-white overflow-hidden" style={{ background: p.thumbGradient }}>
+          <button onClick={onClose} className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 w-[26px] h-[26px] rounded-[6px] sm:rounded-[7px] border border-white/25 bg-white/10 text-white text-[12px] sm:text-[13px] flex items-center justify-center cursor-pointer hover:bg-white/20 transition-colors z-10">✕</button>
+          <div className="flex gap-1.5 mb-1.5">
+            <span className={`text-[8px] font-bold tracking-widest uppercase px-2 py-[2px] rounded-[4px] ${badgeColor(p.level)}`}>{p.badge}</span>
+            <span className="text-[8.5px] font-bold bg-white/12 text-white/75 px-2 py-[2px] rounded-[4px]">{p.techLabel}</span>
           </div>
-          <h2 className="text-[17px] sm:text-[21px] font-extrabold leading-[1.25] mb-1.5 sm:mb-2 max-w-[520px]">{p.name}</h2>
-          <p className="text-[11px] sm:text-[12.5px] text-white/75 leading-[1.6] max-w-[540px]">{p.shortDesc}</p>
-          <div className="flex gap-4 sm:gap-[22px] mt-3 sm:mt-4 flex-wrap">
-            <div><b className="block text-[13px] sm:text-[15px] font-extrabold">{p.duration}</b><span className="text-[9px] sm:text-[10px] text-white/60">Duration</span></div>
-            <div><b className="block text-[13px] sm:text-[15px] font-extrabold">{p.sessions}</b><span className="text-[9px] sm:text-[10px] text-white/60">Mentor Sessions</span></div>
-            <div><b className="block text-[13px] sm:text-[15px] font-extrabold">★ {p.rating}</b><span className="text-[9px] sm:text-[10px] text-white/60">Rating</span></div>
-            <div><b className="block text-[13px] sm:text-[15px] font-extrabold">{p.seats}</b><span className="text-[9px] sm:text-[10px] text-white/60">Seats Left</span></div>
+          <h2 className="text-[15px] sm:text-[17px] font-extrabold leading-[1.25] mb-1 max-w-[520px] pr-8">{p.name}</h2>
+          <p className="text-[10.5px] sm:text-[11.5px] text-white/75 leading-[1.5] max-w-[540px]">{p.shortDesc}</p>
+          <div className="flex gap-3.5 sm:gap-[18px] mt-2.5 flex-wrap">
+            <div><b className="block text-[11.5px] sm:text-[13px] font-extrabold">{p.duration}</b><span className="text-[8px] sm:text-[9px] text-white/60">Duration</span></div>
+            <div><b className="block text-[11.5px] sm:text-[13px] font-extrabold">{p.sessions}</b><span className="text-[8px] sm:text-[9px] text-white/60">Mentor Sessions</span></div>
+            <div><b className="block text-[11.5px] sm:text-[13px] font-extrabold">★ {p.rating}</b><span className="text-[8px] sm:text-[9px] text-white/60">Rating</span></div>
+            <div><b className="block text-[11.5px] sm:text-[13px] font-extrabold">{p.seats}</b><span className="text-[8px] sm:text-[9px] text-white/60">Seats Left</span></div>
           </div>
         </div>
 
+        {/* Full-bleed preview video — breaks out of the body's padding and
+            uses viewport height so it reads as a proper full-size player,
+            not a cropped little box. */}
+        {p.previewVideo && (
+          <div className="w-full">
+            <PreviewPlayer videoId={p.previewVideo.id} title={p.name} durationSeconds={p.previewVideo.durationSeconds} fullBleed />
+          </div>
+        )}
+
         {/* Body */}
         <div className="p-4 sm:p-6 flex flex-col gap-5 sm:gap-[22px]">
-          {/* Overview */}
-          <section>
-            <h3 className="text-[12px] sm:text-[13px] font-bold text-[var(--text)] mb-2 sm:mb-2.5 flex items-center gap-1.5 sm:gap-[7px]">📖 Project Overview</h3>
-            <p className="text-[11px] sm:text-[12.5px] text-[var(--text2)] leading-[1.65]">{p.overview}</p>
-          </section>
+          {/* Overview + Roadmap — side by side on desktop, stacked on mobile */}
+          <div className={`grid grid-cols-1 ${p.roadmap ? "lg:grid-cols-2" : ""} gap-5 sm:gap-[22px] items-start`}>
+            <section>
+              <h3 className="text-[12px] sm:text-[13px] font-bold text-[var(--text)] mb-2 sm:mb-2.5 flex items-center gap-1.5 sm:gap-[7px]">📖 Project Overview</h3>
+              <p className="text-[11px] sm:text-[12.5px] text-[var(--text2)] leading-[1.65]">{p.overview}</p>
+            </section>
+            {p.roadmap && (
+              <section className="min-w-0">
+                <h3 className="text-[12px] sm:text-[13px] font-bold text-[var(--text)] mb-2 sm:mb-2.5 flex items-center gap-1.5 sm:gap-[7px]">🗺 Roadmap</h3>
+                <RoadmapView roadmap={p.roadmap} trackProgress={false} />
+              </section>
+            )}
+          </div>
 
           {/* Two-col grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5 sm:gap-[22px]">

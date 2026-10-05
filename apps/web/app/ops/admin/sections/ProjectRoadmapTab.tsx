@@ -8,8 +8,8 @@ import { AiUsageBlock, type AiUsage } from "@/components/AiUsageBlock";
 
 type Roadmap = RoadmapData;
 
-interface CourseRoadmapTabProps {
-  courseId: string;
+interface ProjectRoadmapTabProps {
+  projectId: string;
   token: string;
   onChanged?: () => void;
 }
@@ -42,7 +42,10 @@ async function apiCall(endpoint: string, options?: RequestInit) {
   return body;
 }
 
-export function CourseRoadmapTab({ courseId, token, onChanged }: CourseRoadmapTabProps) {
+/** Project's counterpart to CourseRoadmapTab — identical flow (generate/poll/
+ *  cancel/edit), just pointed at /projects/:id/roadmap* and sourcing video
+ *  options from the project's curriculum videos instead of course sections. */
+export function ProjectRoadmapTab({ projectId, token, onChanged }: ProjectRoadmapTabProps) {
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,17 +69,15 @@ export function CourseRoadmapTab({ courseId, token, onChanged }: CourseRoadmapTa
   }, []);
 
   function load() {
-    if (!token || !courseId) return;
+    if (!token || !projectId) return;
     setLoading(true);
-    apiCall(`/courses/${courseId}`)
+    apiCall(`/projects/${projectId}`)
       .then((data) => {
-        // Guard against a roadmap saved under an older schema version before
-        // regenerating — treat it as "not generated yet" rather than crash.
         const rm = data?.roadmap;
         setRoadmap(rm && Array.isArray(rm.phases) ? rm : null);
         setGeneratedAt(data?.roadmapGeneratedAt ?? null);
-        const opts: VideoOption[] = (data?.sections ?? []).flatMap((s: any) =>
-          (s.videos ?? []).map((v: any) => ({ id: v.id, title: v.title, sectionTitle: s.title })),
+        const opts: VideoOption[] = (data?.curriculum ?? []).flatMap((c: any) =>
+          (c.videos ?? []).map((v: any) => ({ id: v.id, title: v.title, sectionTitle: c.title })),
         );
         setVideoOptions(opts);
         setEditDraft(null);
@@ -85,7 +86,7 @@ export function CourseRoadmapTab({ courseId, token, onChanged }: CourseRoadmapTa
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { setUsage(null); load(); }, [courseId, token]);
+  useEffect(() => { setUsage(null); load(); }, [projectId, token]);
 
   async function handleCancel() {
     const jobId = jobIdRef.current;
@@ -93,7 +94,7 @@ export function CourseRoadmapTab({ courseId, token, onChanged }: CourseRoadmapTa
     setCancelling(true);
     cancelledRef.current = true;
     try {
-      await apiCall(`/courses/${courseId}/roadmap/generate/${jobId}`, { method: "DELETE" });
+      await apiCall(`/projects/${projectId}/roadmap/generate/${jobId}`, { method: "DELETE" });
     } catch {
       // best-effort
     } finally {
@@ -111,7 +112,7 @@ export function CourseRoadmapTab({ courseId, token, onChanged }: CourseRoadmapTa
     setUsage(null);
     cancelledRef.current = false;
     try {
-      const body = await apiCall(`/courses/${courseId}/roadmap/generate`, { method: "POST" });
+      const body = await apiCall(`/projects/${projectId}/roadmap/generate`, { method: "POST" });
       const jobId: string = body.jobId;
       jobIdRef.current = jobId;
       const deadline = Date.now() + MAX_WAIT_MS;
@@ -120,7 +121,7 @@ export function CourseRoadmapTab({ courseId, token, onChanged }: CourseRoadmapTa
         await new Promise((r) => setTimeout(r, POLL_MS));
         if (unmounted.current || cancelledRef.current) return;
 
-        const job = await apiCall(`/courses/${courseId}/roadmap/generate/${jobId}`).catch((e) => {
+        const job = await apiCall(`/projects/${projectId}/roadmap/generate/${jobId}`).catch((e) => {
           throw e;
         });
         if (job.stage) setStage(job.stage);
@@ -167,7 +168,7 @@ export function CourseRoadmapTab({ courseId, token, onChanged }: CourseRoadmapTa
     setSavingEdit(true);
     setError(null);
     try {
-      const updated = await apiCall(`/courses/${courseId}/roadmap`, {
+      const updated = await apiCall(`/projects/${projectId}/roadmap`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editDraft),
@@ -263,12 +264,10 @@ export function CourseRoadmapTab({ courseId, token, onChanged }: CourseRoadmapTa
       ) : !roadmap ? (
         !error && (
           <div className="text-center py-8 font-mono text-[11px]" style={{ color: "var(--text3)" }}>
-            Generate a detailed, tree-shaped Beginner → Advanced roadmap for this course — shown on the public course page.
+            Generate a detailed, tree-shaped Beginner → Advanced roadmap for this project — shown on the public project page.
           </div>
         )
       ) : (
-        // Same component the public course page uses — what the admin previews/edits here
-        // is pixel-for-pixel what students will see. Editing happens directly in the tree.
         <RoadmapView
           roadmap={editDraft ?? roadmap}
           trackProgress={false}

@@ -1,19 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CurriculumBuilder } from "./CurriculumBuilder";
-import { ResourceManagerModal } from "./ResourceManagerModal";
+import { ProjectCurriculumBuilder } from "./ProjectCurriculumBuilder";
+import { ProjectRoadmapTab } from "./ProjectRoadmapTab";
 import { MasterDataModal, type FieldDef } from "./MasterDataModal";
-import { CourseSkillTestsTab } from "./CourseSkillTestsTab";
-import { CourseRoadmapTab } from "./CourseRoadmapTab";
 
-type CourseManagerTab = "curriculum" | "resources" | "skilltest" | "roadmap" | "edit";
+type ProjectManagerTab = "curriculum" | "roadmap" | "edit";
 
-interface CourseManagerModalProps {
+interface ProjectManagerModalProps {
   open: boolean;
-  courseId: string;
-  courseName: string;
-  courseCode: string;
+  projectId: string;
+  projectName: string;
   token: string;
   fields: FieldDef[];
   editData: Record<string, any>;
@@ -23,22 +20,20 @@ interface CourseManagerModalProps {
   onClose: () => void;
 }
 
-const TABS: { key: CourseManagerTab; icon: string; label: string }[] = [
+const TABS: { key: ProjectManagerTab; icon: string; label: string }[] = [
   { key: "curriculum", icon: "📋", label: "Curriculum" },
-  { key: "resources", icon: "📎", label: "Resources" },
-  { key: "skilltest", icon: "🧪", label: "Quiz" },
   { key: "roadmap", icon: "🗺", label: "Roadmap" },
   { key: "edit", icon: "✏", label: "Edit Details" },
 ];
 
-export function CourseManagerModal({
-  open, courseId, courseName, courseCode, token, fields, editData, extraOptions, onSaveEdit, onCurriculumSaved, onClose,
-}: CourseManagerModalProps) {
-  const [activeTab, setActiveTab] = useState<CourseManagerTab>("curriculum");
+export function ProjectManagerModal({
+  open, projectId, projectName, token, fields, editData, extraOptions, onSaveEdit, onCurriculumSaved, onClose,
+}: ProjectManagerModalProps) {
+  const [activeTab, setActiveTab] = useState<ProjectManagerTab>("curriculum");
 
   useEffect(() => {
     if (open) setActiveTab("curriculum");
-  }, [open, courseId]);
+  }, [open, projectId]);
 
   if (!open) return null;
 
@@ -68,7 +63,7 @@ export function CourseManagerModal({
               className="w-[26px] h-[26px] rounded flex items-center justify-center text-[13px]"
               style={{ background: "var(--orange-d)", color: "var(--orange)" }}
             >🗂</span>
-            Manage Course{courseName ? <span style={{ fontWeight: 400, color: "var(--text3)" }}> — {courseName}</span> : ""}
+            Manage Project{projectName ? <span style={{ fontWeight: 400, color: "var(--text3)" }}> — {projectName}</span> : ""}
           </div>
           <button
             onClick={onClose}
@@ -100,37 +95,19 @@ export function CourseManagerModal({
         {/* Body */}
         <div className="flex flex-col flex-1 overflow-y-auto">
           {activeTab === "curriculum" && (
-            <CurriculumBuilder
+            <ProjectCurriculumBuilder
               embedded
               open={true}
-              courseId={courseId}
-              courseName={courseName}
-              courseCode={courseCode}
+              projectId={projectId}
+              projectName={projectName}
               token={token}
               onSave={() => { onCurriculumSaved?.(); }}
               onClose={onClose}
             />
           )}
-          {activeTab === "resources" && (
-            <ResourceManagerModal
-              embedded
-              open={true}
-              courseId={courseId}
-              courseName={courseName}
-              token={token}
-              onClose={onClose}
-            />
-          )}
-          {activeTab === "skilltest" && (
-            <CourseSkillTestsTab
-              courseId={courseId}
-              token={token}
-              onChanged={() => { onCurriculumSaved?.(); }}
-            />
-          )}
           {activeTab === "roadmap" && (
-            <CourseRoadmapTab
-              courseId={courseId}
+            <ProjectRoadmapTab
+              projectId={projectId}
               token={token}
               onChanged={() => { onCurriculumSaved?.(); }}
             />
@@ -139,9 +116,9 @@ export function CourseManagerModal({
             <MasterDataModal
               embedded
               open={true}
-              entity="courses"
-              icon="📚"
-              title="Course"
+              entity="projects"
+              icon="🚀"
+              title="Project"
               fields={fields}
               data={editData}
               editing={!!editData?.id}

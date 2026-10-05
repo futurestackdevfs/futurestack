@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Roadmap as StageRoadmap, RoadmapTopic, TopicKind } from "@/lib/roadmap-types";
-import { RoadmapDetailTree } from "@/components/roadmaps/RoadmapDetailTree";
+import type { Roadmap as StageRoadmap, RoadmapGroup, RoadmapTopic, TopicKind } from "@/lib/roadmap-types";
+import { RoadmapDetailTree, type VideoOption } from "@/components/roadmaps/RoadmapDetailTree";
 
 export type ChipKind = "must" | "pick-one" | "optional";
 
@@ -445,15 +445,54 @@ export function toStageRoadmap(roadmap: RoadmapData): StageRoadmap {
     stages: roadmap.phases.map((phase) => ({
       t: phase.phase,
       why: PHASE_TAGLINE[phase.phase],
-      g: phase.nodes.map((node) => [
+      g: phase.nodes.map((node): RoadmapGroup => [
         node.title,
         node.chips.map((chip): RoadmapTopic => [chip.title, CHIP_KIND_TO_TOPIC_KIND[chip.kind], chip.videoId]),
+        node.description,
       ]),
     })),
     // AI-generated [learnFirst, unlocks] chip pairs — absent on roadmaps saved
     // before this field existed, so default to no links rather than crash.
     rels: (roadmap.rels ?? []).map((r): [string, string] => [r.learnFirst, r.unlocks]),
   };
+}
+
+const TOPIC_KIND_TO_CHIP_KIND: Record<TopicKind, ChipKind> = {
+  c: "must",
+  o: "pick-one",
+  f: "optional",
+};
+
+/**
+ * Reverse of toStageRoadmap — folds an edited stage-tree back onto the
+ * original RoadmapData, by position (stage index = phase index, group index
+ * = node index, chip index = chip index; toStageRoadmap never reorders or
+ * filters, so this always lines up). `lessonTitles` can't be recovered for a
+ * renamed/added/reordered chip, so it's dropped there — it was only ever a
+ * one-time hint for the initial video auto-match, not shown anywhere.
+ */
+export function applyStageEdits(original: RoadmapData, edited: StageRoadmap): RoadmapData {
+  const next: RoadmapData = JSON.parse(JSON.stringify(original));
+  next.phases = edited.stages.map((stage, si) => {
+    const origPhase = original.phases[si];
+    return {
+      phase: origPhase?.phase ?? "Beginner",
+      nodes: stage.g.map(([title, topics, description], gi) => {
+        const origNode = origPhase?.nodes[gi];
+        return {
+          title,
+          description: description ?? origNode?.description ?? "",
+          chips: topics.map(([ctitle, kind, videoId], ci) => ({
+            title: ctitle,
+            kind: TOPIC_KIND_TO_CHIP_KIND[kind],
+            lessonTitles: origNode?.chips[ci]?.title === ctitle ? origNode.chips[ci].lessonTitles : [],
+            videoId: videoId ?? null,
+          })),
+        };
+      }),
+    };
+  });
+  return next;
 }
 
 /** Full roadmap: title/summary header + the same stage-tree diagram used on /roadmaps/[id]. */
@@ -465,12 +504,20 @@ function saveDone(key: string, done: Record<string, boolean>) {
 }
 
 export function RoadmapView({
-  roadmap, onJumpToVideo, trackProgress = true,
+  roadmap, onJumpToVideo, trackProgress = true, editable, videoOptions, onEdit, completedVideoIds,
 }: {
   roadmap: RoadmapData;
   onJumpToVideo?: (videoId: string) => void;
   /** Set false to hide the "mark as learned" checkboxes/panel button entirely (e.g. admin preview). */
   trackProgress?: boolean;
+  /** Turns every node/chip in the tree into inline-editable fields, including
+   *  which video a chip links to. Requires `onEdit`. */
+  editable?: boolean;
+  videoOptions?: VideoOption[];
+  onEdit?: (next: RoadmapData) => void;
+  /** Video IDs the student has already finished watching. Any topic linked
+   *  to one of these is shown as learned automatically, no manual toggle needed. */
+  completedVideoIds?: Set<string> | string[];
 }) {
   const stageRoadmap = useMemo(() => toStageRoadmap(roadmap), [roadmap]);
   const progressKey = stageRoadmap.id;
@@ -483,7 +530,29 @@ export function RoadmapView({
     if (trackProgress) setDone(loadDone(progressKey));
   }, [progressKey, trackProgress]);
 
+  const autoDoneTitles = useMemo(() => {
+    if (!completedVideoIds) return [];
+    const completed = completedVideoIds instanceof Set ? completedVideoIds : new Set(completedVideoIds);
+    const titles: string[] = [];
+    for (const stage of stageRoadmap.stages) {
+      for (const [, topics] of stage.g) {
+        for (const [title, , videoId] of topics) {
+          if (videoId && completed.has(videoId)) titles.push(title);
+        }
+      }
+    }
+    return titles;
+  }, [stageRoadmap, completedVideoIds]);
+
+  const effectiveDone = useMemo(() => {
+    if (!autoDoneTitles.length) return done;
+    const next = { ...done };
+    for (const title of autoDoneTitles) next[title] = true;
+    return next;
+  }, [done, autoDoneTitles]);
+
   function toggleDone(topic: string) {
+    if (autoDoneTitles.includes(topic)) return;
     setDone((prev) => {
       const next = { ...prev };
       if (next[topic]) delete next[topic]; else next[topic] = true;
@@ -517,8 +586,11 @@ export function RoadmapView({
         highlight={highlight}
         linkMode={linkMode}
         onJumpToVideo={onJumpToVideo}
-        done={trackProgress ? done : undefined}
+        done={trackProgress ? effectiveDone : undefined}
         onToggleDone={trackProgress ? toggleDone : undefined}
+        editable={editable}
+        videoOptions={videoOptions}
+        onEdit={onEdit ? (next) => onEdit(applyStageEdits(roadmap, next)) : undefined}
       />
     </div>
   );

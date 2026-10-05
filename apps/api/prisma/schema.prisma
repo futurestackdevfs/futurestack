@@ -733,6 +733,11 @@ model Project {
   setupSteps          String[]     @default([])
   demoVideoUrl        String?
   walkthroughVideoUrl String?
+  // AI-generated learning roadmap (stages/milestones synthesized from the curriculum's
+  // week/lesson titles). See apps/api/src/projects/roadmap/ — reuses the same
+  // generator/schema as Course.roadmap. null until the admin generates it once.
+  roadmap             Json?
+  roadmapGeneratedAt  DateTime?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 
