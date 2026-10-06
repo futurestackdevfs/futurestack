@@ -5,9 +5,13 @@ import { VideoUploadDialog } from "./VideoUploadDialog"
 import { ConfirmDialog, type ConfirmOptions } from "./ConfirmDialog"
 import { SkillTestBuilder } from "./SkillTestBuilder"
 import { opsFetch } from "@/app/ops/lib/ops-fetch"
+import { VideoPreviewModal } from "./VideoPreviewModal"
+
+type VideoStatus = "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
 
 interface ApiVideo {
   id: string; title: string; vdoCipherId: string; durationSeconds: number; order: number; isPreview: boolean;
+  videoStatus: VideoStatus;
 }
 interface ApiQuiz {
   id: string; title: string; order: number; totalQuestions: number; passingScore?: number;
@@ -26,6 +30,8 @@ interface MergedLesson {
   durationSeconds: number;
   totalQuestions: number;
   isPreview: boolean;
+  videoStatus?: VideoStatus;
+  vdoCipherId?: string;
 }
 
 interface MergedSection {
@@ -64,7 +70,7 @@ function mergeLessons(sections: ApiSection[]): MergedSection[] {
         id: v.id, kind: "video" as const, title: v.title, order: v.order,
         typeLabel: v.vdoCipherId?.startsWith("type:") ? v.vdoCipherId.slice(5) : "Video",
         durationLabel: formatDuration(v), durationSeconds: v.durationSeconds, totalQuestions: 0,
-        isPreview: v.isPreview,
+        isPreview: v.isPreview, videoStatus: v.videoStatus, vdoCipherId: v.vdoCipherId,
       })),
       ...s.quizzes.map((q) => ({
         id: q.id, kind: "quiz" as const, title: q.title, order: q.order,
@@ -128,6 +134,7 @@ export function CurriculumBuilder({
   // course-level skill test anymore. This tracks which quiz's question
   // editor is currently open.
   const [quizEditorTarget, setQuizEditorTarget] = useState<{ id: string; title: string } | null>(null);
+  const [previewVideo, setPreviewVideo] = useState<{ id: string; title: string } | null>(null);
 
   function nextTempId() { return `new_${--tempIdCounter.current}`; }
 
@@ -166,6 +173,7 @@ export function CurriculumBuilder({
           videos: (s.videos || []).map((v: any) => ({
             id: v.id, title: v.title || "", vdoCipherId: v.vdoCipherId || "",
             durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0, isPreview: v.isPreview ?? false,
+            videoStatus: v.videoStatus ?? "READY",
           })),
           quizzes: (s.quizzes || []).map((q: any) => ({
             id: q.id, title: q.title || "", order: q.order ?? 0,
@@ -193,6 +201,7 @@ export function CurriculumBuilder({
           videos: (s.videos || []).map((v: any) => ({
             id: v.id, title: v.title || "", vdoCipherId: v.vdoCipherId || "",
             durationSeconds: v.durationSeconds ?? 0, order: v.order ?? 0, isPreview: v.isPreview ?? false,
+            videoStatus: v.videoStatus ?? "READY",
           })),
           quizzes: (s.quizzes || []).map((q: any) => ({
             id: q.id, title: q.title || "", order: q.order ?? 0,
@@ -229,7 +238,7 @@ export function CurriculumBuilder({
     setSections(prev => {
       const target = prev[0] ?? { id: nextTempId(), title: 'New Section', order: 0, videos: [], quizzes: [] };
       const minOrder = Math.min(0, ...target.videos.map(v => v.order), ...target.quizzes.map(q => q.order));
-      const newVideo: ApiVideo = { id: nextTempId(), title: 'Free Preview Video', vdoCipherId: 'type:Video', durationSeconds: 600, order: minOrder - 1, isPreview: true };
+      const newVideo: ApiVideo = { id: nextTempId(), title: 'Free Preview Video', vdoCipherId: 'type:Video', durationSeconds: 600, order: minOrder - 1, isPreview: true, videoStatus: 'READY' };
       const updated = prev[0]
         ? prev.map(s => s.id === target.id ? { ...s, videos: [newVideo, ...s.videos] } : s)
         : [{ ...target, videos: [newVideo] }];
@@ -269,7 +278,7 @@ export function CurriculumBuilder({
       // isPreview is server-decided on save (first video ever added to a
       // course is auto-marked) — this local placeholder is just optimistic UI
       // until the real value comes back from save/refetch.
-      const newVideo: ApiVideo = { id: nextTempId(), title: 'New Video', vdoCipherId: 'type:Video', durationSeconds: 600, order: 0, isPreview: false };
+      const newVideo: ApiVideo = { id: nextTempId(), title: 'New Video', vdoCipherId: 'type:Video', durationSeconds: 600, order: 0, isPreview: false, videoStatus: 'READY' };
       setSections(prev => {
         const sec = prev.find(s => s.id === sectionId);
         if (!sec) return prev;
@@ -660,8 +669,8 @@ export function CurriculumBuilder({
                           <div key={lesson.id}>
                           <div className="grid gap-2 items-center py-1 px-1.5 rounded"
                             style={lesson.kind === "video" && lesson.isPreview
-                              ? { gridTemplateColumns: "24px 1.6fr 1fr auto 28px", background: "var(--green-d, rgba(34,197,94,.1))", border: "1px solid rgba(34,197,94,.3)" }
-                              : { gridTemplateColumns: "24px 1.6fr 1fr auto 28px" }}>
+                              ? { gridTemplateColumns: "24px 1.6fr 1fr auto auto 28px", background: "var(--green-d, rgba(34,197,94,.1))", border: "1px solid rgba(34,197,94,.3)" }
+                              : { gridTemplateColumns: "24px 1.6fr 1fr auto auto 28px" }}>
                             <span className="font-mono text-[9px] text-center" style={{ color: "var(--text3)" }}>{li + 1}</span>
                             <div className="flex items-center gap-1.5 min-w-0">
                               <input
@@ -694,59 +703,88 @@ export function CurriculumBuilder({
                             >
                               {LESSON_TYPE_OPTIONS.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
                             </select>
-                            {lesson.kind === "video" ? (
-                              <button
-                                onClick={async () => {
-                                  // If section is unsaved (temp ID), create it first so upload gets a real UUID
-                                  let targetSectionId = section.id;
-                                  if (section.id.startsWith('new_') && token) {
-                                    try {
-                                      const created = await apiCall(token, `/courses/${courseId}/sections`, {
-                                        method: 'POST',
-                                        body: JSON.stringify({ title: section.title, order: section.order }),
-                                      });
-                                      const realId = created.id;
-                                      // Replace temp ID with real ID in state
-                                      setSections(prev => {
-                                        const updated = prev.map(s => s.id === section.id ? { ...s, id: realId } : s);
-                                        setDisplaySections(mergeLessons(updated));
-                                        return updated;
-                                      });
-                                      // Mark as saved so handleSave won't POST it again
-                                      originalSections.current = [...originalSections.current, { ...section, id: realId, videos: [], quizzes: [] }];
-                                      targetSectionId = realId;
-                                    } catch {
-                                      return;
-                                    }
-                                  }
-                                  setSelectedSectionId(targetSectionId);
-                                  setSelectedLessonTitle(lesson.title);
-                                  setSelectedLessonId(lesson.id);
-                                  setSelectedInitialOrder(
-                                    Math.max(
-                                      ...(sections.find(s => s.id === targetSectionId)?.videos ?? []).map(v => v.order),
-                                      0
-                                    ) + 1
-                                  );
-                                  setUploadDialogOpen(true);
-                                }}
-                                className="font-mono text-[9px] font-semibold px-2.5 py-1 rounded cursor-pointer whitespace-nowrap"
-                                style={{ background: "var(--btn-bg, var(--orange-d))", color: "var(--btn-text, var(--orange))", border: "1px solid var(--btn-bg, rgba(240,90,26,.2))" }}
-                                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--orange))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, #fff)"; }}
-                                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, var(--orange-d))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--orange))"; }}
-                              >📤 Upload</button>
-                            ) : lesson.id.startsWith('new_') ? (
-                              <span className="text-[10px] px-1.5 py-1 rounded text-center whitespace-nowrap"
-                                style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text3)" }}
-                                title="Save the curriculum first to add questions">
-                                Save to add questions
-                              </span>
+                            {lesson.kind === "video" ? (() => {
+                              const isPlaceholder = !lesson.vdoCipherId || lesson.vdoCipherId.startsWith('type:');
+                              const vStatus = lesson.videoStatus ?? "READY";
+                              const uploadLabel = isPlaceholder
+                                ? "📤 Upload"
+                                : vStatus === "UPLOADING" ? "⏳ Uploading…"
+                                : vStatus === "PROCESSING" ? "⚙️ Processing…"
+                                : vStatus === "FAILED" ? "⚠️ Retry Upload"
+                                : "🔁 Replace";
+                              const uploadDisabled = acting || (!isPlaceholder && (vStatus === "UPLOADING" || vStatus === "PROCESSING"));
+                              return (
+                                <>
+                                  <button
+                                    disabled={uploadDisabled}
+                                    onClick={async () => {
+                                      // If section is unsaved (temp ID), create it first so upload gets a real UUID
+                                      let targetSectionId = section.id;
+                                      if (section.id.startsWith('new_') && token) {
+                                        try {
+                                          const created = await apiCall(token, `/courses/${courseId}/sections`, {
+                                            method: 'POST',
+                                            body: JSON.stringify({ title: section.title, order: section.order }),
+                                          });
+                                          const realId = created.id;
+                                          // Replace temp ID with real ID in state
+                                          setSections(prev => {
+                                            const updated = prev.map(s => s.id === section.id ? { ...s, id: realId } : s);
+                                            setDisplaySections(mergeLessons(updated));
+                                            return updated;
+                                          });
+                                          // Mark as saved so handleSave won't POST it again
+                                          originalSections.current = [...originalSections.current, { ...section, id: realId, videos: [], quizzes: [] }];
+                                          targetSectionId = realId;
+                                        } catch {
+                                          return;
+                                        }
+                                      }
+                                      setSelectedSectionId(targetSectionId);
+                                      setSelectedLessonTitle(lesson.title);
+                                      setSelectedLessonId(lesson.id);
+                                      setSelectedInitialOrder(
+                                        Math.max(
+                                          ...(sections.find(s => s.id === targetSectionId)?.videos ?? []).map(v => v.order),
+                                          0
+                                        ) + 1
+                                      );
+                                      setUploadDialogOpen(true);
+                                    }}
+                                    className="font-mono text-[9px] font-semibold px-2.5 py-1 rounded cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                                    style={{ background: "var(--btn-bg, var(--orange-d))", color: "var(--btn-text, var(--orange))", border: "1px solid var(--btn-bg, rgba(240,90,26,.2))" }}
+                                    onMouseEnter={(e) => { if (uploadDisabled) return; (e.currentTarget as HTMLElement).style.background = "var(--btn-bg-hover, var(--orange))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, #fff)"; }}
+                                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--btn-bg, var(--orange-d))"; (e.currentTarget as HTMLElement).style.color = "var(--btn-text, var(--orange))"; }}
+                                  >{uploadLabel}</button>
+                                  {!isPlaceholder && vStatus === "READY" ? (
+                                    <button
+                                      onClick={() => setPreviewVideo({ id: lesson.id, title: lesson.title })}
+                                      className="font-mono text-[9px] font-semibold px-2.5 py-1 rounded cursor-pointer whitespace-nowrap"
+                                      style={{ background: "var(--btn-bg, var(--blue-d))", color: "var(--btn-text, var(--blue))", border: "1px solid var(--btn-bg, rgba(37,99,235,.2))" }}
+                                    >▶ Preview</button>
+                                  ) : (
+                                    <span className="font-mono text-[9px] px-2.5 py-1" />
+                                  )}
+                                </>
+                              );
+                            })() : lesson.id.startsWith('new_') ? (
+                              <>
+                                <span className="text-[10px] px-1.5 py-1 rounded text-center whitespace-nowrap"
+                                  style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text3)" }}
+                                  title="Save the curriculum first to add questions">
+                                  Save to add questions
+                                </span>
+                                <span />
+                              </>
                             ) : (
-                              <button
-                                onClick={() => setQuizEditorTarget({ id: lesson.id, title: lesson.title })}
-                                className="font-mono text-[9px] font-semibold px-2.5 py-1 rounded cursor-pointer whitespace-nowrap"
-                                style={{ background: "var(--btn-bg, var(--blue-d))", color: "var(--btn-text, var(--blue))", border: "1px solid var(--btn-bg, rgba(37,99,235,.2))" }}
-                              >✎ {lesson.totalQuestions} question{lesson.totalQuestions !== 1 ? "s" : ""}</button>
+                              <>
+                                <button
+                                  onClick={() => setQuizEditorTarget({ id: lesson.id, title: lesson.title })}
+                                  className="font-mono text-[9px] font-semibold px-2.5 py-1 rounded cursor-pointer whitespace-nowrap"
+                                  style={{ background: "var(--btn-bg, var(--blue-d))", color: "var(--btn-text, var(--blue))", border: "1px solid var(--btn-bg, rgba(37,99,235,.2))" }}
+                                >✎ {lesson.totalQuestions} question{lesson.totalQuestions !== 1 ? "s" : ""}</button>
+                                <span />
+                              </>
                             )}
                             <button disabled={acting} onClick={() => removeLesson(section.id, lesson)}
                               className="flex items-center justify-center text-[10px] cursor-pointer disabled:opacity-40"
@@ -864,6 +902,15 @@ export function CurriculumBuilder({
           token={token}
           onSave={() => { refreshSections(); }}
           onClose={() => { setQuizEditorTarget(null); refreshSections(); }}
+        />
+      )}
+
+      {/* Video Preview */}
+      {previewVideo && (
+        <VideoPreviewModal
+          videoId={previewVideo.id}
+          title={previewVideo.title}
+          onClose={() => setPreviewVideo(null)}
         />
       )}
 

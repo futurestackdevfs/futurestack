@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { showToast } from "@/lib/toast";
 
-interface EarnedCert {
+export interface EarnedCert {
   courseId: string;
   courseTitle: string;
   courseCode: string;
@@ -22,7 +22,7 @@ interface EarnedCert {
   issuedAt: string;
 }
 
-interface InProgressCert {
+export interface InProgressCert {
   courseId: string;
   courseTitle: string;
   category: string;
@@ -31,14 +31,14 @@ interface InProgressCert {
   totalItems: number;
 }
 
-interface LockedCert {
+export interface LockedCert {
   courseId: string;
   courseTitle: string;
   category: string;
   price: number | null;
 }
 
-interface CertificatesResponse {
+export interface CertificatesResponse {
   earned: EarnedCert[];
   inProgress: InProgressCert[];
   locked: LockedCert[];
@@ -77,39 +77,39 @@ const bgGradients = [
   "linear-gradient(135deg,#1a0a2e,#3b1a6e)",
 ];
 
-function getEmoji(category: string): string {
+export function getEmoji(category: string): string {
   const key = (category ?? "").toLowerCase().trim();
   return emojiMap[key] || "📜";
 }
 
-function getBg(id: string): string {
+export function getBg(id: string): string {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
   return bgGradients[Math.abs(hash) % bgGradients.length];
 }
 
-function formatDate(iso: string): string {
+export function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function formatHours(h: number): string {
+export function formatHours(h: number): string {
   return `${h}h`;
 }
 
-function getProgressColor(pct: number): string {
+export function getProgressColor(pct: number): string {
   if (pct >= 80) return "var(--green)";
   if (pct >= 40) return "var(--orange)";
   return "var(--blue2)";
 }
 
-function getProgressBg(pct: number): string {
+export function getProgressBg(pct: number): string {
   if (pct >= 80) return "linear-gradient(90deg,var(--green),#22c55e)";
   if (pct >= 40) return "linear-gradient(90deg,var(--orange),var(--orange2))";
   return "linear-gradient(90deg,var(--blue),var(--blue2))";
 }
 
-async function downloadCertificatePdf(cert: EarnedCert, _studentName: string) {
+export async function downloadCertificatePdf(cert: EarnedCert, _studentName: string) {
   // Lazy-load PDF/image libs (~600KB combined) only on actual download.
   const [{ toPng }, { jsPDF }] = await Promise.all([
     import("html-to-image"),

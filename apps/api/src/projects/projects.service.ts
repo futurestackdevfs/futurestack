@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3Service } from '../upload/s3.service';
 import { VdoCipherService } from '../vdocipher/vdocipher.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { UpdateCurriculumDto } from './dto/update-curriculum.dto';
+import { parseStoredRoadmap } from '../courses/courses.service';
+import { AiProviderError } from '../ai/ai.errors';
+import { AuditActor } from '../audit/audit.service';
+import { ProjectRoadmapService, RoadmapJob, RoadmapVideoLinkUpdate } from './roadmap/project-roadmap.service';
 
 @Injectable()
 export class ProjectsService {
@@ -12,7 +16,45 @@ export class ProjectsService {
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
     private readonly vdoCipherService: VdoCipherService,
+    private readonly roadmapService: ProjectRoadmapService,
   ) {}
+
+  /** Starts background roadmap generation for a project; returns a job id right away. */
+  startRoadmapGeneration(projectId: string, actor?: AuditActor): { jobId: string } {
+    try {
+      return this.roadmapService.start(projectId, actor);
+    } catch (err) {
+      if (err instanceof AiProviderError) {
+        throw new ServiceUnavailableException({
+          statusCode: 503,
+          error: 'Roadmap Generation Failed',
+          message: err.message,
+          reason: err.code,
+          retryable: err.retryable,
+        });
+      }
+      throw err;
+    }
+  }
+
+  getRoadmapGeneration(jobId: string): RoadmapJob {
+    const job = this.roadmapService.getJob(jobId);
+    if (!job) throw new NotFoundException('Roadmap generation job not found or expired');
+    return job;
+  }
+
+  cancelRoadmapGeneration(jobId: string): { cancelled: true } {
+    this.roadmapService.cancel(jobId);
+    return { cancelled: true };
+  }
+
+  updateRoadmapVideoLinks(projectId: string, updates: RoadmapVideoLinkUpdate[], actor?: AuditActor) {
+    return this.roadmapService.updateVideoLinks(projectId, updates, actor);
+  }
+
+  updateRoadmapContent(projectId: string, roadmap: unknown, actor?: AuditActor) {
+    return this.roadmapService.updateContent(projectId, roadmap, actor);
+  }
 
   // ── PUBLIC ──────────────────────────────────────────────────────
 
@@ -52,11 +94,14 @@ export class ProjectsService {
             rating: true,
           },
         },
-        curriculum: { orderBy: { order: 'asc' } },
+        curriculum: {
+          orderBy: { order: 'asc' },
+          include: { videos: { orderBy: { order: 'asc' }, select: { id: true, isPreview: true, durationSeconds: true } } },
+        },
       },
       orderBy: [{ displayOrder: 'asc' }, { createdAt: 'desc' }],
     });
-    return projects.map((p) => this.toPlainProject(p));
+    return projects.map((p) => ({ ...this.toPlainProject(p), roadmap: parseStoredRoadmap(p.roadmap) }));
   }
 
   async getById(id: string) {
@@ -83,7 +128,7 @@ export class ProjectsService {
       },
     });
     if (!project) throw new NotFoundException('Project not found');
-    return this.toPlainProject(project);
+    return { ...this.toPlainProject(project), roadmap: parseStoredRoadmap(project.roadmap) };
   }
 
   // ── ADMIN ───────────────────────────────────────────────────────
@@ -196,15 +241,44 @@ export class ProjectsService {
     if (dto.items.length === 0) return { success: true };
 
     // Exactly one video across the whole curriculum is ever the free
-    // preview. If the incoming payload already flags one, keep it; otherwise
-    // fall back to the very first video of the first item (mirrors courses'
-    // "first video ever added" auto-preview rule).
-    const hasExplicitPreview = dto.items.some((item) => item.videos?.some((v) => v.isPreview));
+    // preview, and it must always land pinned first — first curriculum item,
+    // first video in that item — regardless of where the admin actually
+    // placed it (drag-reordered items, added it mid-list, etc). Public
+    // playback assumes "first video of the first item", so this reorders the
+    // incoming payload itself before saving rather than trusting client
+    // order. Mirrors the same server-side repositioning courses.service.ts
+    // does for Course videos in updateVideo().
+    let items = dto.items.map((item) => ({ ...item, videos: item.videos ? [...item.videos] : [] }));
+
+    let previewItemIndex = -1;
+    let previewVideoIndex = -1;
+    for (let i = 0; i < items.length && previewItemIndex === -1; i++) {
+      const videos = items[i].videos;
+      for (let j = 0; j < videos.length; j++) {
+        if (videos[j].isPreview) {
+          previewItemIndex = i;
+          previewVideoIndex = j;
+          break;
+        }
+      }
+    }
+
+    if (previewItemIndex > 0) {
+      const [item] = items.splice(previewItemIndex, 1);
+      items = [item, ...items];
+      previewItemIndex = 0;
+    }
+    if (previewItemIndex === 0 && previewVideoIndex > 0) {
+      const videos = items[0].videos;
+      const [video] = videos.splice(previewVideoIndex, 1);
+      items[0] = { ...items[0], videos: [video, ...videos] };
+    }
+    const hasExplicitPreview = previewItemIndex !== -1;
     let previewAssigned = false;
 
     // Create curriculum items with videos
-    for (let i = 0; i < dto.items.length; i++) {
-      const item = dto.items[i];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       const curriculum = await this.prisma.projectCurriculum.create({
         data: {
           projectId: id,
@@ -218,7 +292,10 @@ export class ProjectsService {
       if (item.videos && item.videos.length > 0) {
         await this.prisma.projectCurriculumVideo.createMany({
           data: item.videos.map((v, vi) => {
-            const isPreview = hasExplicitPreview ? !!v.isPreview : !previewAssigned;
+            // Only the very first video of the (now-first) item is ever the
+            // preview — also defends against more than one video incorrectly
+            // flagged isPreview in the incoming payload.
+            const isPreview = hasExplicitPreview ? i === 0 && vi === 0 : !previewAssigned;
             if (isPreview) previewAssigned = true;
             return {
               curriculumId: curriculum.id,
@@ -233,7 +310,7 @@ export class ProjectsService {
       }
     }
 
-    return { success: true, count: dto.items.length };
+    return { success: true, count: items.length };
   }
 
   // ── DEMO VIDEO UPLOAD ────────────────────────────────────────────
@@ -488,6 +565,42 @@ export class ProjectsService {
     return { success: true };
   }
 
+  /** Mirrors CoursesService.updateVideo's isPreview handling: the
+   *  upload-credentials endpoint that actually creates a ProjectCurriculumVideo
+   *  row never knows about isPreview (it's a purely local-UI flag until now),
+   *  so this is called right after a flagged-as-preview video finishes
+   *  uploading to persist it — forcing it to the front of the project's first
+   *  curriculum item and clearing isPreview on every other video, so it can
+   *  never drift out of the "first video of the first item" position that
+   *  public playback will eventually assume. */
+  async updateCurriculumVideo(videoId: string, dto: { title?: string; isPreview?: boolean }) {
+    const video = await this.prisma.projectCurriculumVideo.findUnique({ where: { id: videoId } });
+    if (!video) throw new NotFoundException('Video not found');
+
+    if (dto.isPreview === true) {
+      const curriculum = await this.prisma.projectCurriculum.findUnique({ where: { id: video.curriculumId }, select: { projectId: true } });
+      const firstItem = curriculum
+        ? await this.prisma.projectCurriculum.findFirst({ where: { projectId: curriculum.projectId }, orderBy: { order: 'asc' } })
+        : null;
+
+      if (firstItem) {
+        const lowest = await this.prisma.projectCurriculumVideo.aggregate({ where: { curriculumId: firstItem.id }, _min: { order: true } });
+        const newOrder = Math.min(lowest._min.order ?? 0, video.curriculumId === firstItem.id ? video.order : 0) - 1;
+
+        await this.prisma.projectCurriculumVideo.updateMany({
+          where: { curriculum: { projectId: curriculum!.projectId }, isPreview: true, id: { not: videoId } },
+          data: { isPreview: false },
+        });
+        return this.prisma.projectCurriculumVideo.update({
+          where: { id: videoId },
+          data: { ...dto, curriculumId: firstItem.id, order: newOrder },
+        });
+      }
+    }
+
+    return this.prisma.projectCurriculumVideo.update({ where: { id: videoId }, data: dto });
+  }
+
   async getCurriculumVideoStatus(videoId: string) {
     const video = await this.prisma.projectCurriculumVideo.findUnique({
       where: { id: videoId },
@@ -495,5 +608,72 @@ export class ProjectsService {
     });
     if (!video) throw new NotFoundException('Video not found');
     return video;
+  }
+
+  /** Admin/content-manager preview — same idea as CoursesService.getAdminVideoOtp,
+   *  just against ProjectCurriculumVideo. Skips any public-preview gating since
+   *  staff should be able to spot-check any uploaded video. */
+  async getAdminCurriculumVideoOtp(videoId: string) {
+    const video = await this.prisma.projectCurriculumVideo.findUnique({
+      where: { id: videoId },
+      select: { vdoCipherId: true, videoStatus: true },
+    });
+    if (!video || !video.vdoCipherId) throw new NotFoundException('Video not found');
+    if (video.videoStatus !== 'READY') throw new BadRequestException('Video not ready for preview yet');
+
+    return this.vdoCipherService.getPlaybackOtp(video.vdoCipherId, {
+      name: 'Admin Preview',
+      email: 'preview@futurestack.in',
+    });
+  }
+
+  /** Public, unauthenticated preview playback — mirrors CoursesService's
+   *  getPublicVideoOtp exactly: only the video that is both flagged isPreview
+   *  AND literally the first video of literally the first curriculum item of
+   *  an ACTIVE project is ever playable without login/enrollment. */
+  async getPublicCurriculumVideoOtp(videoId: string) {
+    const video = await this.prisma.projectCurriculumVideo.findUnique({
+      where: { id: videoId },
+      select: {
+        id: true,
+        vdoCipherId: true,
+        videoStatus: true,
+        isPreview: true,
+        order: true,
+        curriculum: {
+          select: {
+            id: true,
+            projectId: true,
+            project: { select: { status: true } },
+          },
+        },
+      },
+    });
+
+    if (!video) throw new NotFoundException('Video not available for preview');
+    if (video.videoStatus !== 'READY') throw new BadRequestException('Video not ready');
+    if (!video.curriculum?.project || video.curriculum.project.status !== 'ACTIVE')
+      throw new NotFoundException('Video not available');
+    if (!video.isPreview) throw new NotFoundException('Video not available for preview');
+
+    const firstItem = await this.prisma.projectCurriculum.findFirst({
+      where: { projectId: video.curriculum.projectId },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+    if (video.curriculum.id !== firstItem?.id) throw new NotFoundException('Video not available for preview');
+
+    const firstVideo = await this.prisma.projectCurriculumVideo.findFirst({
+      where: { curriculumId: video.curriculum.id },
+      orderBy: { order: 'asc' },
+      select: { id: true },
+    });
+    if (video.id !== firstVideo?.id) throw new NotFoundException('Video not available for preview');
+
+    if (!video.vdoCipherId) throw new NotFoundException('Video not available for preview');
+    return this.vdoCipherService.getPlaybackOtp(video.vdoCipherId, {
+      name: 'Preview User',
+      email: 'preview@futurestack.in',
+    });
   }
 }

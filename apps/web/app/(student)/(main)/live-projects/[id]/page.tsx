@@ -6,6 +6,7 @@ import { StarRating } from "@/components/StarRating";
 import { ReviewForm } from "@/components/ReviewForm";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { showToast } from "@/lib/toast";
+import { RoadmapView, type RoadmapData } from "@/components/RoadmapTree";
 
 interface ProjectDetail {
   id: string;
@@ -56,8 +57,10 @@ interface ProjectDetail {
       title: string;
       vdoCipherId?: string | null;
       durationSeconds?: number;
+      isPreview?: boolean;
     }[];
   }[];
+  roadmap?: RoadmapData | null;
 }
 
 interface ProjectReview {
@@ -82,7 +85,7 @@ function initials(name?: string) {
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
 
-type Tab = "overview" | "curriculum" | "reviews";
+type Tab = "overview" | "curriculum" | "roadmap" | "reviews";
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -224,10 +227,12 @@ export default function ProjectDetailPage() {
   const off = p.originalPrice && p.price ? Math.round((1 - p.price / p.originalPrice) * 100) : 0;
   const avgRating = p.rating ?? 0;
   const totalReviews = p.reviewCount ?? 0;
+  const previewVideo = p.curriculum?.flatMap((c) => c.videos ?? []).find((v) => v.isPreview) ?? null;
 
   const TABS: { key: Tab; label: string }[] = [
     { key: "overview", label: "Overview" },
     { key: "curriculum", label: "Curriculum" },
+    ...(p.roadmap ? [{ key: "roadmap" as Tab, label: "Roadmap" }] : []),
     { key: "reviews", label: `Reviews${totalReviews > 0 ? ` (${totalReviews})` : ""}` },
   ];
 
@@ -498,6 +503,10 @@ export default function ProjectDetailPage() {
               <div className="text-center py-12 text-[13px] text-[var(--muted)]">No curriculum available</div>
             )}
           </>
+        )}
+
+        {activeTab === "roadmap" && p.roadmap && (
+          <RoadmapView roadmap={p.roadmap} trackProgress={false} />
         )}
 
         {activeTab === "reviews" && (

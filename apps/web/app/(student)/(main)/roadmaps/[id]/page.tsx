@@ -125,10 +125,18 @@ export default function RoadmapDetailPage() {
 
       {/* Header */}
       <section
-        className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-6 rounded-2xl p-5 sm:p-6 md:p-7"
+        className="relative overflow-hidden grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-6 rounded-2xl p-5 sm:p-6 md:p-7"
         style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow)" }}
       >
-        <div className="grid gap-3.5 content-start min-w-0">
+        <div
+          className="absolute top-0 left-0 right-0 h-[3px] opacity-80"
+          style={{ background: "linear-gradient(90deg, var(--orange), var(--blue))" }}
+        />
+        <div
+          className="absolute -top-16 right-10 w-[220px] h-[220px] rounded-full pointer-events-none blur-[80px] opacity-[.12]"
+          style={{ background: "var(--orange)" }}
+        />
+        <div className="relative z-10 grid gap-3.5 content-start min-w-0">
           <div className="flex gap-3.5 items-center">
             <div
               className="w-[54px] h-[54px] rounded-xl shrink-0 grid place-items-center font-bold text-[18px]"
@@ -155,7 +163,7 @@ export default function RoadmapDetailPage() {
           </dl>
         </div>
 
-        <aside className="grid gap-3.5 content-start border-t xl:border-t-0 xl:border-l pt-4 xl:pt-0 xl:pl-6" style={{ borderColor: "var(--border)" }}>
+        <aside className="relative z-10 grid gap-3.5 content-start border-t xl:border-t-0 xl:border-l pt-4 xl:pt-0 xl:pl-6" style={{ borderColor: "var(--border)" }}>
           {counts.topics > 0 && (
             <div className="flex items-center gap-3.5">
               <svg viewBox="0 0 80 80" width="64" height="64" className="shrink-0 -rotate-90">
@@ -229,7 +237,7 @@ export default function RoadmapDetailPage() {
             <h2 className="text-[17px] font-bold" style={{ color: "var(--text)" }}>Related roadmaps</h2>
             <Link href="/roadmaps" className="text-[12px] font-semibold" style={{ color: "var(--blue)" }}>All roadmaps</Link>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5 gap-3">
+          <div className={`grid grid-cols-1 ${related.length === 1 ? "" : "sm:grid-cols-2"} ${related.length >= 4 ? "lg:grid-cols-4" : related.length === 3 ? "lg:grid-cols-3" : ""} gap-3`}>
             {related.map((r) => (
               <Link
                 key={r.id}

@@ -172,6 +172,12 @@ export class CoursesController {
     return this.coursesService.deleteVideo(id);
   }
 
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Get('videos/:id/preview-otp')
+  getAdminVideoOtp(@Param('id') id: string) {
+    return this.coursesService.getAdminVideoOtp(id);
+  }
+
   // ================================================================
   // QUIZZES — update/delete + create (nested under section), plus
   // standalone quizzes (sectionId null — formerly the SkillTest catalog)
@@ -484,6 +490,21 @@ export class CoursesController {
   ) {
     const user = req.user as { id: string; email: string; name: string; role: string };
     return this.coursesService.updateRoadmapVideoLinks(courseId, body.links ?? [], {
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      name: user.name,
+    });
+  }
+
+  // Manual full-content edit — admin rewrote titles/descriptions/chips/rels
+  // by hand in the roadmap tab's edit mode. Re-validated server-side.
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Patch(':courseId/roadmap')
+  @Audit({ action: 'UPDATE', entity: 'Course', idFrom: 'param', idParam: 'courseId' })
+  updateRoadmapContent(@Param('courseId') courseId: string, @Body() body: unknown, @Req() req: Request) {
+    const user = req.user as { id: string; email: string; name: string; role: string };
+    return this.coursesService.updateRoadmapContent(courseId, body, {
       id: user.id,
       role: user.role,
       email: user.email,

@@ -342,7 +342,7 @@ export function TopNav() {
         <Image src="/images/logo.png" alt="FutureStack" width={128} height={42} priority style={{ height: 42, width: "auto" }} className="transition-transform duration-300 group-hover:scale-105" />
       </Link>
 
-      <div className="hidden md:flex flex-1 max-w-[320px] relative">
+      <div className="hidden md:flex flex-1 max-w-[220px] xl:max-w-[260px] relative">
         <div className="flex-1 flex items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 gap-2 h-[34px] transition-all duration-300 focus-within:border-[var(--blue2)] focus-within:shadow-[0_0_0_3px_var(--blue-d),0_0_20px_rgba(59,130,246,.15)] hover:border-[var(--border2)]">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-[var(--muted)]"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           <input ref={searchRef} type="text" placeholder="Search courses, topics, or skills…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={handleSearchKey} className="bg-transparent border-none outline-none text-[var(--text)] text-[14px] w-full placeholder:text-[var(--muted)]" />
@@ -409,6 +409,7 @@ export function TopNav() {
         {[
           { href: "/certificates", label: "Certifications" },
           { href: "/live-projects", label: "Live Projects" },
+          { href: "/roadmaps", label: "Roadmaps" },
           { href: "/research-and-development", label: "R&D Services" },
           { href: "/my-dashboard", label: "My Dashboard", requiresAuth: true },
         ].map((link, i) => {
@@ -628,6 +629,7 @@ export function TopNav() {
             { href: "/courses", label: "Courses" },
             { href: "/certificates", label: "Certifications" },
             { href: "/live-projects", label: "Live Projects" },
+            { href: "/roadmaps", label: "Roadmaps" },
             { href: "/research-and-development", label: "R&D Services" },
           ].map((link) => (
               <div key={link.label} className="px-2">

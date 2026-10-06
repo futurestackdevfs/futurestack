@@ -63,7 +63,14 @@ describe('ProjectsService', () => {
     prisma = makePrismaMock();
     s3 = { deleteByUrl: jest.fn() };
     vdo = { getUploadCredentials: jest.fn(), deleteVideo: jest.fn() };
-    service = new ProjectsService(prisma, s3 as any, vdo);
+    const roadmapService = {
+      start: jest.fn(),
+      getJob: jest.fn(),
+      cancel: jest.fn(),
+      updateVideoLinks: jest.fn(),
+      updateContent: jest.fn(),
+    } as any;
+    service = new ProjectsService(prisma, s3 as any, vdo, roadmapService);
   });
 
   describe('toPlainProject() Decimal-strip behavior (via public methods)', () => {

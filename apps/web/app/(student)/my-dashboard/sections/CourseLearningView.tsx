@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { loadToken } from "@/app/auth/lib/token-store";
 import { fetcher } from "@/app/lib/fetcher";
@@ -123,6 +123,13 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
   const { data: detail, isLoading } = useSWR<StudentCourseDetail>(
     `/api/student/courses/${courseId}`,
   );
+
+  const completedVideoIds = useMemo(() => {
+    if (!detail) return new Set<string>();
+    return new Set(
+      detail.sections.flatMap((s) => s.items).filter((i) => i.type === "video" && i.isCompleted).map((i) => i.id),
+    );
+  }, [detail]);
 
   // Once data arrives for the first time, open the relevant sections and set current item
   useEffect(() => {
@@ -663,6 +670,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                     setCurrentItemId(videoId);
                     setActiveTab("curriculum");
                   }}
+                  completedVideoIds={completedVideoIds}
                 />
               </div>
             </div>

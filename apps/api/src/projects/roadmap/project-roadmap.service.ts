@@ -4,9 +4,9 @@ import { AiUsage } from '../../ai/ai-provider.service';
 import { AiProviderError } from '../../ai/ai.errors';
 import { AuditActor, AuditService } from '../../audit/audit.service';
 import { GenerationGate } from '../../ai/generation-gate';
-import { RoadmapGenerator } from './roadmap-generator';
-import { RoadmapJobStore, RoadmapJobView } from './roadmap-job-store';
-import { Roadmap, RoadmapSchema } from './roadmap-schemas';
+import { RoadmapGenerator } from '../../courses/roadmap/roadmap-generator';
+import { RoadmapJobStore, RoadmapJobView } from '../../courses/roadmap/roadmap-job-store';
+import { Roadmap, RoadmapSchema } from '../../courses/roadmap/roadmap-schemas';
 
 export interface RoadmapVideoLinkUpdate {
   phase: number;
@@ -53,22 +53,15 @@ const REASON_MAP: Record<string, RoadmapFailureReason> = {
 };
 
 /**
- * Orchestrates AI course-roadmap generation as a background job: read the
- * course + its curriculum's lesson titles -> one structured Claude call ->
- * save the result on `Course.roadmap`. Mirrors the blog pipeline's
- * job+poll+cancel shape (BlogGenerationService) but is a single-call feature,
- * so there's no multi-stage progress to report beyond generating/saving.
- *
- * Regeneration is allowed (unlike blog drafts, a roadmap is a single field on
- * an existing row) — each successful run overwrites the previous roadmap and
- * bumps `roadmapGeneratedAt`.
+ * Project's counterpart to CourseRoadmapService — same AI pipeline
+ * (RoadmapGenerator/RoadmapSchema/RoadmapJobStore, all reused as-is from
+ * courses/roadmap/), just reading/saving against Project + ProjectCurriculum
+ * + ProjectCurriculumVideo instead of Course + Section + Video.
  */
 @Injectable()
-export class CourseRoadmapService {
-  private readonly logger = new Logger(CourseRoadmapService.name);
+export class ProjectRoadmapService {
+  private readonly logger = new Logger(ProjectRoadmapService.name);
   private readonly store = new RoadmapJobStore();
-  // Cheap single-call feature — allow more per day than the blog's default, own instance
-  // so it never competes with the blog's daily cap.
   private readonly gate = new GenerationGate(1, 30);
   private readonly controllers = new Map<string, AbortController>();
 
@@ -82,8 +75,7 @@ export class CourseRoadmapService {
     return this.generator.isConfigured;
   }
 
-  /** Starts a job and returns immediately; throws an AiProviderError if at capacity or the course has no curriculum yet. */
-  start(courseId: string, actor?: AuditActor): { jobId: string } {
+  start(projectId: string, actor?: AuditActor): { jobId: string } {
     if (!this.generator.isConfigured) {
       throw new AiProviderError('not_configured', 'AI generation is not configured. Set ANTHROPIC_API_KEY and restart.', false);
     }
@@ -97,7 +89,7 @@ export class CourseRoadmapService {
     }
     const controller = new AbortController();
     this.controllers.set(job.id, controller);
-    void this.run(job.id, courseId, controller.signal, actor).finally(() => {
+    void this.run(job.id, projectId, controller.signal, actor).finally(() => {
       this.controllers.delete(job.id);
       release();
     });
@@ -111,18 +103,11 @@ export class CourseRoadmapService {
     this.store.update(jobId, { status: 'failed', error: { code: 'cancelled', message: 'Roadmap generation was cancelled.', retryable: false } });
   }
 
-  /**
-   * Admin override: point one or more chips at a different (or no) video than
-   * the auto-match picked, without re-running generation. Index-addressed
-   * (phase/node/chip) against the currently saved roadmap — the admin UI
-   * reads the same indices it's displaying, so a stale index just no-ops
-   * rather than corrupting an unrelated chip.
-   */
-  async updateVideoLinks(courseId: string, updates: RoadmapVideoLinkUpdate[], actor?: AuditActor): Promise<Roadmap> {
-    const course = await this.prisma.course.findUnique({ where: { id: courseId }, select: { roadmap: true } });
-    if (!course) throw new NotFoundException('Course not found.');
-    const parsed = RoadmapSchema.safeParse(course.roadmap);
-    if (!parsed.success) throw new BadRequestException('This course has no valid roadmap to edit yet.');
+  async updateVideoLinks(projectId: string, updates: RoadmapVideoLinkUpdate[], actor?: AuditActor): Promise<Roadmap> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId }, select: { roadmap: true } });
+    if (!project) throw new NotFoundException('Project not found.');
+    const parsed = RoadmapSchema.safeParse(project.roadmap);
+    if (!parsed.success) throw new BadRequestException('This project has no valid roadmap to edit yet.');
 
     const roadmap = parsed.data;
     for (const u of updates) {
@@ -130,35 +115,27 @@ export class CourseRoadmapService {
       if (chip) chip.videoId = u.videoId;
     }
 
-    await this.prisma.course.update({ where: { id: courseId }, data: { roadmap: roadmap as object } });
+    await this.prisma.project.update({ where: { id: projectId }, data: { roadmap: roadmap as object } });
     if (actor) {
       void this.auditService.record(actor, {
         action: 'UPDATE',
-        entityType: 'Course',
-        entityId: courseId,
+        entityType: 'Project',
+        entityId: projectId,
         meta: { stage: 'roadmap_video_links', updated: updates.length },
       });
     }
     return roadmap;
   }
 
-  /**
-   * Full manual edit: the admin rewrote titles/descriptions/chips/rels by
-   * hand in the roadmap tab's edit mode and is saving the whole tree back.
-   * Re-validated here (never trust the client), and any chip whose title
-   * still matches its pre-edit counterpart keeps its videoId — renaming a
-   * chip intentionally drops the link rather than silently carrying it to
-   * a now-different topic.
-   */
-  async updateContent(courseId: string, incoming: unknown, actor?: AuditActor): Promise<Roadmap> {
+  async updateContent(projectId: string, incoming: unknown, actor?: AuditActor): Promise<Roadmap> {
     const parsed = RoadmapSchema.safeParse(incoming);
     if (!parsed.success) throw new BadRequestException('That roadmap edit is not valid: ' + parsed.error.issues[0]?.message);
     const roadmap = parsed.data;
 
-    const course = await this.prisma.course.findUnique({ where: { id: courseId }, select: { roadmap: true } });
-    if (!course) throw new NotFoundException('Course not found.');
+    const project = await this.prisma.project.findUnique({ where: { id: projectId }, select: { roadmap: true } });
+    if (!project) throw new NotFoundException('Project not found.');
     const prevByTitle = new Map<string, string | null | undefined>();
-    const prev = RoadmapSchema.safeParse(course.roadmap);
+    const prev = RoadmapSchema.safeParse(project.roadmap);
     if (prev.success) {
       for (const phase of prev.data.phases) for (const node of phase.nodes) for (const chip of node.chips) prevByTitle.set(chip.title, chip.videoId);
     }
@@ -170,12 +147,12 @@ export class CourseRoadmapService {
       }
     }
 
-    await this.prisma.course.update({ where: { id: courseId }, data: { roadmap: roadmap as object } });
+    await this.prisma.project.update({ where: { id: projectId }, data: { roadmap: roadmap as object } });
     if (actor) {
       void this.auditService.record(actor, {
         action: 'UPDATE',
-        entityType: 'Course',
-        entityId: courseId,
+        entityType: 'Project',
+        entityId: projectId,
         meta: { stage: 'roadmap_manual_edit' },
       });
     }
@@ -192,43 +169,44 @@ export class CourseRoadmapService {
     return out;
   }
 
-  private async run(id: string, courseId: string, signal: AbortSignal, actor?: AuditActor): Promise<void> {
+  private async run(id: string, projectId: string, signal: AbortSignal, actor?: AuditActor): Promise<void> {
     try {
-      const course = await this.prisma.course.findUnique({
-        where: { id: courseId },
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
         select: {
-          title: true,
-          description: true,
+          name: true,
+          overview: true,
+          shortDesc: true,
           category: true,
-          skillLevel: true,
-          techStack: true,
-          sections: {
+          level: true,
+          stack: true,
+          curriculum: {
             orderBy: { order: 'asc' },
             select: { title: true, videos: { orderBy: { order: 'asc' }, select: { id: true, title: true } } },
           },
         },
       });
-      if (!course) throw new AiProviderError('invalid_request', 'Course not found.', false);
+      if (!project) throw new AiProviderError('invalid_request', 'Project not found.', false);
 
-      // Curriculum is used as a loose reference only now — the model is allowed to
-      // design a complete roadmap from the title/description/tech stack alone when
-      // there are no lessons yet (or not enough of them).
-      const sections = course.sections.map((s) => ({ title: s.title, lessonTitles: s.videos.map((v) => v.title) }));
+      const sections = project.curriculum.map((c) => ({ title: c.title, lessonTitles: c.videos.map((v) => v.title) }));
 
       this.store.update(id, { stage: 'generating' });
       const { roadmap, usage } = await this.generator.generate(
-        { title: course.title, description: course.description, category: course.category, skillLevel: course.skillLevel, techStack: course.techStack, sections },
+        {
+          title: project.name,
+          description: project.overview || project.shortDesc || null,
+          category: project.category,
+          skillLevel: project.level,
+          techStack: project.stack,
+          sections,
+        },
         signal,
       );
 
       if (signal.aborted) throw new AiProviderError('cancelled', 'Roadmap generation was cancelled.', false);
 
-      // Auto-link each chip to the curriculum video its `lessonTitles` came
-      // from — exact (case/whitespace-insensitive) title match against the
-      // course's real videos. Admin can fix/override any miss from the
-      // roadmap tab's video-link dropdowns; this is just a best-effort default.
       const videoByTitle = new Map<string, string>();
-      for (const s of course.sections) for (const v of s.videos) videoByTitle.set(v.title.trim().toLowerCase(), v.id);
+      for (const s of project.curriculum) for (const v of s.videos) videoByTitle.set(v.title.trim().toLowerCase(), v.id);
       const chipTitles = new Set<string>();
       for (const phase of roadmap.phases) {
         for (const node of phase.nodes) {
@@ -240,14 +218,11 @@ export class CourseRoadmapService {
         }
       }
 
-      // Drop any rel the model hallucinated referencing a chip title that
-      // doesn't actually exist in this roadmap, instead of failing the whole
-      // generation over a near-miss — the UI already no-ops on dangling ids.
       roadmap.rels = roadmap.rels.filter((r) => chipTitles.has(r.learnFirst) && chipTitles.has(r.unlocks));
 
       this.store.update(id, { stage: 'saving' });
       try {
-        await this.prisma.course.update({ where: { id: courseId }, data: { roadmap: roadmap as object, roadmapGeneratedAt: new Date() } });
+        await this.prisma.project.update({ where: { id: projectId }, data: { roadmap: roadmap as object, roadmapGeneratedAt: new Date() } });
       } catch (err) {
         this.logger.error(`Saving the generated roadmap failed: ${(err as Error).message}`);
         throw new AiProviderError('save_failed', 'The roadmap was generated but could not be saved.', true);
@@ -257,14 +232,14 @@ export class CourseRoadmapService {
       const nodeCount = roadmap.phases.reduce((sum, p) => sum + p.nodes.length, 0);
       const cachePct = usage.inputTokens > 0 ? Math.round((usage.cacheReadTokens / usage.inputTokens) * 100) : 0;
       this.logger.log(
-        `Roadmap job ${id} succeeded for course ${courseId} (${roadmap.phases.length} phases, ${nodeCount} nodes) — ` +
+        `Roadmap job ${id} succeeded for project ${projectId} (${roadmap.phases.length} phases, ${nodeCount} nodes) — ` +
           `${usage.model}, ${usage.inputTokens} in / ${usage.outputTokens} out tokens, cache ${cachePct}% (read ${usage.cacheReadTokens}, write ${usage.cacheWriteTokens})`,
       );
       if (actor) {
         void this.auditService.record(actor, {
           action: 'GENERATE',
-          entityType: 'Course',
-          entityId: courseId,
+          entityType: 'Project',
+          entityId: projectId,
           meta: { stage: 'completed', phases: roadmap.phases.length, nodes: nodeCount, usage },
         });
       }

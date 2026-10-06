@@ -132,6 +132,14 @@ export class CoursesService {
     return roadmap;
   }
 
+  async updateRoadmapContent(courseId: string, roadmap: unknown, actor?: AuditActor) {
+    const updated = await this.roadmapService.updateContent(courseId, roadmap, actor);
+    this.catalogCache.delete(`course:${courseId}`);
+    this.catalogCache.deleteByPrefix('slug:');
+    this.catalogCache.delete('roadmap-cards');
+    return updated;
+  }
+
   private toRoadmapHttpError(err: unknown): ServiceUnavailableException {
     if (err instanceof AiProviderError) {
       return new ServiceUnavailableException({
@@ -792,6 +800,25 @@ export class CoursesService {
 
     return this.vdoCipherService.getPlaybackOtp(video.vdoCipherId, {
       name: 'Preview User',
+      email: 'preview@futurestack.in',
+    });
+  }
+
+  /** Admin/content-manager preview — skips the public-preview gating
+   *  (course status, isPreview, first-video-of-first-section) since staff
+   *  should be able to spot-check any uploaded video regardless of where
+   *  it sits in the curriculum. */
+  async getAdminVideoOtp(videoId: string) {
+    const video = await this.prisma.video.findUnique({
+      where: { id: videoId },
+      select: { vdoCipherId: true, videoStatus: true },
+    });
+    if (!video) throw new NotFoundException('Video not found');
+    if (video.videoStatus !== 'READY')
+      throw new BadRequestException('Video not ready for preview yet');
+
+    return this.vdoCipherService.getPlaybackOtp(video.vdoCipherId, {
+      name: 'Admin Preview',
       email: 'preview@futurestack.in',
     });
   }
