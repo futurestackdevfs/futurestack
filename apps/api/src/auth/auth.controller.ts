@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Body,
+  Logger,
   Req,
   Res,
   UseGuards,
@@ -26,6 +27,8 @@ import { SetPasswordDto } from './dto/set-password.dto';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
@@ -179,14 +182,20 @@ export class AuthController {
     const rawToken = req.cookies?.[cookieName];
 
     if (!rawToken) {
+      this.logger.warn(`Refresh rejected: no "${cookieName}" cookie present (role=${role})`);
       throw new UnauthorizedException('No refresh token found');
     }
 
-    const {
-      accessToken,
-      newRawRefreshToken,
-      user: safeUser,
-    } = await this.authService.refreshTokens(rawToken);
+    let result: Awaited<ReturnType<AuthService['refreshTokens']>>;
+    try {
+      result = await this.authService.refreshTokens(rawToken);
+    } catch (err) {
+      this.logger.warn(
+        `Refresh rejected for role=${role}: ${err instanceof Error ? err.message : err}`,
+      );
+      throw err;
+    }
+    const { accessToken, newRawRefreshToken, user: safeUser } = result;
 
     // Use role from DB (safeUser.role), not the query param —
     // prevents a client from lying about their role to get the wrong cookie

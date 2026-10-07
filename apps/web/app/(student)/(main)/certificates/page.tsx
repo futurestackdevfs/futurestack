@@ -1,366 +1,182 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import useSWR from "swr";
+import Link from "next/link";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { showToast } from "@/lib/toast";
-import {
-  type EarnedCert,
-  type InProgressCert,
-  type LockedCert,
-  type CertificatesResponse,
-  getEmoji,
-  getBg,
-  formatDate,
-  formatHours,
-  getProgressColor,
-  getProgressBg,
-  downloadCertificatePdf,
-} from "@/app/(student)/my-dashboard/sections/CertificatesSection";
 
-const DEMO_EARNED: EarnedCert[] = [
-  { courseId: "demo-1", courseTitle: "Full-Stack React & Node.js Mastery", courseCode: "FS-101", category: "Full Stack", description: "Build production-grade apps end to end with React, Node.js and MongoDB.", techStack: ["React", "Node.js", "MongoDB"], trainerName: "Aditya Rao", credentialId: "FS-DEMO-0001", score: 94, rank: 3, totalSections: 12, totalHours: 48, issuedAt: new Date().toISOString() },
+/** Signed-out users get a friendly prompt + the login form highlighted. */
+function promptLogin(router: ReturnType<typeof useRouter>, pathname: string | null) {
+  showToast("Please sign in to see your certificates");
+  if (pathname === "/") {
+    window.dispatchEvent(new CustomEvent("fs:highlight-login"));
+  } else {
+    router.push("/#student-login");
+  }
+}
+
+const TECH_STACK = ["React", "Node.js", "MongoDB"];
+
+const STATS = [
+  { val: "94%", lbl: "Final Score" },
+  { val: "12", lbl: "Modules" },
+  { val: "48h", lbl: "Study Time" },
+  { val: "#3", lbl: "Class Rank" },
 ];
-const DEMO_LOCKED: LockedCert[] = [
-  { courseId: "demo-l1", courseTitle: "Machine Learning with Python", category: "AI / ML", price: 6499 },
-  { courseId: "demo-l2", courseTitle: "AWS Cloud Architecture", category: "Cloud", price: 5499 },
-  { courseId: "demo-l3", courseTitle: "DevOps with Docker & Kubernetes", category: "DevOps", price: 5999 },
-  { courseId: "demo-l4", courseTitle: "UI/UX Design Fundamentals", category: "Design", price: 4499 },
+
+const HIGHLIGHTS = [
+  { icon: "🏅", title: "Verified & Shareable", desc: "A unique credential ID anyone can verify — add it straight to your LinkedIn profile." },
+  { icon: "🏢", title: "Recognised by hiring partners", desc: "Employers across India trust FutureStack certificates as proof of real, hands-on skill." },
+  { icon: "⚡", title: "Earned, not handed out", desc: "Every certificate is tied to a real score, a real project, and a real completion date." },
 ];
 
 export default function CertificatesPage() {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
-
-  const skipApi = !mounted || !isAuthenticated;
-  const { data, isLoading: dataLoading } = useSWR<CertificatesResponse>(skipApi ? null : "/api/certificates/my");
-  const isLoading = !mounted || authLoading || dataLoading;
-
-  const isDemo = !isAuthenticated && mounted && !authLoading;
-  const earned = isDemo ? DEMO_EARNED : data?.earned ?? [];
-  const inProgress = isDemo ? [] : data?.inProgress ?? [];
-  const locked = isDemo ? DEMO_LOCKED : data?.locked ?? [];
-
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-
-  const selectedId = activeId ?? (earned[0]?.courseId ?? inProgress[0]?.courseId ?? locked[0]?.courseId ?? null);
-  const activeEarned = earned.find((c) => c.courseId === selectedId) ?? null;
-  const activeInProgress = inProgress.find((c) => c.courseId === selectedId) ?? null;
-
-  const studentName = mounted && user?.name ? user.name : "Student";
-
-  const runDownload = useCallback(async (cert: EarnedCert) => {
-    setDownloadingId((cur) => cur ?? cert.courseId);
-    try {
-      await downloadCertificatePdf(cert, studentName);
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "Couldn't generate the certificate PDF.");
-    } finally {
-      setDownloadingId(null);
-    }
-  }, [studentName]);
-
-  const requestDownload = useCallback((cert: EarnedCert) => {
-    if (downloadingId) return;
-    if (selectedId === cert.courseId) {
-      void runDownload(cert);
-    } else {
-      setActiveId(cert.courseId);
-    }
-  }, [selectedId, downloadingId, runDownload]);
-
-  const summaryStats = [
-    { num: earned.length, lbl: "Earned", color: "var(--green)" },
-    { num: inProgress.length, lbl: "In Progress", color: "var(--orange)" },
-    { num: locked.length, lbl: "Locked", color: "var(--text)" },
-  ];
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 py-6 md:py-8">
-      <div className="rounded-2xl overflow-hidden border" style={{ borderColor: "var(--border)" }}>
-        {isLoading ? (
-          <div className="flex items-center justify-center py-24">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: "var(--orange)", borderTopColor: "transparent" }} />
-              <div className="font-mono text-[11px]" style={{ color: "var(--text3)" }}>Loading certificates…</div>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[2fr_3fr]" style={{ minHeight: "70vh" }}>
-            {/* ─── LEFT ─── */}
-            <div className="border-r overflow-y-auto flex flex-col" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-              <div className="px-5 py-[18px] border-b" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-                <div className="text-[18px] font-extrabold mb-[2px]" style={{ color: "var(--text)" }}>My Certificates</div>
-                <div className="text-[11.5px] mb-[14px]" style={{ color: "var(--text3)" }}>Verified credentials recognised by 400+ hiring partners</div>
-                <div className="grid grid-cols-3 gap-2">
-                  {summaryStats.map((s) => (
-                    <div key={s.lbl} className="text-center py-2.5 px-1.5 rounded-lg border" style={{ background: "var(--bg2)", borderColor: "var(--border)" }}>
-                      <div className="text-[22px] font-extrabold leading-none" style={{ color: s.color }}>{s.num}</div>
-                      <div className="font-mono text-[8px] uppercase tracking-[.07em] mt-[3px]" style={{ color: "var(--text3)" }}>{s.lbl}</div>
+    <div className="min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
+      {/* Hero — full-bleed, generous height */}
+      <section className="relative overflow-hidden flex items-center justify-center min-h-[62vh] px-6" style={{ background: "linear-gradient(135deg,#0b1120 0%,#111a2e 55%,#1a1030 100%)" }}>
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[.4]"
+          style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px)", backgroundSize: "44px 44px" }}
+        />
+        <div className="absolute -top-32 right-[-100px] w-[460px] h-[460px] rounded-full pointer-events-none blur-[120px] opacity-40" style={{ background: "radial-gradient(circle,var(--orange) 0%,transparent 70%)" }} />
+        <div className="absolute -bottom-32 left-[-80px] w-[420px] h-[420px] rounded-full pointer-events-none blur-[120px] opacity-30" style={{ background: "radial-gradient(circle,#4f7bff 0%,transparent 70%)" }} />
+
+        <div className="relative flex flex-col items-center gap-5 max-w-[860px] text-center">
+          <span className="inline-flex items-center gap-1.5 text-[11.5px] font-bold tracking-[.16em] uppercase px-4 py-1.5 rounded-full" style={{ color: "var(--orange)", background: "rgba(255,106,26,.12)", border: "1px solid rgba(255,106,26,.25)" }}>
+            ✦ Verified Credentials
+          </span>
+          <h1 className="text-[34px] sm:text-[48px] md:text-[58px] font-extrabold leading-[1.08] text-white">
+            A certificate that actually gets you hired
+          </h1>
+          <p className="text-[14px] sm:text-[17px] leading-relaxed max-w-[620px]" style={{ color: "#aab3c5" }}>
+            Finish a course end-to-end and earn a verified, shareable certificate with a unique credential ID — recognised by hiring partners across India.
+          </p>
+          <Link
+            href="/courses"
+            className="mt-3 inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-[14px] font-bold text-white"
+            style={{ background: "linear-gradient(135deg, var(--orange) 0%, var(--orange2) 100%)", boxShadow: "0 10px 30px rgba(240,90,26,.4)" }}
+          >
+            Start earning yours →
+          </Link>
+        </div>
+      </section>
+
+      {/* Showcase: real certificate + highlights, side by side, full-width */}
+      <section className="flex-1 flex items-center">
+        <div className="w-full max-w-[1600px] mx-auto px-6 sm:px-10 lg:px-16 py-16 sm:py-20">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr] gap-12 lg:gap-20 items-center">
+            {/* Certificate card */}
+            <div className="relative mx-auto w-full max-w-[720px]">
+              <div className="absolute -inset-4 rounded-[32px] opacity-60 blur-2xl pointer-events-none" style={{ background: "linear-gradient(135deg,var(--orange) 0%,#4f7bff 100%)" }} />
+              <div className="relative w-full bg-[#FBF9F3] shadow-[0_50px_100px_-20px_rgba(0,0,0,.5)] rounded-[6px] overflow-hidden">
+                <div className="absolute inset-[16px] border border-[#DCD5C2] pointer-events-none z-[1]" />
+                <div className="absolute top-[16px] left-[16px] w-[32px] h-[32px] border-t-2 border-l-2 border-[#202A42] z-[2]" />
+                <div className="absolute top-[16px] right-[16px] w-[32px] h-[32px] border-t-2 border-r-2 border-[#202A42] z-[2]" />
+                <div className="absolute bottom-[16px] left-[16px] w-[32px] h-[32px] border-b-2 border-l-2 border-[#202A42] z-[2]" />
+                <div className="absolute bottom-[16px] right-[16px] w-[32px] h-[32px] border-b-2 border-r-2 border-[#202A42] z-[2]" />
+                <div className="absolute inset-0 z-0 pointer-events-none opacity-[.5]" style={{ backgroundImage: "linear-gradient(rgba(36,53,111,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(36,53,111,.04) 1px,transparent 1px)", backgroundSize: "34px 34px" }} />
+                <div className="absolute -top-[60px] left-1/2 -translate-x-1/2 w-[440px] h-[220px] z-0 pointer-events-none rounded-full blur-[80px] opacity-[.22]" style={{ background: "radial-gradient(circle,#EFA23B 0%,transparent 70%)" }} />
+
+                <div className="absolute top-[24px] right-[24px] flex items-center gap-[6px] bg-[#1E9455] text-white font-semibold text-[11px] pl-[9px] pr-[13px] py-[6px] rounded-[20px] z-[3] tracking-[.01em] shadow-[0_4px_14px_rgba(30,148,85,.35)]">
+                  <svg viewBox="0 0 16 16" fill="none" className="w-3 h-3"><path d="M6 8.2L7.4 9.6L10.3 6.4" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /><circle cx="8" cy="8" r="7" stroke="white" strokeWidth="1.4" /></svg>
+                  Verified
+                </div>
+
+                <div className="relative z-[1] px-8 sm:px-14 pt-12 sm:pt-16 pb-8 sm:pb-11 text-center">
+                  <img src="/images/logo.png" alt="FutureStack" className="h-12 sm:h-14 w-auto mx-auto mb-3.5 object-contain" />
+                  <div className="font-bold text-[10px] sm:text-[12px] tracking-[.3em] text-[#E1602C] mb-2">FUTURE STACK</div>
+                  <h2 className="italic font-medium text-[22px] sm:text-[27px] text-[#202A42] m-0 mb-5">Certificate of Completion</h2>
+                  <div className="w-[60px] h-[2px] bg-[#E1602C] mx-auto mb-6" />
+
+                  <p className="text-[9.5px] sm:text-[10.5px] font-bold tracking-[.18em] uppercase text-[#8B8F9C] m-0 mb-2.5">This certifies that</p>
+                  <h3 className="font-semibold text-[34px] sm:text-[44px] text-[#202A42] m-0 mb-5 leading-[1.1]">Your Name Here</h3>
+                  <div className="w-full max-w-[400px] mx-auto mb-6 h-px bg-[#DCD5C2]" />
+
+                  <p className="text-[9.5px] sm:text-[10.5px] font-bold tracking-[.18em] uppercase text-[#8B8F9C] m-0 mb-2.5">Has successfully completed</p>
+                  <h4 className="font-semibold text-[19px] sm:text-[23px] text-[#24356F] m-0 mb-4 leading-[1.3]">Full-Stack React &amp; Node.js Mastery</h4>
+
+                  <div className="flex justify-center flex-wrap gap-[9px] mb-8">
+                    {TECH_STACK.map((s) => (
+                      <span key={s} className="text-[11px] font-semibold text-[#24356F] border border-[#C8CEDF] bg-[#F3F5FA] px-[13px] py-[5px] rounded-[20px]">{s}</span>
+                    ))}
+                  </div>
+
+                  <div className="flex items-end justify-between gap-6 pt-6 border-t border-[#DCD5C2] text-left">
+                    <div className="w-[34%] min-w-0">
+                      <div className="italic font-medium text-[17px] text-[#202A42] border-b border-[#202A42]/25 pb-2 mb-2 whitespace-nowrap overflow-hidden text-ellipsis">Instructor</div>
+                      <div className="text-[9px] font-semibold tracking-[.1em] uppercase text-[#8B8F9C]">Course Instructor</div>
                     </div>
-                  ))}
+                    <img src="/images/logo.png" alt="FutureStack" className="h-5 w-auto object-contain opacity-90 shrink-0 pb-1" />
+                    <div className="w-[34%] text-right shrink-0">
+                      <div className="text-[11px] text-[#202A42] font-semibold mb-2">Score: 94%</div>
+                      <div className="inline-block text-[9.5px] font-bold text-[#E1602C] bg-[#FBEBE1] px-[10px] py-[4px] rounded-[20px]">Completed</div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {earned.length > 0 && (
-                <>
-                  <div className="font-mono text-[9px] font-semibold uppercase tracking-[.1em] flex items-center gap-2 px-5 pt-2.5 pb-1.5" style={{ color: "var(--text3)" }}>
-                    ✦ Earned
-                    <span className="flex-1 h-px" style={{ background: "var(--border)" }} />
+              {/* Stat strip under the card */}
+              <div className="relative mt-6 rounded-[14px] px-5 py-4.5 grid grid-cols-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                {STATS.map((s, i) => (
+                  <div key={s.lbl} className={`text-center px-1 ${i < 3 ? "border-r" : ""}`} style={{ borderColor: "var(--border)" }}>
+                    <div className="text-[20px] sm:text-[23px] font-extrabold leading-none" style={{ color: "var(--text)" }}>{s.val}</div>
+                    <div className="text-[8px] sm:text-[8.5px] uppercase tracking-[.06em] mt-1.5" style={{ color: "var(--rm-muted)" }}>{s.lbl}</div>
                   </div>
-                  {earned.map((c) => (
-                    <div
-                      key={c.courseId}
-                      onClick={() => setActiveId(c.courseId)}
-                      className="flex items-center gap-3 px-5 py-3 border-b cursor-pointer transition-colors duration-100"
-                      style={{
-                        borderColor: "var(--border)",
-                        background: selectedId === c.courseId ? "rgba(240,90,26,.05)" : undefined,
-                        borderLeft: selectedId === c.courseId ? "2px solid var(--orange)" : "2px solid transparent",
-                      }}
-                    >
-                      <div className="w-[38px] h-[38px] rounded-[10px] shrink-0 flex items-center justify-center text-[20px] shadow-[0_2px_8px_rgba(0,0,0,.15)]" style={{ background: getBg(c.courseId) }}>{getEmoji(c.category)}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-mono text-[8.5px] uppercase tracking-[.05em] mb-[2px]" style={{ color: "var(--text3)" }}>{c.category}</div>
-                        <div className="text-[12.5px] font-bold truncate" style={{ color: selectedId === c.courseId ? "var(--orange)" : "var(--text)" }}>{c.courseTitle}</div>
-                        <div className="flex items-center gap-2 mt-[3px]">
-                          <span className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>📅 {formatDate(c.issuedAt)}</span>
-                          {c.score !== null && <span className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>Score: {c.score}%</span>}
-                        </div>
-                      </div>
-                      <div className="shrink-0 flex items-center gap-1.5">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); requestDownload(c); }}
-                          disabled={!!downloadingId}
-                          className="w-[26px] h-[26px] rounded-[6px] flex items-center justify-center border cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                          style={{ borderColor: "var(--border)", color: "var(--text3)" }}
-                          title="Download PDF"
-                        >
-                          {downloadingId === c.courseId ? (
-                            <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                          )}
-                        </button>
-                        <span className="font-mono text-[8px] font-bold px-2 py-[2px] rounded-[20px] tracking-[.04em] uppercase border" style={{ background: "var(--green-d)", color: "var(--green)", borderColor: "rgba(22,163,74,.2)" }}>✓ Earned</span>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {inProgress.length > 0 && (
-                <>
-                  <div className="font-mono text-[9px] font-semibold uppercase tracking-[.1em] flex items-center gap-2 px-5 pt-2.5 pb-1.5" style={{ color: "var(--text3)" }}>
-                    ⏳ In Progress
-                    <span className="flex-1 h-px" style={{ background: "var(--border)" }} />
-                  </div>
-                  {inProgress.map((c) => (
-                    <div
-                      key={c.courseId}
-                      onClick={() => setActiveId(c.courseId)}
-                      className="px-5 py-3 border-b cursor-pointer"
-                      style={{
-                        borderColor: "var(--border)",
-                        background: selectedId === c.courseId ? "rgba(240,90,26,.05)" : undefined,
-                        borderLeft: selectedId === c.courseId ? "2px solid var(--orange)" : "2px solid transparent",
-                      }}
-                    >
-                      <div className="flex items-center gap-2.5 mb-2">
-                        <div className="w-[34px] h-[34px] rounded-[9px] shrink-0 flex items-center justify-center text-[17px]" style={{ background: getBg(c.courseId) }}>{getEmoji(c.category)}</div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-mono text-[8.5px] uppercase tracking-[.05em]" style={{ color: "var(--text3)" }}>{c.category}</div>
-                          <div className="text-[12px] font-bold" style={{ color: "var(--text)" }}>{c.courseTitle}</div>
-                        </div>
-                        <div className="text-[13px] font-extrabold shrink-0" style={{ color: getProgressColor(c.progressPercent) }}>{c.progressPercent}%</div>
-                      </div>
-                      <div className="h-1 rounded-full overflow-hidden mb-1" style={{ background: "var(--border)" }}>
-                        <div className="h-full rounded-full transition-[width] duration-[0.8s]" style={{ width: `${c.progressPercent}%`, background: getProgressBg(c.progressPercent) }} />
-                      </div>
-                      <div className="text-[10px] mt-1.5" style={{ color: "var(--text3)" }}>{c.completedItems} of {c.totalItems} items completed</div>
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {locked.length > 0 && (
-                <>
-                  <div className="font-mono text-[9px] font-semibold uppercase tracking-[.1em] flex items-center gap-2 px-5 pt-2.5 pb-1.5" style={{ color: "var(--text3)" }}>
-                    🔒 Locked
-                    <span className="flex-1 h-px" style={{ background: "var(--border)" }} />
-                  </div>
-                  {locked.map((c) => (
-                    <div
-                      key={c.courseId}
-                      className="flex items-center gap-3 px-5 py-2.5 border-b opacity-[.55]"
-                      style={{ borderColor: "var(--border)" }}
-                    >
-                      <div className="w-[34px] h-[34px] rounded-[9px] border flex items-center justify-center text-[14px] shrink-0" style={{ background: "var(--bg2)", borderColor: "var(--border)", color: "var(--text3)" }}>🔒</div>
-                      <div className="flex-1">
-                        <div className="text-[12px] font-semibold" style={{ color: "var(--text3)" }}>{c.courseTitle}</div>
-                        <div className="font-mono text-[8.5px] mt-[2px]" style={{ color: "var(--text3)" }}>{c.category}{c.price != null ? ` · ₹${c.price.toLocaleString("en-IN")}` : ""}</div>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {earned.length === 0 && inProgress.length === 0 && locked.length === 0 && (
-                <div className="flex flex-col items-center justify-center flex-1 px-6 py-10 text-center">
-                  <div className="text-[48px] mb-3">🎓</div>
-                  <div className="text-[16px] font-bold mb-1" style={{ color: "var(--text)" }}>No certificates yet</div>
-                  <div className="text-[12px] max-w-[260px] leading-[1.6]" style={{ color: "var(--text3)" }}>Enroll in a course and complete all modules to earn your first certificate.</div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
 
-            {/* ─── RIGHT ─── */}
-            <div className="flex flex-col items-center gap-5 py-8 px-7 overflow-y-auto" style={{ background: "var(--bg)" }}>
-              {activeEarned ? (
-                <EarnedDetail cert={activeEarned} studentName={studentName} downloading={downloadingId === activeEarned.courseId} onDownload={() => runDownload(activeEarned)} locked={isDemo} />
-              ) : activeInProgress ? (
-                <div className="w-full max-w-[480px] flex flex-col gap-4">
-                  <div className="text-center py-2.5">
-                    <div className="text-[52px] mb-2">⏳</div>
-                    <div className="text-[17px] font-extrabold mb-1" style={{ color: "var(--text)" }}>{activeInProgress.courseTitle}</div>
-                    <div className="text-[11.5px]" style={{ color: "var(--text3)" }}>Complete the course to earn your verified certificate</div>
-                  </div>
-                  <div className="w-full rounded-xl px-[22px] py-5 border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                    <div className="flex justify-between items-baseline mb-[14px]">
-                      <span className="text-[14px] font-bold" style={{ color: "var(--text)" }}>Overall Progress</span>
-                      <span className="text-[22px] font-extrabold" style={{ color: getProgressColor(activeInProgress.progressPercent) }}>{activeInProgress.progressPercent}%</span>
-                    </div>
-                    <div className="h-2 rounded-full overflow-hidden mb-3" style={{ background: "var(--border)" }}>
-                      <div className="h-full rounded-full transition-[width] duration-[0.8s]" style={{ width: `${activeInProgress.progressPercent}%`, background: getProgressBg(activeInProgress.progressPercent) }} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="text-center py-2 rounded-[7px]" style={{ background: "var(--bg2)" }}>
-                        <div className="text-[15px] font-extrabold leading-none" style={{ color: "var(--text)" }}>{activeInProgress.completedItems}</div>
-                        <div className="font-mono text-[8px] mt-[2px] uppercase tracking-[.06em]" style={{ color: "var(--text3)" }}>Items Done</div>
-                      </div>
-                      <div className="text-center py-2 rounded-[7px]" style={{ background: "var(--bg2)" }}>
-                        <div className="text-[15px] font-extrabold leading-none" style={{ color: "var(--text)" }}>{activeInProgress.totalItems - activeInProgress.completedItems}</div>
-                        <div className="font-mono text-[8px] mt-[2px] uppercase tracking-[.06em]" style={{ color: "var(--text3)" }}>Remaining</div>
-                      </div>
-                    </div>
+            {/* Highlights */}
+            <div className="flex flex-col gap-6">
+              {HIGHLIGHTS.map((h) => (
+                <div key={h.title} className="flex gap-4 items-start rounded-2xl p-5 sm:p-6" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-[22px] shrink-0" style={{ background: "var(--orange-d)" }}>{h.icon}</div>
+                  <div>
+                    <div className="text-[15px] font-bold mb-1.5" style={{ color: "var(--text)" }}>{h.title}</div>
+                    <div className="text-[13px] leading-relaxed" style={{ color: "var(--rm-muted)" }}>{h.desc}</div>
                   </div>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center flex-1 gap-[14px] px-6 py-10 text-center">
-                  <div className="text-[48px] opacity-50">🔍</div>
-                  <div className="text-[16px] font-bold" style={{ color: "var(--text)" }}>Select a certificate</div>
-                  <div className="text-[12px] max-w-[280px] leading-[1.6]" style={{ color: "var(--text3)" }}>Choose an earned certificate or an in-progress course from the left panel to view details.</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EarnedDetail({ cert, studentName, downloading, onDownload, locked }: { cert: EarnedCert; studentName: string; downloading: boolean; onDownload: () => void; locked?: boolean }) {
-  return (
-    <div className="flex flex-col items-center gap-5">
-      <div className="relative w-full">
-      <div id="certDoc" className={`w-full bg-[#FBF9F3] shadow-[0_40px_70px_-30px_rgba(32,42,66,.4),0_10px_30px_rgba(32,42,66,.12)] relative ${locked ? "blur-[2px] select-none pointer-events-none" : ""}`}>
-        {/* inner hairline frame */}
-        <div className="absolute inset-[14px] border border-[#DCD5C2] pointer-events-none z-[1]" />
-        {/* corner brackets */}
-        <div className="absolute top-[14px] left-[14px] w-[30px] h-[30px] border-t-2 border-l-2 border-[#202A42] z-[2]" />
-        <div className="absolute top-[14px] right-[14px] w-[30px] h-[30px] border-t-2 border-r-2 border-[#202A42] z-[2]" />
-        <div className="absolute bottom-[14px] left-[14px] w-[30px] h-[30px] border-b-2 border-l-2 border-[#202A42] z-[2]" />
-        <div className="absolute bottom-[14px] right-[14px] w-[30px] h-[30px] border-b-2 border-r-2 border-[#202A42] z-[2]" />
-        {/* soft grid + glow */}
-        <div className="absolute inset-0 z-0 pointer-events-none opacity-[.5]" style={{ backgroundImage: "linear-gradient(rgba(36,53,111,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(36,53,111,.04) 1px,transparent 1px)", backgroundSize: "34px 34px" }} />
-        <div className="absolute -top-[60px] left-1/2 -translate-x-1/2 w-[420px] h-[220px] z-0 pointer-events-none rounded-full blur-[80px] opacity-[.25]" style={{ background: "radial-gradient(circle,#EFA23B 0%,transparent 70%)" }} />
-
-        <div className="absolute top-[26px] right-[26px] flex items-center gap-[6px] bg-[#1E9455] text-white font-semibold text-[11px] pl-[9px] pr-[13px] py-[6px] rounded-[20px] z-[3] tracking-[.01em] shadow-[0_4px_14px_rgba(30,148,85,.35)]">
-          <svg viewBox="0 0 16 16" fill="none" className="w-3 h-3"><path d="M6 8.2L7.4 9.6L10.3 6.4" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /><circle cx="8" cy="8" r="7" stroke="white" strokeWidth="1.4" /></svg>
-          Verified
-        </div>
-
-        <div className="relative z-[1] px-7 sm:px-[62px] pt-10 sm:pt-[58px] pb-7 sm:pb-[42px] text-center">
-          <img src="/images/logo.png" alt="FutureStack" className="h-11 sm:h-[56px] w-auto mx-auto mb-3 sm:mb-[16px] object-contain" />
-          <div className="font-bold text-[10px] sm:text-[12px] tracking-[.3em] text-[#E1602C] mb-1.5 sm:mb-[6px]">FUTURE STACK</div>
-          <h1 className="italic font-medium text-[22px] sm:text-[30px] text-[#202A42] m-0 mb-5 sm:mb-[24px]">Certificate of Completion</h1>
-          <div className="w-[60px] h-[2px] bg-[#E1602C] mx-auto mb-6 sm:mb-[30px]" />
-
-          <img src="/images/stamp.png" alt="FutureStack Academy Seal" className="w-[96px] sm:w-[128px] h-auto mx-auto mb-5 sm:mb-[26px] block drop-shadow-[0_8px_20px_rgba(32,42,66,.18)]" />
-
-          <p className="text-[9.5px] sm:text-[10.5px] font-bold tracking-[.18em] uppercase text-[#8B8F9C] m-0 mb-3 sm:mb-[14px]">This certifies that</p>
-          <h2 className="font-semibold text-[clamp(26px,5.5vw,46px)] text-[#202A42] m-0 mb-5 sm:mb-[24px] leading-[1.1] break-words">{studentName}</h2>
-          <div className="w-full max-w-[440px] mx-auto mb-6 sm:mb-[26px] h-px bg-[#DCD5C2]" />
-
-          <p className="text-[9.5px] sm:text-[10.5px] font-bold tracking-[.18em] uppercase text-[#8B8F9C] m-0 mb-2.5 sm:mb-[12px]">Has successfully completed</p>
-          <h3 className="font-semibold text-[18px] sm:text-[24px] text-[#24356F] m-0 mb-2.5 sm:mb-[12px] leading-[1.3]">{cert.courseTitle}</h3>
-          {cert.description && (
-            <p className="text-[12.5px] sm:text-[13.5px] text-[#4B5471] max-w-[440px] mx-auto mb-5 sm:mb-[26px] leading-[1.65]">{cert.description}</p>
-          )}
-
-          {cert.techStack && cert.techStack.length > 0 && (
-            <div className="flex justify-center flex-wrap gap-[9px] mb-8 sm:mb-[44px]">
-              {cert.techStack.map((s) => (
-                <span key={s} className="text-[10.5px] sm:text-[11px] font-semibold text-[#24356F] border border-[#C8CEDF] bg-[#F3F5FA] px-[12px] sm:px-[13px] py-[5px] sm:py-[6px] rounded-[20px]">{s}</span>
               ))}
-            </div>
-          )}
 
-          <div className="flex items-end justify-between gap-4 sm:gap-6 pt-5 sm:pt-[26px] border-t border-[#DCD5C2] text-left">
-            <div className="w-[34%] min-w-0">
-              <div className="italic font-medium text-[15px] sm:text-[19px] text-[#202A42] border-b border-[#202A42]/25 pb-1.5 sm:pb-[7px] mb-1.5 sm:mb-[7px] whitespace-nowrap overflow-hidden text-ellipsis">Instructor</div>
-              <div className="text-[8.5px] sm:text-[9.5px] font-semibold tracking-[.1em] uppercase text-[#8B8F9C]">Course Instructor</div>
-            </div>
-            <img src="/images/logo.png" alt="FutureStack" className="h-5 sm:h-[26px] w-auto object-contain opacity-90 shrink-0 pb-1 sm:pb-[6px]" />
-            <div className="w-[34%] text-right shrink-0 relative">
-              <img src="/images/stamp.png" alt="" aria-hidden="true" className="pointer-events-none select-none absolute -top-5 sm:-top-[26px] right-[-6px] w-[70px] sm:w-[92px] h-auto object-contain grayscale opacity-[.07] mix-blend-multiply z-0" />
-              <div className="relative z-[1] text-[11px] sm:text-[12px] text-[#202A42] font-semibold mb-1.5 sm:mb-2">{formatDate(cert.issuedAt)}</div>
-              <div className="relative z-[1] inline-block text-[9.5px] sm:text-[10.5px] font-bold text-[#E1602C] bg-[#FBEBE1] px-[10px] sm:px-[11px] py-[4px] rounded-[20px]">
-                {cert.score !== null ? `Score: ${cert.score}%` : "Completed"}
+              <div className="rounded-2xl p-6 flex flex-col gap-3" style={{ background: "linear-gradient(135deg, var(--orange-d) 0%, rgba(240,90,26,.04) 100%)", border: "1px solid rgba(240,90,26,.25)" }}>
+                <div className="text-[15px] font-bold" style={{ color: "var(--text)" }}>Already a student?</div>
+                <div className="text-[13px] leading-relaxed" style={{ color: "var(--rm-muted)" }}>Sign in to see your own earned, in-progress, and locked certificates on your dashboard.</div>
+                {isAuthenticated ? (
+                  <Link href="/my-dashboard" className="self-start inline-flex items-center gap-1.5 text-[13.5px] font-bold" style={{ color: "var(--orange)" }}>
+                    Go to My Certificates →
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => promptLogin(router, pathname)}
+                    className="self-start inline-flex items-center gap-1.5 text-[13.5px] font-bold cursor-pointer"
+                    style={{ color: "var(--orange)" }}
+                  >
+                    Go to My Certificates →
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {locked && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6 rounded-xl" style={{ background: "rgba(11,17,32,.45)" }}>
-          <div className="w-12 h-12 rounded-full flex items-center justify-center text-[20px]" style={{ background: "#fff", boxShadow: "0 8px 24px rgba(0,0,0,.25)" }}>🔒</div>
-          <p className="text-[13.5px] font-bold text-white max-w-[300px]">Complete a course to unlock your real certificate</p>
-        </div>
-      )}
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-2.5 w-full">
-        <button
-          onClick={onDownload}
-          disabled={downloading || locked}
-          className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] bg-[var(--orange)] text-white shadow-[0_3px_12px_rgba(240,90,26,.3)] hover:bg-[var(--orange2)] hover:-translate-y-[1px] disabled:opacity-60 disabled:hover:translate-y-0"
+      {/* Bottom CTA — full-bleed */}
+      <section className="text-center px-6 py-16 sm:py-20" style={{ background: "var(--card)", borderTop: "1px solid var(--border)" }}>
+        <div className="text-[24px] sm:text-[30px] font-extrabold mb-3" style={{ color: "var(--text)" }}>Ready to earn one of your own?</div>
+        <p className="text-[13.5px] sm:text-[15px] max-w-[520px] mx-auto mb-7" style={{ color: "var(--rm-muted)" }}>Pick a course, finish every module, and your verified certificate is generated automatically — no extra steps.</p>
+        <Link
+          href="/courses"
+          className="inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-[14px] font-bold text-white"
+          style={{ background: "linear-gradient(135deg, var(--orange) 0%, var(--orange2) 100%)", boxShadow: "0 10px 30px rgba(240,90,26,.35)" }}
         >
-          {downloading ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Generating…</> : <>⬇ Download PDF</>}
-        </button>
-        <button disabled={locked} className="flex-1 py-2.5 rounded-lg text-[12.5px] font-bold flex items-center justify-center gap-[7px] transition-all duration-[0.18s] text-white shadow-[0_3px_12px_rgba(10,102,194,.3)] hover:opacity-[.88] hover:-translate-y-[1px] disabled:opacity-60" style={{ background: "linear-gradient(135deg,#0a66c2,#1a8cff)" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z" /><circle cx="4" cy="4" r="2" /></svg>
-          Add to LinkedIn
-        </button>
-      </div>
-
-      <div className="w-full rounded-[10px] px-[18px] py-[14px] grid grid-cols-2 sm:grid-cols-4" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-        {[
-          { val: cert.score !== null ? `${cert.score}%` : "—", lbl: "Final Score" },
-          { val: String(cert.totalSections), lbl: "Modules" },
-          { val: formatHours(cert.totalHours), lbl: "Study Time" },
-          { val: `#${cert.rank}`, lbl: "Class Rank" },
-        ].map((s, i) => (
-          <div key={s.lbl} className={`text-center px-2 ${i < 3 ? "border-r" : ""}`} style={{ borderColor: "var(--border)" }}>
-            <div className="text-[20px] font-extrabold leading-none mb-[3px]" style={{ color: "var(--text)" }}>{s.val}</div>
-            <div className="text-[8.5px] uppercase tracking-[.07em]" style={{ color: "var(--rm-muted)" }}>{s.lbl}</div>
-          </div>
-        ))}
-      </div>
+          Browse Courses →
+        </Link>
+      </section>
     </div>
   );
 }

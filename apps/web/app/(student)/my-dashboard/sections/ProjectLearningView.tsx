@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { loadToken } from "@/app/auth/lib/token-store";
 import VdoCipherVideoPlayer from "./VdoCipherVideoPlayer";
@@ -66,7 +66,14 @@ export default function ProjectLearningView({ projectId, onBack }: Props) {
   const [activeVideo, setActiveVideo] = useState<ProjectVideo | null>(null);
   const [activeCurriculumId, setActiveCurriculumId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [progressError, setProgressError] = useState<string | null>(null);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  // Tracks whether the initial auto-select has already run, without making
+  // fetchProgress depend on `activeVideo` state — depending on it caused the
+  // first successful fetch (which calls setActiveVideo) to change this
+  // callback's identity, re-triggering the mount effect and firing a second
+  // full refetch of both progress and project on every load.
+  const autoSelectedRef = useRef(false);
 
   useEffect(() => {
     loadToken().then(setToken);
@@ -81,9 +88,11 @@ export default function ProjectLearningView({ projectId, onBack }: Props) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setProgress(data);
+      setProgressError(null);
 
-      // Auto-select first incomplete video
-      if (!activeVideo) {
+      // Auto-select first incomplete video (once per mount)
+      if (!autoSelectedRef.current) {
+        autoSelectedRef.current = true;
         for (const week of data.curriculum) {
           for (const video of week.videos) {
             if (!video.isCompleted) {
@@ -100,9 +109,9 @@ export default function ProjectLearningView({ projectId, onBack }: Props) {
         }
       }
     } catch (e: any) {
-      setError(e.message || "Failed to load progress");
+      setProgressError(e.message || "Failed to load progress");
     }
-  }, [token, projectId, activeVideo]);
+  }, [token, projectId]);
 
   const fetchProject = useCallback(async () => {
     if (!token || !projectId) return;
@@ -113,17 +122,24 @@ export default function ProjectLearningView({ projectId, onBack }: Props) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setProject(data);
+      setProjectError(null);
     } catch (e: any) {
-      setError(e.message || "Failed to load project");
+      setProjectError(e.message || "Failed to load project");
     }
   }, [token, projectId]);
 
+  const loadAll = useCallback(() => {
+    setLoading(true);
+    Promise.all([fetchProgress(), fetchProject()]).finally(() => setLoading(false));
+  }, [fetchProgress, fetchProject]);
+
   useEffect(() => {
     if (!token) return;
-    setLoading(true);
-    Promise.all([fetchProgress(), fetchProject()])
-      .finally(() => setLoading(false));
-  }, [token, projectId, fetchProgress, fetchProject]);
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, projectId]);
+
+  const error = progressError || projectError;
 
   const handleVideoComplete = useCallback(() => {
     // Refresh progress after video completion
@@ -143,9 +159,14 @@ export default function ProjectLearningView({ projectId, onBack }: Props) {
     return (
       <div className="flex flex-col items-center gap-4 py-20">
         <div className="text-[14px] text-[var(--red)]">{error}</div>
-        <button onClick={onBack} className="text-[12px] text-[var(--orange)] hover:underline cursor-pointer">
-          ← Back to Dashboard
-        </button>
+        <div className="flex items-center gap-4">
+          <button onClick={loadAll} className="text-[12px] font-semibold text-[var(--orange)] hover:underline cursor-pointer">
+            ↻ Retry
+          </button>
+          <button onClick={onBack} className="text-[12px] text-[var(--muted)] hover:text-[var(--orange)] cursor-pointer">
+            ← Back to Dashboard
+          </button>
+        </div>
       </div>
     );
   }
