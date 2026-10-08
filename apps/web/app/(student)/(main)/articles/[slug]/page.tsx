@@ -33,13 +33,13 @@ function formatDate(d: string) {
 type PageProps = { params: Promise<{ slug: string }> };
 
 async function fetchPost(slug: string): Promise<BlogPost | null> {
-  const res = await fetch(`${BACKEND}/articles/${slug}`, { cache: "no-store" });
+  const res = await fetch(`${BACKEND}/articles/${slug}`, { next: { revalidate: 60 } });
   if (!res.ok) return null;
   return res.json();
 }
 
 async function fetchMore(excludeSlug: string): Promise<BlogPost[]> {
-  const res = await fetch(`${BACKEND}/articles?limit=6`, { cache: "no-store" });
+  const res = await fetch(`${BACKEND}/articles?limit=6`, { next: { revalidate: 60 } });
   if (!res.ok) return [];
   const body = await res.json();
   const data: BlogPost[] = Array.isArray(body) ? body : body?.data ?? [];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import useSWR from "swr";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { StarRating } from "@/components/StarRating";
 import { ReviewForm } from "@/components/ReviewForm";
@@ -109,9 +110,6 @@ export default function ProjectDetailPage() {
     router.push(`/cart?project=${projectId}`);
   }, [isAuthenticated, pathname, projectId, router]);
 
-  const [project, setProject] = useState<ProjectDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
   // Reviews state
@@ -122,23 +120,14 @@ export default function ProjectDetailPage() {
   const [myReview, setMyReview] = useState<ProjectReview | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
 
-  useEffect(() => {
-    if (!projectId) return;
-    setLoading(true);
-    fetch(`/api/projects/${projectId}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        setProject(data);
-        setLoading(false);
-      })
-      .catch((e) => {
-        setError(e.message || "Failed to load project");
-        setLoading(false);
-      });
-  }, [projectId]);
+  const { data: project, isLoading: loading, error: projectError, mutate: refetchProject } = useSWR<ProjectDetail>(
+    projectId ? `/api/projects/${projectId}` : null,
+    (url: string) => fetch(url).then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }),
+  );
+  const error = projectError ? (projectError as Error).message || "Failed to load project" : null;
 
   const fetchReviews = useCallback(async (page: number = 1) => {
     if (!projectId) return;
@@ -194,7 +183,7 @@ export default function ProjectDetailPage() {
       fetchMyReview();
       fetchReviews(1);
       // Refresh project data for updated rating
-      fetch(`/api/projects/${projectId}`).then((r) => r.ok && r.json()).then(setProject).catch(() => {});
+      refetchProject();
     }
   }
 

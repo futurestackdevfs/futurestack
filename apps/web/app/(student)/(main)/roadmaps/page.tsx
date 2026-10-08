@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import { useCareerGuidance } from "@/app/(student)/components/career-guidance";
 
@@ -30,18 +31,14 @@ const STEPS = [
 
 export default function RoadmapsPage() {
   const { openLead } = useCareerGuidance();
-  const [data, setData] = useState<RoadmapCard[] | null>(null);
-  const [error, setError] = useState(false);
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/courses/public/roadmaps")
-      .then((r) => { if (!r.ok) throw new Error("failed"); return r.json(); })
-      .then((rows: RoadmapCard[]) => { if (!cancelled) setData(rows); })
-      .catch(() => { if (!cancelled) setError(true); });
-    return () => { cancelled = true; };
-  }, []);
+  const { data: swrData, error: swrError } = useSWR<RoadmapCard[]>(
+    "/api/courses/public/roadmaps",
+    (url: string) => fetch(url).then((r) => { if (!r.ok) throw new Error("failed"); return r.json(); }),
+  );
+  const data = swrData ?? null;
+  const error = !!swrError;
 
   const total = data?.reduce((n, r) => n + r.topics, 0) ?? 0;
   const future = data?.reduce((n, r) => n + r.future, 0) ?? 0;

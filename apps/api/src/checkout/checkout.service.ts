@@ -106,18 +106,27 @@ export class CheckoutService {
     const keptCourses: { itemId: string; courseId: string; price: number }[] = [];
     const keptProjects: { itemId: string; projectId: string; projectName: string; price: number; trainerId: string | null }[] = [];
 
+    // Batch-check enrollment for every course in the cart up front instead of
+    // one findUnique per item inside the loop (N+1).
+    const cartCourseIds = cart.items
+      .filter((item) => item.courseId)
+      .map((item) => item.courseId!);
+    const existingEnrollments =
+      cartCourseIds.length > 0
+        ? await this.prisma.enrollment.findMany({
+            where: { studentId: userId, courseId: { in: cartCourseIds } },
+            select: { courseId: true },
+          })
+        : [];
+    const enrolledCourseIds = new Set(existingEnrollments.map((e) => e.courseId));
+
     for (const item of cart.items) {
       if (item.courseId) {
         if (!item.course || item.course.status !== 'ACTIVE') {
           dropped.push({ courseId: item.courseId, reason: 'Course is no longer available' });
           continue;
         }
-        const enrolled = await this.prisma.enrollment.findUnique({
-          where: {
-            studentId_courseId: { studentId: userId, courseId: item.courseId },
-          },
-          select: { id: true },
-        });
+        const enrolled = enrolledCourseIds.has(item.courseId);
         if (enrolled) {
           dropped.push({ courseId: item.courseId, reason: 'You are already enrolled in this course' });
           continue;
@@ -431,17 +440,25 @@ export class CheckoutService {
 
       const settings = await this.paymentSettings.getSettings();
 
+      // Batch-fetch every course in this order up front instead of one
+      // findUnique per OrderItem inside the loop (N+1).
+      const orderCourseIds = order.items
+        .filter((item) => item.courseId)
+        .map((item) => item.courseId!);
+      const coursesFound = await tx.course.findMany({
+        where: { id: { in: orderCourseIds } },
+        select: {
+          id: true,
+          trainer: { select: { id: true, trainerSharePercent: true } },
+        },
+      });
+      const coursesById = new Map(coursesFound.map((c) => [c.id, c]));
+
       const enrollments = await Promise.all(
         order.items
           .filter((item) => item.courseId)
           .map(async (item) => {
-            const course = await tx.course.findUnique({
-              where: { id: item.courseId! },
-              select: {
-                id: true,
-                trainer: { select: { id: true, trainerSharePercent: true } },
-              },
-            });
+            const course = coursesById.get(item.courseId!) ?? null;
 
             const priceAtPurchase = item.priceAtPurchase.toNumber();
             const created = await tx.enrollment.create({

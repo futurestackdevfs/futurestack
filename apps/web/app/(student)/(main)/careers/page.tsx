@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 
 /* ─── scroll reveal ─────────────────────────────── */
 function useReveal(threshold = 0.15) {
@@ -55,25 +56,16 @@ interface JobPosting {
 }
 
 export default function CareersPage() {
-  const [jobs, setJobs] = useState<JobPosting[]>([]);
-  const [jobsLoading, setJobsLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/careers/jobs");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!cancelled) setJobs(Array.isArray(data) ? data : []);
-      } catch {
-        if (!cancelled) setJobs([]);
-      } finally {
-        if (!cancelled) setJobsLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  const { data: jobsData, isLoading: jobsLoading } = useSWR<JobPosting[]>(
+    "/api/careers/jobs",
+    async (url: string) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    },
+  );
+  const jobs = jobsData ?? [];
 
   return (
     <div className="min-h-screen bg-[var(--bg)] overflow-hidden">

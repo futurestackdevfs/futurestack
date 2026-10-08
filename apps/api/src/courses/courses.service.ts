@@ -1195,11 +1195,26 @@ export class CoursesService {
       };
       (leanSelect as any)._count = { select: { enrollments: true } };
     }
-    const courses = (await this.prisma.course.findMany({
-      where,
-      select: leanSelect,
-      orderBy,
-    })) as any[];
+    // The lean nav/catalog payload (no search, no filters, no computed-field
+    // sort) is the only shape where every course in the result actually gets
+    // used as-is — push real pagination into the DB query instead of fetching
+    // the whole catalog and slicing in memory.
+    const canPushPagination =
+      lean && isFullCatalog && opts.sort !== 'Duration: Shortest';
+
+    const [courses, catalogTotal] = (await Promise.all([
+      this.prisma.course.findMany({
+        where,
+        select: leanSelect,
+        orderBy,
+        ...(canPushPagination
+          ? { take: opts.perPage, skip: (opts.page - 1) * opts.perPage }
+          : {}),
+      }),
+      canPushPagination
+        ? this.prisma.course.count({ where })
+        : Promise.resolve(undefined),
+    ])) as [any[], number | undefined];
 
     const videoStats = await this.getVideoStats(courses.map((c) => c.id));
     const questionCounts = lean
@@ -1407,9 +1422,11 @@ export class CoursesService {
       data.sort((a, b) => a.hours - b.hours);
     }
 
-    const total = data.length;
-    const start = (opts.page - 1) * opts.perPage;
-    data = data.slice(start, start + opts.perPage);
+    const total = canPushPagination ? catalogTotal! : data.length;
+    if (!canPushPagination) {
+      const start = (opts.page - 1) * opts.perPage;
+      data = data.slice(start, start + opts.perPage);
+    }
 
     const result = { data, total, page: opts.page, perPage: opts.perPage, facets };
     if (isFullCatalog) this.catalogCache.set(CACHE_KEY, result);

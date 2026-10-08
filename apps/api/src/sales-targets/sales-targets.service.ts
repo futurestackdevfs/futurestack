@@ -173,25 +173,76 @@ export class SalesTargetsService {
     if (role === Role.SALES) where.salespersonId = userId;
 
     const targets = await this.prisma.salesTarget.findMany({ where });
+    if (targets.length === 0) return this.getTargets(userId, role);
 
+    // Targets that share the same (startDate, endDate, courseId) window can be
+    // answered with one aggregate/groupBy query instead of one per target —
+    // avoids an N+1 round trip to the DB for every sales target.
+    const groups = new Map<string, typeof targets>();
     for (const target of targets) {
-      const paid = await this.prisma.order.aggregate({
-        where: {
-          salespersonId: target.salespersonId,
-          status: 'PAID',
-          createdAt: { gte: target.startDate, lte: target.endDate },
-          ...(target.courseId ? {
-            items: { some: { courseId: target.courseId } },
-          } : {}),
-        },
-        _sum: { totalAmount: true },
-      });
-
-      await this.prisma.salesTarget.update({
-        where: { id: target.id },
-        data: { currentAmount: paid._sum.totalAmount ?? 0 },
-      });
+      const key = `${target.startDate.getTime()}|${target.endDate.getTime()}|${target.courseId ?? ''}`;
+      const group = groups.get(key);
+      if (group) group.push(target);
+      else groups.set(key, [target]);
     }
+
+    const amountById = new Map<string, unknown>();
+
+    for (const group of groups.values()) {
+      const { startDate, endDate, courseId } = group[0];
+      const itemsFilter = courseId ? { items: { some: { courseId } } } : {};
+
+      const salespersonIds = Array.from(
+        new Set(group.map((t) => t.salespersonId).filter((id): id is string => !!id)),
+      );
+      const hasUnassigned = group.some((t) => !t.salespersonId);
+
+      const [grouped, unassigned] = await Promise.all([
+        salespersonIds.length > 0
+          ? this.prisma.order.groupBy({
+              by: ['salespersonId'],
+              where: {
+                salespersonId: { in: salespersonIds },
+                status: 'PAID',
+                createdAt: { gte: startDate, lte: endDate },
+                ...itemsFilter,
+              },
+              _sum: { totalAmount: true },
+            })
+          : Promise.resolve([]),
+        hasUnassigned
+          ? this.prisma.order.aggregate({
+              where: {
+                salespersonId: null,
+                status: 'PAID',
+                createdAt: { gte: startDate, lte: endDate },
+                ...itemsFilter,
+              },
+              _sum: { totalAmount: true },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      const sumBySalesperson = new Map<string | null, unknown>(
+        grouped.map((r: any): [string | null, unknown] => [r.salespersonId, r._sum.totalAmount ?? 0]),
+      );
+
+      for (const target of group) {
+        const amount = target.salespersonId
+          ? sumBySalesperson.get(target.salespersonId) ?? 0
+          : unassigned?._sum.totalAmount ?? 0;
+        amountById.set(target.id, amount);
+      }
+    }
+
+    await Promise.all(
+      targets.map((target) =>
+        this.prisma.salesTarget.update({
+          where: { id: target.id },
+          data: { currentAmount: amountById.get(target.id) ?? 0 },
+        }),
+      ),
+    );
 
     return this.getTargets(userId, role);
   }

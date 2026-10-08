@@ -214,6 +214,8 @@ model Course {
   orderItems    OrderItem[]
   salesTargets  SalesTarget[]
   refunds       Refund[]
+
+  @@index([status, createdAt])
 }
 
 model CourseResource {
@@ -319,6 +321,7 @@ model Enrollment {
   order         Order?         @relation(fields: [orderId], references: [id])
 
   @@unique([studentId, courseId])
+  @@index([studentId, status])
 }
 
 model VideoProgress {
@@ -607,6 +610,10 @@ model Order {
   salespersonId     String?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([salespersonId, status, createdAt])
 }
 
 model OrderItem {
@@ -749,6 +756,8 @@ model Project {
   reviews    Review[]
   cartItems  CartItem[]
   refunds    Refund[]
+
+  @@index([status])
 }
 
 model ProjectCurriculum {
