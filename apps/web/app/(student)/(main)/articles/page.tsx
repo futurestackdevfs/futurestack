@@ -63,7 +63,7 @@ function EmptyState({ message }: { message: string }) {
 }
 
 export default async function ArticlesPage() {
-  const res = await fetch(`${BACKEND}/articles?limit=20`, { cache: "no-store" });
+  const res = await fetch(`${BACKEND}/articles?limit=20`, { next: { revalidate: 60 } });
 
   if (!res.ok) {
     return (
@@ -92,7 +92,7 @@ export default async function ArticlesPage() {
   // The list endpoint doesn't return full body content (keeps the listing
   // payload small) — fetch the latest article's full content separately so
   // it can be read in full right here, instead of just a teaser + link.
-  const featuredRes = await fetch(`${BACKEND}/articles/${latest.slug}`, { cache: "no-store" });
+  const featuredRes = await fetch(`${BACKEND}/articles/${latest.slug}`, { next: { revalidate: 60 } });
   const featured: BlogPost = featuredRes.ok ? await featuredRes.json() : latest;
   const featuredDate = featured.publishedAt ? formatDate(featured.publishedAt) : formatDate(featured.createdAt);
 

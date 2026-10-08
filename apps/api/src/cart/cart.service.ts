@@ -81,56 +81,60 @@ export class CartService {
   async getCartView(userId: string, currency: Currency) {
     const cart = await this.getOrCreateCart(userId);
 
-    const items = await this.prisma.cartItem.findMany({
-      where: { cartId: cart.id },
-      include: {
-        course: {
-          select: {
-            id: true,
-            title: true,
-            thumbnailUrl: true,
-            price: true,
-            originalPrice: true,
-            priceUsd: true,
-            originalPriceUsd: true,
-            category: true,
-            techStack: true,
-            averageRating: true,
-            reviewCount: true,
-            _count: { select: { sections: true } },
-            sections: { select: { _count: { select: { videos: true } } } },
+    // `items` and `settings` have no dependency on each other — fetch them
+    // concurrently. `videoStats` does depend on `items` (needs its courseIds)
+    // so it can't join this Promise.all.
+    const [items, settings] = await Promise.all([
+      this.prisma.cartItem.findMany({
+        where: { cartId: cart.id },
+        include: {
+          course: {
+            select: {
+              id: true,
+              title: true,
+              thumbnailUrl: true,
+              price: true,
+              originalPrice: true,
+              priceUsd: true,
+              originalPriceUsd: true,
+              category: true,
+              techStack: true,
+              averageRating: true,
+              reviewCount: true,
+              _count: { select: { sections: true } },
+              sections: { select: { _count: { select: { videos: true } } } },
+            },
+          },
+          project: {
+            select: {
+              id: true,
+              name: true,
+              image: true,
+              thumbGradient: true,
+              price: true,
+              originalPrice: true,
+              priceUsd: true,
+              originalPriceUsd: true,
+              shortDesc: true,
+              techLabel: true,
+              trainer: { select: { name: true } },
+            },
           },
         },
-        project: {
-          select: {
-            id: true,
-            name: true,
-            image: true,
-            thumbGradient: true,
-            price: true,
-            originalPrice: true,
-            priceUsd: true,
-            originalPriceUsd: true,
-            shortDesc: true,
-            techLabel: true,
-            trainer: { select: { name: true } },
-          },
-        },
-      },
-      orderBy: { addedAt: 'asc' },
-    });
+        orderBy: { addedAt: 'asc' },
+      }),
+      // Never let a settings hiccup break the whole cart view — fall back to
+      // launch defaults. usdRate 0 lets resolveItemPrice apply its own last-resort
+      // guard; the real rate is the admin-set PaymentSettings.usdRate.
+      this.paymentSettings.getSettings().catch(() => ({
+        gstPercent: 18,
+        gstPercentUsd: 0,
+        usdRate: 0,
+      })),
+    ]);
 
     const courseIds = items.filter((i) => i.courseId).map((i) => i.courseId!);
     const videoStats = await this.getVideoStats(courseIds);
-
-    // Never let a settings hiccup break the whole cart view — fall back to
-    // launch defaults. usdRate 0 lets resolveItemPrice apply its own last-resort
-    // guard; the real rate is the admin-set PaymentSettings.usdRate.
-    const settings = await this.paymentSettings.getSettings().catch(() => ({
-      gstPercent: 18,
-      gstPercentUsd: 0,
-      usdRate: 0,
-    }));
     const usdRate = settings.usdRate ?? 0;
 
     const enriched = items.map((item) => {

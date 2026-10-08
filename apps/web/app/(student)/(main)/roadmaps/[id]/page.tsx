@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { RoadmapDetailTree } from "@/components/roadmaps/RoadmapDetailTree";
@@ -46,23 +47,19 @@ function saveDone(slug: string, done: Record<string, boolean>) {
 export default function RoadmapDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [course, setCourse] = useState<CourseDetail | null | undefined>(undefined);
-  const [related, setRelated] = useState<RelatedRoadmap[]>([]);
   const [sel, setSel] = useState<string | null>(null);
   const [linkMode, setLinkMode] = useState<"sel" | "all">("sel");
   const [highlight, setHighlight] = useState<"all" | "c" | "f" | "todo">("all");
   const [done, setDone] = useState<Record<string, boolean>>({});
 
+  const { data: course } = useSWR<CourseDetail | null>(
+    params.id ? ["course-detail", params.id] : null,
+    () => fetch(`/api/courses/public/slug/${params.id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
+  );
+
   useEffect(() => {
-    let cancelled = false;
-    setCourse(undefined);
     setSel(null);
     setDone(loadDone(params.id));
-    fetch(`/api/courses/public/slug/${params.id}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((c: CourseDetail | null) => { if (!cancelled) setCourse(c); })
-      .catch(() => { if (!cancelled) setCourse(null); });
-    return () => { cancelled = true; };
   }, [params.id]);
 
   function toggleDone(topic: string) {
@@ -79,20 +76,17 @@ export default function RoadmapDetailPage() {
     saveDone(params.id, {});
   }
 
-  useEffect(() => {
-    if (!course) return;
-    let cancelled = false;
-    fetch("/api/courses/public/roadmaps")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: RelatedRoadmap[]) => {
-        if (cancelled) return;
-        const same = rows.filter((r) => r.category === course.category && r.slug !== course.slug);
-        const others = rows.filter((r) => r.category !== course.category && r.slug !== course.slug);
-        setRelated(same.concat(others).slice(0, 4));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [course]);
+  const { data: relatedRows } = useSWR<RelatedRoadmap[]>(
+    course ? "/api/courses/public/roadmaps" : null,
+    (url: string) => fetch(url).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+  );
+
+  const related = useMemo<RelatedRoadmap[]>(() => {
+    if (!course || !relatedRows) return [];
+    const same = relatedRows.filter((r) => r.category === course.category && r.slug !== course.slug);
+    const others = relatedRows.filter((r) => r.category !== course.category && r.slug !== course.slug);
+    return same.concat(others).slice(0, 4);
+  }, [relatedRows, course]);
 
   const stageRoadmap = useMemo(() => (course?.roadmap ? toStageRoadmap(course.roadmap) : null), [course]);
   const counts = useMemo(() => (course?.roadmap ? countTopics(course.roadmap) : { topics: 0, future: 0 }), [course]);

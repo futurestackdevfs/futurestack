@@ -38,7 +38,12 @@ export function StudentLoginForm() {
 
   useEffect(() => {
     window.addEventListener('fs:highlight-login', triggerHighlight);
-    if (window.location.hash === '#student-login') triggerHighlight();
+    if (window.location.hash === '#student-login') {
+      triggerHighlight();
+      // Strip the hash from the address bar once consumed — it was only ever
+      // a signal to scroll/highlight here, not a URL worth showing/bookmarking.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
     return () => window.removeEventListener('fs:highlight-login', triggerHighlight);
   }, [triggerHighlight]);
 

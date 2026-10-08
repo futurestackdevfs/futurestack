@@ -20,7 +20,7 @@ function setup() {
 
   const prisma = {
     cart: { findUnique: jest.fn(), update: jest.fn() },
-    enrollment: { findUnique: jest.fn() },
+    enrollment: { findUnique: jest.fn(), findMany: jest.fn() },
     cartItem: { deleteMany: jest.fn() },
     order: { findFirst: jest.fn(), update: jest.fn(), delete: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn() },
     coupon: { findUnique: jest.fn(), update: jest.fn() },
@@ -81,6 +81,7 @@ describe('CheckoutService#createOrder — pricing, GST, coupons, currency', () =
     const { service, prisma, tx, razorpayOrdersCreate } = setup();
     (prisma.cart.findUnique as jest.Mock).mockResolvedValue(makeCart());
     (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.order.findFirst as jest.Mock).mockResolvedValue(null);
     tx.order.create.mockResolvedValue({ id: '__spec__order-new' });
     tx.orderItem.createMany.mockResolvedValue({});
@@ -117,6 +118,7 @@ describe('CheckoutService#createOrder — pricing, GST, coupons, currency', () =
     const { service, prisma, tx, razorpayOrdersCreate } = setup();
     (prisma.cart.findUnique as jest.Mock).mockResolvedValue(makeCart());
     (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.order.findFirst as jest.Mock).mockResolvedValue(null);
     tx.order.create.mockResolvedValue({ id: '__spec__order-usd' });
     tx.orderItem.createMany.mockResolvedValue({});
@@ -165,6 +167,7 @@ describe('CheckoutService#createOrder — pricing, GST, coupons, currency', () =
       makeCart({ couponId: '__spec__coupon-1' }),
     );
     (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.order.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.coupon.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__coupon-1', code: 'SAVE1000' });
     (couponService.validate as jest.Mock).mockResolvedValue({
@@ -195,6 +198,7 @@ describe('CheckoutService#createOrder — pricing, GST, coupons, currency', () =
       makeCart({ couponId: '__spec__coupon-expired' }),
     );
     (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.order.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.coupon.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__coupon-expired', code: 'OLD' });
     (couponService.validate as jest.Mock).mockRejectedValue(new BadRequestException('This coupon has expired'));
@@ -219,6 +223,7 @@ describe('CheckoutService#createOrder — pricing, GST, coupons, currency', () =
       makeCart({ couponId: '__spec__coupon-100' }),
     );
     (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.order.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.coupon.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__coupon-100', code: 'FREE100' });
     (couponService.validate as jest.Mock).mockResolvedValue({
@@ -235,6 +240,7 @@ describe('CheckoutService#createOrder — pricing, GST, coupons, currency', () =
     const { service, prisma } = setup();
     (prisma.cart.findUnique as jest.Mock).mockResolvedValue(makeCart());
     (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.order.findFirst as jest.Mock).mockResolvedValue({ id: '__spec__order-open', totalAmount: decimal(5898.82) });
 
     await expect(
@@ -246,6 +252,7 @@ describe('CheckoutService#createOrder — pricing, GST, coupons, currency', () =
     const { service, prisma, tx, razorpayOrdersCreate } = setup();
     (prisma.cart.findUnique as jest.Mock).mockResolvedValue(makeCart());
     (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.order.findFirst as jest.Mock).mockResolvedValue(null);
     tx.order.create.mockResolvedValue({ id: '__spec__order-fail' });
     tx.orderItem.createMany.mockResolvedValue({});
@@ -271,7 +278,7 @@ describe('CheckoutService#finalizeOrder — idempotency', () => {
       salespersonId: null,
       items: [{ courseId: '__spec__course-react', priceAtPurchase: decimal(4999) }],
     });
-    (tx as any).course = { findUnique: jest.fn().mockResolvedValue({ id: '__spec__course-react', trainer: null }) };
+    (tx as any).course = { findMany: jest.fn().mockResolvedValue([{ id: '__spec__course-react', trainer: null }]) };
     (tx as any).enrollment = { create: jest.fn().mockResolvedValue({ id: '__spec__enr-new' }) };
     (tx as any).orderItem.updateMany = jest.fn().mockResolvedValue({});
     (tx as any).cart = { upsert: jest.fn().mockResolvedValue({}) };

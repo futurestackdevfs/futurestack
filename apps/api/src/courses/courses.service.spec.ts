@@ -13,6 +13,7 @@ function makePrismaMock() {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      count: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -349,6 +350,70 @@ describe('CoursesService', () => {
       expect(typeof result.price).toBe('number');
       expect(result.originalPrice).toBe(6999);
       expect(result.hasDiscount).toBe(true);
+    });
+  });
+
+  describe('findAllCards()', () => {
+    it('pushes pagination (take/skip) and uses course.count for a lean, unfiltered, non-computed-sort request', async () => {
+      (prisma.course.findMany as jest.Mock).mockResolvedValue([
+        { id: '__spec__c1', title: 'Course One', code: 'CRS-1', description: '', techStack: [], skillLevel: 'INTERMEDIATE', createdAt: new Date(), updatedAt: new Date() },
+      ]);
+      (prisma.course.count as jest.Mock).mockResolvedValue(37);
+
+      const result = await service.findAllCards({ page: 2, perPage: 12, fields: 'lean' });
+
+      expect(prisma.course.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 12, skip: 12 }),
+      );
+      expect(prisma.course.count).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ status: 'ACTIVE' }) }),
+      );
+      expect(result.total).toBe(37);
+      expect(result.data).toHaveLength(1);
+    });
+
+    it('does not push DB-level pagination for a non-lean request (facets/full fields need the whole set)', async () => {
+      (prisma.course.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.track.findMany as jest.Mock).mockResolvedValue([]);
+
+      await service.findAllCards({ page: 1, perPage: 12 });
+
+      expect(prisma.course.count).not.toHaveBeenCalled();
+      const callArg = (prisma.course.findMany as jest.Mock).mock.calls[0][0];
+      expect(callArg.take).toBeUndefined();
+      expect(callArg.skip).toBeUndefined();
+    });
+
+    it('does not push DB-level pagination for a lean request with active filters', async () => {
+      (prisma.course.findMany as jest.Mock).mockResolvedValue([]);
+
+      await service.findAllCards({
+        page: 1,
+        perPage: 12,
+        fields: 'lean',
+        filters: { tech: ['React'] },
+      });
+
+      expect(prisma.course.count).not.toHaveBeenCalled();
+      const callArg = (prisma.course.findMany as jest.Mock).mock.calls[0][0];
+      expect(callArg.take).toBeUndefined();
+      expect(callArg.skip).toBeUndefined();
+    });
+
+    it('does not push DB-level pagination for a lean request sorted by the computed "Duration: Shortest" field', async () => {
+      (prisma.course.findMany as jest.Mock).mockResolvedValue([]);
+
+      await service.findAllCards({
+        page: 1,
+        perPage: 12,
+        fields: 'lean',
+        sort: 'Duration: Shortest',
+      });
+
+      expect(prisma.course.count).not.toHaveBeenCalled();
+      const callArg = (prisma.course.findMany as jest.Mock).mock.calls[0][0];
+      expect(callArg.take).toBeUndefined();
+      expect(callArg.skip).toBeUndefined();
     });
   });
 });
