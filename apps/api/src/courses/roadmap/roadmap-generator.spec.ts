@@ -25,7 +25,7 @@ const VALID_ROADMAP = {
         {
           title: 'HTML & CSS',
           description: 'Build the structure',
-          chips: [{ title: 'CSS Layout', kind: 'must', lessonTitles: ['Intro to HTML', 'CSS Fundamentals'] }],
+          chips: [{ title: 'CSS Layout', kind: 'must', lessonTitles: ['Intro to HTML', 'CSS Fundamentals'], children: [] }],
         },
       ],
     },
@@ -35,7 +35,7 @@ const VALID_ROADMAP = {
         {
           title: 'Node.js',
           description: 'Run JS on the server',
-          chips: [{ title: 'Modules & npm', kind: 'must', lessonTitles: ['Node.js Fundamentals', 'Building REST APIs', 'invented lesson'] }],
+          chips: [{ title: 'Modules & npm', kind: 'must', lessonTitles: ['Node.js Fundamentals', 'Building REST APIs', 'invented lesson'], children: [] }],
         },
       ],
     },
@@ -45,7 +45,7 @@ const VALID_ROADMAP = {
         {
           title: 'Deployment',
           description: 'Ship to production',
-          chips: [{ title: 'CI/CD', kind: 'pick-one', lessonTitles: [] }],
+          chips: [{ title: 'CI/CD', kind: 'pick-one', lessonTitles: [], children: [] }],
         },
       ],
     },
@@ -74,7 +74,7 @@ describe('RoadmapGenerator', () => {
     expect(calls[0].user).toContain('Full-Stack Web Development');
     expect(calls[0].user).toContain('Intro to HTML');
     expect(calls[0].user).toContain('Building REST APIs');
-    expect(calls[0].effort).toBe('low');
+    expect(calls[0].effort).toBe('medium');
     // the fact-check-style guard strips the invented lesson title from the Intermediate node's chip
     expect(out.roadmap.phases[1].nodes[0].chips[0].lessonTitles).toEqual(['Node.js Fundamentals', 'Building REST APIs']);
     expect(out.roadmap.phases).toHaveLength(3);
