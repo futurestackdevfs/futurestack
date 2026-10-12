@@ -88,6 +88,12 @@ function useGraph(roadmap: Roadmap) {
 
 export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode, onJumpToVideo, done, onToggleDone, editable, onEdit, videoOptions }: RoadmapDetailTreeProps) {
   const { info, needs, unlocks } = useGraph(roadmap);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpand = (label: string) => setExpanded((prev) => {
+    const next = new Set(prev);
+    if (next.has(label)) next.delete(label); else next.add(label);
+    return next;
+  });
   const treeRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const baseGRef = useRef<SVGGElement>(null);
@@ -272,7 +278,9 @@ export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode,
                       onNodeRemove={() => removeNode(si, gi)}
                       onChipChange={(ci, patch) => editChip(si, gi, ci, patch)}
                       onChipRemove={(ci) => removeChip(si, gi, ci)}
-                      onChipAdd={() => addChip(si, gi)} />
+                      onChipAdd={() => addChip(si, gi)}
+                      onToggleExpand={toggleExpand}
+                      expanded={expanded} />
                   )))}
                 </div>
 
@@ -297,7 +305,9 @@ export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode,
                       onNodeRemove={() => removeNode(si, gi)}
                       onChipChange={(ci, patch) => editChip(si, gi, ci, patch)}
                       onChipRemove={(ci) => removeChip(si, gi, ci)}
-                      onChipAdd={() => addChip(si, gi)} />
+                      onChipAdd={() => addChip(si, gi)}
+                      onToggleExpand={toggleExpand}
+                      expanded={expanded} />
                   )))}
                 </div>
               </div>
@@ -449,6 +459,8 @@ export function RoadmapDetailTree({ roadmap, sel, onSelect, highlight, linkMode,
 function Group({
   stageIdx, gname, description, items, right, offsetTop, shiftX, maxW, needs, unlocks, sel, onSelect, nodeEls, onJumpToVideo, done,
   editable, videoOptions, onNodeTitleChange, onNodeDescChange, onNodeRemove, onChipChange, onChipRemove, onChipAdd,
+  onToggleExpand,
+  expanded,
 }: {
   stageIdx: number; gname: string; description?: string;
   items: RoadmapTopic[]; right: boolean; offsetTop?: number; shiftX?: number; maxW?: number;
@@ -465,6 +477,8 @@ function Group({
   onChipChange?: (ci: number, patch: Partial<{ title: string; kind: TopicKind; videoId: string | null }>) => void;
   onChipRemove?: (ci: number) => void;
   onChipAdd?: () => void;
+  onToggleExpand?: (label: string) => void;
+  expanded?: Set<string> | undefined;
 }) {
   const deg = (label: string) => (needs[label]?.length ?? 0) + (unlocks[label]?.length ?? 0);
   const jitterStyle: React.CSSProperties = {
@@ -511,18 +525,19 @@ function Group({
     <div className="rd-group" style={jitterStyle}>
       <div className="rd-gnode" data-gnode data-stage={stageIdx} data-right={right ? "1" : "0"}>{gname}</div>
       <ul className="rd-topics">
-        {items.map((topic, ci) => (
-          <ChipItem
-            key={ci}
-            topic={topic}
-            needs={needs}
-            unlocks={unlocks}
-            sel={sel}
-            onSelect={onSelect}
-            nodeEls={nodeEls}
-            onJumpToVideo={onJumpToVideo}
-            done={done}
-          />
+{items.map((topic, ci) => (
+            <ChipItem
+              key={ci}
+              topic={topic}
+              needs={needs}
+              unlocks={unlocks}
+              sel={sel}
+              onSelect={onSelect}
+              nodeEls={nodeEls}
+              onJumpToVideo={onJumpToVideo}
+              done={done}
+              onToggleExpand={onToggleExpand}
+              expanded={expanded} />
         ))}
       </ul>
     </div>
@@ -533,7 +548,7 @@ function Group({
  *  level of sub-chips, e.g. "Testing Types" -> Unit/Integration/E2E) — a
  *  further-indented nested list beneath it, using the same comb-line pattern. */
 function ChipItem({
-  topic, needs, unlocks, sel, onSelect, nodeEls, onJumpToVideo, done,
+  topic, needs, unlocks, sel, onSelect, nodeEls, onJumpToVideo, done, onToggleExpand, expanded,
 }: {
   topic: RoadmapTopic;
   needs: Record<string, string[]>;
@@ -543,6 +558,8 @@ function ChipItem({
   nodeEls: React.MutableRefObject<Record<string, HTMLButtonElement | null>>;
   onJumpToVideo?: (videoId: string) => void;
   done?: Record<string, boolean>;
+  onToggleExpand?: (label: string) => void;
+  expanded?: Set<string> | undefined;
 }) {
   const [label, k, videoId, children] = topic;
   const deg = (title: string) => (needs[title]?.length ?? 0) + (unlocks[title]?.length ?? 0);
@@ -551,6 +568,7 @@ function ChipItem({
   const isNeed = sel ? (needs[sel] || []).includes(label) : false;
   const isNext = sel ? (unlocks[sel] || []).includes(label) : false;
   const isDone = !!done?.[label];
+  const isExpanded = onToggleExpand ? expanded?.has(label) : false;
 
   return (
     <li>
@@ -560,7 +578,10 @@ function ChipItem({
         className={`rd-topic ${k}${isSel ? " sel" : ""}${isNeed ? " need" : ""}${isNext ? " next" : ""}${isDone ? " done" : ""}`}
         aria-label={`${label}. ${TYPE_LABEL[k]}. ${d} related topics.${isDone ? " Learned." : ""}`}
         aria-pressed={done ? isDone : undefined}
-        onClick={() => onSelect(sel === label ? null : label)}
+        onClick={() => {
+          onToggleExpand?.(label);
+          onSelect(sel === label ? null : label);
+        }}
       >
         {done && <span className="box" aria-hidden="true" />}
         <span className="txt">{label}</span>
@@ -579,7 +600,7 @@ function ChipItem({
         <span className="deg">{d || ""}</span>
       </button>
 
-      {children && children.length > 0 && (
+      {children && children.length > 0 && isExpanded && (
         <ul className="rd-topics rd-subtopics">
           {children.map((sub, ci) => (
             <ChipItem
@@ -592,7 +613,7 @@ function ChipItem({
               nodeEls={nodeEls}
               onJumpToVideo={onJumpToVideo}
               done={done}
-            />
+              onToggleExpand={onToggleExpand} />
           ))}
         </ul>
       )}

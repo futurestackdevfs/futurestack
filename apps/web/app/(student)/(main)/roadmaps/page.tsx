@@ -68,7 +68,7 @@ export default function RoadmapsPage() {
           </p>
         </div>
 
-        <button
+        {/* <button
           type="button"
           onClick={() => setShowSearch((v) => !v)}
           className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold"
@@ -79,7 +79,8 @@ export default function RoadmapsPage() {
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           Search
-        </button>
+        </button> */}
+
       </div>
 
       {categories.length > 1 && (

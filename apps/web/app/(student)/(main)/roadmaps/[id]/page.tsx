@@ -231,12 +231,9 @@ export default function RoadmapDetailPage() {
         </div>
 
         {showFilters && (
-          <div className="flex flex-wrap items-center gap-3 md:gap-5">
+          <div className="flex items-center justify-between gap-3 md:gap-5">
             <Seg label="Show" value={highlight} onChange={setHighlight as (v: string) => void} options={[
               { v: "all", label: "All topics" }, { v: "c", label: "Core" }, { v: "f", label: "Future stack" }, { v: "todo", label: "Not learned yet" },
-            ]} />
-            <Seg label="Links" value={linkMode} onChange={setLinkMode as (v: string) => void} options={[
-              { v: "sel", label: "Selected topic" }, { v: "all", label: "All relations" },
             ]} />
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] w-full text-gray-600 dark:text-gray-300">
               <LegendSwatch style={{ background: "#e8effd", borderColor: "#2563eb" }} label="Core" />
