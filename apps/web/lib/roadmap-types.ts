@@ -3,8 +3,8 @@
  *  see apps/api/src/courses/roadmap) via the adapter in components/RoadmapTree.tsx. */
 
 export type TopicKind = "c" | "f" | "o";
-/** [topic label, kind, linked video id (if any)] */
-export type RoadmapTopic = [string, TopicKind, string | null | undefined];
+/** [topic label, kind, linked video id (if any), optional one extra level of sub-topics] */
+export type RoadmapTopic = [string, TopicKind, string | null | undefined, RoadmapTopic[]?];
 /** [group/node title, topics, one-line node description (if any)] */
 export type RoadmapGroup = [string, RoadmapTopic[], string?];
 export interface RoadmapStage {

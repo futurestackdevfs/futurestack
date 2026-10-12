@@ -11,7 +11,7 @@ import { authFetch } from "@/app/auth/lib/auth-fetch";
 import { StarRating } from "@/components/StarRating";
 import { ReviewForm } from "@/components/ReviewForm";
 import { showToast } from "@/lib/toast";
-import { RoadmapView } from "@/components/RoadmapTree";
+import { RoadmapView, type RoadmapData } from "@/components/RoadmapTree";
 
 const API = '/api';
 const fetcher = async (url: string) => {
@@ -60,19 +60,7 @@ interface CourseDetail {
     quizzes: { id: string | null; title: string; totalQuestions: number | null; order: number }[];
   }[];
   resources: { id: string; title: string; fileType: string; fileUrl: string; fileSizeLabel: string | null }[];
-  roadmap: {
-    title: string;
-    summary: string;
-    prerequisites: string[];
-    phases: {
-      phase: "Beginner" | "Intermediate" | "Advanced";
-      nodes: {
-        title: string;
-        description: string;
-        chips: { title: string; kind: "must" | "pick-one" | "optional"; lessonTitles: string[] }[];
-      }[];
-    }[];
-  } | null;
+  roadmap: RoadmapData | null;
 }
 
 interface CourseCard {

@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { RoadmapDetailTree } from "@/components/roadmaps/RoadmapDetailTree";
+import { RoadmapDetailTree, type VideoOption } from "@/components/roadmaps/RoadmapDetailTree";
 import { toStageRoadmap, type RoadmapData } from "@/components/RoadmapTree";
+import { useAuth } from "@/app/auth/hooks/use-auth";
+import { showToast } from "@/lib/toast";
 
 interface CourseDetail {
   id: string;
@@ -16,6 +18,7 @@ interface CourseDetail {
   level: string;
   techStack: string[];
   roadmap: RoadmapData | null;
+  sections?: { id: string; title: string; videos: { id: string; title: string }[] }[];
 }
 
 interface RelatedRoadmap {
@@ -47,10 +50,12 @@ function saveDone(slug: string, done: Record<string, boolean>) {
 export default function RoadmapDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [sel, setSel] = useState<string | null>(null);
   const [linkMode, setLinkMode] = useState<"sel" | "all">("sel");
   const [highlight, setHighlight] = useState<"all" | "c" | "f" | "todo">("all");
   const [done, setDone] = useState<Record<string, boolean>>({});
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data: course } = useSWR<CourseDetail | null>(
     params.id ? ["course-detail", params.id] : null,
@@ -59,10 +64,16 @@ export default function RoadmapDetailPage() {
 
   useEffect(() => {
     setSel(null);
-    setDone(loadDone(params.id));
-  }, [params.id]);
+    // Progress is per-student — don't load (or let a signed-out visitor see)
+    // someone else's locally-saved "learned" state.
+    setDone(isAuthenticated ? loadDone(params.id) : {});
+  }, [params.id, isAuthenticated]);
 
   function toggleDone(topic: string) {
+    if (!isAuthenticated) {
+      showToast("Please sign in to track your progress");
+      return;
+    }
     setDone((prev) => {
       const next = { ...prev };
       if (next[topic]) delete next[topic]; else next[topic] = true;
@@ -90,6 +101,12 @@ export default function RoadmapDetailPage() {
 
   const stageRoadmap = useMemo(() => (course?.roadmap ? toStageRoadmap(course.roadmap) : null), [course]);
   const counts = useMemo(() => (course?.roadmap ? countTopics(course.roadmap) : { topics: 0, future: 0 }), [course]);
+  const videoOptions = useMemo<VideoOption[]>(() => {
+    if (!course?.sections) return [];
+    return course.sections.flatMap((s) =>
+      s.videos.map((v) => ({ id: v.id, title: v.title, sectionTitle: s.title })),
+    );
+  }, [course]);
 
   if (course === undefined) {
     return <div className="mx-auto max-w-[900px] px-4 py-20 text-center" style={{ color: "var(--rm-muted)" }}>Loading roadmap…</div>;
@@ -108,7 +125,7 @@ export default function RoadmapDetailPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1720px] px-4 sm:px-5 md:px-8 xl:px-12 py-8 md:py-10 flex flex-col gap-6">
+    <div className="w-full px-4 sm:px-5 md:px-8 xl:px-12 py-8 md:py-10 flex flex-col gap-6">
       <nav className="flex flex-wrap items-center gap-1.5 text-[12.5px]" style={{ color: "var(--rm-muted)" }}>
         <Link href="/" className="font-medium hover:opacity-75">Home</Link>
         <span className="opacity-60">›</span>
@@ -147,7 +164,6 @@ export default function RoadmapDetailPage() {
           <div className="flex flex-wrap gap-1.5">
             <Chip>{course.level}</Chip>
             <Chip>{course.hours} hrs</Chip>
-            <Chip>{stageRoadmap.stages.length} stages</Chip>
             <Chip>{counts.topics} topics</Chip>
             {counts.future > 0 && <Chip future>{counts.future} future stack</Chip>}
           </div>
@@ -195,22 +211,40 @@ export default function RoadmapDetailPage() {
         </aside>
       </section>
 
-      {/* Toolbar */}
-      <section className="flex flex-wrap items-center gap-3 md:gap-5">
-        <Seg label="Show" value={highlight} onChange={setHighlight as (v: string) => void} options={[
-          { v: "all", label: "All topics" }, { v: "c", label: "Core" }, { v: "f", label: "Future stack" }, { v: "todo", label: "Not learned yet" },
-        ]} />
-        <Seg label="Links" value={linkMode} onChange={setLinkMode as (v: string) => void} options={[
-          { v: "sel", label: "Selected topic" }, { v: "all", label: "All relations" },
-        ]} />
-        <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] w-full text-gray-600 dark:text-gray-300">
-          <LegendSwatch style={{ background: "#e8effd", borderColor: "#2563eb" }} label="Core" />
-          <LegendSwatch style={{ background: "#fdece3", borderColor: "#e0521a" }} label="Future stack" />
-          <LegendSwatch style={{ background: "#f1f3f7", borderColor: "#9ca3af", borderStyle: "dashed" }} label="Alternative, pick one" />
+      {/* Toolbar — collapsed by default so the roadmap itself is the focus */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[12.5px]" style={{ color: "var(--rm-muted)" }}>
+            Select a topic to see what it needs and what it leads to.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold shrink-0"
+            style={{ background: "var(--card)", border: "1px solid var(--border2)", color: "var(--rm-muted)" }}
+            aria-expanded={showFilters}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" /></svg>
+            Filters
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: showFilters ? "rotate(180deg)" : undefined, transition: "transform .15s ease" }}><path d="M6 9l6 6 6-6" /></svg>
+          </button>
         </div>
-        <p className="text-[12.5px] w-full -mt-1" style={{ color: "var(--rm-muted)" }}>
-          Select a topic to see what it needs and what it leads to. The number on a topic counts its links.
-        </p>
+
+        {showFilters && (
+          <div className="flex flex-wrap items-center gap-3 md:gap-5">
+            <Seg label="Show" value={highlight} onChange={setHighlight as (v: string) => void} options={[
+              { v: "all", label: "All topics" }, { v: "c", label: "Core" }, { v: "f", label: "Future stack" }, { v: "todo", label: "Not learned yet" },
+            ]} />
+            <Seg label="Links" value={linkMode} onChange={setLinkMode as (v: string) => void} options={[
+              { v: "sel", label: "Selected topic" }, { v: "all", label: "All relations" },
+            ]} />
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] w-full text-gray-600 dark:text-gray-300">
+              <LegendSwatch style={{ background: "#e8effd", borderColor: "#2563eb" }} label="Core" />
+              <LegendSwatch style={{ background: "#fdece3", borderColor: "#e0521a" }} label="Future stack" />
+              <LegendSwatch style={{ background: "#f1f3f7", borderColor: "#9ca3af", borderStyle: "dashed" }} label="Alternative, pick one" />
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Tree */}
@@ -222,6 +256,7 @@ export default function RoadmapDetailPage() {
         linkMode={linkMode}
         done={done}
         onToggleDone={toggleDone}
+        videoOptions={videoOptions}
       />
 
       {/* Related */}
@@ -244,7 +279,7 @@ export default function RoadmapDetailPage() {
                 </div>
                 <div className="min-w-0">
                   <div className="font-bold text-[13.5px] leading-tight truncate" style={{ color: "var(--text)" }}>{r.title}</div>
-                  <div className="text-[11px]" style={{ color: "var(--rm-muted)" }}>{r.level} · {r.stages} stages · {r.topics} topics</div>
+                  <div className="text-[11px]" style={{ color: "var(--rm-muted)" }}>{r.level} · {r.topics} topics</div>
                 </div>
               </Link>
             ))}

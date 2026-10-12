@@ -33,7 +33,7 @@ const ROADMAP = {
   title: 'r',
   summary: 's',
   prerequisites: [],
-  phases: [{ phase: 'Beginner', nodes: [{ title: 't', description: 'd', chips: [{ title: 'c', kind: 'must', lessonTitles: ['Intro to HTML'] }] }] }],
+  phases: [{ phase: 'Beginner', nodes: [{ title: 't', description: 'd', chips: [{ title: 'c', kind: 'must', lessonTitles: ['Intro to HTML'], children: [] }] }] }],
   rels: [],
 };
 

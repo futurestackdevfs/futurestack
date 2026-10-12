@@ -12,6 +12,9 @@ export function sanitizeRoadmapLessonTitles(roadmap: Roadmap, actualTitles: read
   const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
   const valid = new Map(actualTitles.map((t) => [normalize(t), t]));
 
+  const cleanTitles = (titles: string[]) =>
+    titles.map((t) => valid.get(normalize(t))).filter((t): t is string => !!t);
+
   return {
     ...roadmap,
     phases: roadmap.phases.map((phase) => ({
@@ -20,9 +23,11 @@ export function sanitizeRoadmapLessonTitles(roadmap: Roadmap, actualTitles: read
         ...node,
         chips: node.chips.map((chip) => ({
           ...chip,
-          lessonTitles: chip.lessonTitles
-            .map((t) => valid.get(normalize(t)))
-            .filter((t): t is string => !!t),
+          lessonTitles: cleanTitles(chip.lessonTitles),
+          children: chip.children.map((sub) => ({
+            ...sub,
+            lessonTitles: cleanTitles(sub.lessonTitles),
+          })),
         })),
       })),
     })),

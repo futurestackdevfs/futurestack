@@ -12,7 +12,7 @@ const roadmap: Roadmap = {
         {
           title: 'HTML & CSS',
           description: 'Build the structure',
-          chips: [{ title: 'Flexbox', kind: 'must', lessonTitles: ['Intro to HTML', 'invented lesson that does not exist'] }],
+          chips: [{ title: 'Flexbox', kind: 'must', lessonTitles: ['Intro to HTML', 'invented lesson that does not exist'], children: [] }],
         },
       ],
     },
@@ -22,7 +22,12 @@ const roadmap: Roadmap = {
         {
           title: 'React',
           description: 'Build UI components',
-          chips: [{ title: 'Hooks', kind: 'must', lessonTitles: ['  intro to react  '] }],
+          chips: [{
+            title: 'Hooks',
+            kind: 'must',
+            lessonTitles: ['  intro to react  '],
+            children: [{ title: 'useState', kind: 'must', lessonTitles: ['invented sub lesson'] }],
+          }],
         },
       ],
     },
@@ -51,5 +56,10 @@ describe('sanitizeRoadmapLessonTitles', () => {
   it('results in an empty array when nothing matches', () => {
     const out = sanitizeRoadmapLessonTitles(roadmap, []);
     expect(out.phases[0].nodes[0].chips[0].lessonTitles).toEqual([]);
+  });
+
+  it('also sanitizes lessonTitles on a chip\'s sub-chips (children)', () => {
+    const out = sanitizeRoadmapLessonTitles(roadmap, ['Intro to HTML', 'Intro to React']);
+    expect(out.phases[1].nodes[0].chips[0].children[0].lessonTitles).toEqual([]);
   });
 });

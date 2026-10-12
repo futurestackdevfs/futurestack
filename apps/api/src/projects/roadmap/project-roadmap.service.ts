@@ -137,12 +137,18 @@ export class ProjectRoadmapService {
     const prevByTitle = new Map<string, string | null | undefined>();
     const prev = RoadmapSchema.safeParse(project.roadmap);
     if (prev.success) {
-      for (const phase of prev.data.phases) for (const node of phase.nodes) for (const chip of node.chips) prevByTitle.set(chip.title, chip.videoId);
+      for (const phase of prev.data.phases) for (const node of phase.nodes) for (const chip of node.chips) {
+        prevByTitle.set(chip.title, chip.videoId);
+        for (const sub of chip.children) prevByTitle.set(sub.title, sub.videoId);
+      }
     }
     for (const phase of roadmap.phases) {
       for (const node of phase.nodes) {
         for (const chip of node.chips) {
           if (chip.videoId === undefined) chip.videoId = prevByTitle.get(chip.title) ?? null;
+          for (const sub of chip.children) {
+            if (sub.videoId === undefined) sub.videoId = prevByTitle.get(sub.title) ?? null;
+          }
         }
       }
     }
@@ -214,6 +220,11 @@ export class ProjectRoadmapService {
             const match = chip.lessonTitles.map((t) => videoByTitle.get(t.trim().toLowerCase())).find(Boolean);
             chip.videoId = match ?? null;
             chipTitles.add(chip.title);
+            for (const sub of chip.children) {
+              const subMatch = sub.lessonTitles.map((t) => videoByTitle.get(t.trim().toLowerCase())).find(Boolean);
+              sub.videoId = subMatch ?? null;
+              chipTitles.add(sub.title);
+            }
           }
         }
       }
