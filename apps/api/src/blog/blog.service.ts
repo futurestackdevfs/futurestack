@@ -20,9 +20,9 @@ export class BlogService {
    * dashboard polls {@link getGeneration}. Runs in-process via
    * {@link BlogGenerationService} — no network hop, no second deploy.
    */
-  startGeneration(topic?: string, actor?: AuditActor): { jobId: string } {
+  startGeneration(topic?: string, tags?: string[], actor?: AuditActor): { jobId: string } {
     try {
-      return this.generation.start(topic, actor);
+      return this.generation.start(topic, tags, actor);
     } catch (err) {
       throw this.toHttpError(err);
     }

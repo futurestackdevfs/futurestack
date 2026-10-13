@@ -159,6 +159,7 @@ const REASON_HINT: Record<string, { hint: string; link?: { label: string; href: 
 export default function BlogManager() {
   const { token, posts, refreshKey, setRefreshKey } = useBlogData();
   const [topic, setTopic] = useState("");
+  const [tags, setTags] = useState("");
   const [generating, setGenerating] = useState(false);
   const [stage, setStage] = useState<string | null>(null);
   const [result, setResult] = useState<GenResult | null>(null);
@@ -225,7 +226,10 @@ export default function BlogManager() {
       const res = await opsFetch("/api/articles/admin/generate", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ topic: topic.trim() || undefined }),
+        body: JSON.stringify({
+          topic: topic.trim() || undefined,
+          tags: tags.trim() ? tags.split(",").map((t) => t.trim()).filter(Boolean) : undefined,
+        }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -323,6 +327,14 @@ export default function BlogManager() {
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           placeholder="Optional topic — leave blank to pick a trending story"
+          disabled={generating}
+          className="flex-1 min-w-[240px] px-3 py-2 rounded-lg text-[12px] outline-none disabled:opacity-60"
+          style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+        />
+        <input
+          value={tags}
+          onChange={(e) => setTags(e.target.value)}
+          placeholder="Optional tags, comma-separated — focuses the article around these"
           disabled={generating}
           className="flex-1 min-w-[240px] px-3 py-2 rounded-lg text-[12px] outline-none disabled:opacity-60"
           style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
