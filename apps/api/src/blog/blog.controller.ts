@@ -37,7 +37,7 @@ export class BlogController {
   @Audit({ action: 'GENERATE', entity: 'BlogPost', idFrom: 'none' })
   generateFromDashboard(@Body() dto: GenerateArticleDto, @Req() req: Request) {
     const user = req.user as { id: string; email: string; name: string; role: string };
-    return this.blogService.startGeneration(dto.topic, { id: user.id, role: user.role, email: user.email, name: user.name });
+    return this.blogService.startGeneration(dto.topic, dto.tags, { id: user.id, role: user.role, email: user.email, name: user.name });
   }
 
   // Progress of a generation job: { status, stage, result?, error? }.

@@ -69,7 +69,7 @@ export class BlogGenerationService {
   }
 
   /** Starts a job and returns immediately; throws an AiProviderError (429-ish) if at capacity. */
-  start(topic?: string, actor?: AuditActor): { jobId: string } {
+  start(topic?: string, tags?: string[], actor?: AuditActor): { jobId: string } {
     if (!this.generator.isConfigured) {
       throw new AiProviderError('not_configured', 'AI generation is not configured. Set ANTHROPIC_API_KEY and restart.', false);
     }
@@ -83,7 +83,8 @@ export class BlogGenerationService {
     }
     const controller = new AbortController();
     this.controllers.set(job.id, controller);
-    void this.run(job.id, controller.signal, topic?.trim() || undefined, actor).finally(() => {
+    const cleanTags = tags?.map((t) => t.trim()).filter(Boolean);
+    void this.run(job.id, controller.signal, topic?.trim() || undefined, cleanTags?.length ? cleanTags : undefined, actor).finally(() => {
       this.controllers.delete(job.id);
       release();
     });
@@ -118,7 +119,7 @@ export class BlogGenerationService {
     return new Set(rows.map((r) => r.sourceTopic).filter((t): t is string => !!t).map(normalizeTopic));
   }
 
-  private async run(id: string, signal: AbortSignal, given?: string, actor?: AuditActor): Promise<void> {
+  private async run(id: string, signal: AbortSignal, given?: string, tags?: string[], actor?: AuditActor): Promise<void> {
     try {
       let topic = given;
       if (!topic) {
@@ -127,7 +128,7 @@ export class BlogGenerationService {
         topic = await pickTrendingTopic(used, this.logger);
       }
 
-      const { article, meta } = await this.generator.generate(topic, (stage) => this.store.update(id, { stage }), signal);
+      const { article, meta } = await this.generator.generate(topic, (stage) => this.store.update(id, { stage }), signal, tags);
 
       if (signal.aborted) throw new AiProviderError('cancelled', 'Generation was cancelled.', false);
       this.store.update(id, { stage: 'saving' });

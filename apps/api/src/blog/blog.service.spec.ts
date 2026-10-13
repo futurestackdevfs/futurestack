@@ -112,7 +112,7 @@ describe('BlogService', () => {
 
       expect(service.startGeneration('Some topic')).toEqual({ jobId: 'job-1' });
 
-      expect(generation.start).toHaveBeenCalledWith('Some topic', undefined);
+      expect(generation.start).toHaveBeenCalledWith('Some topic', undefined, undefined);
       expect(prisma.blogPost.create).not.toHaveBeenCalled(); // the pipeline saves the draft, not this call
     });
 
