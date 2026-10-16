@@ -16,6 +16,8 @@ export class CareersService {
         title: dto.title,
         duration: dto.duration,
         description: dto.description ?? null,
+        requirements: dto.requirements ?? null,
+        skills: dto.skills ?? null,
       },
     });
   }

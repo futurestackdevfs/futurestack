@@ -8,6 +8,8 @@ interface JobPosting {
   title: string;
   duration: string;
   description: string | null;
+  requirements: string | null;
+  skills: string | null;
   createdAt: string;
 }
 
@@ -21,6 +23,8 @@ export default function CareersManager({ token }: CareersManagerProps) {
   const [title, setTitle] = useState("");
   const [duration, setDuration] = useState("");
   const [description, setDescription] = useState("");
+  const [requirements, setRequirements] = useState("");
+  const [skills, setSkills] = useState("");
   const [posting, setPosting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
@@ -72,12 +76,16 @@ export default function CareersManager({ token }: CareersManagerProps) {
           title: title.trim(),
           duration: duration.trim(),
           description: description.trim() || undefined,
+          requirements: requirements.trim() || undefined,
+          skills: skills.trim() || undefined,
         }),
       });
       if (!res.ok) throw new Error("Failed to post job");
       setTitle("");
       setDuration("");
       setDescription("");
+      setRequirements("");
+      setSkills("");
       await load();
       addToast("Job posting created");
     } catch (e: unknown) {
@@ -146,11 +154,38 @@ export default function CareersManager({ token }: CareersManagerProps) {
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Role responsibilities, requirements..."
+            placeholder="Role responsibilities..."
             disabled={posting}
             rows={3}
             className="w-full text-[12px] px-2.5 py-1.5 rounded outline-none resize-vertical disabled:opacity-60"
             style={{ fontFamily: "'JetBrains Mono', monospace", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }}
+          />
+        </div>
+        <div className="mb-3">
+          <label className="block font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--text3)" }}>
+            Requirements (optional)
+          </label>
+          <textarea
+            value={requirements}
+            onChange={(e) => setRequirements(e.target.value)}
+            placeholder="e.g. 3+ years of Node.js experience, prior teaching experience..."
+            disabled={posting}
+            rows={3}
+            className="w-full text-[12px] px-2.5 py-1.5 rounded outline-none resize-vertical disabled:opacity-60"
+            style={{ fontFamily: "'JetBrains Mono', monospace", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }}
+          />
+        </div>
+        <div className="mb-3">
+          <label className="block font-mono text-[9px] font-bold uppercase tracking-wider mb-1" style={{ color: "var(--text3)" }}>
+            Skills (optional)
+          </label>
+          <input
+            value={skills}
+            onChange={(e) => setSkills(e.target.value)}
+            placeholder="e.g. TypeScript, PostgreSQL, Docker"
+            disabled={posting}
+            className="w-full text-[12px] px-2.5 py-1.5 rounded outline-none disabled:opacity-60"
+            style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }}
           />
         </div>
         <button
@@ -198,6 +233,25 @@ export default function CareersManager({ token }: CareersManagerProps) {
                   {job.description && (
                     <div className="text-[11.5px] leading-relaxed" style={{ color: "var(--text2)" }}>
                       {job.description}
+                    </div>
+                  )}
+                  {job.requirements && (
+                    <div className="text-[11px] leading-relaxed mt-1.5" style={{ color: "var(--text3)" }}>
+                      <span className="font-mono text-[9px] font-bold uppercase tracking-wider mr-1.5">Requirements</span>
+                      {job.requirements}
+                    </div>
+                  )}
+                  {job.skills && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {job.skills.split(",").map((s) => s.trim()).filter(Boolean).map((skill) => (
+                        <span
+                          key={skill}
+                          className="px-2 py-0.5 rounded-full font-mono text-[9px] font-bold"
+                          style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text2)" }}
+                        >
+                          {skill}
+                        </span>
+                      ))}
                     </div>
                   )}
                   <div className="font-mono text-[9px] mt-1.5" style={{ color: "var(--text3)" }}>

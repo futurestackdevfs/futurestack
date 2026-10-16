@@ -655,11 +655,13 @@ model LegalPage {
 }
 
 model JobPosting {
-  id          String   @id @default(uuid())
-  title       String
-  duration    String // e.g. "Full-time", "3-month internship", "Contract — 6 months"
-  description String?  @db.Text
-  createdAt   DateTime @default(now())
+  id           String   @id @default(uuid())
+  title        String
+  duration     String // e.g. "Full-time", "3-month internship", "Contract — 6 months"
+  description  String?  @db.Text
+  requirements String?  @db.Text
+  skills       String?  @db.Text
+  createdAt    DateTime @default(now())
 }
 
 model Lead {
