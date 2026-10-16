@@ -12,4 +12,12 @@ export class CreateJobPostingDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @IsString()
+  @IsOptional()
+  requirements?: string;
+
+  @IsString()
+  @IsOptional()
+  skills?: string;
 }

@@ -52,22 +52,30 @@ describe('CareersService', () => {
           title: '__spec__ Backend Engineer',
           duration: 'Full-time',
           description: null,
+          requirements: null,
+          skills: null,
         },
       });
       expect(result.description).toBeNull();
     });
 
-    it('passes through a provided description', async () => {
+    it('passes through a provided description, requirements and skills', async () => {
       (prisma.jobPosting.create as jest.Mock).mockResolvedValue({});
 
       await service.create({
         title: '__spec__ Backend Engineer',
         duration: 'Full-time',
         description: 'Build our API',
+        requirements: '3+ years Node.js experience',
+        skills: 'TypeScript, PostgreSQL, Docker',
       } as any);
 
       expect(prisma.jobPosting.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ description: 'Build our API' }),
+        data: expect.objectContaining({
+          description: 'Build our API',
+          requirements: '3+ years Node.js experience',
+          skills: 'TypeScript, PostgreSQL, Docker',
+        }),
       });
     });
   });
