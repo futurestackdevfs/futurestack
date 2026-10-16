@@ -45,7 +45,7 @@ const VALUES = [
   { icon: "⚡", title: "Bias for shipping", desc: "A rough thing in front of real users beats a perfect thing in a doc. Iterate from there." },
 ];
 
-const MAIL = "careers@futurestack.dev";
+const MAIL = "futurestack.work@gmail.com";
 
 interface JobPosting {
   id: string;
@@ -152,7 +152,6 @@ export default function CareersPage() {
         <div className="mx-auto max-w-[900px] px-5 md:px-8">
           <Reveal>
             <h2 className="text-[clamp(24px,4vw,38px)] font-extrabold text-[var(--text)] mb-3">Open roles</h2>
-            <p className="text-[14px] text-[var(--muted)] mb-5">We're remote-first within India.</p>
           </Reveal>
 
           {jobsLoading ? (
@@ -192,7 +191,7 @@ export default function CareersPage() {
                   Check back soon, or reach out at{" "}
                   <a href={`mailto:${MAIL}`} className="font-semibold text-[var(--blue)] hover:underline">{MAIL}</a>.
                 </p>
-                <a href={`mailto:${MAIL}?subject=${encodeURIComponent("Introduction")}`}
+                <a href={`mailto:${MAIL}?subject=${encodeURIComponent("Looking for Opportunities — FutureStack Careers")}`}
                   className="mt-5 inline-block text-white text-[12.5px] font-bold px-5 py-2.5 rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] hover:-translate-y-0.5 transition-all">
                   Introduce yourself →
                 </a>
@@ -203,7 +202,12 @@ export default function CareersPage() {
           <Reveal>
             <p className="text-[12px] text-[var(--muted)] mt-6 text-center">
               Want to teach instead?{" "}
-              <Link href="/support" className="font-semibold text-[var(--blue)] hover:underline">Become a trainer on FutureStack →</Link>
+              <a
+                href={`mailto:${MAIL}?subject=${encodeURIComponent("Trainer Application — FutureStack Careers")}`}
+                className="font-semibold text-[var(--blue)] hover:underline"
+              >
+                Become a trainer on FutureStack →
+              </a>
             </p>
           </Reveal>
         </div>
@@ -217,13 +221,14 @@ export default function CareersPage() {
             <p className="text-[14px] text-[var(--muted)] mb-7 max-w-[480px] mx-auto">
               No fitting role today? Send us a note and we'll reach out when something opens up.
             </p>
-            <a href={`mailto:${MAIL}?subject=${encodeURIComponent("Keep me in mind")}`}
+            <a href={`mailto:${MAIL}?subject=${encodeURIComponent("Keep Me in Mind — FutureStack Careers")}`}
               className="inline-block text-white text-[13.5px] font-bold px-7 py-3.5 rounded-[10px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] shadow-[0_10px_28px_-10px_rgba(255,106,26,.4)] hover:-translate-y-0.5 transition-all">
               Write to us
             </a>
           </Reveal>
         </div>
       </section>
+
     </div>
   );
 }
