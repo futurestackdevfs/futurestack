@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, Header, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
 import { Audit } from '../audit/audit.decorator';
 import { CareersService } from './careers.service';
 import { CreateJobPostingDto } from './dto/create-job-posting.dto';
+import { UpdateJobPostingDto } from './dto/update-job-posting.dto';
 
 @Controller()
 export class CareersController {
@@ -27,6 +28,13 @@ export class CareersController {
   @Post('admin/careers/jobs')
   create(@Body() dto: CreateJobPostingDto) {
     return this.careersService.create(dto);
+  }
+
+  @Auth(Role.ADMIN, Role.CONTENT_MANAGER)
+  @Audit({ action: 'UPDATE', entity: 'JobPosting', idFrom: 'param' })
+  @Patch('admin/careers/jobs/:id')
+  update(@Param('id') id: string, @Body() dto: UpdateJobPostingDto) {
+    return this.careersService.update(id, dto);
   }
 
   @Auth(Role.ADMIN, Role.CONTENT_MANAGER)

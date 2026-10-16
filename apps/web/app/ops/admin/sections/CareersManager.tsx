@@ -26,6 +26,7 @@ export default function CareersManager({ token }: CareersManagerProps) {
   const [requirements, setRequirements] = useState("");
   const [skills, setSkills] = useState("");
   const [posting, setPosting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
 
@@ -62,6 +63,25 @@ export default function CareersManager({ token }: CareersManagerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  function resetForm() {
+    setEditingId(null);
+    setTitle("");
+    setDuration("");
+    setDescription("");
+    setRequirements("");
+    setSkills("");
+  }
+
+  function startEdit(job: JobPosting) {
+    setEditingId(job.id);
+    setTitle(job.title);
+    setDuration(job.duration);
+    setDescription(job.description ?? "");
+    setRequirements(job.requirements ?? "");
+    setSkills(job.skills ?? "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function handlePost() {
     if (!title.trim() || !duration.trim()) {
       addToast("Title and duration are required", "danger");
@@ -69,25 +89,26 @@ export default function CareersManager({ token }: CareersManagerProps) {
     }
     setPosting(true);
     try {
-      const res = await opsFetch("/api/admin/careers/jobs", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          title: title.trim(),
-          duration: duration.trim(),
-          description: description.trim() || undefined,
-          requirements: requirements.trim() || undefined,
-          skills: skills.trim() || undefined,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to post job");
-      setTitle("");
-      setDuration("");
-      setDescription("");
-      setRequirements("");
-      setSkills("");
+      const editing = editingId !== null;
+      const res = await opsFetch(
+        editing ? `/api/admin/careers/jobs/${editingId}` : "/api/admin/careers/jobs",
+        {
+          method: editing ? "PATCH" : "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            title: title.trim(),
+            duration: duration.trim(),
+            // On edit, send "" so a cleared field is actually cleared server-side.
+            description: editing ? description.trim() : description.trim() || undefined,
+            requirements: editing ? requirements.trim() : requirements.trim() || undefined,
+            skills: editing ? skills.trim() : skills.trim() || undefined,
+          }),
+        },
+      );
+      if (!res.ok) throw new Error(editing ? "Failed to update job" : "Failed to post job");
+      resetForm();
       await load();
-      addToast("Job posting created");
+      addToast(editing ? "Job posting updated" : "Job posting created");
     } catch (e: unknown) {
       addToast(e instanceof Error ? e.message : "Failed to post job", "danger");
     } finally {
@@ -117,7 +138,7 @@ export default function CareersManager({ token }: CareersManagerProps) {
     <div className="flex flex-col gap-4 w-full">
       <div className="rounded-xl p-4" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
         <div className="text-[12.5px] font-extrabold mb-3" style={{ color: "var(--text)" }}>
-          🧑‍💼 Post a new opening
+          {editingId ? "✏️ Edit job posting" : "🧑‍💼 Post a new opening"}
         </div>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
@@ -188,14 +209,26 @@ export default function CareersManager({ token }: CareersManagerProps) {
             style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }}
           />
         </div>
-        <button
-          onClick={handlePost}
-          disabled={posting}
-          className="px-4 py-2 rounded-lg text-[12px] font-semibold text-white disabled:opacity-60 disabled:cursor-default cursor-pointer"
-          style={{ background: "var(--orange)" }}
-        >
-          {posting ? "Posting…" : "Post Job"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handlePost}
+            disabled={posting}
+            className="px-4 py-2 rounded-lg text-[12px] font-semibold text-white disabled:opacity-60 disabled:cursor-default cursor-pointer"
+            style={{ background: "var(--orange)" }}
+          >
+            {posting ? (editingId ? "Saving…" : "Posting…") : editingId ? "Save Changes" : "Post Job"}
+          </button>
+          {editingId && (
+            <button
+              onClick={resetForm}
+              disabled={posting}
+              className="px-4 py-2 rounded-lg text-[12px] font-semibold cursor-pointer disabled:opacity-60"
+              style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--panel)" }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
 
       <div>
@@ -258,14 +291,24 @@ export default function CareersManager({ token }: CareersManagerProps) {
                     posted {new Date(job.createdAt).toLocaleString()}
                   </div>
                 </div>
+                <div className="flex flex-col gap-1.5 shrink-0">
+                <button
+                  onClick={() => startEdit(job)}
+                  disabled={posting}
+                  className="font-mono text-[10.5px] font-semibold px-2.5 py-1 rounded cursor-pointer disabled:opacity-60"
+                  style={{ border: "1px solid var(--border)", color: "var(--blue)", background: "var(--panel)" }}
+                >
+                  ✏️ Edit
+                </button>
                 <button
                   onClick={() => handleDelete(job)}
                   disabled={deletingId === job.id}
-                  className="font-mono text-[10.5px] font-semibold px-2.5 py-1 rounded cursor-pointer disabled:opacity-60 shrink-0"
+                  className="font-mono text-[10.5px] font-semibold px-2.5 py-1 rounded cursor-pointer disabled:opacity-60"
                   style={{ border: "1px solid var(--border)", color: "var(--red)", background: "var(--panel)" }}
                 >
                   🗑 {deletingId === job.id ? "Deleting…" : "Delete"}
                 </button>
+                </div>
               </div>
             ))}
           </div>
