@@ -37,6 +37,48 @@ const SKILL_LEVEL_LABELS: Record<string, string> = {
   ADVANCED: 'Advanced',
 };
 
+/** Public-facing statuses: DRAFT courses are listed (title only) as "Coming soon". */
+const PUBLIC_STATUSES: ('ACTIVE' | 'DRAFT')[] = ['ACTIVE', 'DRAFT'];
+
+/** A DRAFT course exposes only its title and image — everything else is withheld server-side. */
+function comingSoonCard(c: { id: string; title: string; thumbnailUrl?: string | null }) {
+  return {
+    id: c.id,
+    slug: slugify(c.title),
+    title: c.title,
+    comingSoon: true,
+    category: '',
+    trackNames: [] as string[],
+    code: null,
+    description: '',
+    hours: 0,
+    students: '',
+    level: '',
+    rating: 0,
+    reviews: '',
+    badge: null,
+    badgeClass: '',
+    mentor: '',
+    mentorName: '',
+    mentorColor: 'from-blue-500 to-blue-600',
+    img: normalizeThumbnail(c.thumbnailUrl, '/images/logo.png'),
+    mode: '',
+    goal: '',
+    tech: '',
+    quizCount: 0,
+    questionCount: 0,
+    duration: '',
+    price: 0,
+    originalPrice: null,
+    offPct: 0,
+    hasDiscount: false,
+    techStack: [] as string[],
+    whatYoullLearn: [] as string[],
+    careerTitle: null,
+    careerBody: null,
+  };
+}
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -217,7 +259,7 @@ export class CoursesService {
     const courses = await this.prisma.course.findMany({
       where: {
         isFeatured: true,
-        status: 'ACTIVE',
+        status: { in: PUBLIC_STATUSES },
         displayOrder: { lt: SLOT_COUNT },
       },
       orderBy: { displayOrder: 'asc' },
@@ -225,6 +267,7 @@ export class CoursesService {
       select: {
         id: true,
         title: true,
+        status: true,
         description: true,
         thumbnailUrl: true,
         price: true,
@@ -259,7 +302,29 @@ export class CoursesService {
       enrollmentCounts[Math.floor(enrollmentCounts.length * 0.2)] ?? 0;
     const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-    const result = uniqueCourses.map(({ createdAt, ...rest }) => {
+    const result = uniqueCourses.map(({ createdAt, status, ...rest }) => {
+      if (status === 'DRAFT') {
+        return {
+          id: rest.id,
+          title: rest.title,
+          comingSoon: true,
+          description: null,
+          thumbnailUrl: normalizeThumbnail(rest.thumbnailUrl),
+          price: 0,
+          originalPrice: null,
+          offPct: 0,
+          hasDiscount: false,
+          techStack: [] as string[],
+          displayOrder: rest.displayOrder,
+          trainer: null,
+          totalVideos: 0,
+          durationHours: 0,
+          careerTitle: null,
+          careerBody: null,
+          badge: null,
+          badgeClass: '',
+        };
+      }
       const stats = videoStats.get(rest.id) ?? {
         totalSeconds: 0,
         videoCount: 0,
@@ -279,6 +344,7 @@ export class CoursesService {
         totalVideos: stats.videoCount,
         durationHours: Math.round(stats.totalSeconds / 3600) || 1,
         ...discountInfo(price, originalPrice),
+        comingSoon: false,
         badge: null,
         badgeClass: '',
       };
@@ -363,7 +429,7 @@ export class CoursesService {
     const words = slug.split('-').filter(Boolean);
     const courses = await this.prisma.course.findMany({
       where: {
-        status: 'ACTIVE',
+        status: { in: PUBLIC_STATUSES },
         ...(words.length > 0
           ? {
               AND: words.map((w) => ({
@@ -387,7 +453,7 @@ export class CoursesService {
     if (cached) return cached;
 
     const course = await this.prisma.course.findFirst({
-      where: { id, status: 'ACTIVE' },
+      where: { id, status: { in: PUBLIC_STATUSES } },
       include: {
         trainer: {
           select: {
@@ -429,6 +495,45 @@ export class CoursesService {
     });
     if (!course) throw new NotFoundException('Course not found');
 
+    // DRAFT: expose the title only; the UI renders a "Coming soon" page (cards get the image via the list endpoints).
+    if (course.status === 'DRAFT') {
+      const hidden = {
+        id: course.id,
+        slug: slugify(course.title),
+        title: course.title,
+        comingSoon: true,
+        description: '',
+        thumbnailUrl: null,
+        price: 0,
+        originalPrice: null,
+        offPct: 0,
+        hasDiscount: false,
+        whatYoullLearn: [] as string[],
+        techStack: [] as string[],
+        careerTitle: null,
+        careerBody: null,
+        category: '',
+        hours: 0,
+        level: '',
+        rating: 0,
+        students: 0,
+        mentorInitials: '',
+        mentorName: '',
+        mentorAvatar: null,
+        mentorBio: null,
+        mentorYearsExp: null,
+        mentorRating: null,
+        mentorCoursesTaught: null,
+        totalLessons: 0,
+        totalVideos: 0,
+        totalQuizzes: 0,
+        sections: [] as never[],
+        roadmap: null,
+      };
+      this.catalogCache.set(CACHE_KEY, hidden);
+      return hidden;
+    }
+
     const totalVideos = course.sections.reduce(
       (sum, s) => sum + s.videos.length,
       0,
@@ -442,6 +547,7 @@ export class CoursesService {
       id: course.id,
       slug: slugify(course.title),
       title: course.title,
+      comingSoon: false,
       description: course.description ?? '',
       thumbnailUrl: normalizeThumbnail(course.thumbnailUrl),
       price: course.price.toNumber(),
@@ -1422,6 +1528,21 @@ export class CoursesService {
       data.sort((a, b) => a.hours - b.hours);
     }
 
+    // DRAFT courses are listed last as "Coming soon" cards (title only). They
+    // never take part in facets/filters, and are skipped for the lean nav list.
+    if (!lean && activeFilters.length === 0) {
+      const q = opts.search?.trim();
+      const drafts = await this.prisma.course.findMany({
+        where: {
+          status: 'DRAFT',
+          ...(q ? { title: { contains: q, mode: 'insensitive' as const } } : {}),
+        },
+        select: { id: true, title: true, thumbnailUrl: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      data = [...data, ...drafts.map(comingSoonCard)];
+    }
+
     const total = canPushPagination ? catalogTotal! : data.length;
     if (!canPushPagination) {
       const start = (opts.page - 1) * opts.perPage;
@@ -1486,6 +1607,9 @@ export class CoursesService {
     if (careerPath !== undefined) {
       await this.setCourseCareerPath(id, careerPath);
     }
+    // Re-clear after the write: a request between the first clear and the
+    // update could have re-cached the old status (e.g. ACTIVE -> DRAFT).
+    this.invalidateCatalog();
     return course;
   }
 

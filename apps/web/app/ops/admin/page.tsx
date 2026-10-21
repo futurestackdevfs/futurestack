@@ -715,7 +715,7 @@ export default function AdminMasterDataPage() {
   async function saveRecord(formData: Record<string, any>): Promise<{ success: boolean; error?: string } | void> {
     const draftNote =
       currentEntity === "courses" && formData.status === "DRAFT"
-        ? '\n\n📝 Note: This course will be saved as DRAFT — it will NOT be visible to students. Set its status to ACTIVE when you want it visible to all.'
+        ? '\n\n📝 Note: This course will be saved as DRAFT — students will see only its title and image with a "Coming Soon" label (no details, no purchase). Set its status to ACTIVE when you want it fully visible to all.'
         : "";
     const saveOk = await askConfirm({
       title: formData.id ? `Update ${ENTITY_NAMES[currentEntity]}?` : `Add ${ENTITY_NAMES[currentEntity]}?`,
