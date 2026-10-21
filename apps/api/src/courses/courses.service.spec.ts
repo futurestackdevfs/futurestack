@@ -351,9 +351,69 @@ describe('CoursesService', () => {
       expect(result.originalPrice).toBe(6999);
       expect(result.hasDiscount).toBe(true);
     });
+
+    it('exposes only the title for a DRAFT course and flags it comingSoon', async () => {
+      (prisma.course.findFirst as jest.Mock).mockResolvedValue({
+        id: '__spec__draft-1',
+        title: '__spec__ Upcoming Course',
+        status: 'DRAFT',
+        description: 'secret description',
+        thumbnailUrl: 'https://example.com/t.png',
+        price: decimal(4999),
+        originalPrice: null,
+        whatYoullLearn: ['secret'],
+        techStack: ['React'],
+        careerTitle: 'secret',
+        careerBody: 'secret',
+        category: 'Web',
+        skillLevel: 'INTERMEDIATE',
+        trainer: { name: 'Someone', rating: 4.9 },
+        sections: [{ id: 's', title: 'Hidden', order: 1, videos: [], quizzes: [] }],
+        _count: { enrollments: 3 },
+      });
+
+      const result = await service.publicCourseDetail('__spec__draft-1');
+
+      expect(result.comingSoon).toBe(true);
+      expect(result.title).toBe('__spec__ Upcoming Course');
+      expect(result.thumbnailUrl).toBeNull();
+      expect(result.description).toBe('');
+      expect(result.price).toBe(0);
+      expect(result.techStack).toEqual([]);
+      expect(result.sections).toEqual([]);
+      expect(result.mentorName).toBe('');
+    });
   });
 
   describe('findAllCards()', () => {
+    it('lists DRAFT courses last as title-only comingSoon cards (non-lean)', async () => {
+      (prisma.course.findMany as jest.Mock)
+        .mockResolvedValueOnce([]) // ACTIVE courses
+        .mockResolvedValueOnce([{ id: '__spec__d1', title: 'Upcoming Course', thumbnailUrl: 'https://example.com/d1.png' }]); // DRAFT courses
+      (prisma.track.findMany as jest.Mock).mockResolvedValue([]);
+
+      const result = await service.findAllCards({ page: 1, perPage: 12 });
+
+      expect(result.total).toBe(1);
+      expect(result.data[0]).toEqual(
+        expect.objectContaining({ id: '__spec__d1', title: 'Upcoming Course', comingSoon: true, description: '', img: 'https://example.com/d1.png' }),
+      );
+      const draftQuery = (prisma.course.findMany as jest.Mock).mock.calls[1][0];
+      expect(draftQuery.where.status).toBe('DRAFT');
+    });
+
+    it('never lists DRAFT courses for the lean nav list or when filters are active', async () => {
+      (prisma.course.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.course.count as jest.Mock).mockResolvedValue(0);
+      await service.findAllCards({ page: 1, perPage: 12, fields: 'lean' });
+      expect(prisma.course.findMany).toHaveBeenCalledTimes(1);
+
+      (prisma.course.findMany as jest.Mock).mockClear();
+      (prisma.track.findMany as jest.Mock).mockResolvedValue([]);
+      await service.findAllCards({ page: 1, perPage: 12, filters: { tech: ['React'] } });
+      expect(prisma.course.findMany).toHaveBeenCalledTimes(1);
+    });
+
     it('pushes pagination (take/skip) and uses course.count for a lean, unfiltered, non-computed-sort request', async () => {
       (prisma.course.findMany as jest.Mock).mockResolvedValue([
         { id: '__spec__c1', title: 'Course One', code: 'CRS-1', description: '', techStack: [], skillLevel: 'INTERMEDIATE', createdAt: new Date(), updatedAt: new Date() },

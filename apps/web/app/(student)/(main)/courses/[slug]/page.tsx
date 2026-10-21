@@ -61,6 +61,8 @@ interface CourseDetail {
   }[];
   resources: { id: string; title: string; fileType: string; fileUrl: string; fileSizeLabel: string | null }[];
   roadmap: RoadmapData | null;
+  /** DRAFT course: only the title is public; the page shows "Coming Soon". */
+  comingSoon?: boolean;
 }
 
 interface CourseCard {
@@ -466,6 +468,52 @@ export default function CourseDetailPage() {
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-56px)] gap-4">
         <div className="text-lg font-semibold text-[#475569] dark:text-[#b0bac9]">Course not found</div>
         <Link href="/courses" className="text-[#F04E00] font-semibold underline">Browse all courses</Link>
+      </div>
+    );
+  }
+
+  if (course.comingSoon) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0b0e14]">
+        <div className="max-w-[1700px] mx-auto px-3 md:px-6 pt-3">
+          <div className="flex items-center gap-[6px] text-[11px] sm:text-[12.5px] text-[#6B7280] dark:text-[#7a859a] overflow-x-auto">
+            <Link href="/" className="hover:text-[#2952CC] transition-colors">Home</Link>
+            <span className="text-[#D1D5DB]">/</span>
+            <Link href="/courses" className="hover:text-[#2952CC] transition-colors">Courses</Link>
+            <span className="text-[#D1D5DB]">/</span>
+            <span className="font-medium text-[#374151] dark:text-[#b0bac9]">{course.title}</span>
+          </div>
+        </div>
+
+        <section className="relative overflow-hidden mt-3 bg-[linear-gradient(120deg,#07153D_0%,#0D1F5C_55%,#1e45b8_100%)] py-10 md:py-14 lg:py-[64px]">
+          <div className="max-w-[1700px] mx-auto px-3 md:px-6 grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6 lg:gap-14 items-center">
+            <div>
+              <h1 className="font-['Instrument_Serif',serif] italic text-[28px] sm:text-[34px] md:text-[42px] text-white leading-[1.18] mb-3.5 max-w-[760px]">
+                {course.title}
+              </h1>
+              <span className="inline-flex items-center rounded-full bg-[#F04E00] px-3.5 py-1 text-[12px] font-extrabold uppercase tracking-[.08em] text-white">Coming Soon</span>
+            </div>
+            {/* Where the video normally plays — intentionally left blank until the course goes live. */}
+            <div aria-hidden className="hidden lg:block aspect-video w-full rounded-2xl border border-[rgba(255,255,255,.12)] bg-[rgba(255,255,255,.05)]" />
+          </div>
+        </section>
+
+        <div className="max-w-[1700px] mx-auto px-3 md:px-6 py-6 grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5 items-start">
+          <div className="bg-white dark:bg-[#111520] border border-[var(--border)] dark:border-[#1e2535] rounded-xl p-8 md:p-12 text-center shadow-sm">
+            <div className="font-['Instrument_Serif',serif] italic text-[26px] md:text-[32px] text-[#0D1F5C] dark:text-[#aabcf0]">Coming Soon</div>
+            <p className="mt-2 text-[14px] text-[#6B7280] dark:text-[#7a859a]">The details for this course are on their way. Check back shortly.</p>
+            <Link href="/courses" className="mt-5 inline-block text-[13px] font-semibold text-[#2952CC] dark:text-[#60a5fa] underline underline-offset-2">Browse all courses</Link>
+          </div>
+          <div className="bg-white dark:bg-[#111520] border border-[var(--border)] dark:border-[#1e2535] rounded-xl p-4 shadow-sm">
+            <button
+              type="button"
+              disabled
+              className="w-full py-3.5 rounded-[10px] bg-[#E5E7EB] dark:bg-[#1e2535] text-[#6B7280] dark:text-[#7a859a] text-[15px] font-extrabold cursor-not-allowed"
+            >
+              Coming Soon
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

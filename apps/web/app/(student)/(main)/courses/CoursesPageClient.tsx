@@ -38,6 +38,8 @@ interface CourseCard {
   whatYoullLearn: string[];
   careerTitle: string | null;
   careerBody: string | null;
+  /** DRAFT course: only the title is public, everything else reads "Coming Soon". */
+  comingSoon?: boolean;
 }
 
 interface FacetOption {
@@ -522,7 +524,47 @@ export default function CoursesPageClient({ initialData }: { initialData?: Cards
             </div>
           ) : (
             <div className="grid gap-4" style={{ gridTemplateColumns: viewMode === "list" ? "1fr" : "repeat(auto-fill, minmax(280px, 1fr))" }}>
-              {allCourses.map((course, i) => (
+              {allCourses.map((course, i) => course.comingSoon ? (
+                <article
+                  key={course.id}
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => router.push(`/courses/${course.slug}`)}
+                  onKeyDown={(e) => { if (e.key === "Enter") router.push(`/courses/${course.slug}`); }}
+                  className={`group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow)] transition-all duration-[220ms] ease-[cubic-bezier(.34,1.56,.64,1)] hover:-translate-y-1 hover:border-[#C7D8FF] hover:shadow-[var(--shadow-lg)] ${viewMode === "list" ? "md:flex-row" : ""}`}
+                >
+                  <div className={`relative overflow-hidden ${viewMode === "list" ? "md:w-[200px] md:h-full md:min-h-[120px]" : "aspect-[21/8]"}`} style={{ background: "linear-gradient(135deg,#0d1f3c,#0a2a1a)" }}>
+                    {course.img && (
+                      <SafeImage
+                        src={course.img}
+                        alt={course.title}
+                        fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        className="object-cover"
+                        priority={i < 3}
+                      />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[rgba(13,31,92,.5)] via-transparent to-transparent" />
+                    <span className="absolute left-3 top-3 rounded-full bg-[var(--orange)] px-2.5 py-[3px] text-[10px] font-extrabold uppercase tracking-[.4px] text-white shadow-[0_2px_10px_rgba(0,0,0,.25)]">Coming Soon</span>
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex flex-1 flex-col p-4">
+                      <h3 className="font-['Syne',sans-serif] text-[15px] font-bold leading-[1.35] text-[var(--text)] line-clamp-2">{course.title}</h3>
+                      <p className="mt-3 text-[12px] font-bold uppercase tracking-[.06em] text-[var(--orange)]">Coming Soon</p>
+                    </div>
+                    <div className="flex items-center justify-end border-t border-[var(--border)] px-4 py-3">
+                      <button
+                        type="button"
+                        disabled
+                        onClick={(e) => e.stopPropagation()}
+                        className="cursor-not-allowed rounded-lg bg-[var(--border2)] px-4 py-2 text-[11.5px] font-bold text-[var(--muted)]"
+                      >
+                        Coming Soon
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ) : (
                 <article
                   key={course.id}
                   role="link"

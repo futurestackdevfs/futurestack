@@ -23,6 +23,8 @@ interface FeaturedCourse {
   careerBody: string | null;
   badge: string | null;
   badgeClass: string;
+  /** DRAFT course: only the title is public, everything else reads "Coming Soon". */
+  comingSoon?: boolean;
 }
 
 const fallbackGradient = "linear-gradient(135deg,#0d1f3c,#0a2a1a)";
@@ -66,7 +68,12 @@ export function PopularCourses() {
                       <SafeImage src={c.thumbnailUrl} alt={c.title} fill sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw" className="object-cover" priority={i < 4} />
                     </div>
                   ) : <div className="absolute inset-0" style={{ background: fallbackGradient }} />}
-                  {c.badge && (
+                  {c.comingSoon && (
+                    <span className="text-[9px] font-extrabold tracking-[.06em] uppercase px-2 py-[3px] rounded-[20px] absolute top-2 left-2 text-white bg-[var(--orange)] shadow-[0_2px_10px_rgba(0,0,0,.25)]">
+                      Coming Soon
+                    </span>
+                  )}
+                  {!c.comingSoon && c.badge && (
                     <span className={`text-[9px] font-extrabold tracking-[.06em] uppercase px-2 py-[3px] rounded-[20px] absolute top-2 left-2 text-white shadow-[0_2px_10px_rgba(0,0,0,.25)] ${c.badgeClass}`}>
                       {c.badge}
                     </span>
@@ -74,6 +81,9 @@ export function PopularCourses() {
                 </div>
                 <div className="p-3">
                   <div className="text-[13px] font-bold text-[var(--text)] mb-[3px] truncate">{c.title}</div>
+                  {c.comingSoon ? (
+                    <div className="pt-2 mt-2 border-t border-[var(--border)] text-[11px] font-bold uppercase tracking-[.06em] text-[var(--orange)]">Coming Soon</div>
+                  ) : (<>
                   {c.techStack?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-2">
                       {c.techStack.slice(0, 3).map((t) => (
@@ -90,6 +100,7 @@ export function PopularCourses() {
                       Certificate
                     </span>
                   </div>
+                  </>)}
                 </div>
               </div>
             ))}
