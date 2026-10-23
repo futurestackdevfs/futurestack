@@ -77,7 +77,7 @@ const ctaCards: CtaCardProps[] = [
   },
 ];
 
-export default function StudentPage() {
+export default function HomeClient() {
   const router = useRouter();
 
   return (

@@ -64,7 +64,7 @@ async function proxy(req: NextRequest) {
     if (isPublicGet) {
       // Public catalog data changes rarely — let Next's Data Cache hold it for
       // 5 min so most requests never reach the backend.
-      fetchOptions.next = { revalidate: 300 };
+      fetchOptions.next = { revalidate: 120 };
     } else {
       fetchOptions.cache = 'no-store';
     }
@@ -126,7 +126,7 @@ async function proxy(req: NextRequest) {
     // edge / browser cache it briefly so bursts don't each hit the origin.
     resHeaders.set(
       'cache-control',
-      'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+      'public, max-age=60, s-maxage=120, stale-while-revalidate=600',
     );
   }
 
