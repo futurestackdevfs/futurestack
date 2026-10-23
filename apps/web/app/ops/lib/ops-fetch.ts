@@ -1,6 +1,6 @@
 import { loadStaffToken, saveStaffToken } from "@/app/auth/lib/token-store";
 import { reportSessionExpired } from "@/app/auth/lib/session-events";
-import { refreshSession } from "@/app/auth/lib/refresh-session";
+import { refreshSession, ensureFreshSession } from "@/app/auth/lib/refresh-session";
 import { decodeClaims } from "@/app/auth/lib/token-claims";
 
 function decodeJwtRole(t: string): string | undefined {
@@ -22,6 +22,7 @@ function decodeJwtRole(t: string): string | undefined {
  * Automatically refreshes the access token on 401 before giving up.
  */
 export async function opsFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  await ensureFreshSession(true);
   const token = await loadStaffToken().catch(() => null);
   if (!token) {
     if (typeof window !== "undefined") {

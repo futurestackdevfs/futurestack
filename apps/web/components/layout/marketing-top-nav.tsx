@@ -410,7 +410,7 @@ export function TopNav() {
           { href: "/certificates", label: "Certifications" },
           { href: "/live-projects", label: "Live Projects" },
           { href: "/roadmaps", label: "Roadmaps" },
-          { href: "/practice-hub", label: "Practice Hub" },
+          // { href: "/practice-hub", label: "Practice Hub" },
           { href: "/research-and-development", label: "R&D Services" },
           { href: "/my-dashboard", label: "My Dashboard", requiresAuth: true },
         ].map((link, i) => {
@@ -631,7 +631,7 @@ export function TopNav() {
             { href: "/certificates", label: "Certifications" },
             { href: "/live-projects", label: "Live Projects" },
             { href: "/roadmaps", label: "Roadmaps" },
-          { href: "/practice-hub", label: "Practice Hub" },
+            // { href: "/practice-hub", label: "Practice Hub" },
             { href: "/research-and-development", label: "R&D Services" },
           ].map((link) => (
               <div key={link.label} className="px-2">

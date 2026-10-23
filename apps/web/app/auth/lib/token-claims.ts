@@ -5,6 +5,8 @@ export type Claims = {
   role?: string;
   avatarUrl?: string;
   emailVerified?: boolean;
+  /** Access-token expiry (unix seconds). Lets the client refresh BEFORE a 401. */
+  exp?: number;
 };
 
 // The access token lives only in an HttpOnly cookie (JS can't read it). What
@@ -38,6 +40,7 @@ export function pickClaims(p: Claims): Claims {
     role: p.role,
     avatarUrl: p.avatarUrl,
     emailVerified: p.emailVerified,
+    exp: p.exp,
   };
 }
 
