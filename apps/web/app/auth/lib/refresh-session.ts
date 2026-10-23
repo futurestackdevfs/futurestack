@@ -1,4 +1,5 @@
 import { saveToken, saveStaffToken } from './token-store';
+import { decodeClaims, STAFF_MARKER, STUDENT_MARKER } from './token-claims';
 
 export type RefreshResult = {
   accessToken: string;
@@ -30,6 +31,18 @@ function decodeJwt(t: string) {
  * expired" (and can even wipe the whole token family). This ensures only ONE
  * refresh request runs per role; everyone else awaits the same promise.
  */
+/**
+ * Refresh up-front when the access token is expired or about to expire, so the
+ * first request already carries a fresh cookie instead of 401-ing (which used
+ * to leave dashboards showing 0s until a few reloads). No-op when the expiry is
+ * unknown (older sessions) — the reactive 401 path still covers those.
+ */
+export async function ensureFreshSession(staff: boolean): Promise<void> {
+  const claims = decodeClaims(staff ? STAFF_MARKER : STUDENT_MARKER);
+  if (!claims?.exp || claims.exp * 1000 - Date.now() > 30_000) return;
+  await refreshSession(staff ? claims.role : undefined).catch(() => null);
+}
+
 export async function refreshSession(role?: string): Promise<RefreshResult> {
   const key = role ?? 'STUDENT';
   const pending = inFlight.get(key);

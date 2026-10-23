@@ -3,6 +3,11 @@
 import { useEffect } from 'react';
 import { SWRConfig } from 'swr';
 import { fetcher } from './lib/fetcher';
+import { installFetchAutoRefresh } from './auth/lib/fetch-auto-refresh';
+
+// Module scope on purpose: child effects (which fire the first API calls) run
+// before this component's own effects, so the wrapper must exist before render.
+installFetchAutoRefresh();
 
 function isChunkLoadError(err: unknown): boolean {
   return Boolean(
@@ -57,6 +62,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
         revalidateOnReconnect: true,
         dedupingInterval: 60000, // Cache requests for 60 seconds to avoid over-fetching
         keepPreviousData: true, // Keep old data visible while fetching new data
+        // After a "Session expired" failure the refresh usually lands moments
+        // later, so retry quickly (instead of SWR's slow backoff) and a few times.
+        onErrorRetry: (error, _key, _config, revalidate, { retryCount }) => {
+          if (retryCount >= 4) return;
+          const expired = error instanceof Error && error.message === 'Session expired';
+          const delay = expired ? 1000 * (retryCount + 1) : 5000 * 2 ** retryCount;
+          setTimeout(() => revalidate({ retryCount }), delay);
+        },
       }}
     >
       {children}

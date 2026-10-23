@@ -1,5 +1,5 @@
 import { reportSessionExpired } from '@/app/auth/lib/session-events';
-import { refreshSession } from '@/app/auth/lib/refresh-session';
+import { refreshSession, ensureFreshSession } from '@/app/auth/lib/refresh-session';
 import { decodeClaims } from '@/app/auth/lib/token-claims';
 
 // Shared SWR fetcher — handles 401 session expiry and error responses
@@ -11,6 +11,8 @@ async function loadSessionToken(): Promise<string | null> {
 }
 
 export async function fetcher<T = unknown>(url: string): Promise<T> {
+  const isOps = typeof window !== 'undefined' && window.location.pathname.startsWith('/ops');
+  await ensureFreshSession(isOps);
   const token = await loadSessionToken();
 
   const doFetch = (t?: string) => fetch(url, {
