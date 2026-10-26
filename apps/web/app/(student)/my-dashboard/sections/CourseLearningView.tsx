@@ -244,7 +244,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
     if (target.type === "video" && !target.isCompleted) {
       const prevVideo = items.slice(0, idx).reverse().find((i) => i.type === "video");
       if (prevVideo && !watchedEnough(prevVideo)) {
-        showToast(`Watch at least 90% of "${prevVideo.title}" to open this video.`);
+        showToast(`Complete "${prevVideo.title}" first to open this video.`);
         return;
       }
     }
