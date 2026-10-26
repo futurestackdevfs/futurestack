@@ -95,7 +95,7 @@ function JobModal({ job, onClose }: { job: JobPosting; onClose: () => void }) {
         <div className="relative shrink-0 px-6 sm:px-8 pt-7 pb-5 border-b border-[var(--border)]">
           <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[var(--orange)] via-[var(--orange2)] to-[var(--blue)]" />
           <button onClick={onClose} aria-label="Close"
-            className="absolute top-4 right-4 w-9 h-9 grid place-items-center rounded-full text-[var(--muted)] border border-[var(--border)] hover:border-[var(--orange)] hover:text-[var(--text)] transition-all">✕</button>
+            className="absolute top-4 right-4 z-10 w-9 h-9 grid place-items-center cursor-pointer rounded-full text-[var(--muted)] border border-[var(--border)] hover:border-[var(--orange)] hover:text-[var(--text)] transition-all">✕</button>
           <div className="flex flex-wrap items-center gap-2 pr-10">
             <span className="inline-flex items-center text-[11px] font-semibold text-[var(--blue)] bg-[var(--blue-d)] border border-[var(--blue)]/20 rounded-full px-3 py-1">
               {job.duration}

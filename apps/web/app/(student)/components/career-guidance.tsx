@@ -3,6 +3,18 @@
 import { createContext, useContext, useState, type FormEvent, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { LEAD_COURSE_OPTIONS } from "@/app/ops/sales/lib/data";
+import { validateLeadFields, mapServerErrors, type FieldErrors } from "@/lib/lead-validation";
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} role="alert" className="text-[10.5px] font-semibold leading-[1.3]" style={{ color: "#dc2626" }}>
+      {message}
+    </p>
+  );
+}
+
+const fieldBorder = (err?: string) => (err ? "1px solid #dc2626" : "1px solid var(--border)");
 
 interface CareerGuidanceCtx {
   openLead: (source: string) => void;
@@ -20,6 +32,7 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const pathname = usePathname();
   const hidden = pathname.startsWith("/my-dashboard") || pathname.startsWith("/profile");
@@ -33,7 +46,11 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
     setOpen(false);
     setSuccess(false);
     setError(null);
+    setFieldErrors({});
   };
+
+  const clearField = (field: string) =>
+    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -43,7 +60,15 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
     const phone = String(fd.get("phone") ?? "").trim();
     const email = String(fd.get("email") ?? "").trim();
 
-    if (!name || !phone || !/\S+@\S+\.\S+/.test(email)) return;
+    const errors = validateLeadFields({ name, email, phone }, { emailRequired: true, phoneRequired: true });
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError(null);
+      // Put the cursor on the first field that needs attention.
+      const first = (["name", "phone", "email"] as const).find((f) => errors[f]);
+      if (first) form.querySelector<HTMLInputElement>(`[name="${first}"]`)?.focus();
+      return;
+    }
 
     const payload = {
       name,
@@ -62,7 +87,19 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
       body: JSON.stringify(payload),
     })
       .then(async (r) => {
-        if (!r.ok) throw new Error("Could not submit right now — please try again.");
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          // 400 = the server rejected a field; show it under that field.
+          if (r.status === 400) {
+            const { fieldErrors: fe, general } = mapServerErrors(body.message, ["name", "email", "phone", "city", "course"]);
+            if (Object.keys(fe).length > 0) {
+              setFieldErrors(fe);
+              if (general) throw new Error(general);
+              return;
+            }
+          }
+          throw new Error("Could not submit right now — please try again.");
+        }
         setSuccess(true);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not submit right now — please try again."))
@@ -98,7 +135,7 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
                   <div className="pointer-events-none absolute -right-5 -top-10 h-[160px] w-[160px] rounded-full" style={{ background: "radial-gradient(circle, rgba(255,106,26,.4) 0%, transparent 70%)" }} />
                   <button
                     onClick={close}
-                    className="absolute right-3.5 top-3.5 flex h-7 w-7 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-[14px] text-white"
+                    className="absolute right-3.5 top-3.5 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-white/20 bg-white/10 text-[14px] text-white transition-colors hover:bg-white/25 focus-visible:outline-2 focus-visible:outline-white/70"
                     aria-label="Close"
                   >
                     ✕
@@ -112,25 +149,34 @@ export function CareerGuidance({ children }: { children: ReactNode }) {
                   </div>
                 </div>
 
-                <form className="px-5.5 pb-5.5 pt-5" onSubmit={handleSubmit}>
+                <form className="px-5.5 pb-5.5 pt-5" onSubmit={handleSubmit} noValidate>
                   <div className="mb-3 flex flex-col gap-1">
                     <label className="text-[11px] font-semibold" style={{ color: "var(--text2)" }}>Full Name <span style={{ color: "var(--orange)" }}>*</span></label>
                     <input type="text" name="name" placeholder="Enter your full name" required
+                      onChange={() => clearField("name")}
+                      aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? "lead-name-err" : undefined}
                       className="h-10 rounded-lg px-3 outline-none"
-                      style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} />
+                      style={{ border: fieldBorder(fieldErrors.name), background: "var(--bg)", color: "var(--text)" }} />
+                    <FieldError id="lead-name-err" message={fieldErrors.name} />
                   </div>
                   <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                     <div className="flex flex-col gap-1">
                       <label className="text-[11px] font-semibold" style={{ color: "var(--text2)" }}>Phone <span style={{ color: "var(--orange)" }}>*</span></label>
                       <input type="tel" name="phone" placeholder="Enter your phone number" required
+                        onChange={() => clearField("phone")}
+                        aria-invalid={!!fieldErrors.phone} aria-describedby={fieldErrors.phone ? "lead-phone-err" : undefined}
                         className="h-10 rounded-lg px-3 outline-none"
-                        style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} />
+                        style={{ border: fieldBorder(fieldErrors.phone), background: "var(--bg)", color: "var(--text)" }} />
+                      <FieldError id="lead-phone-err" message={fieldErrors.phone} />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-[11px] font-semibold" style={{ color: "var(--text2)" }}>Email <span style={{ color: "var(--orange)" }}>*</span></label>
                       <input type="email" name="email" placeholder="Enter your email" required
+                        onChange={() => clearField("email")}
+                        aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "lead-email-err" : undefined}
                         className="h-10 rounded-lg px-3 outline-none"
-                        style={{ border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)" }} />
+                        style={{ border: fieldBorder(fieldErrors.email), background: "var(--bg)", color: "var(--text)" }} />
+                      <FieldError id="lead-email-err" message={fieldErrors.email} />
                     </div>
                   </div>
                   <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">

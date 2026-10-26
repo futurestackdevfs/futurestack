@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import type { LeadRecord, PipelineStatus } from "../lib/types";
 import { LEAD_COURSE_OPTIONS } from "../lib/data";
+import { validateLeadFields, mapServerErrors, type FieldErrors } from "@/lib/lead-validation";
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+  return <div role="alert" className="mt-1 font-mono text-[9px] font-bold" style={{ color: "var(--red)" }}>⚠ {message}</div>;
+}
 
 const STATUSES: PipelineStatus[] = ["New", "Interested", "Converted", "Dropped"];
 const SOURCES = ["Website", "Referral", "Walk-in", "Demo", "Instagram", "Counselling", "Other"];
@@ -85,12 +91,14 @@ export function LeadModal({ open, lead, onClose, onSaved, onError }: {
   const [form, setForm] = useState<LeadForm>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     document.body.style.overflow = "hidden";
     setError("");
+    setFieldErrors({});
     setSubmitting(false);
     setForm(lead ? toForm(lead) : EMPTY_FORM);
     setTimeout(() => inputRef.current?.focus(), 60);
@@ -99,11 +107,28 @@ export function LeadModal({ open, lead, onClose, onSaved, onError }: {
 
   if (!open) return null;
 
-  const set = (patch: Partial<LeadForm>) => setForm((f) => ({ ...f, ...patch }));
+  const set = (patch: Partial<LeadForm>) => {
+    setForm((f) => ({ ...f, ...patch }));
+    // Typing in a field dismisses that field's error.
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(patch)) if (next[key]) next[key] = undefined;
+      return next;
+    });
+  };
+  const errStyle = (field: string) => (fieldErrors[field] ? { ...inputStyle, border: "1px solid var(--red)" } : inputStyle);
 
   async function handleSave() {
     setError("");
-    if (!form.name.trim()) { setError("Name is required"); return; }
+    const errors = validateLeadFields({ name: form.name, email: form.email, phone: form.phone });
+    if (form.budget && (!Number.isFinite(Number(form.budget)) || Number(form.budget) < 0)) {
+      errors.budget = "Budget must be a number, 0 or more.";
+    }
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      if (errors.name) inputRef.current?.focus();
+      return;
+    }
     setSubmitting(true);
     try {
       const payload = {
@@ -125,7 +150,15 @@ export function LeadModal({ open, lead, onClose, onSaved, onError }: {
       });
       if (!r.ok) {
         const e = await r.json().catch(() => ({ message: `${r.status}` }));
-        throw new Error(e.message ?? "Failed to save lead");
+        if (r.status === 400) {
+          const { fieldErrors: fe, general } = mapServerErrors(e.message, ["name", "email", "phone", "city", "course", "budget", "source", "notes"]);
+          if (Object.keys(fe).length > 0) {
+            setFieldErrors(fe);
+            if (!general) return; // shown under the field(s); skip the generic banner
+            throw new Error(general);
+          }
+        }
+        throw new Error(Array.isArray(e.message) ? e.message.join(", ") : e.message ?? "Failed to save lead");
       }
       const saved = await r.json();
       onSaved(lead ? `Lead updated — ${saved.name}` : `Lead created — ${saved.name}`);
@@ -162,7 +195,9 @@ export function LeadModal({ open, lead, onClose, onSaved, onError }: {
             <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={labelStyle}>NAME *</div>
             <input ref={inputRef} value={form.name} onChange={(e) => set({ name: e.target.value })}
               placeholder="Prospect name" className="w-full rounded px-2.5 py-1.5 text-[11px] outline-none"
-              style={inputStyle} />
+              aria-invalid={!!fieldErrors.name}
+              style={errStyle("name")} />
+            <FieldError message={fieldErrors.name} />
           </div>
 
           {/* Contact */}
@@ -171,13 +206,17 @@ export function LeadModal({ open, lead, onClose, onSaved, onError }: {
               <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={labelStyle}>EMAIL</div>
               <input value={form.email} onChange={(e) => set({ email: e.target.value })}
                 placeholder="Enter email address" className="w-full rounded px-2.5 py-1.5 text-[11px] outline-none"
-                style={inputStyle} />
+                aria-invalid={!!fieldErrors.email}
+                style={errStyle("email")} />
+              <FieldError message={fieldErrors.email} />
             </div>
             <div>
               <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={labelStyle}>PHONE</div>
               <input value={form.phone} onChange={(e) => set({ phone: e.target.value })}
                 placeholder="Phone" className="w-full rounded px-2.5 py-1.5 text-[11px] outline-none"
-                style={inputStyle} />
+                aria-invalid={!!fieldErrors.phone}
+                style={errStyle("phone")} />
+              <FieldError message={fieldErrors.phone} />
             </div>
             <div>
               <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={labelStyle}>CITY</div>
@@ -210,7 +249,9 @@ export function LeadModal({ open, lead, onClose, onSaved, onError }: {
               <div className="font-mono text-[8.5px] font-bold uppercase tracking-wider mb-1" style={labelStyle}>BUDGET (₹)</div>
               <input type="number" min={0} value={form.budget} onChange={(e) => set({ budget: e.target.value })}
                 placeholder="0" className="w-full rounded px-2.5 py-1.5 text-[11px] outline-none"
-                style={inputStyle} />
+                aria-invalid={!!fieldErrors.budget}
+                style={errStyle("budget")} />
+              <FieldError message={fieldErrors.budget} />
             </div>
           </div>
 

@@ -353,13 +353,20 @@ describe('AuthService', () => {
       expect(mailService.sendPasswordResetEmail).not.toHaveBeenCalled();
     });
 
-    it('returns the same generic message for an OAuth-only account (no enumeration leak)', async () => {
+    it('sends a reset link to an OAuth-only (Google) account so it can create a password', async () => {
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(makeUser({ password: null }));
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
 
       const result = await service.forgotPassword('student@example.com');
 
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ passwordResetToken: expect.any(String) }),
+        }),
+      );
+      expect(mailService.sendPasswordResetEmail).toHaveBeenCalled();
+      // Same generic message as every other case — no enumeration leak.
       expect(result.message).toMatch(/If an account/);
-      expect(mailService.sendPasswordResetEmail).not.toHaveBeenCalled();
     });
 
     it('stores a hashed reset token and sends the reset email for a real account', async () => {

@@ -115,6 +115,25 @@ export class ReviewsService {
     return review;
   }
 
+  /**
+   * Lets the course page decide what to show in the Reviews tab: a "Write a
+   * Review" form (enrolled), or a prompt to enroll first. Same enrollment rule
+   * createReview enforces.
+   */
+  async getReviewEligibility(studentId: string, courseId: string) {
+    const [enrollment, review] = await Promise.all([
+      this.prisma.enrollment.findUnique({
+        where: { studentId_courseId: { studentId, courseId } },
+        select: { id: true },
+      }),
+      this.prisma.review.findUnique({
+        where: { courseId_studentId: { courseId, studentId } },
+        select: { id: true },
+      }),
+    ]);
+    return { enrolled: !!enrollment, hasReview: !!review };
+  }
+
   // ─── PROJECT REVIEWS ─────────────────────────────────────
 
   async createProjectReview(

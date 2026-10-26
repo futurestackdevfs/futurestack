@@ -169,7 +169,15 @@ export class AuthController {
     // NOTE: if you point GOOGLE_REDIRECT_URL at a *server* route (one that reads
     // the token from the request), switch it back to `?token=` for that route —
     // a server cannot read a fragment.
-    return res.redirect(`${redirectUrl}#token=${accessToken}`);
+    //
+    // The refresh token rides in the fragment too. The cookie set above lives on
+    // the API's own domain, which the browser never sends to the website's
+    // /api/auth/refresh — so Google students had no refresh cookie on the
+    // frontend domain and every expiry ended in "No refresh token found". The
+    // callback page re-issues it as a frontend-domain HttpOnly cookie.
+    return res.redirect(
+      `${redirectUrl}#token=${accessToken}&refresh=${encodeURIComponent(rawRefreshToken)}`,
+    );
   }
 
   @Post('refresh')

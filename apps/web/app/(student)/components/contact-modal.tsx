@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { validateLeadFields, mapServerErrors, type FieldErrors } from "@/lib/lead-validation";
 
 /**
  * Global "Contact us" popup. Mounted once in the (student) layout. Opens when:
@@ -19,18 +20,29 @@ const TYPE_OPTIONS: { value: ContactType; label: string; hint: string }[] = [
 
 const inputCls =
   "w-full h-10 rounded-lg bg-[var(--bg2)] border border-[var(--border)] px-3 text-[13px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--orange)] transition-colors";
+const errCls = "!border-[var(--red)]";
+
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return <p id={id} role="alert" className="mt-1 text-[11px] font-semibold text-[var(--red)]">{message}</p>;
+}
 
 export function ContactModal() {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<ContactType>("business");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [sent, setSent] = useState(false);
+
+  const clearField = (field: string) =>
+    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
 
   useEffect(() => {
     const openIt = () => {
       setSent(false);
       setError("");
+      setFieldErrors({});
       setType("business");
       setOpen(true);
     };
@@ -69,9 +81,19 @@ export function ContactModal() {
       message: String(fd.get("message") ?? "").trim(),
       website: String(fd.get("website") ?? ""), // honeypot
     };
-    if (payload.name.length < 2) return setError("Please enter your name.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) return setError("Please enter a valid email.");
-    if (payload.message.length < 10) return setError("Please add a bit more detail.");
+    const form = e.currentTarget;
+    const errors = validateLeadFields(
+      { name: payload.name, email: payload.email, phone: payload.phone },
+      { emailRequired: true },
+    );
+    if (payload.message.length < 10) errors.message = "Please add a bit more detail (at least 10 characters).";
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError("");
+      const first = (["name", "email", "phone", "message"] as const).find((f) => errors[f]);
+      if (first) form.querySelector<HTMLElement>(`[name="${first}"]`)?.focus();
+      return;
+    }
 
     setSending(true);
     setError("");
@@ -83,7 +105,15 @@ export function ContactModal() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message || "Couldn't send your message — please try again.");
+        if (res.status === 400) {
+          const { fieldErrors: fe, general } = mapServerErrors(body.message, ["name", "email", "phone", "company", "message"]);
+          if (Object.keys(fe).length > 0) {
+            setFieldErrors(fe);
+            if (general) throw new Error(general);
+            return;
+          }
+        }
+        throw new Error(typeof body.message === "string" ? body.message : "Couldn't send your message — please try again.");
       }
       setSent(true);
     } catch (err) {
@@ -105,7 +135,7 @@ export function ContactModal() {
           <div className="pointer-events-none absolute -right-5 -top-10 h-[160px] w-[160px] rounded-full" style={{ background: "radial-gradient(circle, rgba(255,106,26,.4) 0%, transparent 70%)" }} />
           <button
             onClick={() => setOpen(false)}
-            className="absolute right-3.5 top-3.5 flex h-7 w-7 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-[14px] text-white"
+            className="absolute right-3.5 top-3.5 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-white/20 bg-white/10 text-[14px] text-white transition-colors hover:bg-white/25 focus-visible:outline-2 focus-visible:outline-white/70"
             aria-label="Close"
           >
             ✕
@@ -124,12 +154,28 @@ export function ContactModal() {
             <button onClick={() => setOpen(false)} className="mt-5 h-10 px-6 rounded-lg bg-[var(--bg2)] border border-[var(--border)] text-[13px] font-semibold text-[var(--text)] hover:border-[var(--border2)]">Close</button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="p-5 sm:p-6">
+          <form onSubmit={handleSubmit} className="p-5 sm:p-6" noValidate>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input name="name" className={inputCls} placeholder="Full name" autoComplete="name" required />
-              <input name="email" type="email" className={inputCls} placeholder="Email" autoComplete="email" required />
-              <input name="phone" type="tel" className={inputCls} placeholder="Phone (optional)" autoComplete="tel" maxLength={20} />
-              <input name="company" className={inputCls} placeholder="Company (optional)" autoComplete="organization" maxLength={160} />
+              <div>
+                <input name="name" className={`${inputCls} ${fieldErrors.name ? errCls : ""}`} placeholder="Full name" autoComplete="name" required
+                  onChange={() => clearField("name")} aria-invalid={!!fieldErrors.name} aria-describedby={fieldErrors.name ? "contact-name-err" : undefined} />
+                <FieldError id="contact-name-err" message={fieldErrors.name} />
+              </div>
+              <div>
+                <input name="email" type="email" className={`${inputCls} ${fieldErrors.email ? errCls : ""}`} placeholder="Email" autoComplete="email" required
+                  onChange={() => clearField("email")} aria-invalid={!!fieldErrors.email} aria-describedby={fieldErrors.email ? "contact-email-err" : undefined} />
+                <FieldError id="contact-email-err" message={fieldErrors.email} />
+              </div>
+              <div>
+                <input name="phone" type="tel" className={`${inputCls} ${fieldErrors.phone ? errCls : ""}`} placeholder="Phone (optional)" autoComplete="tel" maxLength={20}
+                  onChange={() => clearField("phone")} aria-invalid={!!fieldErrors.phone} aria-describedby={fieldErrors.phone ? "contact-phone-err" : undefined} />
+                <FieldError id="contact-phone-err" message={fieldErrors.phone} />
+              </div>
+              <div>
+                <input name="company" className={`${inputCls} ${fieldErrors.company ? errCls : ""}`} placeholder="Company (optional)" autoComplete="organization" maxLength={160}
+                  onChange={() => clearField("company")} />
+                <FieldError id="contact-company-err" message={fieldErrors.company} />
+              </div>
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
@@ -159,9 +205,13 @@ export function ContactModal() {
               required
               minLength={10}
               maxLength={4000}
-              className={`${inputCls} h-auto py-2.5 mt-3 resize-y`}
+              className={`${inputCls} h-auto py-2.5 mt-3 resize-y ${fieldErrors.message ? errCls : ""}`}
               placeholder="Tell us what you're looking for…"
+              onChange={() => clearField("message")}
+              aria-invalid={!!fieldErrors.message}
+              aria-describedby={fieldErrors.message ? "contact-message-err" : undefined}
             />
+            <FieldError id="contact-message-err" message={fieldErrors.message} />
 
             <input type="text" name="website" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
 

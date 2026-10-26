@@ -399,24 +399,44 @@ export default function CourseDetailPage() {
     fetcher,
   );
 
+  // `null` until known (and for non-students, who can't review) — the Reviews
+  // tab then shows the enroll prompt instead of a form the API would reject.
+  const [canReview, setCanReview] = useState<boolean | null>(null);
+
   useEffect(() => {
-    if (!courseId || !isAuthenticated) return;
+    if (!courseId || !isAuthenticated) {
+      setCanReview(null);
+      return;
+    }
     let cancelled = false;
     (async () => {
       const token = await loadToken();
-      const res = await fetch(`${API}/courses/${courseId}/reviews/my-review`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+      const [mineRes, eligRes] = await Promise.all([
+        fetch(`${API}/courses/${courseId}/reviews/my-review`, { headers }),
+        fetch(`${API}/courses/${courseId}/reviews/eligibility`, { headers }).catch(() => null),
+      ]);
       if (cancelled) return;
-      if (res.ok) {
-        const data = await res.json();
+      if (mineRes.ok) {
+        const data = await mineRes.json();
         setMyReview(data);
       } else {
         setMyReview(null);
       }
+      if (eligRes?.ok) {
+        const elig = (await eligRes.json()) as { enrolled?: boolean };
+        if (!cancelled) setCanReview(!!elig.enrolled);
+      } else if (!cancelled) {
+        setCanReview(false);
+      }
     })();
     return () => { cancelled = true; };
   }, [courseId, isAuthenticated]);
+
+  // Popup only — deliberately no redirect, the visitor stays on the course page.
+  const promptSignInToReview = () => {
+    showToast("Please sign in to write a review");
+  };
 
   const handleSubmitReview = async (rating: number, comment: string) => {
     const token = await loadToken();
@@ -630,7 +650,7 @@ export default function CourseDetailPage() {
               ...(course.roadmap ? [{ id: "roadmap", label: "Roadmap", mobileHidden: false }] : []),
               { id: "curriculum", label: "Curriculum", mobileHidden: false },
               { id: "projects", label: "Projects", mobileHidden: false },
-              { id: "reviews", label: "Reviews", mobileHidden: true },
+              { id: "reviews", label: "Reviews", mobileHidden: false },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -835,7 +855,18 @@ export default function CourseDetailPage() {
                 </div>
               </div>
 
-              {isAuthenticated && (
+              {!isAuthenticated ? (
+                <button onClick={promptSignInToReview} className="w-full mb-4 py-[10px] rounded-[10px] bg-[linear-gradient(135deg,#1A3BA0,#2952CC)] text-white text-[13px] font-bold cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 shadow-sm">
+                  ✍ Write a Review
+                </button>
+              ) : !myReview && canReview === false ? (
+                <div className="border border-dashed border-[#C7D8FF] dark:border-[#2d3358] rounded-2xl p-4 mb-4 bg-[#EEF2FF] dark:bg-[#1a1f3a] flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-[13px] text-[#374151] dark:text-[#b0bac9]">Only students enrolled in this course can write a review.</div>
+                  <button onClick={handleUnlock} className="shrink-0 py-[9px] px-4 rounded-[10px] bg-[linear-gradient(135deg,#1A3BA0,#2952CC)] text-white text-[13px] font-bold cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 shadow-sm">
+                    {inCart ? "View Cart" : "Enroll to Write a Review"}
+                  </button>
+                </div>
+              ) : (
                 <>
                   {myReview && !showReviewForm ? (
                     <div className="border border-[var(--border)] dark:border-[#1e2535] rounded-2xl p-4 mb-4 bg-[#F9FAFB] dark:bg-[#0b0e14]">

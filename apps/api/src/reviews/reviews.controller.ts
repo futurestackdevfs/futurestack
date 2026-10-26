@@ -63,6 +63,13 @@ export class ReviewsController {
     return this.reviewsService.getStudentReview(user.id, courseId);
   }
 
+  @Auth(Role.STUDENT)
+  @Get('courses/:courseId/reviews/eligibility')
+  async getReviewEligibility(@Req() req: Request, @Param('courseId') courseId: string) {
+    const user = req.user as { id: string };
+    return this.reviewsService.getReviewEligibility(user.id, courseId);
+  }
+
   // ─── TRAINER ─────────────────────────────────────────────
 
   @Auth(Role.TRAINER)

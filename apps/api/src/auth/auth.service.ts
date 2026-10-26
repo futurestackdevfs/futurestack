@@ -429,9 +429,12 @@ export class AuthService {
 
   /**
    * Always returns the same generic message regardless of whether the
-   * email exists, has no password (OAuth-only), or a reset email was
-   * actually sent — this prevents attackers from using this endpoint to
-   * enumerate which emails are registered.
+   * email exists or a reset email was actually sent — this prevents attackers
+   * from using this endpoint to enumerate which emails are registered.
+   *
+   * OAuth-only (Google) accounts have no local password yet; they get the same
+   * reset link so they can create one and then sign in with email + password
+   * as well as Google.
    */
   async forgotPassword(email: string): Promise<{ message: string }> {
     const genericResponse = {
@@ -445,8 +448,7 @@ export class AuthService {
       },
     });
 
-    if (!user || !user.password) {
-      // No account, or an OAuth-only account with no local password to reset
+    if (!user) {
       return genericResponse;
     }
 
