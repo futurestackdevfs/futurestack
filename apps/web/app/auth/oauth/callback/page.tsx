@@ -17,16 +17,18 @@ import { emit } from '../../hooks/use-auth';
  * link, or `window.location` logging could pick it up. A fragment (unlike a
  * query string) is never sent to the server or leaked via Referer.
  */
-function takeTokenFromHash(): string | null {
+function takeTokenFromHash(): { token: string; refresh: string | null } | null {
   if (typeof window === 'undefined') return null;
   const raw = window.location.hash.replace(/^#/, '');
   if (!raw) return null;
-  const token = new URLSearchParams(raw).get('token');
+  const params = new URLSearchParams(raw);
+  const token = params.get('token');
+  const refresh = params.get('refresh');
   if (token) {
     // Scrub the fragment without adding a history entry.
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
   }
-  return token;
+  return token ? { token, refresh } : null;
 }
 
 function OAuthHandler() {
@@ -34,11 +36,12 @@ function OAuthHandler() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const token = takeTokenFromHash();
-    if (!token) {
+    const taken = takeTokenFromHash();
+    if (!taken) {
       setError('No token received from OAuth provider.');
       return;
     }
+    const { token, refresh } = taken;
 
     authApi
       .me(token)
@@ -50,6 +53,15 @@ function OAuthHandler() {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ token }),
         });
+        // Store the refresh token as a frontend-domain HttpOnly cookie so
+        // /api/auth/refresh can find it when this access token expires.
+        if (refresh) {
+          await fetch('/api/auth/set-refresh', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ refresh }),
+          }).catch(() => {});
+        }
         emit({ user, isAuthenticated: true, isLoading: false });
         showToast('Signed in with Google!');
         router.replace('/my-dashboard');

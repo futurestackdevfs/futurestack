@@ -228,7 +228,7 @@ export function LegalPageModal() {
           <div className="pointer-events-none absolute -left-10 bottom-[-40px] h-[140px] w-[140px] rounded-full" style={{ background: "radial-gradient(circle, rgba(59,130,246,.3) 0%, transparent 70%)" }} />
           <button
             onClick={() => setOpen(false)}
-            className="absolute right-3.5 top-3.5 flex h-7 w-7 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-[14px] text-white"
+            className="absolute right-3.5 top-3.5 z-10 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-white/20 bg-white/10 text-[14px] text-white transition-colors hover:bg-white/25 focus-visible:outline-2 focus-visible:outline-white/70"
             aria-label="Close"
           >
             ✕
