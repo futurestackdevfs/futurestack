@@ -37,6 +37,7 @@ export interface CurriculumItem {
   title: string;
   order: number;
   durationSeconds?: number; // videos only
+  watchedSeconds?: number; // videos only — furthest point reached (uniqueSecsWatched)
   totalQuestions?: number; // quizzes only
   passingScore?: number | null; // quizzes only
   score: number | null;
@@ -261,6 +262,7 @@ export class StudentService {
             title: v.title,
             order: v.order,
             durationSeconds: v.durationSeconds,
+            watchedSeconds: progress?.uniqueSecsWatched ?? 0,
             score: progress?.score ?? null,
             isCompleted: progress?.isCompleted ?? false,
             isCurrent: false,

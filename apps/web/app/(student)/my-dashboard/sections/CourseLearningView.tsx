@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { loadToken } from "@/app/auth/lib/token-store";
 import { fetcher } from "@/app/lib/fetcher";
+import { showToast } from "@/lib/toast";
 import { StarRating } from "@/components/StarRating";
 import VdoCipherVideoPlayer from "./VdoCipherVideoPlayer";
 import { VideoProgressRing } from "@/components/ui/VideoProgressRing"; // Add this
@@ -20,6 +21,8 @@ interface CurriculumItem {
   title: string;
   order: number;
   durationSeconds?: number;
+  /** Furthest point the student has reached in this video (videos only). */
+  watchedSeconds?: number;
   totalQuestions?: number;
   passingScore?: number | null;
   score: number | null;
@@ -74,6 +77,15 @@ interface Props {
   enrolledCourse: EnrolledCourse;
   onBack: () => void;
   onViewCertificate?: () => void;
+}
+
+// A video opens only once the previous video has been watched at least this much.
+const UNLOCK_WATCH_RATIO = 0.9;
+
+function watchedEnough(item: CurriculumItem): boolean {
+  if (item.isCompleted) return true;
+  const duration = item.durationSeconds ?? 0;
+  return duration > 0 && (item.watchedSeconds ?? 0) / duration >= UNLOCK_WATCH_RATIO;
 }
 
 const TABS = ["curriculum", "roadmap", "overview", "resources", "discussion"] as const;
@@ -159,6 +171,9 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
 
   const allItems = detail?.sections.flatMap(s => s.items) ?? [];
   const currentItem = allItems.find(i => i.id === currentItemId);
+  const currentIdx = currentItem ? allItems.findIndex(i => i.id === currentItem.id) : -1;
+  const prevItem = currentIdx > 0 ? allItems[currentIdx - 1] : undefined;
+  const nextItem = currentIdx >= 0 ? allItems[currentIdx + 1] : undefined;
 
   useEffect(() => {
     setQuizPanelOpen(true);
@@ -207,6 +222,37 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
       setTimeout(() => setShowAchievement(false), 6000);
     }
   }, [courseId]);
+
+  // Opens a lesson, enforcing the "previous video >= 90% watched" rule. Fetches
+  // fresh progress first so a video the student JUST watched past 90% counts
+  // even though the cached course detail only refreshes on full completion.
+  const openItem = useCallback(async (itemId: string) => {
+    let data = detail;
+    try {
+      data = await fetcher<StudentCourseDetail>(`/api/student/courses/${courseId}`);
+      await mutate(`/api/student/courses/${courseId}`, data, { revalidate: false });
+    } catch {
+      // fall back to the cached detail
+    }
+    if (!data) return;
+
+    const items = data.sections.flatMap((s) => s.items);
+    const idx = items.findIndex((i) => i.id === itemId);
+    const target = items[idx];
+    if (!target) return;
+
+    if (target.type === "video" && !target.isCompleted) {
+      const prevVideo = items.slice(0, idx).reverse().find((i) => i.type === "video");
+      if (prevVideo && !watchedEnough(prevVideo)) {
+        showToast(`Watch at least 90% of "${prevVideo.title}" to open this video.`);
+        return;
+      }
+    }
+
+    const owner = data.sections.find((s) => s.items.some((i) => i.id === itemId));
+    if (owner) setOpenSections((prev) => new Set(prev).add(owner.id));
+    setCurrentItemId(itemId);
+  }, [courseId, detail]);
 
   // Fetch my review
   useEffect(() => {
@@ -336,6 +382,30 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
               </div>
             )}
           </div>
+
+          {/* Previous / Next lesson */}
+          {currentItem && (
+            <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 border-b border-[var(--border)] bg-[var(--surface)]">
+              <button
+                type="button"
+                disabled={!prevItem}
+                onClick={() => prevItem && openItem(prevItem.id)}
+                title={prevItem?.title}
+                className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--text2)] cursor-pointer transition-colors hover:border-[var(--orange)] hover:text-[var(--orange)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--border)] disabled:hover:text-[var(--text2)]"
+              >
+                ← Previous
+              </button>
+              <button
+                type="button"
+                disabled={!nextItem}
+                onClick={() => nextItem && openItem(nextItem.id)}
+                title={nextItem?.title}
+                className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--card)] px-2.5 py-1 text-[11.5px] font-semibold text-[var(--text2)] cursor-pointer transition-colors hover:border-[var(--orange)] hover:text-[var(--orange)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--border)] disabled:hover:text-[var(--text2)]"
+              >
+                Next →
+              </button>
+            </div>
+          )}
 
           {/* Progress info */}
           <div className="px-4 sm:px-5 py-[16px] sm:py-[22px] border-b border-[var(--border)]" style={{ background: "linear-gradient(180deg, rgba(240,90,26,.03), transparent 60%)" }}>
@@ -580,38 +650,30 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                     <div className={isOpen ? "block" : "hidden"}>
                       {section.items.map(item => {
                         const isSelected = currentItemId === item.id;
-                        // Backend already computes strict sequential locking (everything
-                        // after the first incomplete item) — enforce it here instead of
-                        // letting every item be clickable regardless of lock state.
-                        const canClick = !item.isLocked;
+                        // No lock icons: every lesson looks openable, and openItem()
+                        // shows a message if the previous video isn't 90% watched yet.
 
                         return (
                           <div key={item.id}
-                            onClick={() => { if (canClick) setCurrentItemId(item.id); }}
-                            aria-disabled={!canClick}
-                            title={!canClick ? "Complete the current lesson to unlock this" : undefined}
+                            onClick={() => { openItem(item.id); }}
                             className={`flex items-center gap-x-[10px] sm:gap-x-[12px] gap-y-1.5 px-4 sm:px-5 py-[11px] sm:py-[13px] border-t border-[var(--border)] transition-all ${
-                              !canClick
-                                ? "opacity-45 cursor-not-allowed"
-                                : isSelected
-                                  ? "bg-[rgba(240,90,26,.04)] border-l-[3px] border-l-[var(--orange)] cursor-pointer"
-                                  : item.isCompleted
-                                    ? "hover:bg-[var(--card-h)] cursor-pointer opacity-80"
-                                    : "hover:bg-[var(--card-h)] cursor-pointer"
+                              isSelected
+                                ? "bg-[rgba(240,90,26,.04)] border-l-[3px] border-l-[var(--orange)] cursor-pointer"
+                                : item.isCompleted
+                                  ? "hover:bg-[var(--card-h)] cursor-pointer opacity-80"
+                                  : "hover:bg-[var(--card-h)] cursor-pointer"
                             } ${item.type === 'quiz' ? "sm:grid sm:grid-cols-[26px_1fr_auto_auto_auto]" : "sm:grid sm:grid-cols-[26px_1fr_auto_auto_auto]"}`}>
 
                             {/* Status dot */}
                             <div className={`w-[20px] sm:w-6 h-[20px] sm:h-6 rounded-full flex items-center justify-center text-[11px] sm:text-[12px] font-bold shrink-0 ${
                               item.isCompleted
                                 ? "bg-green-600 dark:bg-green-500 text-white"
-                                : !canClick
-                                  ? "bg-[var(--bg2)] text-[var(--text3)]"
-                                  : isSelected
-                                    ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
-                                    : "bg-[var(--orange-d)] text-[var(--orange)]"
+                                : isSelected
+                                  ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
+                                  : "bg-[var(--orange-d)] text-[var(--orange)]"
                             }`}
                               style={isSelected ? { boxShadow: "0 2px 8px rgba(240,90,26,.5)" } : {}}>
-                              {item.isCompleted ? "✓" : !canClick ? "🔒" : isSelected ? "▶" : "○"}
+                              {item.isCompleted ? "✓" : isSelected ? "▶" : "○"}
                             </div>
 
                             {/* Title + type */}
@@ -641,14 +703,12 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                             <div className={`text-[10px] sm:text-[10.5px] font-bold px-[5px] sm:px-[7px] py-[1px] sm:py-[2px] rounded-[3px] text-center whitespace-nowrap shrink-0 ${
                               item.isCompleted
                                 ? "bg-green-500/15 text-green-600 dark:text-green-400"
-                                : !canClick
-                                  ? "bg-[var(--bg2)] text-[var(--text3)]"
-                                  : isSelected
-                                    ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
-                                    : "bg-[var(--orange-d)] text-[var(--orange)]"
+                                : isSelected
+                                  ? "bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] text-white"
+                                  : "bg-[var(--orange-d)] text-[var(--orange)]"
                             }`}
                               style={{ boxShadow: isSelected ? "0 1px 4px rgba(240,90,26,.3)" : undefined }}>
-                              {item.isCompleted ? "Done" : !canClick ? "Locked" : isSelected ? "Active" : "Ready"}
+                              {item.isCompleted ? "Done" : isSelected ? "Active" : "Ready"}
                             </div>
                           </div>
                         );
@@ -667,7 +727,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                 <RoadmapView
                   roadmap={detail.roadmap}
                   onJumpToVideo={(videoId) => {
-                    setCurrentItemId(videoId);
+                    openItem(videoId);
                     setActiveTab("curriculum");
                   }}
                   completedVideoIds={completedVideoIds}
