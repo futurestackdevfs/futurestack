@@ -20,6 +20,7 @@ function setup() {
   const prisma = {
     order: { findUnique: jest.fn() },
     refund: { findFirst: jest.fn() },
+    paymentSettings: { findFirst: jest.fn().mockResolvedValue({ refundEtaDays: 7 }) },
     $transaction: jest.fn(async (cb: any) => cb(tx)),
   } as unknown as PrismaService;
 
@@ -47,6 +48,13 @@ function makeOrder(overrides: Partial<Record<string, any>> = {}) {
     status: 'PAID',
     razorpayOrderId: 'order_abc123',
     razorpayPaymentId: 'pay_abc123',
+    currency: 'INR',
+    subtotal: decimal(4999),
+    discountAmount: decimal(0),
+    gstPercent: decimal(0),
+    gstAmount: decimal(0),
+    totalAmount: decimal(4999),
+    refunds: [],
     items: [
       {
         id: '__spec__item-1',
@@ -62,6 +70,121 @@ function makeOrder(overrides: Partial<Record<string, any>> = {}) {
     ...overrides,
   };
 }
+
+describe('RefundService#createRefund — refunds what the student actually paid', () => {
+  function stubRefundWrites(tx: any, razorpayClient: any, capturedPaise: number) {
+    tx.refund.create.mockImplementation(async ({ data }: any) => ({
+      id: '__spec__refund-paid',
+      status: 'PROCESSED',
+      razorpayRefundId: 'rfnd_paid',
+      amount: decimal(data.amount),
+      processedAt: new Date(),
+    }));
+    tx.revenueLedger.findUnique.mockResolvedValue(null);
+    tx.enrollment.update.mockResolvedValue({});
+    tx.order.update.mockResolvedValue({});
+    tx.enrollment.findMany = jest.fn().mockResolvedValue([]);
+    tx.orderItem.findMany = jest.fn().mockResolvedValue([]);
+    const client = razorpayClient.getClient() as any;
+    client.payments.fetch.mockResolvedValue({ amount: capturedPaise });
+    client.payments.refund.mockResolvedValue({ id: 'rfnd_paid' });
+    (razorpayClient.getClient as jest.Mock).mockReturnValue(client);
+    return client;
+  }
+
+  it('defaults to the amount paid after the coupon cut, GST included — not the list price', async () => {
+    const { service, prisma, razorpayClient, tx } = setup();
+    // ₹5000 course, ₹1000 coupon, 18% GST → paid (5000 − 1000) × 1.18 = ₹4720
+    (prisma.order.findUnique as jest.Mock).mockResolvedValue(
+      makeOrder({
+        subtotal: decimal(5000),
+        discountAmount: decimal(1000),
+        gstPercent: decimal(18),
+        gstAmount: decimal(720),
+        totalAmount: decimal(4720),
+        items: [
+          {
+            id: '__spec__item-1',
+            courseId: '__spec__course-react',
+            projectId: null,
+            priceAtPurchase: decimal(5000),
+            course: { id: '__spec__course-react', title: '__spec__ React Bootcamp' },
+            project: null,
+          },
+        ],
+      }),
+    );
+    (prisma.refund.findFirst as jest.Mock).mockResolvedValue(null);
+    const client = stubRefundWrites(tx, razorpayClient, 472000);
+
+    const result = await service.createRefund(
+      { orderId: '__spec__order-1', courseId: '__spec__course-react', reason: 'requested' } as any,
+      '__spec__admin-1',
+    );
+
+    expect(result.amount).toBe(4720);
+    expect(client.payments.refund).toHaveBeenCalledWith('pay_abc123', expect.objectContaining({ amount: 472000 }));
+    expect(result.estimatedBy).toBeInstanceOf(Date);
+  });
+
+  it('refuses to refund more than the student paid (list price when a coupon was used)', async () => {
+    const { service, prisma } = setup();
+    (prisma.order.findUnique as jest.Mock).mockResolvedValue(
+      makeOrder({
+        subtotal: decimal(5000),
+        discountAmount: decimal(1000),
+        totalAmount: decimal(4000),
+        items: [
+          {
+            id: '__spec__item-1',
+            courseId: '__spec__course-react',
+            projectId: null,
+            priceAtPurchase: decimal(5000),
+            course: { id: '__spec__course-react', title: 'x' },
+            project: null,
+          },
+        ],
+      }),
+    );
+    (prisma.refund.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(
+      service.createRefund(
+        { orderId: '__spec__order-1', courseId: '__spec__course-react', amount: 5000, reason: 'x' } as any,
+        '__spec__admin-1',
+      ),
+    ).rejects.toThrow(/exceeds ₹4000/);
+  });
+
+  it('previewRefund returns the breakdown and expected credit date without touching Razorpay', async () => {
+    const { service, prisma, razorpayClient } = setup();
+    (prisma.order.findUnique as jest.Mock).mockResolvedValue(
+      makeOrder({
+        subtotal: decimal(5000),
+        discountAmount: decimal(1000),
+        gstPercent: decimal(18),
+        totalAmount: decimal(4720),
+        items: [
+          {
+            id: '__spec__item-1',
+            courseId: '__spec__course-react',
+            projectId: null,
+            priceAtPurchase: decimal(5000),
+            course: { id: '__spec__course-react', title: 'x' },
+            project: null,
+          },
+        ],
+      }),
+    );
+
+    const preview = await service.previewRefund({ orderId: '__spec__order-1', courseId: '__spec__course-react' });
+
+    expect(preview.breakdown).toEqual({ itemPrice: 5000, couponDiscount: 1000, gstAmount: 720, paid: 4720 });
+    expect(preview.refundAmount).toBe(4720);
+    expect(preview.etaDays).toBe(7);
+    expect(razorpayClient.getClient).not.toHaveBeenCalled();
+  });
+});
 
 describe('RefundService#createRefund', () => {
   it('rejects when neither courseId nor projectId is given', async () => {
@@ -98,7 +221,7 @@ describe('RefundService#createRefund', () => {
         { orderId: '__spec__order-1', courseId: '__spec__course-react', amount: 9999, reason: 'x' } as any,
         '__spec__admin-1',
       ),
-    ).rejects.toThrow(/exceeds item price/);
+    ).rejects.toThrow(/exceeds ₹4999/);
   });
 
   it('rejects a duplicate refund for a course that was already refunded on this order', async () => {
@@ -212,33 +335,24 @@ describe('RefundService#createRefund', () => {
     expect(client.payments.refund).not.toHaveBeenCalled();
   });
 
-  it('never calls Razorpay for a MANUAL- order and still processes the refund locally', async () => {
+  it('refuses a cash / offline (MANUAL-) order — those are refunded manually, outside the system', async () => {
     const { service, prisma, razorpayClient, tx } = setup();
     (prisma.order.findUnique as jest.Mock).mockResolvedValue(
       makeOrder({ razorpayOrderId: 'MANUAL-cash-1', razorpayPaymentId: null }),
     );
-    (prisma.refund.findFirst as jest.Mock).mockResolvedValue(null);
-    tx.refund.create.mockResolvedValue({
-      id: '__spec__refund-manual',
-      status: 'PROCESSED',
-      razorpayRefundId: null,
-      amount: decimal(4999),
-    });
-    tx.revenueLedger.findUnique.mockResolvedValue(null);
-    tx.enrollment.update.mockResolvedValue({});
-    tx.order.update.mockResolvedValue({});
-    (tx as any).orderItem = { update: jest.fn() };
-    (tx as any).enrollment.findMany = jest.fn().mockResolvedValue([]);
-    (tx as any).orderItem.findMany = jest.fn().mockResolvedValue([]);
 
-    const result = await service.createRefund(
-      { orderId: '__spec__order-1', courseId: '__spec__course-react', amount: 4999, reason: 'cash refund' } as any,
-      '__spec__admin-1',
-    );
+    await expect(
+      service.createRefund(
+        { orderId: '__spec__order-1', courseId: '__spec__course-react', amount: 4999, reason: 'cash refund' } as any,
+        '__spec__admin-1',
+      ),
+    ).rejects.toThrow(/cash .* offline payment/);
 
-    expect(result.razorpayRefundId).toBeNull();
-    const client = razorpayClient.getClient() as any;
-    expect(client.payments.refund).not.toHaveBeenCalled();
-    expect(client.payments.fetch).not.toHaveBeenCalled();
+    await expect(
+      service.previewRefund({ orderId: '__spec__order-1', courseId: '__spec__course-react' }),
+    ).rejects.toThrow(/cash .* offline payment/);
+
+    expect(razorpayClient.getClient).not.toHaveBeenCalled();
+    expect(tx.refund.create).not.toHaveBeenCalled();
   });
 });

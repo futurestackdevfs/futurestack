@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 
 interface RefundItem {
@@ -15,7 +15,22 @@ interface RefundItem {
   initiatedById: string;
   processedAt: string | null;
   createdAt: string;
-  order: { id: string; totalAmount: number; currency: string; razorpayPaymentId: string | null };
+  order: {
+    id: string;
+    totalAmount: number;
+    subtotal: number;
+    discountAmount: number;
+    gstPercent: number;
+    gstAmount: number;
+    currency: string;
+    couponCode: string | null;
+    razorpayPaymentId: string | null;
+  };
+  /** What the student paid for THIS item and what is returned (coupon cut, GST included). */
+  breakdown: { itemPrice: number; couponDiscount: number; gstAmount: number; paid: number } | null;
+  etaDays: number;
+  /** Estimated date the money reaches the student. */
+  estimatedBy: string;
   student: { id: string; name: string; email: string };
   course: { id: string; title: string } | null;
   project: { id: string; name: string } | null;
@@ -54,8 +69,8 @@ const PER_PAGE = 10;
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; color: string; bg: string }> = {
-    PENDING: { label: "Pending", color: "#d97706", bg: "rgba(217,119,6,.12)" },
-    PROCESSED: { label: "Processed", color: "var(--green)", bg: "var(--green-d)" },
+    PENDING: { label: "Pending review", color: "#d97706", bg: "rgba(217,119,6,.12)" },
+    PROCESSED: { label: "Sent to Razorpay", color: "var(--green)", bg: "var(--green-d)" },
     REJECTED: { label: "Rejected", color: "var(--red)", bg: "var(--red-d)" },
   };
   const s = map[status?.toUpperCase()] ?? { label: status, color: "var(--text3)", bg: "var(--bg2)" };
@@ -69,9 +84,27 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function formatMoney(n: number | null | undefined) {
+function formatMoney(n: number | null | undefined, currency = "INR") {
   const v = Number.isFinite(n) ? n ?? 0 : 0;
-  return "₹" + v.toLocaleString("en-IN");
+  return (currency === "USD" ? "$" : "₹") + v.toLocaleString(currency === "USD" ? "en-US" : "en-IN");
+}
+
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/** Where the refund is right now, in plain words, plus the date it should land. */
+function refundProgress(r: RefundItem) {
+  if (r.status === "REJECTED") return { text: "Rejected — nothing refunded", overdue: false };
+  if (r.status === "PENDING") return { text: "Waiting for admin approval", overdue: false };
+  const overdue = new Date(r.estimatedBy).getTime() < Date.now();
+  return {
+    text: overdue
+      ? `Should have reached the student by ${fmtDate(r.estimatedBy)} — check with Razorpay`
+      : `Money expected in student's account by ${fmtDate(r.estimatedBy)}`,
+    overdue,
+  };
 }
 
 function getPageItems(current: number, total: number): (number | "…")[] {
@@ -91,6 +124,7 @@ export default function RefundsManager({ token, searchQuery = "" }: { token: str
   const [status, setStatus] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
 
   function addToast(msg: string, type: "success" | "danger" = "success") {
@@ -231,7 +265,7 @@ export default function RefundsManager({ token, searchQuery = "" }: { token: str
           <table className="w-full text-left min-w-[880px]" style={{ borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(148,163,184,.05)" }}>
-                {["Date", "Student", "Item", "Order", "Amount", "Reason", "Status", "Processed By"].map((h) => (
+                {["Date", "Student", "Item", "Order", "Paid / Refund", "Status & expected by", "Reason", "Processed By"].map((h) => (
                   <th
                     key={h}
                     className="font-mono text-[9px] font-bold uppercase tracking-[.08em] text-[var(--text3)] px-2.5 py-[7px]"
@@ -250,43 +284,75 @@ export default function RefundsManager({ token, searchQuery = "" }: { token: str
                   </td>
                 </tr>
               )}
-              {filteredRefunds.map((r) => (
-                <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td className="px-2.5 py-[7px] whitespace-nowrap">
-                    <div className="font-mono text-[10px]" style={{ color: "var(--text2)" }}>
-                      {new Date(r.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                    </div>
-                    <div className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>
-                      {new Date(r.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}
-                    </div>
-                  </td>
-                  <td className="px-2.5 py-[7px]">
-                    <div className="text-[11.5px] font-semibold" style={{ color: "var(--text)" }}>{r.student?.name ?? "—"}</div>
-                    <div className="font-mono text-[9px] max-w-[160px] truncate" style={{ color: "var(--text3)" }}>{r.student?.email ?? ""}</div>
-                  </td>
-                  <td className="px-2.5 py-[7px]">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px]">{r.project ? "🚀" : "📚"}</span>
-                      <div className="text-[11.5px] font-semibold" style={{ color: "var(--text)" }}>{r.course?.title ?? r.project?.name ?? "—"}</div>
-                    </div>
-                  </td>
-                  <td className="px-2.5 py-[7px]">
-                    <span className="font-mono text-[10.5px] font-bold" style={{ color: "var(--blue)" }}>
-                      {r.orderId.slice(0, 8).toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="px-2.5 py-[7px] font-mono text-[11.5px] font-bold tabular-nums" style={{ color: "var(--red)" }}>
-                    {formatMoney(r.amount)}
-                  </td>
-                  <td className="px-2.5 py-[7px]">
-                    <div className="text-[11px] max-w-[200px] truncate" style={{ color: "var(--text2)" }}>{r.reason}</div>
-                  </td>
-                  <td className="px-2.5 py-[7px]"><StatusBadge status={r.status} /></td>
-                  <td className="px-2.5 py-[7px]">
-                    <div className="text-[11px] font-medium" style={{ color: "var(--text2)" }}>{r.initiatedBy?.name ?? "—"}</div>
-                  </td>
-                </tr>
-              ))}
+              {filteredRefunds.map((r) => {
+                const progress = refundProgress(r);
+                const open = expandedId === r.id;
+                const cur = r.order?.currency ?? "INR";
+                return (
+                  <Fragment key={r.id}>
+                    <tr
+                      onClick={() => setExpandedId(open ? null : r.id)}
+                      className="cursor-pointer"
+                      style={{ borderBottom: open ? "none" : "1px solid var(--border)", background: open ? "rgba(148,163,184,.06)" : undefined }}
+                    >
+                      <td className="px-2.5 py-[7px] whitespace-nowrap">
+                        <div className="font-mono text-[10px]" style={{ color: "var(--text2)" }}>{fmtDate(r.createdAt)}</div>
+                        <div className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>
+                          {new Date(r.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true })}
+                        </div>
+                      </td>
+                      <td className="px-2.5 py-[7px]">
+                        <div className="text-[11.5px] font-semibold" style={{ color: "var(--text)" }}>{r.student?.name ?? "—"}</div>
+                        <div className="font-mono text-[9px] max-w-[160px] truncate" style={{ color: "var(--text3)" }}>{r.student?.email ?? ""}</div>
+                      </td>
+                      <td className="px-2.5 py-[7px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px]">{r.project ? "🚀" : "📚"}</span>
+                          <div className="text-[11.5px] font-semibold" style={{ color: "var(--text)" }}>{r.course?.title ?? r.project?.name ?? "—"}</div>
+                        </div>
+                      </td>
+                      <td className="px-2.5 py-[7px]">
+                        <span className="font-mono text-[10.5px] font-bold" style={{ color: "var(--blue)" }}>
+                          {r.orderId.slice(0, 8).toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-2.5 py-[7px] whitespace-nowrap">
+                        <div className="font-mono text-[11.5px] font-bold tabular-nums" style={{ color: "var(--red)" }}>
+                          Refund {formatMoney(r.amount, cur)}
+                        </div>
+                        <div className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>
+                          {r.breakdown
+                            ? `Paid ${formatMoney(r.breakdown.paid, cur)}${r.breakdown.couponDiscount > 0 ? ` · coupon −${formatMoney(r.breakdown.couponDiscount, cur)}` : ""}`
+                            : "—"}
+                        </div>
+                      </td>
+                      <td className="px-2.5 py-[7px]">
+                        <StatusBadge status={r.status} />
+                        <div
+                          className="font-mono text-[9px] mt-1 max-w-[230px] leading-snug"
+                          style={{ color: progress.overdue ? "var(--red)" : "var(--text3)" }}
+                        >
+                          {progress.text}
+                        </div>
+                      </td>
+                      <td className="px-2.5 py-[7px]">
+                        <div className="text-[11px] max-w-[180px] truncate" style={{ color: "var(--text2)" }}>{r.reason}</div>
+                      </td>
+                      <td className="px-2.5 py-[7px]">
+                        <div className="text-[11px] font-medium" style={{ color: "var(--text2)" }}>{r.initiatedBy?.name ?? "—"}</div>
+                        <div className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>{open ? "▲ hide" : "▼ details"}</div>
+                      </td>
+                    </tr>
+                    {open && (
+                      <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(148,163,184,.06)" }}>
+                        <td colSpan={8} className="px-4 pb-3.5 pt-1">
+                          <RefundDetail r={r} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -333,6 +399,89 @@ export default function RefundsManager({ token, searchQuery = "" }: { token: str
             {t.msg}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function RefundDetail({ r }: { r: RefundItem }) {
+  const cur = r.order?.currency ?? "INR";
+  const b = r.breakdown;
+  const progress = refundProgress(r);
+  const rejected = r.status === "REJECTED";
+
+  const steps: { label: string; when: string; state: "done" | "current" | "upcoming" | "failed" }[] = rejected
+    ? [
+        { label: "Refund requested", when: fmtDate(r.createdAt), state: "done" },
+        { label: "Rejected by admin", when: "No money was returned", state: "failed" },
+      ]
+    : [
+        { label: r.status === "PENDING" ? "Refund requested" : "Refund approved", when: fmtDate(r.createdAt), state: "done" },
+        {
+          label: "Sent to Razorpay / bank",
+          when: r.processedAt ? fmtDate(r.processedAt) : "Waiting for approval",
+          state: r.status === "PROCESSED" ? "done" : "current",
+        },
+        {
+          label: "Credited to student",
+          when: `Expected by ${fmtDate(r.estimatedBy)} (${r.etaDays} days)`,
+          state: "upcoming",
+        },
+      ];
+  const color = { done: "var(--green)", current: "#d97706", upcoming: "var(--text3)", failed: "var(--red)" };
+
+  const row = (label: string, value: string, strong?: boolean, tone?: string) => (
+    <div className="flex justify-between gap-6 py-1" style={{ borderTop: "1px solid var(--border)" }}>
+      <span className="text-[11px]" style={{ color: "var(--text3)" }}>{label}</span>
+      <span className={`font-mono text-[11.5px] tabular-nums ${strong ? "font-extrabold" : "font-semibold"}`} style={{ color: tone ?? "var(--text)" }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div className="grid gap-5 md:grid-cols-2 rounded-lg p-3.5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+      <div>
+        <div className="font-mono text-[9.5px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--text3)" }}>Amount — what the student paid vs. refunded</div>
+        {b ? (
+          <>
+            {row("Item price", formatMoney(b.itemPrice, cur))}
+            {b.couponDiscount > 0 && row(`Coupon discount${r.order.couponCode ? ` (${r.order.couponCode})` : ""} — never paid by student`, "− " + formatMoney(b.couponDiscount, cur), false, "var(--green)")}
+            {b.gstAmount > 0 && row(`GST (${r.order.gstPercent}%)`, "+ " + formatMoney(b.gstAmount, cur))}
+            {row("Student paid for this item", formatMoney(b.paid, cur), true)}
+          </>
+        ) : (
+          row("Order total paid", formatMoney(r.order?.totalAmount, cur), true)
+        )}
+        {row("Refund amount", formatMoney(r.amount, cur), true, "var(--red)")}
+        <div className="font-mono text-[9.5px] mt-1.5 leading-relaxed" style={{ color: "var(--text3)" }}>
+          Refund = exactly what the student paid after the coupon cut (GST included) — never the list price.
+          Whole order paid: {formatMoney(r.order?.totalAmount, cur)}.
+        </div>
+      </div>
+
+      <div>
+        <div className="font-mono text-[9.5px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--text3)" }}>Status — step by step</div>
+        {steps.map((st, i) => (
+          <div key={st.label} className="flex gap-2.5">
+            <div className="flex flex-col items-center">
+              <span className="size-3.5 rounded-full text-[8px] font-bold flex items-center justify-center text-white shrink-0" style={{ background: st.state === "upcoming" ? "var(--border)" : color[st.state] }}>
+                {st.state === "done" ? "✓" : st.state === "failed" ? "✕" : ""}
+              </span>
+              {i < steps.length - 1 && <span className="w-px flex-1 min-h-4" style={{ background: "var(--border)" }} />}
+            </div>
+            <div className="pb-2.5 -mt-0.5">
+              <div className="text-[11.5px] font-semibold" style={{ color: st.state === "upcoming" ? "var(--text3)" : "var(--text)" }}>{st.label}</div>
+              <div className="font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>{st.when}</div>
+            </div>
+          </div>
+        ))}
+        <div className="font-mono text-[10px] font-semibold mt-0.5" style={{ color: progress.overdue ? "var(--red)" : "var(--text2)" }}>{progress.text}</div>
+        {r.razorpayRefundId && (
+          <div className="font-mono text-[9.5px] mt-1" style={{ color: "var(--text3)" }}>Razorpay refund ID: {r.razorpayRefundId}</div>
+        )}
+        {r.order?.razorpayPaymentId && (
+          <div className="font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>Payment ID: {r.order.razorpayPaymentId}</div>
+        )}
+        <div className="text-[11px] mt-1.5" style={{ color: "var(--text2)" }}><b>Reason:</b> {r.reason}</div>
       </div>
     </div>
   );

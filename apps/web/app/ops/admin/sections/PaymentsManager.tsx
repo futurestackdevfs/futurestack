@@ -15,6 +15,9 @@ interface PaymentOrder {
   createdAt: string;
   razorpayOrderId: string;
   razorpayPaymentId: string | null;
+  /** ONLINE = Razorpay payment · OFFLINE = cash / manually collected by the team. */
+  paymentMode: "ONLINE" | "OFFLINE";
+  paymentMethod: string | null;
   billing: {
     fullName: string | null;
     email: string | null;
@@ -28,6 +31,16 @@ interface PaymentOrder {
   couponCode: string | null;
   enrollmentsCount: number;
   items: { courseId: string; title: string; priceAtPurchase: number; type?: string }[];
+}
+
+interface RefundPreview {
+  breakdown: { itemPrice: number; couponDiscount: number; gstAmount: number; paid: number };
+  refundAmount: number;
+  alreadyRefunded: number;
+  orderTotal: number;
+  currency: string;
+  etaDays: number;
+  estimatedBy: string;
 }
 
 interface PaymentsSummary {
@@ -284,9 +297,11 @@ export default function PaymentsManager({ token, searchQuery = "" }: { token: st
       String(o.totalAmount),
       new Date(o.createdAt).toISOString().slice(0, 10),
       o.razorpayPaymentId ?? "",
+      o.paymentMode === "OFFLINE" ? "Cash / Offline" : "Online",
+      o.paymentMethod ?? "",
     ]);
     const csv = [
-      ["OrderNo", "Student", "Email", "Status", "Currency", "Subtotal", "Discount", "Total", "Date", "PaymentId"],
+      ["OrderNo", "Student", "Email", "Status", "Currency", "Subtotal", "Discount", "Total", "Date", "PaymentId", "Mode", "Method"],
       ...rows,
     ]
       .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
@@ -496,7 +511,7 @@ export default function PaymentsManager({ token, searchQuery = "" }: { token: st
               <table className="w-full text-left min-w-[880px]" style={{ borderCollapse: "collapse", fontSize: 12 }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(148,163,184,.05)" }}>
-                    {["Order", "Date", "Student", "Items", "Subtotal", "Discount", "Total", "Status", "Payment"].map((h) => (
+                    {["Order", "Date", "Student", "Items", "Subtotal", "Discount", "Total", "Status", "Mode", "Payment"].map((h) => (
                       <th
                         key={h}
                         className="font-mono text-[9px] font-bold uppercase tracking-[.08em] text-[var(--text3)] px-2.5 py-[7px]"
@@ -510,7 +525,7 @@ export default function PaymentsManager({ token, searchQuery = "" }: { token: st
                 <tbody>
                   {filteredOrders.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-3 py-10 text-center font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
+                      <td colSpan={10} className="px-3 py-10 text-center font-mono text-[10.5px]" style={{ color: "var(--text3)" }}>
                         {data?.orders.length === 0
                           ? `No payments${status ? ` with status ${status}` : ""} found.`
                           : `No payments match "${searchQuery}".`}
@@ -531,7 +546,7 @@ export default function PaymentsManager({ token, searchQuery = "" }: { token: st
                   })}
                   {loading && data && filteredOrders.length > 0 && (
                     <tr>
-                      <td colSpan={9} className="px-3 py-2 text-center font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>
+                      <td colSpan={10} className="px-3 py-2 text-center font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>
                         syncing…
                       </td>
                     </tr>
@@ -712,6 +727,7 @@ function OrderRow({
           {formatMoney(order.totalAmount, order.currency)}
         </td>
         <td className="px-2.5 py-[7px]"><StatusBadge status={order.status} /></td>
+        <td className="px-2.5 py-[7px]"><ModeBadge order={order} /></td>
         <td className="px-2.5 py-[7px] font-mono text-[9.5px] whitespace-nowrap" style={{ color: "var(--text3)" }}>
           {order.razorpayPaymentId ? order.razorpayPaymentId.slice(0, 14) + "…" : "—"}
         </td>
@@ -740,6 +756,8 @@ function OrderRow({
                 <div className="font-mono text-[9px] font-bold uppercase tracking-[.08em] mb-1" style={{ color: "var(--text3)" }}>
                   Details
                 </div>
+                <DetailRow label="Payment mode" value={order.paymentMode === "OFFLINE" ? "Cash / offline (collected by team)" : "Online (Razorpay)"} />
+                <DetailRow label="Method" value={order.paymentMethod ?? "—"} />
                 <DetailRow label="Razorpay order" value={order.razorpayOrderId || "—"} mono />
                 <DetailRow label="Payment id" value={order.razorpayPaymentId || "—"} mono />
                 <DetailRow label="Gateway" value={order.gatewayType || "—"} />
@@ -750,7 +768,12 @@ function OrderRow({
                 {order.billing.city && (
                   <DetailRow label="City / State" value={`${order.billing.city}, ${order.billing.state ?? ""} · ${order.billing.pincode ?? ""}`} />
                 )}
-                {["ACTIVE", "PAID", "COMPLETED"].includes(order.status) && order.items.length > 0 && (
+                {["ACTIVE", "PAID", "COMPLETED"].includes(order.status) && order.items.length > 0 && order.paymentMode === "OFFLINE" && (
+                  <div className="mt-2 pt-2 text-[11px] leading-snug" style={{ borderTop: "1px solid var(--border)", color: "var(--text3)" }}>
+                    Cash / offline payment — refunds for these are done manually, outside the system.
+                  </div>
+                )}
+                {["ACTIVE", "PAID", "COMPLETED"].includes(order.status) && order.items.length > 0 && order.paymentMode !== "OFFLINE" && (
                   <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
                     <button
                       onClick={(e) => { e.stopPropagation(); onRefund(order); }}
@@ -767,6 +790,27 @@ function OrderRow({
         </tr>
       )}
     </>
+  );
+}
+
+function ModeBadge({ order }: { order: PaymentOrder }) {
+  const offline = order.paymentMode === "OFFLINE";
+  return (
+    <div className="whitespace-nowrap">
+      <span
+        className="font-mono text-[9px] font-bold px-2 py-[2px] rounded-full uppercase tracking-wide"
+        style={{
+          background: offline ? "rgba(217,119,6,.14)" : "rgba(16,185,129,.14)",
+          color: offline ? "#d97706" : "var(--green)",
+          border: `1px solid ${offline ? "rgba(217,119,6,.3)" : "rgba(16,185,129,.3)"}`,
+        }}
+      >
+        {offline ? "Cash / Offline" : "Online"}
+      </span>
+      {order.paymentMethod && (
+        <div className="font-mono text-[9px] mt-0.5" style={{ color: "var(--text3)" }}>{order.paymentMethod}</div>
+      )}
+    </div>
   );
 }
 
@@ -794,35 +838,51 @@ function RefundModal({
 }) {
   const allItems = order.items;
 
-  // Calculate the actual amount paid per item (after discount + GST)
-  function actualPaidForItem(item: { priceAtPurchase: number; type?: string }): number {
-    if (!order.subtotal || order.subtotal === 0) return item.priceAtPurchase;
-    const nonProjectItems = allItems.filter((it) => it.type !== "project");
-    // Single item → full order total is what was paid for it
-    if (nonProjectItems.length === 1 && allItems.length === 1) return order.totalAmount;
-    // Multi-item → proportional share of totalAmount
-    const share = item.priceAtPurchase / order.subtotal;
-    return Math.round(share * order.totalAmount * 100) / 100;
-  }
-
   const firstItem = allItems[0];
   const [selectedId, setSelectedId] = useState(firstItem?.courseId ?? "");
-  const [amount, setAmount] = useState(firstItem ? String(actualPaidForItem(firstItem)) : "");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<RefundPreview | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const cur = order.currency;
+  const fmt = (n: number) => (cur === "USD" ? "$" : "₹") + n.toLocaleString(cur === "USD" ? "en-US" : "en-IN");
+
+  // The server works out what the student actually paid for the selected item
+  // (coupon cut + GST) — the refund is exactly that, never the list price.
+  useEffect(() => {
+    if (!selectedId) return;
+    const item = allItems.find((it) => it.courseId === selectedId);
+    const key = item?.type === "project" ? "projectId" : "courseId";
+    let cancelled = false;
+    setPreview(null);
+    setPreviewError(null);
+    opsFetch(`/api/admin/refunds/preview?orderId=${encodeURIComponent(order.id)}&${key}=${encodeURIComponent(selectedId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.message || "Could not calculate the refund");
+        if (!cancelled) setPreview(body as RefundPreview);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setPreviewError(e instanceof Error ? e.message : "Could not calculate the refund");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, order.id, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const courseItems = order.items.filter((it) => it.type !== "project");
   const isManualOrder = order.razorpayOrderId?.startsWith("MANUAL-");
 
   async function handleRefund() {
-    if (!selectedId || !amount || !reason) return;
+    if (!selectedId || !preview || preview.refundAmount <= 0 || !reason) return;
     const selectedItem = allItems.find((it) => it.courseId === selectedId);
     const isProject = selectedItem?.type === "project";
     setSaving(true);
     try {
       const body: Record<string, any> = {
         orderId: order.id,
-        amount: Number(amount),
         reason,
       };
       if (isProject) body.projectId = selectedId;
@@ -835,7 +895,7 @@ function RefundModal({
       });
       const respBody = await res.json();
       if (!res.ok) throw new Error(respBody.message || "Refund failed");
-      onSuccess(`Refund of ₹${amount} initiated successfully`);
+      onSuccess(`Refund of ${fmt(preview.refundAmount)} initiated — student gets it by ${new Date(preview.estimatedBy).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`);
     } catch (e: unknown) {
       onError(e instanceof Error ? e.message : "Refund failed");
     } finally {
@@ -905,33 +965,54 @@ function RefundModal({
                 <label className="font-mono text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--text3)" }}>Item</label>
                 <select
                   value={selectedId}
-                  onChange={(e) => {
-                    setSelectedId(e.target.value);
-                    const item = allItems.find((it) => it.courseId === e.target.value);
-                    if (item) setAmount(String(actualPaidForItem(item)));
-                  }}
+                  onChange={(e) => setSelectedId(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg text-[12px] font-medium outline-none"
                   style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
                 >
                   {allItems.map((it) => (
                     <option key={it.courseId} value={it.courseId}>
-                      {it.type === "project" ? "🚀 " : "📚 "}{it.title} — ₹{it.priceAtPurchase.toLocaleString("en-IN")}
+                      {it.type === "project" ? "🚀 " : "📚 "}{it.title}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div>
-                <label className="font-mono text-[10px] font-bold uppercase tracking-wider block mb-1" style={{ color: "var(--text3)" }}>Refund Amount (₹)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max={allItems.find((it) => it.courseId === selectedId)?.priceAtPurchase ?? 0}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg text-[12px] font-mono font-bold outline-none"
-                  style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
-                />
+              <div className="rounded-lg overflow-hidden" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+                <div className="font-mono text-[10px] font-bold uppercase tracking-wider px-3 py-1.5" style={{ color: "var(--text3)", borderBottom: "1px solid var(--border)" }}>
+                  Refund = what the student paid
+                </div>
+                {previewError ? (
+                  <div className="px-3 py-3 text-[11.5px]" style={{ color: "var(--red)" }}>{previewError}</div>
+                ) : !preview ? (
+                  <div className="px-3 py-3 text-[11.5px]" style={{ color: "var(--text3)" }}>Calculating…</div>
+                ) : (
+                  <div className="text-[12px]">
+                    {[
+                      ["Item price", fmt(preview.breakdown.itemPrice), "var(--text)"],
+                      ...(preview.breakdown.couponDiscount > 0
+                        ? [["Coupon discount (never paid by student)", "− " + fmt(preview.breakdown.couponDiscount), "var(--green)"]]
+                        : []),
+                      ...(preview.breakdown.gstAmount > 0 ? [["GST", "+ " + fmt(preview.breakdown.gstAmount), "var(--text)"]] : []),
+                      ["Student paid for this item", fmt(preview.breakdown.paid), "var(--text)"],
+                    ].map(([label, value, tone]) => (
+                      <div key={label} className="flex justify-between px-3 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
+                        <span style={{ color: "var(--text3)" }}>{label}</span>
+                        <span className="font-mono font-semibold" style={{ color: tone }}>{value}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between px-3 py-2" style={{ background: "var(--red-d)" }}>
+                      <span className="font-bold" style={{ color: "var(--red)" }}>Refund amount</span>
+                      <span className="font-mono font-extrabold" style={{ color: "var(--red)" }}>{fmt(preview.refundAmount)}</span>
+                    </div>
+                    <div className="px-3 py-2 font-mono text-[10px] leading-relaxed" style={{ color: "var(--text3)" }}>
+                      Goes back to the student&apos;s original payment method. Expected to reach them by{" "}
+                      <b style={{ color: "var(--text2)" }}>
+                        {new Date(preview.estimatedBy).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                      </b>{" "}
+                      ({preview.etaDays} days).
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -956,7 +1037,7 @@ function RefundModal({
               </button>
               <button
                 onClick={handleRefund}
-                disabled={saving || !selectedId || !amount || !reason}
+                disabled={saving || !selectedId || !preview || preview.refundAmount <= 0 || !reason}
                 className="font-mono text-[11px] font-bold px-4 py-2 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ background: "var(--red)", color: "#fff", border: "none" }}
               >

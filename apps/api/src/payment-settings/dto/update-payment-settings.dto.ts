@@ -39,4 +39,10 @@ export class UpdatePaymentSettingsDto {
   @Min(1)
   @Max(1000)
   usdRate?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  refundEtaDays?: number;
 }

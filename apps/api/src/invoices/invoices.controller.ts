@@ -31,6 +31,13 @@ export class InvoicesController {
     return this.invoicesService.getInvoiceByOrder(orderId, user);
   }
 
+  /** One-off: issue invoices for already-PAID orders that never got one. */
+  @Auth(Role.ADMIN)
+  @Post('backfill')
+  backfillMissingInvoices() {
+    return this.invoicesService.backfillMissingInvoices();
+  }
+
   @Auth(Role.ADMIN, Role.COORDINATOR, Role.SALES)
   @Post('generate/:orderId')
   createInvoice(@Param('orderId') orderId: string) {

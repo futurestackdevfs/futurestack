@@ -64,6 +64,7 @@ export class PaymentSettingsService {
       gstPercent: dto.gstPercent ?? settings.gstPercent,
       gstPercentUsd: dto.gstPercentUsd ?? settings.gstPercentUsd,
       usdRate: dto.usdRate ?? settings.usdRate,
+      refundEtaDays: dto.refundEtaDays ?? settings.refundEtaDays,
     };
     if (!next.domesticEnabled && !next.internationalEnabled) {
       throw new BadRequestException(
