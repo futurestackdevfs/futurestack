@@ -27,6 +27,17 @@ export class RefundController {
     return this.refundService.createRefund(dto, user.id);
   }
 
+  /** What the student paid for this item and what a refund would return. */
+  @Auth(Role.ADMIN)
+  @Get('preview')
+  preview(
+    @Query('orderId') orderId: string,
+    @Query('courseId') courseId?: string,
+    @Query('projectId') projectId?: string,
+  ) {
+    return this.refundService.previewRefund({ orderId, courseId, projectId });
+  }
+
   @Auth(Role.ADMIN)
   @Get()
   list(

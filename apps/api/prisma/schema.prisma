@@ -640,6 +640,7 @@ model PaymentSettings {
   domesticEnabled      Boolean  @default(true) // INR (domestic gateway)
   internationalEnabled Boolean  @default(false) // USD (international gateway)
   trainerSharePercent  Int      @default(50) // default % of collected gross the trainer keeps (rest = platform cut)
+  refundEtaDays        Int      @default(7) // days a processed refund takes to reach the student — shown as the estimated credit date
   gstPercent           Decimal  @default(18) @db.Decimal(10, 4) // GST % charged on top of every course fee (INR / domestic)
   gstPercentUsd        Decimal  @default(0) @db.Decimal(10, 4) // GST % for USD orders — export of services is zero-rated by default
   usdRate              Decimal  @default(95) @db.Decimal(10, 4) // INR per 1 USD — fallback conversion when a course/project has no explicit priceUsd. Fresh rows are seeded from the DEFAULT_USD_RATE env var; this DB default is only a raw safety net. Admin edits the live value.

@@ -10,6 +10,36 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RazorpayClientService } from '../checkout/razorpay-client.service';
 import { MailService } from '../mail/mail.service';
 import { CreateRefundDto } from './dto/create-refund.dto';
+import { paymentModeOf } from '../common/payment-mode.util';
+import {
+  DEFAULT_REFUND_ETA_DAYS,
+  computeRefundBreakdown,
+  estimateRefundBy,
+} from './refund-amount.util';
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+const REFUND_INCLUDE = {
+  order: {
+    select: {
+      id: true,
+      createdAt: true,
+      currency: true,
+      couponId: true,
+      subtotal: true,
+      discountAmount: true,
+      gstPercent: true,
+      gstAmount: true,
+      totalAmount: true,
+      razorpayPaymentId: true,
+      items: { select: { courseId: true, projectId: true, priceAtPurchase: true } },
+    },
+  },
+  student: { select: { id: true, name: true, email: true } },
+  course: { select: { id: true, title: true } },
+  project: { select: { id: true, name: true } },
+  initiatedBy: { select: { id: true, name: true } },
+} satisfies Prisma.RefundInclude;
 
 @Injectable()
 export class RefundService {
@@ -21,7 +51,24 @@ export class RefundService {
     private readonly mailService: MailService,
   ) {}
 
-  async createRefund(dto: CreateRefundDto, adminId: string) {
+  /** Days a refund takes to reach the student — admin-editable in Payment Settings. */
+  async getEtaDays(): Promise<number> {
+    const s = await this.prisma.paymentSettings.findFirst({
+      select: { refundEtaDays: true },
+    });
+    return s?.refundEtaDays ?? DEFAULT_REFUND_ETA_DAYS;
+  }
+
+  /**
+   * Loads the order + item being refunded and works out exactly what the
+   * student paid for it (coupon cut, GST included) and how much of that can
+   * still be refunded. Shared by the preview and the real refund.
+   */
+  private async loadRefundContext(dto: {
+    orderId: string;
+    courseId?: string;
+    projectId?: string;
+  }) {
     const isCourse = !!dto.courseId;
     const isProject = !!dto.projectId;
     if (!isCourse && !isProject) {
@@ -43,12 +90,25 @@ export class RefundService {
         },
         user: { select: { id: true, name: true, email: true } },
         enrollments: true,
+        refunds: {
+          where: { status: { in: ['PENDING', 'PROCESSED'] } },
+          select: { courseId: true, projectId: true, amount: true },
+        },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
     if (order.status !== 'PAID') {
       throw new BadRequestException(
         `Order status is ${order.status} — only PAID orders can be refunded`,
+      );
+    }
+
+    // Only online (Razorpay) payments are refunded through the system. Cash /
+    // offline sales have no gateway payment to reverse — the team returns the
+    // money by hand, outside the app.
+    if (paymentModeOf(order) === 'OFFLINE') {
+      throw new BadRequestException(
+        'This was a cash / offline payment — it cannot be refunded here. Refund it manually.',
       );
     }
 
@@ -60,15 +120,67 @@ export class RefundService {
         `${isCourse ? 'Course' : 'Project'} not found in order items`,
       );
     }
-    const priceAtPurchase = orderItem.priceAtPurchase.toNumber();
-    if (dto.amount > priceAtPurchase) {
+
+    const breakdown = computeRefundBreakdown(
+      {
+        subtotal: order.subtotal.toNumber(),
+        discountAmount: order.discountAmount.toNumber(),
+        gstPercent: order.gstPercent.toNumber(),
+      },
+      { priceAtPurchase: orderItem.priceAtPurchase.toNumber(), projectId: orderItem.projectId },
+    );
+
+    // Never refund more than the order actually collected. When this is the last
+    // item left in the order it gets whatever remains, so per-item rounding can
+    // never leave a few paise stuck (or push the total over what was paid).
+    const alreadyRefunded = round2(
+      order.refunds.reduce((sum, r) => sum + r.amount.toNumber(), 0),
+    );
+    const remaining = round2(order.totalAmount.toNumber() - alreadyRefunded);
+    const isRefunded = (i: { courseId: string | null; projectId: string | null }) =>
+      order.refunds.some(
+        (r) =>
+          (i.courseId && r.courseId === i.courseId) ||
+          (i.projectId && r.projectId === i.projectId),
+      );
+    const isLastItem = order.items.every((i) => i.id === orderItem.id || isRefunded(i));
+    const maxRefund = Math.max(0, isLastItem ? remaining : Math.min(breakdown.paid, remaining));
+
+    return { order, orderItem, isCourse, isProject, breakdown, maxRefund, alreadyRefunded };
+  }
+
+  /** Read-only: what would be refunded for this item, with the full breakdown. */
+  async previewRefund(dto: { orderId: string; courseId?: string; projectId?: string }) {
+    const { order, breakdown, maxRefund, alreadyRefunded } = await this.loadRefundContext(dto);
+    const etaDays = await this.getEtaDays();
+    return {
+      breakdown,
+      refundAmount: maxRefund,
+      alreadyRefunded,
+      orderTotal: order.totalAmount.toNumber(),
+      currency: order.currency,
+      etaDays,
+      estimatedBy: estimateRefundBy(new Date(), etaDays),
+    };
+  }
+
+  async createRefund(dto: CreateRefundDto, adminId: string) {
+    const { order, orderItem, isCourse, isProject, maxRefund } =
+      await this.loadRefundContext(dto);
+
+    // Default (and ceiling) is exactly what the student paid for this item
+    // after the coupon cut — admins can refund less, never more.
+    const amount = dto.amount ?? maxRefund;
+    if (amount <= 0) {
+      throw new BadRequestException('Nothing left to refund for this item');
+    }
+    if (amount > maxRefund + 0.001) {
       throw new BadRequestException(
-        `Refund amount ₹${dto.amount} exceeds item price ₹${priceAtPurchase}`,
+        `Refund amount ₹${amount} exceeds ₹${maxRefund} — the amount the student actually paid for this item (after coupon, GST included)`,
       );
     }
 
-    const isManualOrder = order.razorpayOrderId?.startsWith('MANUAL-');
-    if (!isManualOrder && !order.razorpayPaymentId) {
+    if (!order.razorpayPaymentId) {
       throw new BadRequestException(
         'Order has no Razorpay payment ID — cannot process online refund',
       );
@@ -88,27 +200,23 @@ export class RefundService {
     }
 
     // Validate captured amount before calling Razorpay
-    if (!isManualOrder) {
-      await this.validateRefundAmount(order.razorpayPaymentId!, dto.amount);
-    }
+    await this.validateRefundAmount(order.razorpayPaymentId, amount);
 
-    let razorpayRefundId: string | null = null;
-    if (!isManualOrder) {
-      try {
-        const refund = await this.razorpayClient
-          .getClient()
-          .payments.refund(order.razorpayPaymentId!, {
-            amount: Math.round(dto.amount * 100),
-            notes: { reason: dto.reason },
-          });
-        razorpayRefundId = refund.id;
-      } catch (e) {
-        this.logger.error(`Razorpay refund failed for order ${order.id}: ${e}`);
-        const desc = (e as any)?.error?.description ?? 'Unknown error';
-        throw new BadRequestException(
-          `Razorpay refund failed: ${desc} | Requested: ₹${dto.amount} (${Math.round(dto.amount * 100)} paise) | Payment ID: ${order.razorpayPaymentId}`,
-        );
-      }
+    let razorpayRefundId: string;
+    try {
+      const refund = await this.razorpayClient
+        .getClient()
+        .payments.refund(order.razorpayPaymentId, {
+          amount: Math.round(amount * 100),
+          notes: { reason: dto.reason },
+        });
+      razorpayRefundId = refund.id;
+    } catch (e) {
+      this.logger.error(`Razorpay refund failed for order ${order.id}: ${e}`);
+      const desc = (e as any)?.error?.description ?? 'Unknown error';
+      throw new BadRequestException(
+        `Razorpay refund failed: ${desc} | Requested: ₹${amount} (${Math.round(amount * 100)} paise) | Payment ID: ${order.razorpayPaymentId}`,
+      );
     }
 
     const itemName = isCourse
@@ -122,7 +230,7 @@ export class RefundService {
           studentId: order.userId,
           courseId: dto.courseId ?? null,
           projectId: dto.projectId ?? null,
-          amount: dto.amount,
+          amount,
           reason: dto.reason,
           status: 'PROCESSED',
           razorpayRefundId,
@@ -192,16 +300,18 @@ export class RefundService {
       .sendRefundProcessedEmail(order.user.email, {
         studentName: order.user.name,
         courseName: itemName,
-        refundAmount: dto.amount,
+        refundAmount: amount,
         orderId: order.id,
       })
       .catch((err) => this.logger.error(`Failed to send refund email: ${err}`));
 
+    const etaDays = await this.getEtaDays();
     return {
       refundId: refund.id,
       status: refund.status,
       razorpayRefundId: refund.razorpayRefundId,
       amount: refund.amount.toNumber(),
+      estimatedBy: estimateRefundBy(refund.processedAt ?? new Date(), etaDays),
     };
   }
 
@@ -238,20 +348,7 @@ export class RefundService {
         orderBy: { createdAt: 'desc' },
         skip: (pageNum - 1) * size,
         take: size,
-        include: {
-          order: {
-            select: {
-              id: true,
-              totalAmount: true,
-              currency: true,
-              razorpayPaymentId: true,
-            },
-          },
-          student: { select: { id: true, name: true, email: true } },
-          course: { select: { id: true, title: true } },
-          project: { select: { id: true, name: true } },
-          initiatedBy: { select: { id: true, name: true } },
-        },
+        include: REFUND_INCLUDE,
       }),
     ]);
 
@@ -272,11 +369,9 @@ export class RefundService {
       totalRefundAmount += amount;
     }
 
-    const plainRefunds = refunds.map((r) => ({
-      ...r,
-      amount: r.amount.toNumber(),
-      order: r.order ? { ...r.order, totalAmount: r.order.totalAmount.toNumber() } : r.order,
-    }));
+    const etaDays = await this.getEtaDays();
+    const couponCodes = await this.couponCodesFor(refunds.map((r) => r.order?.couponId));
+    const plainRefunds = refunds.map((r) => this.toRefundView(r, etaDays, couponCodes));
 
     return {
       refunds: plainRefunds,
@@ -299,27 +394,60 @@ export class RefundService {
   async getRefund(id: string) {
     const refund = await this.prisma.refund.findUnique({
       where: { id },
-      include: {
-        order: {
-          select: {
-            id: true,
-            totalAmount: true,
-            currency: true,
-            razorpayPaymentId: true,
-            createdAt: true,
-          },
-        },
-        student: { select: { id: true, name: true, email: true } },
-        course: { select: { id: true, title: true } },
-        project: { select: { id: true, name: true } },
-        initiatedBy: { select: { id: true, name: true } },
-      },
+      include: REFUND_INCLUDE,
     });
     if (!refund) throw new NotFoundException('Refund not found');
+    const etaDays = await this.getEtaDays();
+    const couponCodes = await this.couponCodesFor([refund.order?.couponId]);
+    return this.toRefundView(refund, etaDays, couponCodes);
+  }
+
+  private async couponCodesFor(ids: (string | null | undefined)[]) {
+    const unique = [...new Set(ids.filter((i): i is string => !!i))];
+    if (unique.length === 0) return new Map<string, string>();
+    const coupons = await this.prisma.coupon.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, code: true },
+    });
+    return new Map(coupons.map((c) => [c.id, c.code]));
+  }
+
+  /** Admin-facing refund: plain numbers + what the student paid, the coupon
+   *  cut, GST, and the date the money is expected to reach them. */
+  private toRefundView(
+    r: Prisma.RefundGetPayload<{ include: typeof REFUND_INCLUDE }>,
+    etaDays: number,
+    couponCodes: Map<string, string>,
+  ) {
+    const item = r.order?.items.find((i) =>
+      r.courseId ? i.courseId === r.courseId : i.projectId === r.projectId,
+    );
+    const subtotal = r.order?.subtotal.toNumber() ?? 0;
+    const discountAmount = r.order?.discountAmount.toNumber() ?? 0;
+    const gstPercent = r.order?.gstPercent.toNumber() ?? 0;
+    const breakdown = item
+      ? computeRefundBreakdown(
+          { subtotal, discountAmount, gstPercent },
+          { priceAtPurchase: item.priceAtPurchase.toNumber(), projectId: item.projectId },
+        )
+      : null;
     return {
-      ...refund,
-      amount: refund.amount.toNumber(),
-      order: refund.order ? { ...refund.order, totalAmount: refund.order.totalAmount.toNumber() } : refund.order,
+      ...r,
+      amount: r.amount.toNumber(),
+      order: r.order
+        ? {
+            ...r.order,
+            subtotal,
+            discountAmount,
+            gstPercent,
+            gstAmount: r.order.gstAmount.toNumber(),
+            totalAmount: r.order.totalAmount.toNumber(),
+            couponCode: r.order.couponId ? couponCodes.get(r.order.couponId) ?? null : null,
+          }
+        : r.order,
+      breakdown,
+      etaDays,
+      estimatedBy: estimateRefundBy(r.processedAt ?? r.createdAt, etaDays),
     };
   }
 

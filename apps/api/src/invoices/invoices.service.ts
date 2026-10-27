@@ -57,11 +57,12 @@ export class InvoicesService {
     };
   }
 
-  async generateInvoiceNumber(): Promise<string> {
+  /** `offset` bumps the sequence when a concurrent invoice already took `count + 1`. */
+  async generateInvoiceNumber(offset = 0): Promise<string> {
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
     const count = await this.prisma.invoice.count();
-    const seq = String(count + 1).padStart(4, '0');
+    const seq = String(count + 1 + offset).padStart(4, '0');
     return `FS-${year}${month}-${seq}`;
   }
 
@@ -75,28 +76,64 @@ export class InvoicesService {
     const existing = await this.prisma.invoice.findUnique({ where: { orderId } });
     if (existing) return this.toPlainInvoice(existing);
 
-    const invoiceNumber = await this.generateInvoiceNumber();
+    // Two paid orders finalizing at once would read the same count() and race
+    // for the same invoiceNumber (unique). Retry with a bumped sequence; if the
+    // collision was actually on orderId, another call already issued this
+    // order's invoice — return it.
+    for (let attempt = 0; ; attempt++) {
+      const invoiceNumber = await this.generateInvoiceNumber(attempt);
+      try {
+        const created = await this.prisma.invoice.create({
+          data: {
+            invoiceNumber,
+            orderId,
+            userId: order.user.id,
+            subtotal: order.subtotal,
+            gstPercent: order.gstPercent,
+            gstAmount: order.gstAmount,
+            discountAmount: order.discountAmount,
+            totalAmount: order.totalAmount,
+            billingFullName: order.billingFullName,
+            billingEmail: order.billingEmail,
+            billingPhone: order.billingPhone,
+            billingAddress: order.billingAddress,
+            billingCity: order.billingCity,
+            billingState: order.billingState,
+            billingPincode: order.billingPincode,
+          },
+        });
+        return this.toPlainInvoice(created);
+      } catch (e) {
+        if ((e as { code?: string })?.code !== 'P2002' || attempt >= 5) throw e;
+        const raced = await this.prisma.invoice.findUnique({ where: { orderId } });
+        if (raced) return this.toPlainInvoice(raced);
+      }
+    }
+  }
 
-    const created = await this.prisma.invoice.create({
-      data: {
-        invoiceNumber,
-        orderId,
-        userId: order.user.id,
-        subtotal: order.subtotal,
-        gstPercent: order.gstPercent,
-        gstAmount: order.gstAmount,
-        discountAmount: order.discountAmount,
-        totalAmount: order.totalAmount,
-        billingFullName: order.billingFullName,
-        billingEmail: order.billingEmail,
-        billingPhone: order.billingPhone,
-        billingAddress: order.billingAddress,
-        billingCity: order.billingCity,
-        billingState: order.billingState,
-        billingPincode: order.billingPincode,
+  /** Issues invoices for orders that were paid but have none (paid before
+   *  invoices were generated automatically). Refunded orders are included —
+   *  the tax invoice exists from the moment of payment. Safe to re-run. */
+  async backfillMissingInvoices() {
+    const orders = await this.prisma.order.findMany({
+      where: {
+        status: { in: ['PAID', 'REFUND_REQUESTED', 'REFUNDED'] },
+        invoices: { none: {} },
       },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
     });
-    return this.toPlainInvoice(created);
+    let created = 0;
+    const failed: string[] = [];
+    for (const { id } of orders) {
+      try {
+        await this.createInvoice(id);
+        created++;
+      } catch {
+        failed.push(id);
+      }
+    }
+    return { found: orders.length, created, failed };
   }
 
   async getInvoiceByOrder(

@@ -206,7 +206,11 @@ export type OrderHistoryItem = {
   gstPercent: number;
   gstAmount: number;
   totalAmount: number;
-  status: 'CREATED' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+  status: 'CREATED' | 'PAID' | 'FAILED' | 'CANCELLED' | 'EXPIRED' | 'REFUND_REQUESTED' | 'REFUNDED';
+  couponCode?: string | null;
+  /** ONLINE = paid through Razorpay · OFFLINE = cash / collected by the team. */
+  paymentMode?: 'ONLINE' | 'OFFLINE';
+  paymentMethodLabel?: string | null;
   razorpayOrderId: string;
   razorpayPaymentId: string | null;
   billingFullName: string | null;
@@ -219,10 +223,28 @@ export type OrderHistoryItem = {
   createdAt: string;
   items: {
     priceAtPurchase: number;
+    /** What the student actually paid for this item (coupon cut, GST included). */
+    paidAmount?: number;
     currency: 'INR' | 'USD';
     course: { id: string; title: string; thumbnailUrl: string | null } | null;
     project?: { id: string; name: string } | null;
   }[];
+  refunds?: OrderRefund[];
+};
+
+export type OrderRefund = {
+  id: string;
+  /** PENDING = under review · PROCESSED = sent to the payment gateway · REJECTED = not approved */
+  status: 'PENDING' | 'PROCESSED' | 'REJECTED';
+  amount: number;
+  createdAt: string;
+  processedAt: string | null;
+  referenceId: string | null;
+  itemName: string;
+  breakdown: { itemPrice: number; couponDiscount: number; gstAmount: number; paid: number } | null;
+  etaDays: number;
+  /** Estimated date the money reaches the student (admin-configurable days). */
+  estimatedBy: string;
 };
 
 export const userApi = {

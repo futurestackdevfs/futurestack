@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { CouponModule } from '../coupon/coupon.module';
 import { CartModule } from '../cart/cart.module';
 import { PaymentSettingsModule } from '../payment-settings/payment-settings.module';
+import { InvoicesModule } from '../invoices/invoices.module';
 import { CheckoutController } from './checkout.controller';
 import { WebhookController } from './webhook.controller';
 import { CheckoutService } from './checkout.service';
 import { RazorpayClientService } from './razorpay-client.service';
 
 @Module({
-  imports: [CartModule, CouponModule, PaymentSettingsModule],
+  imports: [CartModule, CouponModule, PaymentSettingsModule, InvoicesModule],
   controllers: [CheckoutController, WebhookController],
   providers: [CheckoutService, RazorpayClientService],
   exports: [RazorpayClientService],

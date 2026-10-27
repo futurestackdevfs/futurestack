@@ -11,6 +11,12 @@ import { VdoCipherService } from '../vdocipher/vdocipher.service';
 import { S3Service } from '../upload/s3.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { parseStoredRoadmap } from '../courses/courses.service';
+import { paymentMethodLabel, paymentModeOf } from '../common/payment-mode.util';
+import {
+  DEFAULT_REFUND_ETA_DAYS,
+  computeRefundBreakdown,
+  estimateRefundBy,
+} from '../refund/refund-amount.util';
 
 export interface NextVideo {
   id: string;
@@ -927,6 +933,7 @@ export class StudentService {
         gstAmount: true,
         totalAmount: true,
         status: true,
+        paymentMethod: true,
         razorpayOrderId: true,
         razorpayPaymentId: true,
         billingFullName: true,
@@ -947,20 +954,80 @@ export class StudentService {
             project: { select: { id: true, name: true } },
           },
         },
+        refunds: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            status: true,
+            amount: true,
+            createdAt: true,
+            processedAt: true,
+            razorpayRefundId: true,
+            courseId: true,
+            projectId: true,
+          },
+        },
       },
     });
-    return orders.map((o) => ({
-      ...o,
-      subtotal: o.subtotal.toNumber(),
-      discountAmount: o.discountAmount.toNumber(),
-      gstPercent: o.gstPercent.toNumber(),
-      gstAmount: o.gstAmount.toNumber(),
-      totalAmount: o.totalAmount.toNumber(),
-      items: o.items.map((i) => ({
-        ...i,
-        priceAtPurchase: i.priceAtPurchase.toNumber(),
-      })),
-    }));
+
+    const couponIds = [...new Set(orders.map((o) => o.couponId).filter((c): c is string => !!c))];
+    const [coupons, settings] = await Promise.all([
+      couponIds.length
+        ? this.prisma.coupon.findMany({ where: { id: { in: couponIds } }, select: { id: true, code: true } })
+        : Promise.resolve([] as { id: string; code: string }[]),
+      this.prisma.paymentSettings.findFirst({ select: { refundEtaDays: true } }),
+    ]);
+    const couponCodes = new Map<string, string>(coupons.map((c) => [c.id, c.code]));
+    const etaDays = settings?.refundEtaDays ?? DEFAULT_REFUND_ETA_DAYS;
+
+    return orders.map((o) => {
+      const subtotal = o.subtotal.toNumber();
+      const discountAmount = o.discountAmount.toNumber();
+      const gstPercent = o.gstPercent.toNumber();
+      return {
+        ...o,
+        subtotal,
+        discountAmount,
+        gstPercent,
+        gstAmount: o.gstAmount.toNumber(),
+        totalAmount: o.totalAmount.toNumber(),
+        couponCode: o.couponId ? couponCodes.get(o.couponId) ?? null : null,
+        paymentMode: paymentModeOf(o),
+        paymentMethodLabel: paymentMethodLabel(o.paymentMethod),
+        items: o.items.map((i) => ({
+          ...i,
+          priceAtPurchase: i.priceAtPurchase.toNumber(),
+          // What the student actually paid for this item (coupon cut, GST included).
+          paidAmount: computeRefundBreakdown(
+            { subtotal, discountAmount, gstPercent },
+            { priceAtPurchase: i.priceAtPurchase.toNumber(), projectId: i.project?.id ?? null },
+          ).paid,
+        })),
+        refunds: o.refunds.map((r) => {
+          const item = o.items.find((i) =>
+            r.courseId ? i.course?.id === r.courseId : i.project?.id === r.projectId,
+          );
+          return {
+            id: r.id,
+            status: r.status,
+            amount: r.amount.toNumber(),
+            createdAt: r.createdAt,
+            processedAt: r.processedAt,
+            referenceId: r.razorpayRefundId,
+            itemName: item?.course?.title ?? item?.project?.name ?? 'Your purchase',
+            // What was paid for this item → what comes back (coupon cut, GST included).
+            breakdown: item
+              ? computeRefundBreakdown(
+                  { subtotal, discountAmount, gstPercent },
+                  { priceAtPurchase: item.priceAtPurchase.toNumber(), projectId: item.project?.id ?? null },
+                )
+              : null,
+            etaDays,
+            estimatedBy: estimateRefundBy(r.processedAt ?? r.createdAt, etaDays),
+          };
+        }),
+      };
+    });
   }
 
   // ─────────────────────────────────────────────────────────────

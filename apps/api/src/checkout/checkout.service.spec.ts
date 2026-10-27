@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RazorpayClientService } from './razorpay-client.service';
 import { CouponService } from '../coupon/coupon.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
+import { InvoicesService } from '../invoices/invoices.service';
 
 /*
  * The Razorpay SDK is never touched for real in this file — `orders.create`
@@ -54,8 +55,12 @@ function setup() {
     }),
   } as unknown as PaymentSettingsService;
 
-  const service = new CheckoutService(prisma, razorpayClient, couponService, paymentSettings);
-  return { service, prisma, razorpayClient, razorpayOrdersCreate, couponService, paymentSettings, tx };
+  const invoices = {
+    createInvoice: jest.fn().mockResolvedValue({}),
+  } as unknown as InvoicesService;
+
+  const service = new CheckoutService(prisma, razorpayClient, couponService, paymentSettings, invoices);
+  return { service, prisma, razorpayClient, razorpayOrdersCreate, couponService, paymentSettings, invoices, tx };
 }
 
 function makeCart(overrides: Partial<Record<string, any>> = {}) {
@@ -269,7 +274,7 @@ describe('CheckoutService#createOrder — pricing, GST, coupons, currency', () =
 
 describe('CheckoutService#finalizeOrder — idempotency', () => {
   it('processes a CREATED order exactly once, creating one enrollment', async () => {
-    const { service, prisma, tx } = setup();
+    const { service, prisma, tx, invoices } = setup();
     (tx as any).order.updateMany = jest.fn().mockResolvedValue({ count: 1 });
     (tx as any).order.findUnique = jest.fn().mockResolvedValue({
       id: '__spec__order-fin',
@@ -295,10 +300,38 @@ describe('CheckoutService#finalizeOrder — idempotency', () => {
       data: expect.objectContaining({ status: 'PAID' }),
     });
     expect((tx as any).enrollment.create).toHaveBeenCalledTimes(1);
+    expect(invoices.createInvoice).toHaveBeenCalledTimes(1);
+    expect(invoices.createInvoice).toHaveBeenCalledWith('__spec__order-fin');
+  });
+
+  it('still succeeds (enrollment kept) when invoice creation fails', async () => {
+    const { service, tx, invoices } = setup();
+    (tx as any).order.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    (tx as any).order.findUnique = jest.fn().mockResolvedValue({
+      id: '__spec__order-fin3',
+      userId: '__spec__student-1',
+      couponId: null,
+      salespersonId: null,
+      items: [{ courseId: '__spec__course-react', priceAtPurchase: decimal(4999) }],
+    });
+    (tx as any).course = { findMany: jest.fn().mockResolvedValue([{ id: '__spec__course-react', trainer: null }]) };
+    (tx as any).enrollment = { create: jest.fn().mockResolvedValue({ id: '__spec__enr-new' }) };
+    (tx as any).orderItem.updateMany = jest.fn().mockResolvedValue({});
+    (tx as any).cart = { upsert: jest.fn().mockResolvedValue({}) };
+    (tx as any).user = { findUnique: jest.fn().mockResolvedValue({ email: '__spec__student@example.com' }) };
+    (tx as any).lead = { findFirst: jest.fn().mockResolvedValue(null) };
+    (invoices.createInvoice as jest.Mock).mockRejectedValue(new Error('invoice db down'));
+
+    const enrollments = await service.finalizeOrder('__spec__order-fin3', {
+      razorpayPaymentId: 'pay_3',
+    });
+
+    expect(enrollments).toHaveLength(1);
+    expect(invoices.createInvoice).toHaveBeenCalledTimes(1);
   });
 
   it('does not double-process (no second enrollment, no double revenue row) when finalize is called twice', async () => {
-    const { service, prisma, tx } = setup();
+    const { service, prisma, tx, invoices } = setup();
     // Second call: the WHERE status:'CREATED' guard matches nothing.
     (tx as any).order.updateMany = jest.fn().mockResolvedValue({ count: 0 });
     (tx as any).order.findUnique = jest.fn().mockResolvedValue({
@@ -313,5 +346,6 @@ describe('CheckoutService#finalizeOrder — idempotency', () => {
 
     expect(enrollments).toEqual([{ id: '__spec__enr-existing', courseId: '__spec__course-react' }]);
     expect((tx as any).enrollment?.create).toBeUndefined(); // never wired up, never called
+    expect(invoices.createInvoice).not.toHaveBeenCalled(); // only the winning call issues the invoice
   });
 });

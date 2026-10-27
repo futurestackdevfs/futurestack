@@ -17,6 +17,7 @@ import {
   computeTrainerShare,
   resolveTrainerSharePercent,
 } from '../payment-settings/share.util';
+import { InvoicesService } from '../invoices/invoices.service';
 import { RazorpayClientService } from './razorpay-client.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { gstPercentFor, resolveItemPrice } from '../common/pricing.util';
@@ -36,6 +37,7 @@ export class CheckoutService {
     private readonly razorpayClient: RazorpayClientService,
     private readonly couponService: CouponService,
     private readonly paymentSettings: PaymentSettingsService,
+    private readonly invoices: InvoicesService,
   ) {}
 
   private round2(n: number): number {
@@ -404,7 +406,8 @@ export class CheckoutService {
    * status:'CREATED' — only the first caller wins the transition to PAID.
    */
   async finalizeOrder(orderId: string, meta: FinalizeMeta) {
-    return this.prisma.$transaction(async (tx) => {
+    let transitioned = false;
+    const enrollments = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.order.updateMany({
         where: { id: orderId, status: 'CREATED' },
         data: {
@@ -431,6 +434,7 @@ export class CheckoutService {
         });
         return existing?.enrollments ?? [];
       }
+      transitioned = true;
 
       const order = await tx.order.findUnique({
         where: { id: orderId },
@@ -565,6 +569,21 @@ export class CheckoutService {
 
       return enrollments;
     });
+
+    // Issue the invoice only for the call that won the CREATED → PAID
+    // transition. Outside the transaction on purpose: an invoice failure must
+    // never roll back the enrollment the student just paid for (the backfill
+    // endpoint can issue it later — createInvoice is idempotent).
+    if (transitioned) {
+      try {
+        await this.invoices.createInvoice(orderId);
+      } catch (e) {
+        this.logger.error(
+          `Invoice creation failed for order ${orderId}: ${this.describeError(e)}`,
+        );
+      }
+    }
+    return enrollments;
   }
 
   /**

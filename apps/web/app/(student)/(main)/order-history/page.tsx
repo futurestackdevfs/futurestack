@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
 import { useAuth } from "@/app/auth/hooks/use-auth";
-import { userApi, type OrderHistoryItem } from "@/app/auth/lib/auth-api";
+import { userApi, type OrderHistoryItem, type OrderRefund } from "@/app/auth/lib/auth-api";
 
 const statusMeta: Record<OrderHistoryItem["status"], { label: string; cls: string }> = {
   PAID: { label: "Paid", cls: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400 border-green-200 dark:border-green-900/40" },
@@ -13,6 +13,8 @@ const statusMeta: Record<OrderHistoryItem["status"], { label: string; cls: strin
   FAILED: { label: "Failed", cls: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400 border-red-200 dark:border-red-900/40" },
   CANCELLED: { label: "Cancelled", cls: "bg-[var(--bg)] text-[var(--muted)] border-[var(--border2)]" },
   EXPIRED: { label: "Expired", cls: "bg-[var(--bg)] text-[var(--muted)] border-[var(--border2)]" },
+  REFUND_REQUESTED: { label: "Refund requested", cls: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-900/40" },
+  REFUNDED: { label: "Refunded", cls: "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400 border-purple-200 dark:border-purple-900/40" },
 };
 
 function money(amount: number, currency: OrderHistoryItem["currency"]): string {
@@ -22,6 +24,15 @@ function money(amount: number, currency: OrderHistoryItem["currency"]): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(amount);
+}
+
+/** "Online · UPI", "Cash", "Offline · UPI" — how this order was paid. */
+function paymentSummary(order: OrderHistoryItem): string {
+  const method = order.paymentMethodLabel;
+  if (order.paymentMode === "OFFLINE") {
+    return !method || method === "Cash" ? "Cash" : `Offline · ${method}`;
+  }
+  return method ? `Online · ${method}` : "Online";
 }
 
 function formatDate(iso: string): string {
@@ -38,6 +49,8 @@ function slugify(str: string): string {
 }
 
 function actualPaid(item: OrderHistoryItem["items"][number], order: OrderHistoryItem): number {
+  // The API works out the real per-item amount (coupon cut + GST) — prefer it.
+  if (item.paidAmount !== undefined) return item.paidAmount;
   if (!order.subtotal || order.subtotal === 0) return item.priceAtPurchase;
   const nonProjectItems = order.items.filter((it) => !it.project);
   if (nonProjectItems.length === 1 && order.items.length === 1) return order.totalAmount;
@@ -197,7 +210,7 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
     ["Invoice No.", orderNumber(order.id)],
     ["Invoice Date", formatDate(order.createdAt)],
     ["Order Status", statusMeta[order.status]?.label ?? order.status],
-    ["Payment Mode", order.gatewayType === "DOMESTIC" ? "Razorpay (Domestic)" : "Razorpay (International)"],
+    ["Payment Mode", paymentSummary(order)],
   ];
   let dy = boxTop + 15;
   details.forEach(([k, v]) => {
@@ -374,6 +387,158 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
   pdf.save(filename);
 }
 
+// ─── Refund status ─────────────────────────────────────────────────────────────
+
+function ItemNote({ order, item }: { order: OrderHistoryItem; item: OrderHistoryItem["items"][number] }) {
+  if (order.status === "PAID") return <span>Purchased at {money(actualPaid(item, order), order.currency)}</span>;
+  if (order.status === "REFUNDED" || order.status === "REFUND_REQUESTED") {
+    return (
+      <span>
+        Paid {money(actualPaid(item, order), order.currency)} · {order.status === "REFUNDED" ? "refunded" : "refund requested"}
+      </span>
+    );
+  }
+  return <span className="text-red-500 font-semibold">Payment Failed</span>;
+}
+
+type StepState = "done" | "current" | "upcoming" | "failed";
+
+function RefundStep({ state, title, detail, last }: { state: StepState; title: string; detail?: string; last?: boolean }) {
+  const dot =
+    state === "done" ? "bg-green-500 border-green-500 text-white"
+    : state === "failed" ? "bg-red-500 border-red-500 text-white"
+    : state === "current" ? "bg-[var(--surface)] border-orange-500 text-orange-500"
+    : "bg-[var(--surface)] border-[var(--border2)] text-[var(--muted)]";
+  return (
+    <div className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <div className={`size-5 rounded-full border-2 flex items-center justify-center text-[10px] font-bold shrink-0 ${dot}`}>
+          {state === "done" ? "✓" : state === "failed" ? "✕" : state === "current" ? "•" : ""}
+        </div>
+        {!last && <div className={`w-0.5 flex-1 min-h-6 ${state === "done" ? "bg-green-500/60" : "bg-[var(--border2)]"}`} />}
+      </div>
+      <div className="pb-4 -mt-0.5">
+        <div className={`text-[12.5px] font-semibold ${state === "upcoming" ? "text-[var(--muted)]" : "text-[var(--text)]"}`}>{title}</div>
+        {detail && <div className="text-[11px] text-[var(--text3)] mt-0.5">{detail}</div>}
+      </div>
+    </div>
+  );
+}
+
+function RefundPanel({ refund, order }: { refund: OrderRefund; order: OrderHistoryItem }) {
+  const cur = order.currency;
+  const b = refund.breakdown;
+  const expected = formatDate(refund.estimatedBy);
+  const overdue = refund.status === "PROCESSED" && new Date(refund.estimatedBy).getTime() < Date.now();
+  const rejected = refund.status === "REJECTED";
+
+  const chip =
+    rejected ? { label: "Not approved", cls: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400" }
+    : refund.status === "PENDING" ? { label: "Under review", cls: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" }
+    : { label: "Refund initiated", cls: "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400" };
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)]/60 overflow-hidden">
+      <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)]">
+        <div className="min-w-0">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text3)]">Refund</div>
+          <div className="text-[13px] font-semibold text-[var(--text)] truncate">{refund.itemName}</div>
+        </div>
+        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${chip.cls}`}>{chip.label}</span>
+      </div>
+
+      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* What comes back */}
+        <div>
+          <div className="text-[11px] text-[var(--text3)]">{rejected ? "Refund amount requested" : "You get back"}</div>
+          <div className={`text-2xl font-extrabold ${rejected ? "text-[var(--muted)] line-through" : "text-green-600 dark:text-green-400"}`}>
+            {money(refund.amount, cur)}
+          </div>
+          {!rejected && <div className="text-[11px] text-[var(--text3)] mt-0.5">to your original payment method</div>}
+
+          {b && (
+            <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[12px]">
+              <div className="flex justify-between px-3 py-1.5">
+                <span className="text-[var(--muted)]">Price</span>
+                <span className="text-[var(--text)]">{money(b.itemPrice, cur)}</span>
+              </div>
+              {b.couponDiscount > 0 && (
+                <div className="flex justify-between px-3 py-1.5 border-t border-[var(--border)]">
+                  <span className="text-[var(--muted)]">Coupon discount{order.couponCode ? ` (${order.couponCode})` : ""}</span>
+                  <span className="text-green-600 dark:text-green-400">− {money(b.couponDiscount, cur)}</span>
+                </div>
+              )}
+              {b.gstAmount > 0 && (
+                <div className="flex justify-between px-3 py-1.5 border-t border-[var(--border)]">
+                  <span className="text-[var(--muted)]">GST ({order.gstPercent}%)</span>
+                  <span className="text-[var(--text)]">+ {money(b.gstAmount, cur)}</span>
+                </div>
+              )}
+              <div className="flex justify-between px-3 py-1.5 border-t border-[var(--border)] font-semibold">
+                <span className="text-[var(--text)]">You paid</span>
+                <span className="text-[var(--text)]">{money(b.paid, cur)}</span>
+              </div>
+              <div className="flex justify-between px-3 py-1.5 border-t border-[var(--border)] font-bold bg-green-50 dark:bg-green-950/20 rounded-b-lg">
+                <span className="text-green-700 dark:text-green-400">{rejected ? "Refund (not approved)" : "Refund"}</span>
+                <span className="text-green-700 dark:text-green-400">{money(refund.amount, cur)}</span>
+              </div>
+            </div>
+          )}
+          {!rejected && b && (
+            <p className="text-[10.5px] text-[var(--text3)] mt-2 leading-relaxed">
+              You get back exactly what you paid
+              {b.couponDiscount > 0 ? " — the coupon discount was never charged to you, so it is not part of the refund" : ""}.
+            </p>
+          )}
+        </div>
+
+        {/* Step by step */}
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text3)] mb-2">Refund progress</div>
+          {rejected ? (
+            <>
+              <RefundStep state="done" title="Refund request reviewed" detail={formatDate(refund.createdAt)} />
+              <RefundStep state="failed" title="Not approved" detail="This refund was not approved. Contact support if you think this is a mistake." last />
+            </>
+          ) : (
+            <>
+              <RefundStep
+                state="done"
+                title={refund.status === "PENDING" ? "Refund request received" : "Refund approved"}
+                detail={formatDate(refund.createdAt)}
+              />
+              <RefundStep
+                state={refund.status === "PROCESSED" ? "done" : "current"}
+                title="Sent to your bank / card / UPI"
+                detail={refund.processedAt ? formatDate(refund.processedAt) : "We are processing it"}
+              />
+              <RefundStep
+                state={overdue ? "current" : "upcoming"}
+                title="Money reaches your account"
+                detail={overdue ? "Taking longer than expected — please contact support" : `Expected by ${expected} (within ${refund.etaDays} days)`}
+                last
+              />
+            </>
+          )}
+          {refund.referenceId && (
+            <div className="text-[10.5px] text-[var(--text3)] mt-1">
+              Reference: <span className="font-mono text-[var(--text2)]">{refund.referenceId}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="px-4 py-2.5 border-t border-[var(--border)] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--text3)]">
+        <span>Refunds usually reach you within {refund.etaDays} days. Some banks may take a day or two longer to show it.</span>
+        <Link href="/support" className="font-semibold text-[var(--blue2)] hover:underline no-underline">
+          Need help? Contact Support →
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OrderHistoryPage() {
@@ -386,7 +551,7 @@ export default function OrderHistoryPage() {
     if (!isLoading && !isAuthenticated) router.push("/");
   }, [isLoading, isAuthenticated, router]);
 
-  const { data: orders, isLoading: ordersLoading } = useSWR<OrderHistoryItem[]>(
+  const { data: orders, error: ordersError, isLoading: ordersLoading, mutate: reloadOrders } = useSWR<OrderHistoryItem[]>(
     user && isAuthenticated ? ["order-history", user.role] : null,
     () => userApi.getOrders(user!.role),
   );
@@ -448,6 +613,20 @@ export default function OrderHistoryPage() {
           <div className="flex items-center justify-center py-24">
             <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : ordersError && !orders ? (
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm py-16 flex flex-col items-center justify-center text-center px-6">
+            <h2 className="text-lg font-bold text-[var(--text)] mb-1">Couldn&apos;t load your orders</h2>
+            <p className="text-sm text-[var(--muted)] max-w-sm leading-relaxed mb-5">
+              Something went wrong while fetching your purchase history. Your orders are safe — please try again.
+            </p>
+            <button
+              type="button"
+              onClick={() => reloadOrders()}
+              className="px-5 py-2.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r from-blue-500 to-orange-500 hover:from-blue-600 hover:to-orange-600 transition-all duration-200 shadow-md hover:shadow-lg cursor-pointer"
+            >
+              Try again
+            </button>
+          </div>
         ) : list.length === 0 ? (
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-sm py-20 flex flex-col items-center justify-center text-center px-6">
             <div className="size-16 rounded-2xl bg-[var(--bg)] border border-[var(--border)] flex items-center justify-center mb-4">
@@ -475,7 +654,12 @@ export default function OrderHistoryPage() {
                       </div>
                       <div>
                         <div className="font-mono text-[12px] font-bold text-[var(--text)]">{orderNumber(order.id)}</div>
-                        <div className="text-[10.5px] text-[var(--text3)]">{formatDate(order.createdAt)}</div>
+                        <div className="text-[10.5px] text-[var(--text3)]">
+                          {formatDate(order.createdAt)}
+                          {["PAID", "REFUND_REQUESTED", "REFUNDED"].includes(order.status) && (
+                            <> · <span className="font-semibold text-[var(--text2)]">Paid {paymentSummary(order)}</span></>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5">
@@ -508,11 +692,7 @@ export default function OrderHistoryPage() {
                                   <div className="text-[13px] font-semibold text-[var(--text)] truncate">{item.project!.name}</div>
                                   <div className="flex items-center gap-1.5 text-[11px] text-[var(--text3)]">
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-400">Project</span>
-                                    {order.status === "PAID" ? (
-                                      <span>Purchased at {money(actualPaid(item, order), order.currency)}</span>
-                                    ) : (
-                                      <span className="text-red-500 font-semibold">Payment Failed</span>
-                                    )}
+                                    <ItemNote order={order} item={item} />
                                   </div>
                                 </>
                               ) : (
@@ -524,11 +704,7 @@ export default function OrderHistoryPage() {
                                     {item.course?.title}
                                   </button>
                                   <div className="text-[11px] text-[var(--text3)]">
-                                    {order.status === "PAID" ? (
-                                      <span>Purchased at {money(actualPaid(item, order), order.currency)}</span>
-                                    ) : (
-                                      <span className="text-red-500 font-semibold">Payment Failed</span>
-                                    )}
+                                    <ItemNote order={order} item={item} />
                                   </div>
                                 </>
                               )}
@@ -539,7 +715,7 @@ export default function OrderHistoryPage() {
                       {order.discountAmount > 0 && (
                         <div className="flex items-center gap-2 pt-2 text-[11px] text-[var(--muted)] border-t border-dashed border-[var(--border2)]">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600"><path d="M20 12 8 12 10 9M8 12l2 3" /></svg>
-                          Coupon {order.couponId ? `(${order.couponId.slice(0, 10)})` : "applied"} · saved {money(order.discountAmount, order.currency)}
+                          Coupon {order.couponCode ? `(${order.couponCode})` : "applied"} · saved {money(order.discountAmount, order.currency)}
                         </div>
                       )}
                     </div>
@@ -569,6 +745,26 @@ export default function OrderHistoryPage() {
                       )}
                     </div>
                   </div>
+
+                  {order.status === "PAID" && !(order.refunds && order.refunds.length > 0) && (
+                    <p className="px-5 pb-4 -mt-1 text-[11px] text-[var(--text3)]">
+                      {order.paymentMode === "OFFLINE"
+                        ? "Paid in cash? Refunds for cash payments are handled manually by our team. "
+                        : "Need a refund? "}
+                      <Link href="/support" className="font-semibold text-[var(--blue2)] hover:underline no-underline">
+                        Contact Support
+                      </Link>
+                      .
+                    </p>
+                  )}
+
+                  {order.refunds && order.refunds.length > 0 && (
+                    <div className="px-5 pb-5 space-y-3">
+                      {order.refunds.map((refund) => (
+                        <RefundPanel key={refund.id} refund={refund} order={order} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
