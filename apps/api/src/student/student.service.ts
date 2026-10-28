@@ -12,6 +12,7 @@ import { S3Service } from '../upload/s3.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { parseStoredRoadmap } from '../courses/courses.service';
 import { paymentMethodLabel, paymentModeOf } from '../common/payment-mode.util';
+import { GIFT_CODE, isGiftOrder } from '../common/gift.util';
 import {
   DEFAULT_REFUND_ETA_DAYS,
   computeRefundBreakdown,
@@ -994,6 +995,8 @@ export class StudentService {
         couponCode: o.couponId ? couponCodes.get(o.couponId) ?? null : null,
         paymentMode: paymentModeOf(o),
         paymentMethodLabel: paymentMethodLabel(o.paymentMethod),
+        // Set for admin-gifted enrollments (₹0 orders) — shown on the invoice.
+        giftCode: isGiftOrder(o) ? GIFT_CODE : null,
         items: o.items.map((i) => ({
           ...i,
           priceAtPurchase: i.priceAtPurchase.toNumber(),

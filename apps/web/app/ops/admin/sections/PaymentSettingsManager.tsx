@@ -8,6 +8,7 @@ import CouponsManager from "./CouponsManager";
 // loads. The live, editable value is PaymentSettings.usdRate (this component).
 const DEFAULT_USD_RATE = 95;
 const DEFAULT_REFUND_ETA_DAYS = 7;
+const DEFAULT_MAX_CART_ITEMS = 5;
 
 interface PaymentSettings {
   id: string;
@@ -18,6 +19,7 @@ interface PaymentSettings {
   gstPercentUsd: number;
   usdRate: number;
   refundEtaDays?: number;
+  maxCartItems?: number;
   updatedAt: string;
 }
 
@@ -557,6 +559,33 @@ export default function PaymentSettingsManager({ token, searchQuery = "" }: Paym
                     const el = document.getElementById("refund-eta-input") as HTMLInputElement | null;
                     const days = Math.max(1, Math.min(30, Math.round(Number(el?.value ?? DEFAULT_REFUND_ETA_DAYS))));
                     if (Number.isFinite(days) && days !== settings.refundEtaDays) savePatch({ refundEtaDays: days }, `Refund timeline set to ${days} days`);
+                  }}
+                  className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer disabled:opacity-60"
+                  style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--panel)" }}>Save</button>
+              </div>
+            </div>
+
+            {/* Cart limit — most courses/projects a student can hold in the cart at once */}
+            <div className="rounded-xl p-4 flex items-center justify-between gap-4 mt-3" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center text-[16px] shrink-0" style={{ background: "var(--bg2)", color: "var(--text2)" }}>🛒</div>
+                <div>
+                  <div className="text-[13px] font-bold" style={{ color: "var(--text)" }}>Cart limit</div>
+                  <div className="text-[11px] mt-0.5 leading-snug max-w-[420px]" style={{ color: "var(--muted)" }}>
+                    Current: {settings.maxCartItems ?? DEFAULT_MAX_CART_ITEMS} items. A student can&apos;t add more than this many courses/projects to the cart at once; extra courses can be kept in the wishlist.
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <input type="number" min={1} max={50} step={1} disabled={saving} defaultValue={settings.maxCartItems ?? DEFAULT_MAX_CART_ITEMS} key={`maxcart-${settings.maxCartItems}`}
+                  className="font-mono text-[12px] px-2 py-1 rounded w-[70px] text-right outline-none"
+                  style={{ border: "1px solid var(--border)", background: "var(--panel)", color: "var(--text)" }} id="max-cart-input" />
+                <span className="font-mono text-[10px]" style={{ color: "var(--text3)" }}>items</span>
+                <button disabled={saving}
+                  onClick={() => {
+                    const el = document.getElementById("max-cart-input") as HTMLInputElement | null;
+                    const n = Math.max(1, Math.min(50, Math.round(Number(el?.value ?? DEFAULT_MAX_CART_ITEMS))));
+                    if (Number.isFinite(n) && n !== settings.maxCartItems) savePatch({ maxCartItems: n }, `Cart limit set to ${n} items`);
                   }}
                   className="font-mono text-[10.5px] font-semibold px-3 py-1 rounded cursor-pointer disabled:opacity-60"
                   style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--panel)" }}>Save</button>

@@ -36,6 +36,8 @@ export interface Ticket {
   lastMessageAt: string;
   resolvedAt: string | null;
   closedAt: string | null;
+  /** Why it is closed: the student, support, or AUTO (no student reply for a few days). */
+  closedReason: "STUDENT" | "AGENT" | "AUTO" | null;
 }
 
 export interface TicketMessage {

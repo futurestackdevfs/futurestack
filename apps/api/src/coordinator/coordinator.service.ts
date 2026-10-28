@@ -1,10 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { EscalationsService, Actor } from '../escalations/escalations.service';
 
 @Injectable()
 export class CoordinatorService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly escalations: EscalationsService,
+  ) {}
 
   async getDashboard() {
     const now = new Date();
@@ -51,12 +55,8 @@ export class CoordinatorService {
           createdAt: { gte: weekStart },
         },
       }),
-      this.prisma.user.count({
-        where: {
-          role: 'STUDENT',
-          isActive: true,
-          // flaggedToCoordinator is on User model
-        },
+      this.prisma.escalation.count({
+        where: { type: 'TRAINER_FLAG', status: { in: ['OPEN', 'ASSIGNED', 'IN_PROGRESS'] } },
       }),
       this.prisma.user.findMany({
         where: { role: 'TRAINER' },
@@ -222,123 +222,49 @@ export class CoordinatorService {
     }));
   }
 
-  async updateStudentFlag(studentId: string, flag: string, note?: string) {
-    // Store flag as a JSON note on the student's profile bio field
-    // In production, you'd have a dedicated StudentFlag model
-    const student = await this.prisma.user.findUnique({
-      where: { id: studentId },
-      select: { id: true, role: true },
-    });
-
-    if (!student || student.role !== 'STUDENT') {
-      throw new Error('Student not found');
-    }
-
-    // We'll store coordinator flags in a structured way using the bio field
-    // as a temporary solution until a proper flag model is added
-    const existing = await this.prisma.user.findUnique({
-      where: { id: studentId },
-      select: { bio: true },
-    });
-
-    let flags: Record<string, unknown> = {};
-    try {
-      const parsed = JSON.parse(existing?.bio || '{}');
-      if (typeof parsed === 'object' && parsed !== null) {
-        flags = parsed;
+  /**
+   * Coordinator sets a flag on a student. Any flag raises (or adds to) the
+   * student's escalation; "resolved" closes it.
+   */
+  async updateStudentFlag(studentId: string, flag: string, note: string | undefined, actor: Actor) {
+    if (flag === 'resolved') {
+      const open = await this.escalations.activeTrainerFlags();
+      for (const e of open.filter((x) => x.studentId === studentId)) {
+        await this.escalations.resolveTrainerFlag(e.id, note?.trim() || 'Cleared by the coordinator', actor);
       }
-    } catch {
-      flags = {};
+      return { success: true, studentId, flag, note };
     }
 
-    flags.coordinatorFlag = flag;
-    flags.coordinatorFlagNote = note || null;
-    flags.coordinatorFlagAt = new Date().toISOString();
-
-    await this.prisma.user.update({
-      where: { id: studentId },
-      data: { bio: JSON.stringify(flags) },
-    });
-
+    // The flag label travels in the reason so the escalations list can show it.
+    const reason = `[${flag}] ${note?.trim() ?? ''}`.trim();
+    await this.escalations.flagStudent(studentId, reason, actor);
     return { success: true, studentId, flag, note };
   }
 
   async getEscalations() {
-    // Students flagged by trainers via "Flag to Coordinator"
-    // Check for students with coordinator flags in their bio
-    const students = await this.prisma.user.findMany({
-      where: {
-        role: 'STUDENT',
-        isActive: true,
-        bio: { contains: 'coordinatorFlag' },
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        city: true,
-        bio: true,
-        enrollments: {
-          select: {
-            course: { select: { title: true } },
-          },
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
-
-    return students
-      .map((s) => {
-        let flags: Record<string, unknown> = {};
-        try {
-          const parsed = JSON.parse(s.bio || '{}');
-          if (typeof parsed === 'object' && parsed !== null) flags = parsed;
-        } catch {
-          flags = {};
-        }
-
+    const flags = await this.escalations.activeTrainerFlags();
+    return flags
+      .filter((e) => e.student)
+      .map((e) => {
+        const student = e.student!;
+        const m = /^\[([^\]]+)\]\s*([\s\S]*)$/.exec(e.reason);
         return {
-          id: s.id,
-          name: s.name,
-          email: s.email,
-          phone: s.phone,
-          city: s.city,
-          flag: flags.coordinatorFlag || null,
-          note: flags.coordinatorFlagNote || null,
-          flaggedAt: flags.coordinatorFlagAt || null,
-          courses: s.enrollments.map((e) => e.course.title),
+          id: e.id,
+          name: student.name,
+          email: student.email,
+          phone: student.phone,
+          city: student.city,
+          flag: m ? m[1] : 'flagged',
+          note: (m ? m[2] : e.reason) || null,
+          flaggedAt: e.createdAt,
+          courses: student.enrollments.map((en) => en.course.title),
         };
-      })
-      .filter((s) => s.flag && s.flag !== 'resolved');
+      });
   }
 
-  async resolveEscalation(studentId: string, resolution: string) {
-    const student = await this.prisma.user.findUnique({
-      where: { id: studentId },
-      select: { bio: true },
-    });
-
-    if (!student) throw new Error('Student not found');
-
-    let flags: Record<string, unknown> = {};
-    try {
-      const parsed = JSON.parse(student.bio || '{}');
-      if (typeof parsed === 'object' && parsed !== null) flags = parsed;
-    } catch {
-      flags = {};
-    }
-
-    flags.coordinatorFlag = 'resolved';
-    flags.resolutionNote = resolution;
-    flags.resolvedAt = new Date().toISOString();
-
-    await this.prisma.user.update({
-      where: { id: studentId },
-      data: { bio: JSON.stringify(flags) },
-    });
-
-    return { success: true, studentId, resolution };
+  async resolveEscalation(id: string, resolution: string, actor: Actor) {
+    await this.escalations.resolveTrainerFlag(id, resolution, actor);
+    return { success: true, id, resolution };
   }
 
   async getTrainers() {

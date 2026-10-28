@@ -211,6 +211,8 @@ export type OrderHistoryItem = {
   /** ONLINE = paid through Razorpay · OFFLINE = cash / collected by the team. */
   paymentMode?: 'ONLINE' | 'OFFLINE';
   paymentMethodLabel?: string | null;
+  /** "GIFT" for an enrollment gifted by FutureStack (nothing was charged). */
+  giftCode?: string | null;
   razorpayOrderId: string;
   razorpayPaymentId: string | null;
   billingFullName: string | null;

@@ -5,6 +5,8 @@ interface AdminSidebarProps {
   onSwitchView: (view: string) => void;
   open?: boolean;
   onClose?: () => void;
+  /** Escalations still needing attention — shown as the sidebar badge. */
+  escalationCount?: number | null;
 }
 
 interface NavItem {
@@ -38,7 +40,7 @@ const adminNav: NavItem[] = [
   { icon: "📋", label: "Enrollments", view: "enrollments" },
   { icon: "👤", label: "User Accounts", view: "users" },
   { icon: "🖥", label: "System Health", view: "system-health" },
-  { icon: "🚨", label: "Escalations", badge: { text: "2", color: "var(--red)", bg: "var(--red-d)" } },
+  { icon: "🚨", label: "Escalations", view: "escalations" },
   { icon: "💾", label: "Backups" },
   { icon: "🔌", label: "Integrations", view: "integrations" },
 ];
@@ -52,10 +54,15 @@ const configNav: NavItem[] = [
 
 const reportNav: NavItem[] = [
   { icon: "▦", label: "Audit Log", view: "audit-log" },
-  { icon: "▧", label: "Data Reports" },
+  { icon: "▧", label: "Data Reports", view: "reports" },
 ];
 
-export function AdminSidebar({ activeView, onSwitchView, open = false, onClose }: AdminSidebarProps) {
+export function AdminSidebar({ activeView, onSwitchView, open = false, onClose, escalationCount }: AdminSidebarProps) {
+  const nav: NavItem[] = adminNav.map((item) =>
+    item.view === "escalations" && escalationCount
+      ? { ...item, badge: { text: String(escalationCount), color: "var(--red)", bg: "var(--red-d)" } }
+      : item,
+  );
   return (
     <>
       {open && (
@@ -101,7 +108,7 @@ export function AdminSidebar({ activeView, onSwitchView, open = false, onClose }
         <div className="font-mono text-[9px] font-semibold uppercase tracking-widest px-3.5 pt-2.5 pb-1" style={{ color: "var(--text3)" }}>
           Admin Console
         </div>
-        {adminNav.map((item, i) => {
+        {nav.map((item, i) => {
           const isActive = activeView === item.view;
           return (
             <div key={i}

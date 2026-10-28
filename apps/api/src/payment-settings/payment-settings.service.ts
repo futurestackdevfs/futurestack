@@ -50,6 +50,7 @@ export class PaymentSettingsService {
       internationalEnabled: s.internationalEnabled,
       gstPercent: s.gstPercent,
       gstPercentUsd: s.gstPercentUsd,
+      maxCartItems: s.maxCartItems,
     };
   }
 
@@ -65,6 +66,7 @@ export class PaymentSettingsService {
       gstPercentUsd: dto.gstPercentUsd ?? settings.gstPercentUsd,
       usdRate: dto.usdRate ?? settings.usdRate,
       refundEtaDays: dto.refundEtaDays ?? settings.refundEtaDays,
+      maxCartItems: dto.maxCartItems ?? settings.maxCartItems,
     };
     if (!next.domesticEnabled && !next.internationalEnabled) {
       throw new BadRequestException(

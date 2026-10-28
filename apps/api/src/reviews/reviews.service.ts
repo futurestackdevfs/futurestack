@@ -79,6 +79,22 @@ export class ReviewsService {
     return updated;
   }
 
+  /** Deletes the student's own review (course or project) and refreshes the rating aggregates. */
+  async deleteReview(studentId: string, reviewId: string) {
+    const review = await this.prisma.review.findUnique({
+      where: { id: reviewId },
+    });
+    if (!review) throw new NotFoundException('Review not found');
+    if (review.studentId !== studentId)
+      throw new BadRequestException('Not your review');
+
+    await this.prisma.review.delete({ where: { id: reviewId } });
+
+    if (review.courseId) await this.recalculateRatings(review.courseId);
+    if (review.projectId) await this.recalculateProjectRatings(review.projectId);
+    return { deleted: true };
+  }
+
   async getCourseReviews(
     courseId: string,
     page: number = 1,

@@ -33,7 +33,10 @@ export interface TrainerSession {
 export type StudentFlag = "On Track" | "Falling Behind" | "Ready for Next Module" | "Needs Re-attempt";
 
 export interface TrainerStudent {
+  /** Row key only — NOT the user id. Send `studentId` to the API. */
   id: number;
+  /** The student's real user id. */
+  studentId: string;
   name: string;
   email: string;
   batchCode: string;

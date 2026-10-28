@@ -13,6 +13,7 @@ import {
   resolveItemOriginalPrice,
   resolveItemPrice,
 } from '../common/pricing.util';
+import { cartFullMessage, resolveMaxCartItems } from './cart-limit.util';
 
 @Injectable()
 export class CartService {
@@ -48,6 +49,22 @@ export class CartService {
 
   private round2(n: number): number {
     return Math.round(n * 100) / 100;
+  }
+
+  private async getMaxItems(): Promise<number> {
+    // A settings hiccup must not block the cart — resolveMaxCartItems falls back.
+    const settings = await this.paymentSettings.getSettings().catch(() => ({}));
+    return resolveMaxCartItems(settings);
+  }
+
+  /** Throws when adding `isAlreadyInCart === false` would push the cart past the limit. */
+  private async assertRoomInCart(cartId: string, isAlreadyInCart: boolean) {
+    if (isAlreadyInCart) return;
+    const [max, count] = await Promise.all([
+      this.getMaxItems(),
+      this.prisma.cartItem.count({ where: { cartId } }),
+    ]);
+    if (count >= max) throw new ConflictException(cartFullMessage(max));
   }
 
   private async getVideoStats(
@@ -130,6 +147,7 @@ export class CartService {
         gstPercent: 18,
         gstPercentUsd: 0,
         usdRate: 0,
+        maxCartItems: null as number | null,
       })),
     ]);
 
@@ -269,6 +287,7 @@ export class CartService {
 
     return {
       items: enriched,
+      maxItems: resolveMaxCartItems(settings),
       coupon,
       discountAmount,
       subtotal,
@@ -308,6 +327,11 @@ export class CartService {
       if (!project || project.status !== 'ACTIVE') {
         throw new NotFoundException('Project not found');
       }
+      const existing = await this.prisma.cartItem.findUnique({
+        where: { cartId_projectId: { cartId: cart.id, projectId } },
+        select: { id: true },
+      });
+      await this.assertRoomInCart(cart.id, !!existing);
       await this.prisma.cartItem.upsert({
         where: { cartId_projectId: { cartId: cart.id, projectId } },
         create: { cartId: cart.id, projectId },
@@ -322,6 +346,11 @@ export class CartService {
         throw new NotFoundException('Course not found');
       }
       await this.assertNotEnrolled(userId, courseId);
+      const existing = await this.prisma.cartItem.findUnique({
+        where: { cartId_courseId: { cartId: cart.id, courseId } },
+        select: { id: true },
+      });
+      await this.assertRoomInCart(cart.id, !!existing);
       await this.prisma.cartItem.upsert({
         where: { cartId_courseId: { cartId: cart.id, courseId } },
         create: { cartId: cart.id, courseId },
@@ -381,8 +410,21 @@ export class CartService {
         : [];
     const enrolled = new Set(enrolledRows.map((e) => e.courseId));
 
+    // Respect the cart limit: guest courses beyond it are skipped, never an error.
+    const [max, existingItems] = await Promise.all([
+      this.getMaxItems(),
+      this.prisma.cartItem.findMany({ where: { cartId: cart.id }, select: { courseId: true } }),
+    ]);
+    const inCart = new Set(existingItems.map((i) => i.courseId));
+    let size = existingItems.length;
+
     for (const courseId of courseIds) {
       if (!valid.has(courseId) || enrolled.has(courseId)) continue;
+      if (!inCart.has(courseId)) {
+        if (size >= max) continue;
+        size += 1;
+        inCart.add(courseId);
+      }
       try {
         await this.prisma.cartItem.upsert({
           where: { cartId_courseId: { cartId: cart.id, courseId } },

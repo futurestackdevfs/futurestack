@@ -12,6 +12,8 @@ import { StarRating } from "@/components/StarRating";
 import { ReviewForm } from "@/components/ReviewForm";
 import { showToast } from "@/lib/toast";
 import { RoadmapView, type RoadmapData } from "@/components/RoadmapTree";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useWishlist } from "@/app/(student)/hooks/use-wishlist";
 
 const API = '/api';
 const fetcher = async (url: string) => {
@@ -394,14 +396,25 @@ export default function CourseDetailPage() {
   };
 
   // ── Reviews ──────────────────────────────────────
+  const reviewsKey = courseId ? `${API}/courses/${courseId}/reviews?page=${reviewPage}&limit=10` : null;
   const { data: reviewsData, isLoading: reviewsLoading, mutate: mutateReviews } = useSWR<ReviewsResponse>(
-    courseId ? `${API}/courses/${courseId}/reviews?page=${reviewPage}&limit=10` : null,
+    reviewsKey,
     fetcher,
   );
+  // The public reviews list is edge/browser cached for a couple of minutes, so a
+  // plain revalidate right after a submit/delete returns the old list. A
+  // throwaway query param forces a fresh read and writes it into the SWR cache.
+  const refreshReviews = () =>
+    reviewsKey
+      ? mutateReviews(() => fetcher(`${reviewsKey}&_=${Date.now()}`) as Promise<ReviewsResponse>, { revalidate: false })
+      : Promise.resolve(undefined);
 
   // `null` until known (and for non-students, who can't review) — the Reviews
   // tab then shows the enroll prompt instead of a form the API would reject.
   const [canReview, setCanReview] = useState<boolean | null>(null);
+  const isEnrolled = canReview === true;
+  const { ids: wishlistIds, toggle: toggleWishlist, busy: wishlistBusy } = useWishlist();
+  const isWishlisted = !!courseId && wishlistIds.has(courseId);
 
   useEffect(() => {
     if (!courseId || !isAuthenticated) {
@@ -457,7 +470,31 @@ export default function CourseDetailPage() {
     const data = await res.json();
     setMyReview(data);
     setShowReviewForm(false);
-    mutateReviews();
+    await refreshReviews();
+  };
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const handleDeleteReview = async () => {
+    if (!myReview || !courseId) return;
+    const token = await loadToken();
+    if (!token) return;
+    setDeleting(true);
+    const res = await fetch(`${API}/courses/${courseId}/reviews/${myReview.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setDeleting(false);
+    setConfirmDelete(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      showToast(body.message || 'Could not delete your review');
+      return;
+    }
+    setMyReview(null);
+    setShowReviewForm(false);
+    await refreshReviews();
+    showToast('Review deleted');
   };
 
   const handleReviewFormSubmit = async (rating: number, comment: string) => {
@@ -470,7 +507,8 @@ export default function CourseDetailPage() {
 
   const reviews = reviewsData?.data ?? [];
   const reviewsTotal = reviewsData?.total ?? 0;
-  const reviewCount = (course as { reviewCount?: number } | undefined)?.reviewCount ?? reviewsTotal;
+  // Prefer the live list total over the (cached) course payload so the count drops right after a delete.
+  const reviewCount = reviewsData ? reviewsTotal : (course as { reviewCount?: number } | undefined)?.reviewCount ?? 0;
   const displayReviewCount = reviewCount || course?.students || 0;
 
   const freePreviewVideo = course?.sections?.flatMap(s => s.videos).find(v => v.isPreview) ?? null;
@@ -868,6 +906,16 @@ export default function CourseDetailPage() {
                 </div>
               ) : (
                 <>
+                  <ConfirmDialog
+                    open={confirmDelete}
+                    danger
+                    title="Delete your review?"
+                    message="This can't be undone. Your rating will be removed from the course."
+                    confirmLabel="Delete"
+                    busy={deleting}
+                    onConfirm={handleDeleteReview}
+                    onCancel={() => setConfirmDelete(false)}
+                  />
                   {myReview && !showReviewForm ? (
                     <div className="border border-[var(--border)] dark:border-[#1e2535] rounded-2xl p-4 mb-4 bg-[#F9FAFB] dark:bg-[#0b0e14]">
                       <div className="flex items-center justify-between mb-2">
@@ -875,7 +923,10 @@ export default function CourseDetailPage() {
                           <StarRating value={myReview.rating} size={14} />
                           <span className="text-[12px] font-bold text-[#111827] dark:text-[#e8eaf0]">Your Review</span>
                         </div>
-                        <button onClick={() => setShowReviewForm(true)} className="text-[11px] font-bold text-white bg-[linear-gradient(135deg,#0D1F5C,#2952CC)] px-3 py-[3px] rounded-[6px] cursor-pointer transition-all hover:shadow-md hover:-translate-y-px shadow-sm">Edit</button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setShowReviewForm(true)} className="text-[11px] font-bold text-white bg-[linear-gradient(135deg,#0D1F5C,#2952CC)] px-3 py-[3px] rounded-[6px] cursor-pointer transition-all hover:shadow-md hover:-translate-y-px shadow-sm">Edit</button>
+                          <button onClick={() => setConfirmDelete(true)} className="text-[11px] font-bold text-[#DC2626] dark:text-[#f87171] bg-transparent border border-[#FECACA] dark:border-[#7f1d1d] px-3 py-[3px] rounded-[6px] cursor-pointer transition-all hover:bg-[#FEF2F2] dark:hover:bg-[#1f1315]">Delete</button>
+                        </div>
                       </div>
                       {myReview.comment && <div className="text-[13px] text-[#4B5563] dark:text-[#b0bac9] leading-[1.6]">{myReview.comment}</div>}
                     </div>
@@ -971,14 +1022,34 @@ export default function CourseDetailPage() {
             </div>
 
             <div className="p-4">
-              <button
-                onClick={handleUnlock}
-                disabled={addingToCart}
-                className="w-full py-3.5 rounded-[10px] bg-[linear-gradient(135deg,#F04E00_0%,#FF6B2B_100%)] text-white text-[15px] font-extrabold shadow-[0_4px_20px_rgba(240,78,0,.35)] hover:shadow-[0_6px_28px_rgba(240,78,0,.45)] hover:-translate-y-0.5 transition-all mb-2.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
-                style={{ animation: 'glowPulse 3s ease-in-out infinite' }}
-              >
-                {addingToCart ? "Adding…" : inCart ? "✓ Added to Cart — View Cart" : "🔓 Unlock Full Course — Pay Once"}
-              </button>
+              {isEnrolled ? (
+                <div
+                  aria-disabled="true"
+                  className="w-full py-3.5 rounded-[10px] bg-[#DCFCE7] dark:bg-[#22c55e]/15 border border-[#22C55E]/40 text-[#16A34A] dark:text-[#22C55E] text-[15px] font-extrabold text-center cursor-not-allowed select-none mb-2.5"
+                >
+                  ✓ Enrolled
+                </div>
+              ) : (
+                <button
+                  onClick={handleUnlock}
+                  disabled={addingToCart}
+                  className="w-full py-3.5 rounded-[10px] bg-[linear-gradient(135deg,#F04E00_0%,#FF6B2B_100%)] text-white text-[15px] font-extrabold shadow-[0_4px_20px_rgba(240,78,0,.35)] hover:shadow-[0_6px_28px_rgba(240,78,0,.45)] hover:-translate-y-0.5 transition-all mb-2.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
+                  style={{ animation: 'glowPulse 3s ease-in-out infinite' }}
+                >
+                  {addingToCart ? "Adding…" : inCart ? "✓ Added to Cart — View Cart" : "🔓 Unlock Full Course — Pay Once"}
+                </button>
+              )}
+              {!isEnrolled && (
+                <button
+                  onClick={() => courseId && toggleWishlist(courseId)}
+                  disabled={!courseId || wishlistBusy === courseId}
+                  aria-pressed={isWishlisted}
+                  className="w-full mb-2.5 py-2.5 rounded-[10px] bg-white dark:bg-[#111520] border-[1.5px] border-[#FECACA] dark:border-[#7f1d1d] text-[#DC2626] dark:text-[#f87171] text-[13.5px] font-bold hover:bg-[#FEF2F2] dark:hover:bg-[#1f1315] transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill={isWishlisted ? "currentColor" : "none"} stroke="currentColor"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" /></svg>
+                  {isWishlisted ? "Saved to Wishlist" : "Save to Wishlist"}
+                </button>
+              )}
               <button onClick={scrollToPreview} className="w-full py-2.5 rounded-[10px] bg-[#EEF2FF] dark:bg-[#1a1f3a] border-[1.5px] border-[#C7D8FF] dark:border-[#2d3358] text-[#2952CC] dark:text-[#60a5fa] text-[13.5px] font-bold hover:bg-[#E0E9FF] dark:hover:bg-[#141a30] transition-all">▶ Start Free Preview</button>
               <div className="text-[11.5px] text-[#6B7280] dark:text-[#7a859a] text-center mt-2.5 leading-[1.5]">One-time payment. Lifetime access.<br />Prices in INR · GST applicable · Secure checkout</div>
             </div>
@@ -1016,7 +1087,7 @@ export default function CourseDetailPage() {
             )}
           </div>
 
-          {/* Progress */}
+          {/* Hidden for now: Progress card
           <div className="bg-white dark:bg-[#111520] border border-[var(--border)] dark:border-[#1e2535] rounded-xl p-[14px_16px] shadow-sm">
             <div className="flex items-center justify-between mb-2.5">
               <div className="text-[12px] font-bold uppercase tracking-[.5px] text-[#374151] dark:text-[#b0bac9]">Your Progress</div>
@@ -1027,8 +1098,9 @@ export default function CourseDetailPage() {
             </div>
             <div className="text-[11.5px] text-[#6B7280] dark:text-[#7a859a] mt-2"><span className="text-[#F04E00] dark:text-[#FF6B2B] font-semibold">0 of {course.totalLessons} lessons</span> completed · Unlock to continue</div>
           </div>
-
+          */}
           {/* Certificate */}
+
           <div className="bg-white dark:bg-[#111520] border-[1.5px] border-[#C7D8FF] dark:border-[#2d3358] rounded-xl p-4 shadow-sm relative overflow-hidden">
             <div className="absolute right-[-10px] bottom-[-14px] text-[60px] font-extrabold text-[#EEF2FF] dark:text-[#2d3358]/40 tracking-[-2px] leading-none pointer-events-none font-['Instrument_Serif',serif] select-none">CERTIFICATE</div>
             <div className="flex items-center gap-2.5 mb-3 relative z-[1]">

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SafeImage } from "@/components/SafeImage";
 import useSWR from "swr";
+import { WishlistHeart } from "./wishlist-heart";
 
 interface FeaturedCourse {
   id: string;
@@ -73,6 +74,7 @@ export function PopularCourses() {
                       Coming Soon
                     </span>
                   )}
+                  {!c.comingSoon && <WishlistHeart courseId={c.id} className="absolute top-2 right-2 !h-7 !w-7" />}
                   {!c.comingSoon && c.badge && (
                     <span className={`text-[9px] font-extrabold tracking-[.06em] uppercase px-2 py-[3px] rounded-[20px] absolute top-2 left-2 text-white shadow-[0_2px_10px_rgba(0,0,0,.25)] ${c.badgeClass}`}>
                       {c.badge}

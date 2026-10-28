@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import SectionRenderer from "./sections/SectionRenderer";
 import { useStudentDashboard } from "../hooks/student-dashboard";
 import { userApi, type ProfileData } from "@/app/auth/lib/auth-api";
@@ -33,6 +33,9 @@ const activity = [
   { text: <>Asked a <span className="font-semibold">doubt</span> in MERN community</>, time: "Yesterday, 5:20 PM", c: "#7c3aed" },
   { text: <>Earned <span className="font-semibold">7-Day Streak</span> badge 🔥</>, time: "2 days ago · +50 XP", c: "#eab308" },
 ];
+
+/** sessionStorage marker: the user id the profile ribbon has already been shown to (cleared on logout). */
+export const PROFILE_RIBBON_SEEN_KEY = "fs_profile_ribbon_seen";
 
 // ─── Profile Completion ────────────────────────────────────────────────────────
 
@@ -117,6 +120,20 @@ function ProfileCompletionRibbon({ pct, onDismiss }: { pct: number; onDismiss: (
 }
 
 
+/**
+ * The profile menu links here with ?tab=courses / ?tab=certificates. useViewParam only reads the URL
+ * on first load, so this follows later changes too (e.g. clicking the menu while already on the page).
+ */
+function UrlTabSync({ onTab }: { onTab: (tab: string) => void }) {
+  const urlTab = useSearchParams().get("tab");
+  useEffect(() => {
+    if (urlTab && (SECTION_ORDER as readonly string[]).includes(urlTab)) onTab(urlTab);
+    // React to the URL changing only, not to our own tab clicks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlTab]);
+  return null;
+}
+
 export default function MyDashboardPage() {
   const [activeTab, setActiveTab] = useViewParam("overview", "tab", SECTION_ORDER);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
@@ -130,9 +147,20 @@ export default function MyDashboardPage() {
   const [comingSoon, setComingSoon] = useState<{ icon: string; label: string } | null>(null);
   const pct = useProfileCompletion();
 
+  // Show the "complete your profile" ribbon once per login, not on every visit to the dashboard.
+  // The marker lives in sessionStorage, is keyed to the user, and is cleared on logout.
+  const { user: ribbonUser } = useAuth();
   useEffect(() => {
-    if (pct !== null && pct < 90) setShowRibbon(true);
-  }, [pct]);
+    if (pct === null || pct >= 90 || !ribbonUser) return;
+    try {
+      const who = ribbonUser.id ?? ribbonUser.email ?? "me";
+      if (sessionStorage.getItem(PROFILE_RIBBON_SEEN_KEY) === who) return;
+      sessionStorage.setItem(PROFILE_RIBBON_SEEN_KEY, who);
+    } catch {
+      /* storage blocked — fall back to showing it */
+    }
+    setShowRibbon(true);
+  }, [pct, ribbonUser]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -256,6 +284,9 @@ export default function MyDashboardPage() {
 
   return (
     <div className="flex flex-col overflow-hidden bg-[#f4f6fa] dark:bg-[#0b0e14]" style={{ height: "calc(100vh - 56px)" }}>
+      <Suspense fallback={null}>
+        <UrlTabSync onTab={(t) => { setActiveTab(t); setSelectedCourseId(null); }} />
+      </Suspense>
       {showRibbon && pct !== null && pct < 90 && (
         <ProfileCompletionRibbon pct={pct} onDismiss={() => setShowRibbon(false)} />
       )}

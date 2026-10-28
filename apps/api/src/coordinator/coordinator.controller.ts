@@ -38,10 +38,13 @@ export class CoordinatorController {
 
   @Patch('students/:id/flag')
   updateStudentFlag(
+    @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() body: { flag: string; note?: string },
   ) {
-    return this.coordinatorService.updateStudentFlag(id, body.flag, body.note);
+    return this.coordinatorService.updateStudentFlag(id, body.flag, body.note, {
+      id: req.user.id,
+    });
   }
 
   @Get('escalations')
@@ -51,10 +54,13 @@ export class CoordinatorController {
 
   @Patch('escalations/:id')
   resolveEscalation(
+    @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
     @Body() body: { resolution: string },
   ) {
-    return this.coordinatorService.resolveEscalation(id, body.resolution);
+    return this.coordinatorService.resolveEscalation(id, body.resolution, {
+      id: req.user.id,
+    });
   }
 
   @Get('trainers')

@@ -118,15 +118,15 @@ model User {
   // login gate). Null = onboarding not done yet — the trainer console shows
   // the onboarding wizard instead of the portal. Independent of approvalStatus:
   // a trainer can be logged in and mid-review while already having submitted.
-  profileSubmittedAt DateTime?
+  profileSubmittedAt  DateTime?
 
-  enrollments       Enrollment[]
-  videoProgress     VideoProgress[]
-  quizAttempts      QuizAttempt[] // ADDED — fixes missing back-relation
-  coursesTaught     Course[]           @relation("CourseTrainer")
-  projectsTaught    Project[]          @relation("ProjectTrainer")
-  approvalStatus    ApprovalStatus?
-  certificates      Certificate[]
+  enrollments    Enrollment[]
+  videoProgress  VideoProgress[]
+  quizAttempts   QuizAttempt[] // ADDED — fixes missing back-relation
+  coursesTaught  Course[]        @relation("CourseTrainer")
+  projectsTaught Project[]       @relation("ProjectTrainer")
+  approvalStatus ApprovalStatus?
+  certificates   Certificate[]
 
   discussionMessages CourseDiscussion[]      @relation("DiscussionAuthor")
   discussionReplies  CourseDiscussionReply[] @relation("ReplyAuthor")
@@ -148,6 +148,12 @@ model User {
   invoices         Invoice[]     @relation("Invoices")
   refundsInitiated Refund[]      @relation("RefundInitiator")
   refunds          Refund[]      @relation("RefundStudent")
+
+  // Escalations: about this student / raised by this user / owned by this staff member / actions taken
+  escalationsAbout    Escalation[]      @relation("EscalationStudent")
+  escalationsRaised   Escalation[]      @relation("EscalationCreator")
+  escalationsAssigned Escalation[]      @relation("EscalationAssignee")
+  escalationEvents    EscalationEvent[] @relation("EscalationActor")
 
   supportTickets  SupportTicket[]        @relation("TicketAuthor")
   assignedTickets SupportTicket[]        @relation("TicketAssignee")
@@ -265,10 +271,10 @@ model Video {
 }
 
 model Quiz {
-  id             String        @id @default(uuid())
+  id             String         @id @default(uuid())
   title          String
   order          Int // same ordering convention as Video.order within a Section
-  section        Section?      @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  section        Section?       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   sectionId      String? // null = standalone quiz/skill test, not attached to a course section
   totalQuestions Int
   passingScore   Int? // percentage, e.g. 70 — null means no pass/fail gate
@@ -641,6 +647,7 @@ model PaymentSettings {
   internationalEnabled Boolean  @default(false) // USD (international gateway)
   trainerSharePercent  Int      @default(50) // default % of collected gross the trainer keeps (rest = platform cut)
   refundEtaDays        Int      @default(7) // days a processed refund takes to reach the student — shown as the estimated credit date
+  maxCartItems         Int      @default(5) // most items (courses + projects) a student can hold in the cart at once
   gstPercent           Decimal  @default(18) @db.Decimal(10, 4) // GST % charged on top of every course fee (INR / domestic)
   gstPercentUsd        Decimal  @default(0) @db.Decimal(10, 4) // GST % for USD orders — export of services is zero-rated by default
   usdRate              Decimal  @default(95) @db.Decimal(10, 4) // INR per 1 USD — fallback conversion when a course/project has no explicit priceUsd. Fresh rows are seeded from the DEFAULT_USD_RATE env var; this DB default is only a raw safety net. Admin edits the live value.
@@ -865,6 +872,107 @@ model Refund {
   @@index([status])
 }
 
+// ─── ESCALATIONS ────────────────────────────────────────────────────
+
+enum EscalationType {
+  TRAINER_FLAG // trainer flagged a student to the coordinator
+  SUPPORT_TICKET // ticket waiting on an agent past its SLA
+  REFUND // refund stuck waiting for approval
+  PAYMENT // paid order with no invoice / enrollment
+  CONTENT // video failed processing
+  COMPLAINT // a course is collecting low ratings
+  COORDINATOR // coordinator sat on a trainer flag past its SLA
+  MANUAL // raised by an admin
+}
+
+enum EscalationSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum EscalationStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  DISMISSED
+}
+
+model Escalation {
+  id     String @id @default(uuid())
+  number Int    @unique @default(autoincrement()) // human ref: ESC-0XXXX
+
+  type     EscalationType
+  severity EscalationSeverity @default(MEDIUM)
+  status   EscalationStatus   @default(OPEN)
+  title    String
+  reason   String             @db.Text
+
+  /// Set for system-detected escalations. Unique, so a scan can never raise the same problem twice.
+  dedupeKey  String? @unique
+  autoRaised Boolean @default(false)
+
+  student     User?   @relation("EscalationStudent", fields: [studentId], references: [id], onDelete: SetNull)
+  studentId   String?
+  createdBy   User?   @relation("EscalationCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  assignee    User?   @relation("EscalationAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assigneeId  String?
+
+  // Soft links to what the escalation is about (no FKs — the source row may be deleted later).
+  orderId  String?
+  ticketId String?
+  refundId String?
+  courseId String?
+  videoId  String?
+
+  dueAt      DateTime? // resolve-by time; past this an open escalation counts as an SLA breach
+  resolution String?   @db.Text
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  events EscalationEvent[]
+
+  @@index([status, severity])
+  @@index([type])
+  @@index([assigneeId])
+  @@index([studentId])
+  @@index([dueAt])
+}
+
+/// Append-only history of an escalation: who did what, when.
+model EscalationEvent {
+  id           String     @id @default(uuid())
+  escalation   Escalation @relation(fields: [escalationId], references: [id], onDelete: Cascade)
+  escalationId String
+  actor        User?      @relation("EscalationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorId      String? // null = the system
+  action       String // CREATED | STATUS | SEVERITY | ASSIGNED | COMMENT | AUTO_RESOLVED | REOPENED
+  note         String?    @db.Text
+  createdAt    DateTime   @default(now())
+
+  @@index([escalationId, createdAt])
+}
+
+/// Singleton — thresholds the automatic escalation scan uses. Edited by admins
+/// from the Escalations page, so no code change or redeploy is needed to tune them.
+model EscalationSettings {
+  id                  String   @id @default(uuid())
+  ticketSlaHours      Int      @default(48) // ticket waiting on an agent longer than this is escalated
+  refundPendingHours  Int      @default(24) // refund PENDING longer than this is escalated
+  paidGraceMinutes    Int      @default(60) // paid order still missing invoice/enrollment after this is escalated
+  complaintMinCount   Int      @default(3) // low-rating reviews on one course needed to escalate it
+  complaintWindowDays Int      @default(14) // look-back window for low-rating reviews
+  coordinatorSlaDays  Int      @default(3) // a trainer flag unresolved this long is escalated to admin
+  ticketAutoCloseDays Int      @default(3) // a ticket waiting on the student (or resolved) with no reply for this long is closed automatically
+  resolveSlaHours     Int      @default(24) // default resolve-by time for a new escalation
+  alertsEnabled       Boolean  @default(true) // email the support inbox when HIGH / CRITICAL escalations are raised
+  updatedAt           DateTime @updatedAt
+}
+
 // ─── BLOG ───────────────────────────────────────────────────────────
 
 model BlogPost {
@@ -931,6 +1039,7 @@ model SupportTicket {
   lastMessageAt DateTime  @default(now())
   resolvedAt    DateTime?
   closedAt      DateTime?
+  closedReason  String? // why it is CLOSED: STUDENT | AGENT | AUTO (no student reply for ticketAutoCloseDays)
 
   messages SupportTicketMessage[]
 

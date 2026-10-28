@@ -8,6 +8,8 @@ import { useAuth } from "@/app/auth/hooks/use-auth";
 import { loadToken } from "@/app/auth/lib/token-store";
 import { showToast } from "@/lib/toast";
 import { useCareerGuidance } from "@/app/(student)/components/career-guidance";
+import type { StudentDashboard } from "@/app/(student)/hooks/student-dashboard";
+import { WishlistHeart } from "@/app/(student)/components/wishlist-heart";
 
 interface CourseCard {
   id: string;
@@ -288,6 +290,11 @@ export default function CoursesPageClient({ initialData }: { initialData?: Cards
   const activeTrackName = activeTrackKey?.slice("track-".length);
 
   const { isAuthenticated } = useAuth();
+  const { data: dashboard } = useSWR<StudentDashboard>(isAuthenticated ? "/api/student/dashboard" : null);
+  const enrolledIds = useMemo(
+    () => new Set((dashboard?.enrolledCourses ?? []).map((c) => c.courseId)),
+    [dashboard],
+  );
 
   // Load which courses are already in the student's cart so the Enroll button
   // shows a state-aware "In Cart" label on first paint for signed-in users.
@@ -590,6 +597,7 @@ export default function CoursesPageClient({ initialData }: { initialData?: Cards
                       <span className={`absolute left-3 top-3 rounded-full px-2.5 py-[3px] text-[10px] font-extrabold uppercase tracking-[.4px] text-white shadow-[0_2px_10px_rgba(0,0,0,.25)] ${course.badgeClass}`}>{course.badge}</span>
                     )}
                     <span className="absolute right-3 top-3 rounded-full bg-black/45 px-2.5 py-[3px] text-[10px] font-bold text-white backdrop-blur-sm">{course.duration}</span>
+                    {!enrolledIds.has(course.id) && <WishlistHeart courseId={course.id} className="absolute right-3 bottom-3" />}
                   </div>
 
                   <div className="flex min-w-0 flex-1 flex-col">
@@ -639,6 +647,14 @@ export default function CoursesPageClient({ initialData }: { initialData?: Cards
                           <div className="truncate text-[12px] font-semibold text-[var(--text2)]">{course.mentorName}</div>
                         </div>
                       </div>
+                      {enrolledIds.has(course.id) ? (
+                        <span
+                          aria-disabled="true"
+                          className="cursor-not-allowed select-none rounded-lg border border-[#22C55E]/40 bg-[#DCFCE7] px-4 py-2 text-[11.5px] font-bold text-[#16A34A] dark:bg-[#22c55e]/15 dark:text-[#22C55E]"
+                        >
+                          ✓ Enrolled
+                        </span>
+                      ) : (
                       <button
                         className="rounded-lg px-4 py-2 text-[11.5px] font-bold text-white shadow-[0_2px_8px_rgba(240,78,0,.22)] transition-[opacity,transform] duration-[180ms] hover:opacity-[.9] active:scale-[.96] disabled:cursor-not-allowed disabled:opacity-60"
                         style={{ background: inCart.has(course.id) ? "linear-gradient(135deg,#22C55E,#16A34A)" : "linear-gradient(135deg,var(--orange),var(--orange2))" }}
@@ -647,6 +663,7 @@ export default function CoursesPageClient({ initialData }: { initialData?: Cards
                       >
                         {cartAction === course.id ? "…" : inCart.has(course.id) ? "✓ In Cart" : "Enroll →"}
                       </button>
+                      )}
                     </div>
                   </div>
                 </article>

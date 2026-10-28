@@ -15,7 +15,7 @@ interface DiscussionReply {
   author: DiscussionAuthor;
   userHasUpvoted: boolean; upvoteCount: number;
 }
-interface DiscussionMessage {
+export interface DiscussionMessage {
   id: string; courseId: string; courseTitle?: string;
   body: string; tag: "DOUBT" | "TIP" | "ANNOUNCEMENT" | "RESOURCE";
   isPinned: boolean; isAnswered: boolean;

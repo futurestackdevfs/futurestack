@@ -128,6 +128,7 @@ if (typeof window !== 'undefined') {
     try { await clearSessionCookie('student'); } catch {}
     try { await clearStaffToken(); } catch {}
     try { await clearSessionCookie('staff'); } catch {}
+    try { sessionStorage.removeItem('fs_profile_ribbon_seen'); } catch {}
     bootstrapped = false;
     emit({ user: null, isAuthenticated: false, isLoading: false });
     showToast('Session expired. Tap to sign in again.');
@@ -191,6 +192,8 @@ export function useAuth() {
       try { localStorage.removeItem('fs_uid'); } catch {}
       try { localStorage.removeItem('fs-admin-id'); } catch {}
       try { localStorage.removeItem('fs_billing'); } catch {}
+      // So the next login sees the complete-your-profile ribbon once again.
+      try { sessionStorage.removeItem('fs_profile_ribbon_seen'); } catch {}
     }
     bootstrapped = false;
     emit({ user: null, isAuthenticated: false, isLoading: false });

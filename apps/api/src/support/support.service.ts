@@ -14,6 +14,7 @@ import { CreateTicketDto } from './dto/create-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateAgentMessageDto } from './dto/create-agent-message.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { Cron } from '@nestjs/schedule';
 
 interface ReqUser {
   id: string;
@@ -33,6 +34,9 @@ const ticketInclude = {
     select: { createdAt: true, author: { select: { id: true, name: true } } },
   },
 } satisfies Prisma.SupportTicketInclude;
+
+// Last-resort guard if the admin setting row is missing — not a config knob (EscalationSettings.ticketAutoCloseDays is).
+const DEFAULT_AUTO_CLOSE_DAYS = 3;
 
 @Injectable()
 export class SupportService {
@@ -117,6 +121,7 @@ export class SupportService {
       lastMessageAt: t.lastMessageAt,
       resolvedAt: t.resolvedAt,
       closedAt: t.closedAt,
+      closedReason: t.closedReason,
     };
   }
 
@@ -252,7 +257,9 @@ export class SupportService {
     const ticket = await this.getOwnedTicketOr403(id, user);
     if (ticket.status === 'CLOSED') {
       throw new BadRequestException(
-        'This ticket is closed. Open a new ticket instead.',
+        ticket.closedReason === 'AUTO'
+          ? 'This ticket was closed automatically because it had no reply for a few days. Please open a new ticket and we will pick it up.'
+          : 'This ticket is closed. Open a new ticket instead.',
       );
     }
     const message = await this.prisma.supportTicketMessage.create({
@@ -280,10 +287,46 @@ export class SupportService {
     if (ticket.status === 'CLOSED') return this.serializeTicket(ticket);
     const updated = await this.prisma.supportTicket.update({
       where: { id },
-      data: { status: 'CLOSED', closedAt: new Date() },
+      data: { status: 'CLOSED', closedAt: new Date(), closedReason: 'STUDENT' },
       include: ticketInclude,
     });
     return this.serializeTicket(updated);
+  }
+
+  /**
+   * Closes tickets the student has gone quiet on: waiting on the student
+   * (PENDING) or resolved, with no message for `ticketAutoCloseDays` days
+   * (admin setting, default 3). Tickets waiting on an AGENT are never closed
+   * here — the ball is in our court. Support can reopen any of them.
+   */
+  @Cron('*/30 * * * *')
+  async autoCloseIdleTickets(now: Date = new Date()): Promise<number> {
+    try {
+      const settings = await this.prisma.escalationSettings.findFirst({
+        select: { ticketAutoCloseDays: true },
+      });
+      const days = settings?.ticketAutoCloseDays ?? DEFAULT_AUTO_CLOSE_DAYS;
+      const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+      const result = await this.prisma.supportTicket.updateMany({
+        where: {
+          OR: [
+            { status: 'PENDING', lastMessageAt: { lt: cutoff } },
+            // A resolved ticket's clock starts at the later of its last message and its resolution.
+            { status: 'RESOLVED', lastMessageAt: { lt: cutoff }, resolvedAt: { lt: cutoff } },
+          ],
+        },
+        data: { status: 'CLOSED', closedAt: now, closedReason: 'AUTO' },
+      });
+      if (result.count > 0) {
+        this.logger.log(`Auto-closed ${result.count} idle ticket(s) (no student reply for ${days} days)`);
+      }
+      return result.count;
+    } catch (e) {
+      // A failed sweep must never take anything down — it just runs again in 30 minutes.
+      this.logger.error('Auto-closing idle tickets failed', e instanceof Error ? e.stack : e);
+      return 0;
+    }
   }
 
   // ── agent: queue ─────────────────────────────────────────────────
@@ -422,10 +465,15 @@ export class SupportService {
     if (dto.status && dto.status !== ticket.status) {
       data.status = dto.status;
       if (dto.status === 'RESOLVED') data.resolvedAt = new Date();
-      if (dto.status === 'CLOSED') data.closedAt = new Date();
+      if (dto.status === 'CLOSED') {
+        data.closedAt = new Date();
+        data.closedReason = 'AGENT';
+      }
+      // Reopening (from closed OR resolved) clears every trace of the old closure.
       if (dto.status === 'OPEN' || dto.status === 'PENDING') {
         data.resolvedAt = null;
         data.closedAt = null;
+        data.closedReason = null;
       }
     }
 
