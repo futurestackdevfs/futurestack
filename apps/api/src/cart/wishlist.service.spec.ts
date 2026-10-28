@@ -1,6 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { WishlistService } from './wishlist.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 import { decimal } from '../test-utils/fixtures';
 
 // Fully mocked PrismaService — no live DB connection is ever opened by this file.
@@ -26,7 +27,10 @@ describe('WishlistService', () => {
 
   beforeEach(() => {
     prisma = makePrismaMock();
-    service = new WishlistService(prisma);
+    service = new WishlistService(
+      prisma,
+      { getSettings: jest.fn().mockResolvedValue({ maxCartItems: 5 }) } as unknown as PaymentSettingsService,
+    );
   });
 
   describe('getOrCreateWishlist()', () => {
@@ -130,7 +134,7 @@ describe('WishlistService', () => {
           wishlistItem: { findUnique: jest.fn().mockResolvedValue(null) },
           enrollment: { findUnique: jest.fn() },
           cart: { upsert: jest.fn() },
-          cartItem: { upsert: jest.fn() },
+          cartItem: { upsert: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(0) },
         }),
       );
 
@@ -149,13 +153,32 @@ describe('WishlistService', () => {
           },
           enrollment: { findUnique: jest.fn().mockResolvedValue({ id: '__spec__enroll-1' }) },
           cart: { upsert: jest.fn() },
-          cartItem: { upsert: jest.fn() },
+          cartItem: { upsert: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(0) },
         }),
       );
 
       await expect(
         service.moveToCart('__spec__student-1', '__spec__course-1'),
       ).rejects.toThrow(ConflictException);
+    });
+
+    it('refuses to move a course into a cart that is already full', async () => {
+      (prisma.cart.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__cart-1' });
+      (prisma.wishlist.findUnique as jest.Mock).mockResolvedValue(makeWishlistRow());
+      const txDelete = jest.fn();
+      (prisma.$transaction as jest.Mock).mockImplementation(async (fn: any) =>
+        fn({
+          wishlistItem: { findUnique: jest.fn().mockResolvedValue({ id: '__spec__item-1' }), delete: txDelete },
+          enrollment: { findUnique: jest.fn().mockResolvedValue(null) },
+          cart: { upsert: jest.fn() },
+          cartItem: { upsert: jest.fn(), findUnique: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(5) },
+        }),
+      );
+
+      await expect(
+        service.moveToCart('__spec__student-1', '__spec__course-1'),
+      ).rejects.toThrow(/at most 5 items/);
+      expect(txDelete).not.toHaveBeenCalled();
     });
 
     it('atomically removes from wishlist and adds to cart', async () => {
@@ -171,7 +194,7 @@ describe('WishlistService', () => {
           },
           enrollment: { findUnique: jest.fn().mockResolvedValue(null) },
           cart: { upsert: jest.fn() },
-          cartItem: { upsert: txCartItemUpsert },
+          cartItem: { upsert: txCartItemUpsert, findUnique: jest.fn().mockResolvedValue(null), count: jest.fn().mockResolvedValue(0) },
         }),
       );
 

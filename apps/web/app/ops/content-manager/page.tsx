@@ -166,7 +166,7 @@ export default function ContentManagerConsolePage() {
                 <AllTrainersView searchQuery={searchQuery} refreshSignal={refreshKey} onToast={addToast} />
               )}
               {view === "discussions" && (
-                <DiscussionsView searchQuery={searchQuery} refreshSignal={refreshKey} onToast={addToast} />
+                <DiscussionsView searchQuery={searchQuery} refreshSignal={refreshKey} onToast={addToast} user={{ id: user.id, name: user.name }} />
               )}
             </>
           )}

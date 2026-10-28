@@ -143,6 +143,16 @@ export class ProjectsController {
     return this.reviewsService.updateReview(user.id, reviewId, dto);
   }
 
+  @Auth(Role.STUDENT)
+  @Delete(':id/reviews/:reviewId')
+  deleteProjectReview(
+    @Req() req: Request,
+    @Param('reviewId') reviewId: string,
+  ) {
+    const user = req.user as { id: string };
+    return this.reviewsService.deleteReview(user.id, reviewId);
+  }
+
   @Get(':id/reviews')
   @Header('Cache-Control', 'public, max-age=30, s-maxage=120, stale-while-revalidate=300')
   getProjectReviews(

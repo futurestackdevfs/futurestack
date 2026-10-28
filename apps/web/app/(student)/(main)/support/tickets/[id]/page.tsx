@@ -28,6 +28,7 @@ interface Thread {
   createdAt: string;
   resolvedAt: string | null;
   closedAt: string | null;
+  closedReason?: "STUDENT" | "AGENT" | "AUTO" | null;
   messages: Msg[];
 }
 
@@ -157,7 +158,7 @@ export default function TicketThreadPage() {
               {thread.status === "CLOSED" ? (
                 <Card>
                   <p className="text-[12px] text-[#6b7280] dark:text-[#8b93a7] mb-2 text-center">
-                    This ticket was closed by our support team. You can still read the full conversation above.
+                    Ticket closed
                   </p>
                   <div className="text-center"><Link href="/support" className="text-[12px] font-semibold text-[#2563eb] hover:underline">Open a new ticket →</Link></div>
                 </Card>

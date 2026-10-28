@@ -272,16 +272,28 @@ export default function TrainerDashboardPage() {
     addToast("Student readiness updated");
   }
 
-  function flagToCoordinator(id: number, reason?: string) {
+  async function flagToCoordinator(id: number, reason?: string) {
     const st = students.find((s) => s.id === id);
     if (!st) return;
 
-    opsFetch("/api/trainer/flag-student", {
-      method: "POST",
-      body: JSON.stringify({ studentId: String(id), reason }),
-    }).then((r) => r.ok ? r.json() : null).catch(() => null);
+    // Only show "flagged" once the server has actually accepted it.
+    try {
+      const r = await opsFetch("/api/trainer/flag-student", {
+        method: "POST",
+        body: JSON.stringify({ studentId: st.studentId, reason }),
+      });
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({} as { message?: string }));
+        addToast(e.message || "Couldn't flag this student — please try again", "danger");
+        return;
+      }
+    } catch {
+      addToast("Couldn't flag this student — please try again", "danger");
+      return;
+    }
 
-    setStudents((prev) => prev.map((s) => s.id === id ? { ...s, flaggedToCoordinator: true, flagReason: reason } : s));
+    // A student enrolled in several of my courses has one row per course — flag them all.
+    setStudents((prev) => prev.map((s) => s.studentId === st.studentId ? { ...s, flaggedToCoordinator: true, flagReason: reason } : s));
     addToast(`${st.name} flagged to Coordinator`);
   }
 

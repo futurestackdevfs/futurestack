@@ -1,14 +1,21 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { S3Service } from '../upload/s3.service';
 import { resolveTrainerSharePercent, computeTrainerShare } from '../payment-settings/share.util';
 import { UpdateProfileDto } from '../student/dto/update-profile.dto';
+import { EscalationsService } from '../escalations/escalations.service';
 
 @Injectable()
 export class TrainerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3Service: S3Service,
+    private readonly escalations: EscalationsService,
   ) {}
 
   async getDashboard(trainerId: string) {
@@ -309,7 +316,9 @@ export class TrainerService {
       const lastActive = lastActiveMap.get(e.studentId);
 
       return {
+        // `id` is only a display/row key — use `studentId` for anything sent back to the API.
         id: parseInt(e.id.slice(0, 8), 16) || Math.floor(Math.random() * 10000),
+        studentId: e.studentId,
         name: e.student.name,
         email: e.student.email,
         batchCode: e.course.code ?? e.course.title.slice(0, 8).toUpperCase(),
@@ -377,12 +386,21 @@ export class TrainerService {
     const student = await this.prisma.user.findUnique({ where: { id: studentId } });
     if (!student) throw new NotFoundException('Student not found');
 
-    await this.prisma.user.update({
-      where: { id: studentId },
-      data: {
-        flaggedToCoordinator: true,
-        flagReason: reason || null,
-      },
+    // A trainer can only flag students who are enrolled in one of their own courses.
+    const teaches = await this.prisma.enrollment.findFirst({
+      where: { studentId, course: { trainerId } },
+      select: { id: true },
+    });
+    if (!teaches) throw new ForbiddenException('You can only flag students enrolled in your courses');
+
+    // Raises (or adds to) an escalation the coordinator and admin both see.
+    const trainer = await this.prisma.user.findUnique({
+      where: { id: trainerId },
+      select: { name: true },
+    });
+    await this.escalations.flagStudent(studentId, reason ?? null, {
+      id: trainerId,
+      name: trainer?.name ?? null,
     });
 
     return { success: true, message: `${student.name} flagged to coordinator` };

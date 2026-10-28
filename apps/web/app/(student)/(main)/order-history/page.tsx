@@ -28,6 +28,7 @@ function money(amount: number, currency: OrderHistoryItem["currency"]): string {
 
 /** "Online · UPI", "Cash", "Offline · UPI" — how this order was paid. */
 function paymentSummary(order: OrderHistoryItem): string {
+  if (order.giftCode) return `Gift · code ${order.giftCode}`;
   const method = order.paymentMethodLabel;
   if (order.paymentMode === "OFFLINE") {
     return !method || method === "Cash" ? "Cash" : `Offline · ${method}`;
@@ -211,6 +212,7 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
     ["Invoice Date", formatDate(order.createdAt)],
     ["Order Status", statusMeta[order.status]?.label ?? order.status],
     ["Payment Mode", paymentSummary(order)],
+    ...(order.giftCode ? ([["Gift Code", order.giftCode]] as [string, string][]) : []),
   ];
   let dy = boxTop + 15;
   details.forEach(([k, v]) => {
@@ -304,7 +306,7 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
   let ty = ry + 8;
   const sumRows: [string, string][] = [
     ["Subtotal", fmt(order.subtotal)],
-    ["Discount", order.discountAmount > 0 ? `- ${fmt(order.discountAmount)}` : "—"],
+    [order.giftCode ? `Discount (${order.giftCode} · 100%)` : "Discount", order.discountAmount > 0 ? `- ${fmt(order.discountAmount)}` : "—"],
   ];
   if (order.gstPercent > 0) {
     sumRows.push(["GST (" + (order.gstPercent ?? 0) + "%)", fmt(order.gstAmount)]);
@@ -352,15 +354,17 @@ async function downloadInvoice(order: OrderHistoryItem, userName: string, userEm
   pdf.setFontSize(8.5);
   setC(NAVY);
   pdf.text(`Payment Gateway: ${order.gatewayType === "DOMESTIC" ? "Razorpay (Domestic)" : "Razorpay (International)"}`, M + 4, ny + 6.5);
-  pdf.text(`Transaction ID: ${order.razorpayPaymentId ?? "—"}`, M + 4, ny + 11.5);
-  pdf.text(`Order Reference: ${order.razorpayOrderId ?? orderNumber(order.id)}`, M + 4, ny + 16.5);
+  pdf.text(order.giftCode ? "Transaction: none — complimentary enrollment, no payment taken" : `Transaction ID: ${order.razorpayPaymentId ?? "—"}`, M + 4, ny + 11.5);
+  pdf.text(`Order Reference: ${order.giftCode ? orderNumber(order.id) : (order.razorpayOrderId ?? orderNumber(order.id))}`, M + 4, ny + 16.5);
   pdf.text(`Item${order.items.length > 1 ? "s" : ""} Purchased: ${order.items.map((it) => it.project?.name ?? it.course?.title ?? 'Item').join(", ").slice(0, 96)}`, M + 4, ny + 21.5);
   ny += 38;
 
   setC(SLATE);
   pdf.setFontSize(7.5);
   pdf.text(
-    order.gstPercent > 0
+    order.giftCode
+      ? `Note: This is a gifted enrollment (code ${order.giftCode}) — the full course price is waived, so the amount payable is ${fmt(order.totalAmount)}.`
+      : order.gstPercent > 0
       ? `Note: GST @ ${order.gstPercent}% is included in the total above.`
       : "Note: All amounts shown above are inclusive of applicable taxes.",
     M, ny);
@@ -657,7 +661,7 @@ export default function OrderHistoryPage() {
                         <div className="text-[10.5px] text-[var(--text3)]">
                           {formatDate(order.createdAt)}
                           {["PAID", "REFUND_REQUESTED", "REFUNDED"].includes(order.status) && (
-                            <> · <span className="font-semibold text-[var(--text2)]">Paid {paymentSummary(order)}</span></>
+                            <> · <span className="font-semibold text-[var(--text2)]">{order.giftCode ? paymentSummary(order) : `Paid ${paymentSummary(order)}`}</span></>
                           )}
                         </div>
                       </div>
@@ -715,7 +719,7 @@ export default function OrderHistoryPage() {
                       {order.discountAmount > 0 && (
                         <div className="flex items-center gap-2 pt-2 text-[11px] text-[var(--muted)] border-t border-dashed border-[var(--border2)]">
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-green-600"><path d="M20 12 8 12 10 9M8 12l2 3" /></svg>
-                          Coupon {order.couponCode ? `(${order.couponCode})` : "applied"} · saved {money(order.discountAmount, order.currency)}
+                          {order.giftCode ? `Gift (${order.giftCode}) · 100% off · saved ${money(order.discountAmount, order.currency)}` : <>Coupon {order.couponCode ? `(${order.couponCode})` : "applied"} · saved {money(order.discountAmount, order.currency)}</>}
                         </div>
                       )}
                     </div>
@@ -746,7 +750,7 @@ export default function OrderHistoryPage() {
                     </div>
                   </div>
 
-                  {order.status === "PAID" && !(order.refunds && order.refunds.length > 0) && (
+                  {order.status === "PAID" && !order.giftCode && !(order.refunds && order.refunds.length > 0) && (
                     <p className="px-5 pb-4 -mt-1 text-[11px] text-[var(--text3)]">
                       {order.paymentMode === "OFFLINE"
                         ? "Paid in cash? Refunds for cash payments are handled manually by our team. "

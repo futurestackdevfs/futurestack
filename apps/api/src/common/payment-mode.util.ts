@@ -19,6 +19,7 @@ const METHOD_LABELS: Record<string, string> = {
   cash: 'Cash',
   other: 'Other',
   test: 'Test payment',
+  gift: 'Gift',
 };
 
 /** Human label for the stored method — Razorpay sends lowercase ("upi"), the

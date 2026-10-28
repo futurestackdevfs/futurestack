@@ -1,209 +1,170 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
-import { Panel, Th, Td, ViewHeader, ActionBtn } from "../../sales/sections/ui";
+// Same discussion board the trainers use — a course list on the left, the
+// thread on the right. Content managers get it across *all* courses.
+import DoubtsView, { type DiscussionMessage } from "../../trainer/console/DoubtsView";
 
-interface DiscussionMessage {
-  id: string;
-  body: string;
-  tag: string;
-  isPinned: boolean;
-  isAnswered: boolean;
-  createdAt: string;
-  author: { id: string; name: string; role: string };
-  course: { id: string; title: string };
-  _count?: { replies: number };
-}
+/** Latest messages loaded per course (the API caps a page at 100). */
+const PER_COURSE = 50;
 
-export default function DiscussionsView({ searchQuery, refreshSignal, onToast }: {
+export default function DiscussionsView({ searchQuery, refreshSignal, onToast, user }: {
   searchQuery: string;
   refreshSignal?: number;
   onToast: (msg: string, type?: "success" | "danger") => void;
+  user: { id: string; name: string };
 }) {
   const [messages, setMessages] = useState<DiscussionMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [courseFilter, setCourseFilter] = useState<string>("");
-  const [courses, setCourses] = useState<{ id: string; title: string }[]>([]);
-  const [page, setPage] = useState(1);
-  const PER_PAGE = 20;
 
-  const loadCourses = useCallback(async () => {
-    try {
-      const r = await opsFetch("/api/courses");
-      if (r.ok) {
-        const data = await r.json();
-        setCourses(Array.isArray(data) ? data.map((c: any) => ({ id: c.id, title: c.title })) : []);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  const loadDiscussions = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const endpoints = courseFilter
-        ? [`/api/discussions/course/${courseFilter}`]
-        : courses.map((c) => `/api/discussions/course/${c.id}`);
+      const cr = await opsFetch("/api/courses");
+      if (!cr.ok) throw new Error("Couldn't load courses");
+      const list = (await cr.json()) as { id: string; title: string }[];
+      const courses = Array.isArray(list) ? list : [];
 
-      if (endpoints.length === 0) { setLoading(false); return; }
-
-      const results = await Promise.all(
-        endpoints.map((url) => opsFetch(url).then((r) => r.ok ? r.json() : []))
+      let failed = 0;
+      const perCourse = await Promise.all(
+        courses.map(async (c) => {
+          try {
+            const r = await opsFetch(`/api/discussion/${c.id}?page=1&limit=${PER_COURSE}`);
+            if (!r.ok) { failed += 1; return [] as DiscussionMessage[]; }
+            const rows = (await r.json()) as DiscussionMessage[];
+            return (Array.isArray(rows) ? rows : []).map((m) => ({ ...m, courseId: c.id, courseTitle: c.title }));
+          } catch {
+            failed += 1;
+            return [] as DiscussionMessage[];
+          }
+        }),
       );
-      const all = results.flat();
-      setMessages(all.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-    } catch { /* ignore */ } finally { setLoading(false); }
-  }, [courseFilter, courses]);
+      if (failed > 0) onToast(`Couldn't load discussions for ${failed} course${failed === 1 ? "" : "s"}`, "danger");
+      setMessages(perCourse.flat());
+    } catch (e) {
+      onToast(e instanceof Error ? e.message : "Couldn't load discussions", "danger");
+    } finally {
+      setLoading(false);
+    }
+  }, [onToast]);
 
-  useEffect(() => { loadCourses(); }, [loadCourses]);
-  useEffect(() => { if (courses.length > 0 || courseFilter) loadDiscussions(); }, [courses, courseFilter, loadDiscussions, refreshSignal]);
+  useEffect(() => { load(); }, [load, refreshSignal]);
 
-  const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return messages.filter((m) => !q || [m.body, m.author.name, m.course.title].some((v) => v.toLowerCase().includes(q)));
-  }, [messages, searchQuery]);
+  /* ── actions (same API calls the trainer console makes) ── */
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const safePage = Math.min(page, totalPages);
-  const paginated = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
-
-  async function handleTogglePin(msg: DiscussionMessage) {
-    const r = await opsFetch(`/api/discussions/${msg.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ isPinned: !msg.isPinned }),
-    });
-    if (r.ok) {
-      setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, isPinned: !m.isPinned } : m));
-      onToast(msg.isPinned ? "Unpinned" : "Pinned", "success");
+  async function apiAction<T = unknown>(url: string, init?: RequestInit): Promise<T | null> {
+    try {
+      const r = await opsFetch(url, init);
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({ message: `${r.status}` }));
+        onToast(e.message ?? "Request failed", "danger");
+        return null;
+      }
+      return (await r.json()) as T;
+    } catch {
+      onToast("Network error", "danger");
+      return null;
     }
   }
 
-  async function handleToggleAnswered(msg: DiscussionMessage) {
-    const r = await opsFetch(`/api/discussions/${msg.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ isAnswered: !msg.isAnswered }),
-    });
-    if (r.ok) {
-      setMessages((prev) => prev.map((m) => m.id === msg.id ? { ...m, isAnswered: !m.isAnswered } : m));
-      onToast(msg.isAnswered ? "Marked unanswered" : "Marked answered", "success");
+  async function handleToggleAnswer(msgId: string, courseId: string) {
+    const res = await apiAction<{ isAnswered: boolean }>(`/api/discussion/${courseId}/messages/${msgId}/answer`, { method: "PATCH" });
+    if (res) {
+      setMessages((prev) => prev.map((d) => (d.id === msgId ? { ...d, isAnswered: res.isAnswered } : d)));
+      onToast(res.isAnswered ? "Marked as answered" : "Unmarked");
     }
   }
 
-  async function handleDelete(msg: DiscussionMessage) {
-    if (!confirm("Delete this discussion?")) return;
-    const r = await opsFetch(`/api/discussions/${msg.id}`, { method: "DELETE" });
-    if (r.ok) {
-      setMessages((prev) => prev.filter((m) => m.id !== msg.id));
-      onToast("Discussion deleted", "success");
+  async function handleTogglePin(msgId: string, courseId: string) {
+    const res = await apiAction<{ isPinned: boolean }>(`/api/discussion/${courseId}/messages/${msgId}/pin`, { method: "PATCH" });
+    if (res) {
+      setMessages((prev) => prev.map((d) => (d.id === msgId ? { ...d, isPinned: res.isPinned } : d)));
+      onToast(res.isPinned ? "Pinned" : "Unpinned");
     }
   }
 
-  function tagBadge(tag: string) {
-    switch (tag) {
-      case "DOUBT": return { fg: "var(--amber)", bg: "var(--amber-d)" };
-      case "TIP": return { fg: "var(--green)", bg: "var(--green-d)" };
-      case "ANNOUNCEMENT": return { fg: "var(--red)", bg: "var(--red-d)" };
-      case "RESOURCE": return { fg: "var(--blue)", bg: "var(--blue-d)" };
-      default: return { fg: "var(--text3)", bg: "var(--panel)" };
+  async function handleReply(msgId: string, courseId: string, body: string) {
+    const res = await apiAction(`/api/discussion/${courseId}/messages/${msgId}/replies`, { method: "POST", body: JSON.stringify({ body }) });
+    if (res) onToast("Reply posted");
+    return res;
+  }
+
+  async function handleDelete(msgId: string, courseId: string) {
+    const res = await apiAction(`/api/discussion/${courseId}/messages/${msgId}`, { method: "DELETE" });
+    if (res) {
+      setMessages((prev) => prev.filter((d) => d.id !== msgId));
+      onToast("Deleted");
     }
+  }
+
+  async function handleUpvote(msgId: string, courseId: string, replyId?: string) {
+    const url = replyId
+      ? `/api/discussion/${courseId}/replies/${replyId}/upvote`
+      : `/api/discussion/${courseId}/messages/${msgId}/upvote`;
+    const res = await apiAction<{ upvoted: boolean; upvoteCount: number }>(url, { method: "POST" });
+    if (!res) return;
+    setMessages((prev) =>
+      prev.map((d) => {
+        if (d.id !== msgId) return d;
+        if (!replyId) return { ...d, userHasUpvoted: res.upvoted, upvoteCount: res.upvoteCount };
+        return {
+          ...d,
+          replies: d.replies.map((r) => (r.id === replyId ? { ...r, userHasUpvoted: res.upvoted, upvoteCount: res.upvoteCount } : r)),
+        };
+      }),
+    );
+  }
+
+  async function handleCreate(courseId: string, body: string, tag: string, attachmentUrl?: string | null) {
+    const res = await apiAction<DiscussionMessage>(`/api/discussion/${courseId}`, { method: "POST", body: JSON.stringify({ body, tag, attachmentUrl }) });
+    if (res) {
+      const title = messages.find((m) => m.courseId === courseId)?.courseTitle;
+      setMessages((prev) => [{ ...res, courseId, courseTitle: title, replies: [] }, ...prev]);
+      onToast("Message posted");
+    }
+    return res;
+  }
+
+  async function handleUpdate(msgId: string, courseId: string, body: string) {
+    const res = await apiAction(`/api/discussion/${courseId}/messages/${msgId}`, { method: "PATCH", body: JSON.stringify({ body }) });
+    if (res) {
+      setMessages((prev) => prev.map((d) => (d.id === msgId ? { ...d, body } : d)));
+      onToast("Message updated");
+    }
+    return res;
+  }
+
+  async function handleDeleteReply(replyId: string, courseId: string) {
+    const res = await apiAction(`/api/discussion/${courseId}/replies/${replyId}`, { method: "DELETE" });
+    if (res) {
+      setMessages((prev) => prev.map((d) => ({ ...d, replies: d.replies.filter((r) => r.id !== replyId) })));
+      onToast("Reply deleted");
+    }
+    return res;
+  }
+
+  if (loading && messages.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-16 font-mono text-[11px]" style={{ color: "var(--text3)" }}>
+        Loading discussions…
+      </div>
+    );
   }
 
   return (
-    <div className="p-4 pb-7">
-      <ViewHeader
-        icon="💬"
-        title="Discussions"
-        meta={`${filtered.length} MESSAGES`}
-      />
-
-      {/* Course Filter */}
-      <div className="flex items-center gap-1.5 mb-3">
-        <button onClick={() => setCourseFilter("")}
-          className="font-mono text-[8.5px] font-bold px-2 py-1 rounded cursor-pointer"
-          style={{
-            background: !courseFilter ? "var(--amber)" : "var(--panel)",
-            color: !courseFilter ? "#fff" : "var(--text2)",
-            border: `1px solid ${!courseFilter ? "var(--amber)" : "var(--border)"}`,
-          }}>ALL COURSES</button>
-        {courses.slice(0, 5).map((c) => (
-          <button key={c.id} onClick={() => setCourseFilter(c.id)}
-            className="font-mono text-[8.5px] font-bold px-2 py-1 rounded cursor-pointer truncate max-w-[120px]"
-            style={{
-              background: courseFilter === c.id ? "var(--amber)" : "var(--panel)",
-              color: courseFilter === c.id ? "#fff" : "var(--text2)",
-              border: `1px solid ${courseFilter === c.id ? "var(--amber)" : "var(--border)"}`,
-            }}>{c.title}</button>
-        ))}
-      </div>
-
-      <Panel title="Discussion Messages" count={`${filtered.length} MESSAGES`}>
-        {loading ? (
-          <div className="flex items-center justify-center py-10 font-mono text-[11px]" style={{ color: "var(--text3)" }}>Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div className="flex items-center justify-center py-10 font-mono text-[11px]" style={{ color: "var(--text3)" }}>No discussions found</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  <Th>Author</Th>
-                  <Th>Course</Th>
-                  <Th>Tag</Th>
-                  <Th>Message</Th>
-                  <Th>Status</Th>
-                  <Th>Actions</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginated.map((m) => {
-                  const tag = tagBadge(m.tag);
-                  return (
-                    <tr key={m.id}>
-                      <Td>
-                        <span className="font-semibold" style={{ color: "var(--text)" }}>{m.author.name}</span>
-                        <div className="font-mono text-[8px] px-1 py-0.5 rounded inline-block" style={{ background: "var(--panel)", color: "var(--text3)" }}>{m.author.role}</div>
-                      </Td>
-                      <Td><span className="font-mono text-[9.5px]" style={{ color: "var(--blue)" }}>{m.course.title}</span></Td>
-                      <Td>
-                        <span className="font-mono text-[8.5px] font-bold px-1.5 py-0.5 rounded" style={{ background: tag.bg, color: tag.fg }}>{m.tag}</span>
-                      </Td>
-                      <Td>
-                        <div className="text-[10.5px] max-w-[300px] truncate" style={{ color: "var(--text2)" }}>{m.body}</div>
-                        <div className="font-mono text-[8px]" style={{ color: "var(--text3)" }}>{m._count?.replies ?? 0} replies</div>
-                      </Td>
-                      <Td>
-                        <div className="flex gap-1">
-                          {m.isPinned && <span className="font-mono text-[8px] px-1 py-0.5 rounded" style={{ background: "var(--red-d)", color: "var(--red)" }}>📌 PINNED</span>}
-                          {m.isAnswered && <span className="font-mono text-[8px] px-1 py-0.5 rounded" style={{ background: "var(--green-d)", color: "var(--green)" }}>✓ ANSWERED</span>}
-                        </div>
-                      </Td>
-                      <Td>
-                        <div className="flex gap-1">
-                          <ActionBtn color="var(--amber)" onClick={() => handleTogglePin(m)}>{m.isPinned ? "UNPIN" : "PIN"}</ActionBtn>
-                          <ActionBtn color="var(--green)" onClick={() => handleToggleAnswered(m)}>{m.isAnswered ? "UNANSWER" : "ANSWER"}</ActionBtn>
-                          <ActionBtn color="var(--red)" onClick={() => handleDelete(m)}>✕</ActionBtn>
-                        </div>
-                      </Td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
-
-      {!loading && filtered.length > PER_PAGE && (
-        <div className="flex items-center justify-center gap-2 mt-3">
-          <button onClick={() => setPage(safePage - 1)} disabled={safePage <= 1}
-            className="font-mono text-[9px] font-bold px-2.5 py-1 rounded cursor-pointer disabled:opacity-40"
-            style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}>← PREV</button>
-          <span className="font-mono text-[9.5px]" style={{ color: "var(--text3)" }}>{safePage} / {totalPages}</span>
-          <button onClick={() => setPage(safePage + 1)} disabled={safePage >= totalPages}
-            className="font-mono text-[9px] font-bold px-2.5 py-1 rounded cursor-pointer disabled:opacity-40"
-            style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}>NEXT →</button>
-        </div>
-      )}
-    </div>
+    <DoubtsView
+      messages={messages}
+      searchQuery={searchQuery}
+      user={user}
+      onToggleAnswer={handleToggleAnswer}
+      onTogglePin={handleTogglePin}
+      onReply={handleReply}
+      onDelete={handleDelete}
+      onUpvote={handleUpvote}
+      onCreate={handleCreate}
+      onUpdate={handleUpdate}
+      onDeleteReply={handleDeleteReply}
+    />
   );
 }

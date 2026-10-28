@@ -45,4 +45,10 @@ export class UpdatePaymentSettingsDto {
   @Min(1)
   @Max(30)
   refundEtaDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  maxCartItems?: number;
 }

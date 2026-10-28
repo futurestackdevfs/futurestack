@@ -17,6 +17,8 @@ interface PaymentOrder {
   razorpayPaymentId: string | null;
   /** ONLINE = Razorpay payment · OFFLINE = cash / manually collected by the team. */
   paymentMode: "ONLINE" | "OFFLINE";
+  /** Admin-gifted enrollment (code GIFT, ₹0 charged). */
+  isGift?: boolean;
   paymentMethod: string | null;
   billing: {
     fullName: string | null;
@@ -297,7 +299,7 @@ export default function PaymentsManager({ token, searchQuery = "" }: { token: st
       String(o.totalAmount),
       new Date(o.createdAt).toISOString().slice(0, 10),
       o.razorpayPaymentId ?? "",
-      o.paymentMode === "OFFLINE" ? "Cash / Offline" : "Online",
+      o.isGift ? "Gift" : o.paymentMode === "OFFLINE" ? "Cash / Offline" : "Online",
       o.paymentMethod ?? "",
     ]);
     const csv = [
@@ -756,7 +758,7 @@ function OrderRow({
                 <div className="font-mono text-[9px] font-bold uppercase tracking-[.08em] mb-1" style={{ color: "var(--text3)" }}>
                   Details
                 </div>
-                <DetailRow label="Payment mode" value={order.paymentMode === "OFFLINE" ? "Cash / offline (collected by team)" : "Online (Razorpay)"} />
+                <DetailRow label="Payment mode" value={order.isGift ? "Gift — code GIFT, no payment taken" : order.paymentMode === "OFFLINE" ? "Cash / offline (collected by team)" : "Online (Razorpay)"} />
                 <DetailRow label="Method" value={order.paymentMethod ?? "—"} />
                 <DetailRow label="Razorpay order" value={order.razorpayOrderId || "—"} mono />
                 <DetailRow label="Payment id" value={order.razorpayPaymentId || "—"} mono />
@@ -770,7 +772,7 @@ function OrderRow({
                 )}
                 {["ACTIVE", "PAID", "COMPLETED"].includes(order.status) && order.items.length > 0 && order.paymentMode === "OFFLINE" && (
                   <div className="mt-2 pt-2 text-[11px] leading-snug" style={{ borderTop: "1px solid var(--border)", color: "var(--text3)" }}>
-                    Cash / offline payment — refunds for these are done manually, outside the system.
+                    {order.isGift ? "Gifted enrollment — nothing was paid, so there is nothing to refund." : "Cash / offline payment — refunds for these are done manually, outside the system."}
                   </div>
                 )}
                 {["ACTIVE", "PAID", "COMPLETED"].includes(order.status) && order.items.length > 0 && order.paymentMode !== "OFFLINE" && (
@@ -795,6 +797,19 @@ function OrderRow({
 
 function ModeBadge({ order }: { order: PaymentOrder }) {
   const offline = order.paymentMode === "OFFLINE";
+  if (order.isGift) {
+    return (
+      <div className="whitespace-nowrap">
+        <span
+          className="font-mono text-[9px] font-bold px-2 py-[2px] rounded-full uppercase tracking-wide"
+          style={{ background: "rgba(124,58,237,.12)", color: "#7c3aed", border: "1px solid rgba(124,58,237,.3)" }}
+        >
+          🎁 Gift
+        </span>
+        <div className="font-mono text-[9px] mt-0.5" style={{ color: "var(--text3)" }}>code GIFT</div>
+      </div>
+    );
+  }
   return (
     <div className="whitespace-nowrap">
       <span

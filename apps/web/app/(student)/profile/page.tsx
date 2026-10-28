@@ -209,7 +209,7 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-[var(--bg)]">
       {/* Hero */}
       <div className="bg-gradient-to-br from-blue-600/5 via-transparent to-orange-600/5 border-b border-[var(--border)]">
-        <div className="max-w-6xl mx-auto px-6 py-10">
+        <div className="w-full px-4 sm:px-6 lg:px-10 py-10">
           <div className="flex items-center gap-5" style={animate ? { animation: 'fadeUp .5s ease both' } : {}}>
             <AvatarDisplay currentUrl={avatarUrl} initials={initials} />
             <div className="flex-1 min-w-0">
@@ -249,7 +249,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="w-full px-4 sm:px-6 lg:px-10 py-8">
         {fetchLoading ? (
           <div className="flex items-center justify-center py-24">
             <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />

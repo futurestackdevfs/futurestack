@@ -12,6 +12,8 @@ function makePrismaMock() {
     cart: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
     cartItem: {
       findMany: jest.fn(),
+      findUnique: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
       upsert: jest.fn(),
       deleteMany: jest.fn(),
     },
@@ -119,6 +121,35 @@ describe('CartService', () => {
         }),
       );
       expect(result.items).toEqual([]);
+    });
+
+    it('rejects a new course once the cart already holds the configured maximum', async () => {
+      paymentSettings.getSettings.mockResolvedValue({ gstPercent: 18, gstPercentUsd: 0, usdRate: 84, maxCartItems: 5 });
+      (prisma.cart.findUnique as jest.Mock).mockResolvedValue(makeCartRow());
+      (prisma.course.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__course-6', status: 'ACTIVE' });
+      (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.cartItem.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.cartItem.count as jest.Mock).mockResolvedValue(5);
+
+      await expect(
+        service.addItem('__spec__student-1', '__spec__course-6'),
+      ).rejects.toThrow(/at most 5 items/);
+      expect(prisma.cartItem.upsert).not.toHaveBeenCalled();
+    });
+
+    it('still allows re-adding a course already in a full cart (idempotent)', async () => {
+      paymentSettings.getSettings.mockResolvedValue({ gstPercent: 18, gstPercentUsd: 0, usdRate: 84, maxCartItems: 5 });
+      (prisma.cart.findUnique as jest.Mock).mockResolvedValue(makeCartRow());
+      (prisma.course.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__course-1', status: 'ACTIVE' });
+      (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.cartItem.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__ci-1' });
+      (prisma.cartItem.count as jest.Mock).mockResolvedValue(5);
+      (prisma.cartItem.upsert as jest.Mock).mockResolvedValue({});
+      (prisma.cartItem.findMany as jest.Mock).mockResolvedValue([]);
+
+      await expect(
+        service.addItem('__spec__student-1', '__spec__course-1'),
+      ).resolves.toBeDefined();
     });
 
     it('rejects adding an inactive project', async () => {

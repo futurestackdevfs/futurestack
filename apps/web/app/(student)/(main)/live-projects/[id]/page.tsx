@@ -8,6 +8,7 @@ import { ReviewForm } from "@/components/ReviewForm";
 import { useAuth } from "@/app/auth/hooks/use-auth";
 import { showToast } from "@/lib/toast";
 import { RoadmapView, type RoadmapData } from "@/components/RoadmapTree";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ProjectDetail {
   id: string;
@@ -129,11 +130,12 @@ export default function ProjectDetailPage() {
   );
   const error = projectError ? (projectError as Error).message || "Failed to load project" : null;
 
-  const fetchReviews = useCallback(async (page: number = 1) => {
+  // `fresh` skips the edge/browser cache on the public list (used right after a submit/delete).
+  const fetchReviews = useCallback(async (page: number = 1, fresh = false) => {
     if (!projectId) return;
     setReviewsLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}/reviews?page=${page}&limit=10`);
+      const res = await fetch(`/api/projects/${projectId}/reviews?page=${page}&limit=10${fresh ? `&_=${Date.now()}` : ""}`);
       if (res.ok) {
         const data = await res.json();
         setReviews(data.data ?? []);
@@ -181,8 +183,27 @@ export default function ProjectDetailPage() {
     if (res.ok) {
       setShowReviewForm(false);
       fetchMyReview();
-      fetchReviews(1);
+      fetchReviews(1, true);
       // Refresh project data for updated rating
+      refetchProject();
+    }
+  }
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  async function handleDeleteReview() {
+    if (!myReview) return;
+    setDeleting(true);
+    const res = await fetch(`/api/projects/${projectId}/reviews/${myReview.id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    setDeleting(false);
+    setConfirmDelete(false);
+    if (res.ok) {
+      setMyReview(null);
+      setShowReviewForm(false);
+      fetchReviews(1, true);
       refetchProject();
     }
   }
@@ -529,11 +550,29 @@ export default function ProjectDetailPage() {
             )}
 
             {/* My review */}
+            <ConfirmDialog
+              open={confirmDelete}
+              danger
+              title="Delete your review?"
+              message="This can't be undone. Your rating will be removed from the project."
+              confirmLabel="Delete"
+              busy={deleting}
+              onConfirm={handleDeleteReview}
+              onCancel={() => setConfirmDelete(false)}
+            />
             {myReview && !showReviewForm && (
               <div className="mb-4 p-4 bg-[var(--surface)] border border-[var(--orange)] rounded-[10px]">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[12px] font-bold text-[var(--text)]">Your Review</span>
-                  <StarRating value={myReview.rating} size={14} />
+                  <div className="flex items-center gap-3">
+                    <StarRating value={myReview.rating} size={14} />
+                    <button
+                      onClick={() => setConfirmDelete(true)}
+                      className="text-[11px] font-bold text-red-500 bg-transparent border border-red-300 dark:border-red-800 rounded-[6px] px-2.5 py-[2px] cursor-pointer hover:bg-red-500/10 transition-all"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
                 {myReview.comment && (
                   <p className="text-[12px] text-[var(--text2)] leading-[1.6]">{myReview.comment}</p>

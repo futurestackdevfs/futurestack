@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   Get,
   Header,
   Post,
@@ -44,6 +45,16 @@ export class ReviewsController {
   ) {
     const user = req.user as { id: string };
     return this.reviewsService.updateReview(user.id, reviewId, dto);
+  }
+
+  @Auth(Role.STUDENT)
+  @Delete('courses/:courseId/reviews/:reviewId')
+  async deleteCourseReview(
+    @Req() req: Request,
+    @Param('reviewId') reviewId: string,
+  ) {
+    const user = req.user as { id: string };
+    return this.reviewsService.deleteReview(user.id, reviewId);
   }
 
   @Get('courses/:courseId/reviews')

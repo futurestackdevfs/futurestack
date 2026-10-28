@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useViewParam } from "@/lib/use-view-param";
 import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken, clearStaffToken } from "@/app/auth/lib/token-store";
+import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import { RoleGate } from "@/app/ops/components/RoleGate";
 import { AdminTopbar } from "./sections/AdminTopbar";
 import type { GlobalSearchResult } from "./sections/AdminTopbar";
@@ -24,6 +25,8 @@ import PaymentSettingsManager from "./sections/PaymentSettingsManager";
 import PagesManager from "./sections/PagesManager";
 import PaymentsManager from "./sections/PaymentsManager";
 import RefundsManager from "./sections/RefundsManager";
+import EscalationsManager from "./sections/EscalationsManager";
+import ReportsManager from "./sections/ReportsManager";
 import EnrollmentsManager from "./sections/EnrollmentsManager";
 import AuditLogManager from "./sections/AuditLogManager";
 import SystemHealthManager from "./sections/SystemHealthManager";
@@ -358,6 +361,8 @@ export default function AdminMasterDataPage() {
   const [user, setUser] = useState<Record<string, any> | null>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
+  // Sidebar badge: how many escalations still need attention.
+  const [escalationCount, setEscalationCount] = useState<number | null>(null);
   const [stats, setStats] = useState<CourseStats | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -408,6 +413,24 @@ export default function AdminMasterDataPage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    const loadCount = () =>
+      opsFetch("/api/admin/escalations/count")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { active?: number } | null) => {
+          if (!cancelled && d && typeof d.active === "number") setEscalationCount(d.active);
+        })
+        .catch(() => {});
+    loadCount();
+    const timer = setInterval(loadCount, 120_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -1467,7 +1490,7 @@ export default function AdminMasterDataPage() {
       />
 
       <div className="flex" style={{ flex: 1, overflow: "hidden" }}>
-        <AdminSidebar activeView={view} onSwitchView={setView} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <AdminSidebar activeView={view} onSwitchView={setView} open={sidebarOpen} onClose={() => setSidebarOpen(false)} escalationCount={escalationCount} />
 
         {view === "admin-dashboard" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
@@ -1496,6 +1519,16 @@ export default function AdminMasterDataPage() {
         ) : view === "refunds" ? (
           <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
             <RefundsManager key={`refunds-${refreshNonce}`} token={token || ""} searchQuery={searchQuery} />
+          </main>
+
+        ) : view === "reports" ? (
+          <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
+            <ReportsManager key={`reports-${refreshNonce}`} token={token || ""} />
+          </main>
+
+        ) : view === "escalations" ? (
+          <main className="flex-1 overflow-y-auto" style={{ background: "var(--bg)" }}>
+            <EscalationsManager key={`escalations-${refreshNonce}`} token={token || ""} searchQuery={searchQuery} onCountChange={setEscalationCount} />
           </main>
 
         ) : view === "enrollments" ? (

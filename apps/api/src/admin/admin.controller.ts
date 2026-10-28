@@ -13,6 +13,7 @@ import { RejectTrainerDto } from './dto/reject-trainer.dto';
 import { UpdateTrainerShareDto } from './dto/update-trainer-share.dto';
 import { UploadVideoDto } from './dto/upload-video.dto';
 import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
+import { ManualEnrollDto } from './dto/manual-enroll.dto';
 
 @Controller('admin')
 export class AdminController {
@@ -179,10 +180,21 @@ export class AdminController {
   @Auth(Role.ADMIN)
   @Audit({ action: 'CREATE', entity: 'Enrollment', idFrom: 'response' })
   @Post('enrollments')
-  async manualEnroll(
-    @Body() dto: { studentId: string; courseId: string; amountPaid: number },
-  ) {
-    return this.adminService.manualEnroll(dto.studentId, dto.courseId, dto.amountPaid);
+  async manualEnroll(@Body() dto: ManualEnrollDto) {
+    return this.adminService.manualEnroll(dto.studentId, { courseId: dto.courseId, projectId: dto.projectId });
+  }
+
+  @Auth(Role.ADMIN)
+  @Get('gifts/projects')
+  async listGiftedProjects() {
+    return this.adminService.listGiftedProjects();
+  }
+
+  @Auth(Role.ADMIN)
+  @Audit({ action: 'DELETE', entity: 'GiftedProject', idParam: 'orderId' })
+  @Delete('gifts/projects/:orderId')
+  async withdrawGiftedProject(@Param('orderId') orderId: string) {
+    return this.adminService.withdrawGiftedProject(orderId);
   }
 
   @Auth(Role.ADMIN)

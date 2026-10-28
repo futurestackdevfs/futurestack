@@ -4,10 +4,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
+import { cartFullMessage, resolveMaxCartItems } from './cart-limit.util';
 
 @Injectable()
 export class WishlistService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly paymentSettings: PaymentSettingsService,
+  ) {}
 
   async getOrCreateWishlist(userId: string) {
     const existing = await this.prisma.wishlist.findUnique({
@@ -108,6 +113,9 @@ export class WishlistService {
   async moveToCart(userId: string, courseId: string) {
     const cart = await this.getOrCreateCart(userId);
     const wishlist = await this.getOrCreateWishlist(userId);
+    const maxItems = resolveMaxCartItems(
+      await this.paymentSettings.getSettings().catch(() => ({})),
+    );
 
     return this.prisma.$transaction(async (tx) => {
       const item = await tx.wishlistItem.findUnique({
@@ -122,6 +130,15 @@ export class WishlistService {
       });
       if (enrolled)
         throw new ConflictException('You are already enrolled in this course');
+
+      const inCart = await tx.cartItem.findUnique({
+        where: { cartId_courseId: { cartId: cart.id, courseId } },
+        select: { id: true },
+      });
+      if (!inCart) {
+        const count = await tx.cartItem.count({ where: { cartId: cart.id } });
+        if (count >= maxItems) throw new ConflictException(cartFullMessage(maxItems));
+      }
 
       await tx.wishlistItem.delete({ where: { id: item.id } });
 

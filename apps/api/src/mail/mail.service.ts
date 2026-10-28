@@ -815,6 +815,64 @@ export class MailService {
   }
 
   /**
+   * Admin alert: HIGH / CRITICAL escalations were just raised. One digest per
+   * scan, so a backlog never turns into dozens of emails.
+   */
+  async sendEscalationDigestEmail(
+    to: string,
+    data: {
+      total: number;
+      url: string;
+      items: { ref: string; severity: string; type: string; title: string }[];
+    },
+  ): Promise<void> {
+    try {
+      const more = data.total - data.items.length;
+      const text = [
+        `${data.total} escalation(s) need attention`,
+        '',
+        ...data.items.map((i) => `[${i.severity}] ${i.ref} · ${i.type} · ${i.title}`),
+        ...(more > 0 ? [`…and ${more} more`] : []),
+        '',
+        `Open the escalations console: ${data.url}`,
+      ].join('\n');
+
+      const rows = data.items
+        .map(
+          (i) => `
+          <tr>
+            <td style="padding:8px 12px 8px 0;font-size:12px;font-weight:700;color:${i.severity === 'CRITICAL' ? '#dc2626' : '#d97706'};white-space:nowrap">${this.escapeHtml(i.severity)}</td>
+            <td style="padding:8px 12px 8px 0;font-size:12px;color:#6b7280;white-space:nowrap">${this.escapeHtml(i.ref)}</td>
+            <td style="padding:8px 0;font-size:13px;color:#111827">${this.escapeHtml(i.title)}</td>
+          </tr>`,
+        )
+        .join('');
+
+      const html = this.fsShell(
+        `${data.total} escalation${data.total === 1 ? '' : 's'} need attention`,
+        'Escalations',
+        `
+        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 16px">These were just raised at high or critical severity.</p>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:10px 20px;margin:0 0 22px">
+          <table style="border-collapse:collapse;width:100%">${rows}</table>
+          ${more > 0 ? `<p style="font-size:12px;color:#6b7280;margin:6px 0 4px">…and ${more} more</p>` : ''}
+        </div>
+        ${this.button('Open escalations', data.url)}
+      `,
+      );
+
+      await this.client.inboxes.messages.send(this.inboxId, {
+        to,
+        subject: `[Escalations] ${data.total} need attention`,
+        text,
+        html,
+      });
+    } catch (error) {
+      this.logger.error('Failed to send escalation digest email', error);
+    }
+  }
+
+  /**
    * "Have an R&D problem worth solving?" form on /research-and-development.
    * Notifies `CONTACT_EMAIL` if set, else the primary inbox (same routing as the
    * generic Contact form). `replyTo` is the visitor's own email, so hitting

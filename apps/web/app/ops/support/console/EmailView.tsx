@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import { showToast } from "@/lib/toast";
+import ClosedBanner from "../sections/ClosedBanner";
 import {
   CATEGORY_LABEL,
   PRIORITY_STYLE,
@@ -315,9 +316,7 @@ export default function EmailView({ meId, onOpenTicket }: { meId: string; onOpen
             {/* composer */}
             <div className="px-4 py-3 shrink-0" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
               {composerDisabled ? (
-                <div className="text-[11px]" style={{ color: "var(--text3)" }}>
-                  This conversation is closed. Reopen it above to send another email.
-                </div>
+                <ClosedBanner ticket={thread} onReopen={() => patch({ status: "OPEN" })} busy={busy} />
               ) : (
                 <>
                   <div className="flex items-center gap-2 mb-1.5 text-[9.5px] font-mono" style={{ color: "var(--text3)" }}>

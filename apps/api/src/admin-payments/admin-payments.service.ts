@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { paymentMethodLabel, paymentModeOf } from '../common/payment-mode.util';
+import { isGiftOrder } from '../common/gift.util';
 import {
   computeTrainerShare,
   resolveTrainerSharePercent,
@@ -129,6 +130,7 @@ export class AdminPaymentsService {
         razorpayOrderId: o.razorpayOrderId,
         razorpayPaymentId: o.razorpayPaymentId,
         paymentMode: paymentModeOf(o),
+        isGift: isGiftOrder(o),
         paymentMethod: paymentMethodLabel(o.paymentMethod),
         billing: {
           fullName: o.billingFullName,

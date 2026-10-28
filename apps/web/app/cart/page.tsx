@@ -6,6 +6,8 @@ import { TopNav } from "@/components/layout/marketing-top-nav";
 import Link from "next/link";
 import { authFetch } from "@/app/auth/lib/auth-fetch";
 import { useAuth } from "@/app/auth/hooks/use-auth";
+import { WISHLIST_KEY, wishlistFetcher, type WishlistView } from "@/app/(student)/hooks/use-wishlist";
+import { showToast } from "@/lib/toast";
 import { COUNTRIES, addressFormat, countryName, guessCountry, normalizeCountry } from "@/lib/countries";
 
 interface PaymentSettings {
@@ -49,6 +51,8 @@ interface CartCoupon {
 
 interface CartView {
   items: CartItem[];
+  /** Admin-configured cart limit (PaymentSettings.maxCartItems). */
+  maxItems?: number;
   coupon: CartCoupon | null;
   discountAmount: number;
   subtotal: number;
@@ -56,20 +60,6 @@ interface CartView {
   gstAmount: number;
   total: number;
   currency: Currency;
-}
-
-interface WishlistItem {
-  courseId: string;
-  title: string;
-  price: number | null;
-  originalPrice?: number | null;
-  offPct?: number;
-  hasDiscount?: boolean;
-  currency: Currency;
-}
-
-interface WishlistView {
-  items: WishlistItem[];
 }
 
 interface RazorpaySuccess {
@@ -207,14 +197,6 @@ async function cartFetcher(url: string): Promise<CartView> {
     const body = (await res.json().catch(() => ({}))) as { message?: string };
     throw new Error(safeApiError(res.status, body, "We couldn't load your cart. Please refresh and try again."));
   }
-  return res.json();
-}
-
-async function wishlistFetcher(url: string): Promise<WishlistView> {
-  const res = await authFetch(url);
-  // Not logged in (401) — treat as an empty wishlist rather than a hard error.
-  if (res.status === 401) return { items: [] };
-  if (!res.ok) return { items: [] };
   return res.json();
 }
 
@@ -413,23 +395,28 @@ export default function CartPage() {
   }
 
   const { data: wishlist, mutate: mutateWishlist } = useSWR<WishlistView>(
-    !authLoading && isAuthenticated ? "/api/wishlist" : null,
+    !authLoading && isAuthenticated ? WISHLIST_KEY : null,
     wishlistFetcher,
   );
   const wishlistItems = wishlist?.items ?? [];
+  const maxItems = cart?.maxItems;
+  const cartFull = maxItems != null && totalCount >= maxItems;
 
   async function moveToCart(courseId: string) {
-    const res = await authFetch(`/api/wishlist/items/${courseId}/move-to-cart`, {
+    const res = await authFetch(`/api/wishlist/${courseId}/move-to-cart`, {
       method: "POST",
     });
     if (res.ok) {
       mutate();
       mutateWishlist();
+      return;
     }
+    const body = (await res.json().catch(() => ({}))) as { message?: string };
+    showToast(body.message || "Could not move this course to your cart");
   }
 
   async function removeWishlistItem(courseId: string) {
-    const res = await authFetch(`/api/wishlist/items/${courseId}`, {
+    const res = await authFetch(`${WISHLIST_KEY}/items/${courseId}`, {
       method: "DELETE",
     });
     if (res.ok) mutateWishlist();
@@ -728,7 +715,7 @@ export default function CartPage() {
             <div className="flex items-center justify-between mb-5 gap-3">
               <div className="flex items-baseline gap-3">
                 <h1 className="font-['Inter_Tight',sans-serif] text-2xl sm:text-3xl font-extrabold text-[var(--text)] tracking-[-.01em]">Your Cart</h1>
-                <span className="text-xs font-medium text-[var(--muted)]">{totalCount} {totalCount === 1 ? "course" : "courses"}</span>
+                <span className="text-xs font-medium text-[var(--muted)]">{totalCount}{maxItems ? ` of ${maxItems}` : ""} {totalCount === 1 && !maxItems ? "course" : "courses"}</span>
               </div>
               <div className="flex items-center gap-2.5 shrink-0">
                 {showCurrencyToggle ? (
@@ -983,7 +970,7 @@ export default function CartPage() {
             )}
 
             {/* Step 1b: Saved for Later */}
-            {wishlistItems.length > 0 && (
+            {!authLoading && isAuthenticated && (
               <div className="mt-8">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-baseline gap-3">
@@ -993,7 +980,19 @@ export default function CartPage() {
                   <Link href="/courses" className="hidden sm:inline text-[13px] font-semibold text-[var(--blue)] hover:underline no-underline">Browse more courses →</Link>
                 </div>
 
+                {wishlistItems.length === 0 ? (
+                  <Card className="flex flex-col items-center text-center py-10 px-6">
+                    <div className="text-[40px] opacity-40 mb-3">🤍</div>
+                    <div className="font-['Inter_Tight',sans-serif] text-base font-bold text-[var(--text)] mb-1">Your wishlist is empty</div>
+                    <div className="text-[13px] text-[var(--muted)] max-w-[320px]">Tap the heart on any course to save it here for later.</div>
+                  </Card>
+                ) : (
                 <Card className="overflow-hidden">
+                  {cartFull && (
+                    <div className="px-4 sm:px-6 py-2.5 text-[12px] font-semibold text-[var(--orange)] bg-[var(--bg2)] border-b border-[var(--border)]">
+                      Your cart is full ({maxItems} max) — remove a course to add another from here.
+                    </div>
+                  )}
                   {wishlistItems.map((item, i) => (
                     <div key={item.courseId} className={`flex items-center gap-4 sm:gap-5 px-4 sm:px-6 py-4 animate-[fadeUp_.3s_ease_both] ${i > 0 ? "border-t border-[var(--border)]" : ""}`}>
                       <div
@@ -1023,7 +1022,9 @@ export default function CartPage() {
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           onClick={() => moveToCart(item.courseId)}
-                          className="px-3.5 py-2 rounded-lg text-[11px] font-bold text-white border-none cursor-pointer transition-[opacity,transform] duration-150 hover:opacity-90 active:scale-[.97] whitespace-nowrap"
+                          disabled={cartFull}
+                          title={cartFull ? `Your cart is full (${maxItems} max)` : undefined}
+                          className="px-3.5 py-2 rounded-lg text-[11px] font-bold text-white border-none cursor-pointer transition-[opacity,transform] duration-150 hover:opacity-90 active:scale-[.97] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                           style={{ background: "linear-gradient(135deg,var(--orange),var(--orange2))" }}
                         >
                           Add to Cart
@@ -1040,6 +1041,7 @@ export default function CartPage() {
                     </div>
                   ))}
                 </Card>
+                )}
               </div>
             )}
           </>

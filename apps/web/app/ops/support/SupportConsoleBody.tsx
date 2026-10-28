@@ -5,6 +5,7 @@ import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken } from "@/app/auth/lib/token-store";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import { showToast } from "@/lib/toast";
+import ClosedBanner from "./sections/ClosedBanner";
 import {
   CATEGORY_LABEL,
   PRIORITY_STYLE,
@@ -437,9 +438,7 @@ function TicketDetail({
 
           <div className="p-3 shrink-0" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
             {thread.status === "CLOSED" ? (
-              <div className="text-[10px]" style={{ color: "var(--text3)" }}>
-                Ticket is closed. Set it back to Open to email the student.
-              </div>
+              <ClosedBanner ticket={thread} onReopen={() => patch({ status: "OPEN" })} busy={busy} />
             ) : (
               <>
                 <textarea value={emailBody} onChange={(e) => setEmailBody(e.target.value)}

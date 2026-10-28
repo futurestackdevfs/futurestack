@@ -13,6 +13,7 @@ import type { EnrolledCourse } from "../../hooks/student-dashboard";
 import DiscussionTab from "./DiscussionTab";
 import VideoPlayer from "./VideoPlayer";
 import QuizPlayer from "./QuizPlayer";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RoadmapView, type RoadmapData } from "@/components/RoadmapTree";
 
 interface CurriculumItem {
@@ -302,6 +303,29 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
     setReviewSubmitting(false);
   };
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const handleDeleteReview = async () => {
+    if (!myReview || !courseId) return;
+    const token = await loadToken();
+    if (!token) return;
+    setDeleting(true);
+    const res = await fetch(`/api/courses/${courseId}/reviews/${myReview.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setDeleting(false);
+    setConfirmDelete(false);
+    if (res.ok) {
+      setMyReview(null);
+      setShowReviewForm(false);
+      setReviewError(null);
+    } else {
+      const body = await res.json().catch(() => ({}));
+      setReviewError(body.message || 'Could not delete your review');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -506,6 +530,16 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
               </div>
 
               {/* Review — under instructor */}
+              <ConfirmDialog
+                open={confirmDelete}
+                danger
+                title="Delete your review?"
+                message="This can't be undone. Your rating will be removed from the course."
+                confirmLabel="Delete"
+                busy={deleting}
+                onConfirm={handleDeleteReview}
+                onCancel={() => setConfirmDelete(false)}
+              />
               {myReview && !showReviewForm ? (
                 <div className="mt-3 pt-3 border-t border-[var(--border)]">
                   <div className="flex items-center justify-between mb-1">
@@ -515,6 +549,8 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                     </div>
                     <button onClick={() => { setReviewRating(myReview.rating); setReviewComment(myReview.comment ?? ''); setShowReviewForm(true); }}
                       className="text-[9px] font-semibold text-[var(--blue2)] bg-transparent border border-[var(--blue-dim)] rounded-[4px] px-[7px] py-[2px] cursor-pointer hover:bg-[var(--blue-dim)]/20 transition-all">Edit</button>
+                    <button onClick={() => setConfirmDelete(true)}
+                      className="text-[9px] font-semibold text-red-500 bg-transparent border border-red-300 dark:border-red-800 rounded-[4px] px-[7px] py-[2px] cursor-pointer hover:bg-red-500/10 transition-all">Delete</button>
                   </div>
                   {myReview.comment && (
                     <div className="text-[11px] text-[var(--text2)] leading-[1.6] mt-[2px]">{myReview.comment}</div>

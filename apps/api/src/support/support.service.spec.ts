@@ -13,8 +13,10 @@ function makePrismaMock() {
       count: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       groupBy: jest.fn(),
     },
+    escalationSettings: { findFirst: jest.fn() },
     supportTicketMessage: { findMany: jest.fn(), create: jest.fn() },
     user: { findUnique: jest.fn(), findMany: jest.fn() },
   } as unknown as PrismaService;
@@ -40,6 +42,7 @@ function makeTicketRow(overrides: Partial<Record<string, any>> = {}) {
     lastMessageAt: new Date('2026-09-01T00:00:00Z'),
     resolvedAt: null,
     closedAt: null,
+    closedReason: null,
     ...overrides,
   };
 }
@@ -317,6 +320,93 @@ describe('SupportService', () => {
 
       expect(authService.forgotPassword).toHaveBeenCalledWith('student@example.com');
       expect(result).toEqual({ sent: true, email: 'student@example.com' });
+    });
+  });
+
+  describe('autoCloseIdleTickets()', () => {
+    const now = new Date('2026-10-28T12:00:00Z');
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    it('closes tickets waiting on the student or resolved, with no message for 3 days by default', async () => {
+      (prisma.escalationSettings.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.supportTicket.updateMany as jest.Mock).mockResolvedValue({ count: 2 });
+
+      const closed = await service.autoCloseIdleTickets(now);
+
+      expect(closed).toBe(2);
+      const arg = (prisma.supportTicket.updateMany as jest.Mock).mock.calls[0][0];
+      const cutoff = new Date(now.getTime() - 3 * dayMs);
+      expect(arg.where.OR).toEqual([
+        { status: 'PENDING', lastMessageAt: { lt: cutoff } },
+        { status: 'RESOLVED', lastMessageAt: { lt: cutoff }, resolvedAt: { lt: cutoff } },
+      ]);
+      expect(arg.data).toEqual({ status: 'CLOSED', closedAt: now, closedReason: 'AUTO' });
+    });
+
+    it('never touches tickets that are waiting on an agent', async () => {
+      (prisma.escalationSettings.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.supportTicket.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+
+      await service.autoCloseIdleTickets(now);
+
+      const statuses = (prisma.supportTicket.updateMany as jest.Mock).mock.calls[0][0].where.OR.map(
+        (c: { status: string }) => c.status,
+      );
+      expect(statuses).not.toContain('OPEN');
+    });
+
+    it('uses the number of days the admin configured', async () => {
+      (prisma.escalationSettings.findFirst as jest.Mock).mockResolvedValue({ ticketAutoCloseDays: 7 });
+      (prisma.supportTicket.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+
+      await service.autoCloseIdleTickets(now);
+
+      const cutoff = new Date(now.getTime() - 7 * dayMs);
+      expect((prisma.supportTicket.updateMany as jest.Mock).mock.calls[0][0].where.OR[0].lastMessageAt).toEqual({ lt: cutoff });
+    });
+
+    it('does not throw if the sweep fails', async () => {
+      (prisma.escalationSettings.findFirst as jest.Mock).mockResolvedValue(null);
+      (prisma.supportTicket.updateMany as jest.Mock).mockRejectedValue(new Error('db down'));
+
+      await expect(service.autoCloseIdleTickets(now)).resolves.toBe(0);
+    });
+  });
+
+  describe('closed reasons', () => {
+    it('records that the student closed their own ticket', async () => {
+      (prisma.supportTicket.findUnique as jest.Mock).mockResolvedValue(makeTicketRow());
+      (prisma.supportTicket.update as jest.Mock).mockResolvedValue(makeTicketRow({ status: 'CLOSED' }));
+
+      await service.closeOwn('__spec__ticket-1', { id: '__spec__student-1', role: Role.STUDENT } as never);
+
+      expect((prisma.supportTicket.update as jest.Mock).mock.calls[0][0].data.closedReason).toBe('STUDENT');
+    });
+
+    it('records an agent closing, and clears everything when an agent reopens', async () => {
+      (prisma.supportTicket.findUnique as jest.Mock).mockResolvedValue(makeTicketRow({ status: 'PENDING' }));
+      (prisma.supportTicket.update as jest.Mock).mockResolvedValue(makeTicketRow({ status: 'CLOSED' }));
+      await service.staffUpdate('__spec__ticket-1', { status: 'CLOSED' });
+      expect((prisma.supportTicket.update as jest.Mock).mock.calls[0][0].data).toMatchObject({ closedReason: 'AGENT' });
+
+      (prisma.supportTicket.update as jest.Mock).mockClear();
+      (prisma.supportTicket.findUnique as jest.Mock).mockResolvedValue(makeTicketRow({ status: 'CLOSED', closedReason: 'AUTO' }));
+      (prisma.supportTicket.update as jest.Mock).mockResolvedValue(makeTicketRow({ status: 'OPEN' }));
+      await service.staffUpdate('__spec__ticket-1', { status: 'OPEN' });
+      expect((prisma.supportTicket.update as jest.Mock).mock.calls[0][0].data).toMatchObject({
+        status: 'OPEN',
+        closedAt: null,
+        resolvedAt: null,
+        closedReason: null,
+      });
+    });
+
+    it('tells a student whose ticket was auto-closed to open a new one', async () => {
+      (prisma.supportTicket.findUnique as jest.Mock).mockResolvedValue(makeTicketRow({ status: 'CLOSED', closedReason: 'AUTO' }));
+
+      await expect(
+        service.addStudentMessage('__spec__ticket-1', { id: '__spec__student-1', role: Role.STUDENT } as never, { body: 'hello' } as never),
+      ).rejects.toThrow(/closed automatically/);
     });
   });
 });

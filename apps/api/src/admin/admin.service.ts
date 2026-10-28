@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { OrderStatus, Role } from '@prisma/client';
+import { OrderStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
@@ -19,6 +19,8 @@ import { AiProviderService } from '../ai/ai-provider.service';
 import { TTLCache } from '../common/ttl-cache';
 import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 import { UpdateTrainerShareDto } from './dto/update-trainer-share.dto';
+import { InvoicesService } from '../invoices/invoices.service';
+import { GIFT_CODE, GIFT_PAYMENT_METHOD, giftOrderRef, isGiftOrder } from '../common/gift.util';
 
 @Injectable()
 export class AdminService {
@@ -34,6 +36,7 @@ export class AdminService {
     private readonly configService: ConfigService,
     private readonly s3Service: S3Service,
     private readonly aiProviderService: AiProviderService,
+    private readonly invoices: InvoicesService,
   ) {}
 
   // Reports which env vars are PRESENT for each third-party integration —
@@ -1298,6 +1301,7 @@ export class AdminService {
               gstAmount: e.order.gstAmount.toNumber(),
               totalAmount: e.order.totalAmount.toNumber(),
               paymentMethod: e.order.paymentMethod,
+              isGift: isGiftOrder(e.order),
               razorpayOrderId: e.order.razorpayOrderId,
               razorpayPaymentId: e.order.razorpayPaymentId,
               batchMode: e.order.batchMode,
@@ -1324,48 +1328,210 @@ export class AdminService {
     };
   }
 
-  async manualEnroll(studentId: string, courseId: string, amountPaid: number) {
+  /**
+   * Gift enrollment. The student gets a course or a project for free, but it is
+   * recorded like any other purchase — a PAID order at the item's real price
+   * with a 100% discount under the fixed GIFT code (so ₹0 is charged), and an
+   * invoice — so it shows up in order history, invoices and reports.
+   */
+  async manualEnroll(studentId: string, target: { courseId?: string; projectId?: string }) {
+    const { courseId, projectId } = target;
+    if (!!courseId === !!projectId) {
+      throw new BadRequestException('Choose either a course or a project to gift.');
+    }
+
     const student = await this.prisma.user.findUnique({
       where: { id: studentId },
-      select: { id: true, role: true },
+      select: { id: true, role: true, name: true, email: true, phone: true },
     });
     if (!student || student.role !== Role.STUDENT) {
       throw new BadRequestException('Invalid student');
     }
 
-    const course = await this.prisma.course.findUnique({ where: { id: courseId } });
-    if (!course) throw new BadRequestException('Course not found');
-
-    const existing = await this.prisma.enrollment.findUnique({
-      where: { studentId_courseId: { studentId, courseId } },
+    const orderId = crypto.randomUUID();
+    const billing = {
+      billingFullName: student.name,
+      billingEmail: student.email,
+      billingPhone: student.phone,
+      billingCountry: 'IN',
+    };
+    // The invoice shows the item's real price, then a 100% GIFT discount down to ₹0.
+    const giftOrder = (price: Prisma.Decimal | number) => ({
+      id: orderId,
+      userId: studentId,
+      currency: 'INR' as const,
+      gatewayType: 'DOMESTIC' as const,
+      subtotal: price,
+      discountAmount: price,
+      gstPercent: 0,
+      gstAmount: 0,
+      totalAmount: 0,
+      status: OrderStatus.PAID,
+      razorpayOrderId: giftOrderRef(orderId),
+      paymentMethod: GIFT_PAYMENT_METHOD,
+      discountReason: GIFT_CODE,
+      ...billing,
     });
-    if (existing) throw new ConflictException('Student is already enrolled in this course');
 
-    const enrollment = await this.prisma.enrollment.create({
-      data: { studentId, courseId, amountPaid, status: 'active' },
-      include: {
-        student: { select: { id: true, name: true, email: true } },
-        course: { select: { id: true, title: true } },
-      },
-    });
+    let result: { id: string; itemTitle: string; status: string; enrolledAt: Date; kind: 'course' | 'project' };
+
+    if (courseId) {
+      const course = await this.prisma.course.findUnique({
+        where: { id: courseId },
+        select: { id: true, price: true },
+      });
+      if (!course) throw new BadRequestException('Course not found');
+
+      const existing = await this.prisma.enrollment.findUnique({
+        where: { studentId_courseId: { studentId, courseId } },
+      });
+      if (existing) throw new ConflictException('Student is already enrolled in this course');
+
+      try {
+        const enrollment = await this.prisma.$transaction(async (tx) => {
+          await tx.order.create({
+            data: {
+              ...giftOrder(course.price),
+              items: { create: { courseId, priceAtPurchase: course.price, currency: 'INR' } },
+            },
+          });
+          return tx.enrollment.create({
+            data: { studentId, courseId, amountPaid: 0, status: 'active', orderId },
+            include: { course: { select: { title: true } } },
+          });
+        });
+        result = {
+          id: enrollment.id,
+          itemTitle: enrollment.course.title,
+          status: enrollment.status,
+          enrolledAt: enrollment.enrolledAt,
+          kind: 'course',
+        };
+      } catch (e) {
+        // Two admins enrolling the same student at once — the unique key caught it.
+        if ((e as { code?: string })?.code === 'P2002') {
+          throw new ConflictException('Student is already enrolled in this course');
+        }
+        throw e;
+      }
+    } else {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: { id: true, name: true, price: true },
+      });
+      if (!project) throw new BadRequestException('Project not found');
+
+      // Projects have no Enrollment row — access comes from an active order item.
+      const owned = await this.prisma.orderItem.findFirst({
+        where: { projectId: project.id, status: 'active', order: { userId: studentId, status: OrderStatus.PAID } },
+        select: { id: true },
+      });
+      if (owned) throw new ConflictException('Student already has this project');
+
+      const order = await this.prisma.order.create({
+        data: {
+          ...giftOrder(project.price),
+          // Project items store the price AFTER discount (see checkout) — here that is ₹0.
+          items: { create: { projectId: project.id, priceAtPurchase: 0, currency: 'INR', status: 'active' } },
+        },
+      });
+      result = { id: order.id, itemTitle: project.name, status: 'active', enrolledAt: order.createdAt, kind: 'project' };
+    }
+
+    // The invoice is a record of the enrollment, not a condition of it.
+    let invoiceNumber: string | null = null;
+    try {
+      invoiceNumber = (await this.invoices.createInvoice(orderId)).invoiceNumber;
+    } catch (e) {
+      this.logger.error(`Gift ${result.id}: invoice for order ${orderId} failed`, e instanceof Error ? e.stack : e);
+    }
 
     return {
-      id: enrollment.id,
-      studentName: enrollment.student.name,
-      courseTitle: enrollment.course.title,
-      amountPaid: enrollment.amountPaid.toNumber(),
-      status: enrollment.status,
-      enrolledAt: enrollment.enrolledAt.toISOString(),
+      id: result.id,
+      kind: result.kind,
+      orderId,
+      invoiceNumber,
+      giftCode: GIFT_CODE,
+      studentName: student.name,
+      courseTitle: result.itemTitle,
+      amountPaid: 0,
+      status: result.status,
+      enrolledAt: result.enrolledAt.toISOString(),
     };
+  }
+
+  /** Projects gifted by an admin (they have no Enrollment row, so they get their own list). */
+  async listGiftedProjects() {
+    const items = await this.prisma.orderItem.findMany({
+      where: {
+        projectId: { not: null },
+        status: 'active',
+        order: { razorpayOrderId: { startsWith: 'MANUAL-GIFT-' }, status: OrderStatus.PAID },
+      },
+      orderBy: { order: { createdAt: 'desc' } },
+      take: 200,
+      select: {
+        project: { select: { id: true, name: true } },
+        order: {
+          select: {
+            id: true,
+            createdAt: true,
+            subtotal: true,
+            discountAmount: true,
+            gstAmount: true,
+            totalAmount: true,
+            user: { select: { id: true, name: true, email: true } },
+            invoices: { select: { invoiceNumber: true }, take: 1 },
+          },
+        },
+      },
+    });
+    return items.map((i) => ({
+      orderId: i.order.id,
+      student: i.order.user,
+      projectId: i.project?.id ?? null,
+      projectName: i.project?.name ?? 'Unknown project',
+      price: i.order.subtotal.toNumber(),
+      discount: i.order.discountAmount.toNumber(),
+      gst: i.order.gstAmount.toNumber(),
+      paid: i.order.totalAmount.toNumber(),
+      invoiceNumber: i.order.invoices[0]?.invoiceNumber ?? null,
+      giftedAt: i.order.createdAt.toISOString(),
+    }));
+  }
+
+  /** Withdraws a gifted project: the student loses access and the ₹0 order is cancelled. */
+  async withdrawGiftedProject(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, razorpayOrderId: true },
+    });
+    if (!order || !isGiftOrder(order)) throw new NotFoundException('Gifted project not found');
+
+    await this.prisma.$transaction([
+      this.prisma.orderItem.updateMany({
+        where: { orderId, projectId: { not: null } },
+        data: { status: 'cancelled' },
+      }),
+      this.prisma.order.update({ where: { id: orderId }, data: { status: OrderStatus.CANCELLED } }),
+    ]);
+    return { message: 'Gifted project withdrawn' };
   }
 
   async unenroll(enrollmentId: string) {
     const enrollment = await this.prisma.enrollment.findUnique({
       where: { id: enrollmentId },
+      include: { order: { select: { id: true, razorpayOrderId: true } } },
     });
     if (!enrollment) throw new NotFoundException('Enrollment not found');
 
-    await this.prisma.enrollment.delete({ where: { id: enrollmentId } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.enrollment.delete({ where: { id: enrollmentId } });
+      // A gift has no money to return — withdrawing it just cancels its ₹0 order.
+      if (enrollment.order && isGiftOrder(enrollment.order)) {
+        await tx.order.update({ where: { id: enrollment.order.id }, data: { status: OrderStatus.CANCELLED } });
+      }
+    });
     return { message: 'Enrollment removed' };
   }
 
