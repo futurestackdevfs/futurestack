@@ -17,6 +17,9 @@ function setup() {
   const tx = {
     order: { create: jest.fn() },
     orderItem: { createMany: jest.fn(), updateMany: jest.fn() },
+    coupon: {
+      findUnique: jest.fn().mockResolvedValue({ id: '__spec__coupon-1', maxUses: null, usedCount: 0, perUserLimit: 1 }),
+    },
   };
 
   const prisma = {
@@ -42,6 +45,8 @@ function setup() {
 
   const couponService = {
     validate: jest.fn(),
+    lockCoupon: jest.fn().mockResolvedValue(undefined),
+    assertWithinUsageLimits: jest.fn().mockResolvedValue(undefined),
   } as unknown as CouponService;
 
   const paymentSettings = {
@@ -197,6 +202,54 @@ describe('CheckoutService#createOrder — pricing, GST, coupons, currency', () =
     );
   });
 
+  it('locks the coupon and re-checks its limits inside the order-creation transaction', async () => {
+    const { service, prisma, tx, razorpayOrdersCreate, couponService } = setup();
+    const callOrder: string[] = [];
+    (prisma.cart.findUnique as jest.Mock).mockResolvedValue(makeCart({ couponId: '__spec__coupon-1' }));
+    (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.order.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.coupon.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__coupon-1', code: 'SAVE1000' });
+    (couponService.validate as jest.Mock).mockResolvedValue({ coupon: { id: '__spec__coupon-1' }, discountAmount: 1000 });
+    tx.coupon.findUnique.mockResolvedValue({ id: '__spec__coupon-1', maxUses: 1, usedCount: 0, perUserLimit: 1 });
+    (couponService.lockCoupon as jest.Mock).mockImplementation(async () => { callOrder.push('lock'); });
+    (couponService.assertWithinUsageLimits as jest.Mock).mockImplementation(async () => { callOrder.push('recheck'); });
+    tx.order.create.mockImplementation(async () => { callOrder.push('create'); return { id: '__spec__order-lock' }; });
+    tx.orderItem.createMany.mockResolvedValue({});
+    razorpayOrdersCreate.mockResolvedValue({ id: 'order_rzp_lock' });
+    (prisma.order.update as jest.Mock).mockResolvedValue({ razorpayOrderId: 'order_rzp_lock' });
+
+    await service.createOrder('__spec__student-1', { currency: Currency.INR } as any);
+
+    expect(callOrder).toEqual(['lock', 'recheck', 'create']);
+    expect(couponService.lockCoupon).toHaveBeenCalledWith(tx, '__spec__coupon-1');
+    expect(couponService.assertWithinUsageLimits).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ id: '__spec__coupon-1' }),
+      '__spec__student-1',
+    );
+  });
+
+  it('refuses to create the order (and never calls Razorpay) when the coupon ran out between the pre-check and the locked re-check', async () => {
+    const { service, prisma, tx, razorpayOrdersCreate, couponService } = setup();
+    (prisma.cart.findUnique as jest.Mock).mockResolvedValue(makeCart({ couponId: '__spec__coupon-1' }));
+    (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.order.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.coupon.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__coupon-1', code: 'SAVE1000' });
+    (couponService.validate as jest.Mock).mockResolvedValue({ coupon: { id: '__spec__coupon-1' }, discountAmount: 1000 });
+    tx.coupon.findUnique.mockResolvedValue({ id: '__spec__coupon-1', maxUses: 1, usedCount: 0, perUserLimit: 1 });
+    (couponService.assertWithinUsageLimits as jest.Mock).mockRejectedValue(
+      new BadRequestException('This coupon has reached its usage limit'),
+    );
+
+    await expect(
+      service.createOrder('__spec__student-1', { currency: Currency.INR } as any),
+    ).rejects.toThrow('This coupon has reached its usage limit');
+    expect(tx.order.create).not.toHaveBeenCalled();
+    expect(razorpayOrdersCreate).not.toHaveBeenCalled();
+  });
+
   it('silently drops an expired/invalid coupon and charges full price instead of failing checkout', async () => {
     const { service, prisma, tx, razorpayOrdersCreate, couponService } = setup();
     (prisma.cart.findUnique as jest.Mock).mockResolvedValue(
@@ -347,5 +400,37 @@ describe('CheckoutService#finalizeOrder — idempotency', () => {
     expect(enrollments).toEqual([{ id: '__spec__enr-existing', courseId: '__spec__course-react' }]);
     expect((tx as any).enrollment?.create).toBeUndefined(); // never wired up, never called
     expect(invoices.createInvoice).not.toHaveBeenCalled(); // only the winning call issues the invoice
+  });
+});
+
+describe('CheckoutService#finalizeOrder - coupon bookkeeping can never undo a captured payment', () => {
+  it('records the redemption with skipDuplicates so a unique-key clash cannot roll back PAID + enrollments', async () => {
+    const { service, tx } = setup();
+    (tx as any).order.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    (tx as any).order.findUnique = jest.fn().mockResolvedValue({
+      id: '__spec__order-cpn',
+      userId: '__spec__student-1',
+      couponId: '__spec__coupon-1',
+      salespersonId: null,
+      items: [{ courseId: '__spec__course-react', priceAtPurchase: decimal(4999) }],
+    });
+    (tx as any).course = { findMany: jest.fn().mockResolvedValue([{ id: '__spec__course-react', trainer: null }]) };
+    (tx as any).enrollment = { create: jest.fn().mockResolvedValue({ id: '__spec__enr-new' }) };
+    (tx as any).orderItem.updateMany = jest.fn().mockResolvedValue({});
+    (tx as any).coupon = { update: jest.fn().mockResolvedValue({}) };
+    (tx as any).couponRedemption = { createMany: jest.fn().mockResolvedValue({ count: 0 }), create: jest.fn() };
+    (tx as any).cart = { upsert: jest.fn().mockResolvedValue({}) };
+    (tx as any).user = { findUnique: jest.fn().mockResolvedValue({ email: '__spec__student@example.com' }) };
+    (tx as any).lead = { findFirst: jest.fn().mockResolvedValue(null) };
+
+    const enrollments = await service.finalizeOrder('__spec__order-cpn', { razorpayPaymentId: 'pay_cpn' });
+
+    expect(enrollments).toHaveLength(1);
+    expect((tx as any).couponRedemption.createMany).toHaveBeenCalledWith({
+      data: [{ couponId: '__spec__coupon-1', userId: '__spec__student-1', orderId: '__spec__order-cpn' }],
+      skipDuplicates: true,
+    });
+    // the throwing variant must not be used any more
+    expect((tx as any).couponRedemption.create).not.toHaveBeenCalled();
   });
 });

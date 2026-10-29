@@ -6,7 +6,7 @@ import { loadToken } from "@/app/auth/lib/token-store";
 import { fetcher } from "@/app/lib/fetcher";
 import { showToast } from "@/lib/toast";
 import { StarRating } from "@/components/StarRating";
-import VdoCipherVideoPlayer from "./VdoCipherVideoPlayer";
+import VdoCipherVideoPlayer, { waitForPendingProgressWrites } from "./VdoCipherVideoPlayer";
 import { VideoProgressRing } from "@/components/ui/VideoProgressRing"; // Add this
 import useSWR, { mutate } from "swr";
 import type { EnrolledCourse } from "../../hooks/student-dashboard";
@@ -80,13 +80,10 @@ interface Props {
   onViewCertificate?: () => void;
 }
 
-// A video opens only once the previous video has been watched at least this much.
-const UNLOCK_WATCH_RATIO = 0.9;
-
-function watchedEnough(item: CurriculumItem): boolean {
-  if (item.isCompleted) return true;
-  const duration = item.durationSeconds ?? 0;
-  return duration > 0 && (item.watchedSeconds ?? 0) / duration >= UNLOCK_WATCH_RATIO;
+// A video opens only once the previous video has been completed (the server
+// marks a video complete when playback reaches its end).
+function previousVideoDone(item: CurriculumItem): boolean {
+  return item.isCompleted;
 }
 
 const TABS = ["curriculum", "roadmap", "overview", "resources", "discussion"] as const;
@@ -224,10 +221,13 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
     }
   }, [courseId]);
 
-  // Opens a lesson, enforcing the "previous video >= 90% watched" rule. Fetches
-  // fresh progress first so a video the student JUST watched past 90% counts
-  // even though the cached course detail only refreshes on full completion.
+  // Opens a lesson, enforcing the "previous video must be completed" rule.
+  // Fetches fresh progress first so a video the student JUST finished counts
+  // even though the cached course detail may not have refreshed yet. Any
+  // progress write still in flight (e.g. the one that completes the video) is
+  // awaited first, otherwise this fetch could race it and see the old state.
   const openItem = useCallback(async (itemId: string) => {
+    await waitForPendingProgressWrites();
     let data = detail;
     try {
       data = await fetcher<StudentCourseDetail>(`/api/student/courses/${courseId}`);
@@ -244,8 +244,8 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
 
     if (target.type === "video" && !target.isCompleted) {
       const prevVideo = items.slice(0, idx).reverse().find((i) => i.type === "video");
-      if (prevVideo && !watchedEnough(prevVideo)) {
-        showToast(`Watch at least 90% of "${prevVideo.title}" to open this video.`);
+      if (prevVideo && !previousVideoDone(prevVideo)) {
+        showToast(`Please complete the previous video "${prevVideo.title}" to open this video.`);
         return;
       }
     }
@@ -687,7 +687,7 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
                       {section.items.map(item => {
                         const isSelected = currentItemId === item.id;
                         // No lock icons: every lesson looks openable, and openItem()
-                        // shows a message if the previous video isn't 90% watched yet.
+                        // shows a message if the previous video isn't completed yet.
 
                         return (
                           <div key={item.id}

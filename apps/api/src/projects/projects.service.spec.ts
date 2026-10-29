@@ -19,12 +19,14 @@ function makePrismaMock() {
       deleteMany: jest.fn(),
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       delete: jest.fn(),
       aggregate: jest.fn(),
     },
     projectCurriculumVideo: {
       createMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
@@ -62,7 +64,7 @@ describe('ProjectsService', () => {
   beforeEach(() => {
     prisma = makePrismaMock();
     s3 = { deleteByUrl: jest.fn() };
-    vdo = { getUploadCredentials: jest.fn(), deleteVideo: jest.fn() };
+    vdo = { getUploadCredentials: jest.fn(), deleteVideo: jest.fn(), getPlaybackOtp: jest.fn() };
     const roadmapService = {
       start: jest.fn(),
       getJob: jest.fn(),
@@ -235,6 +237,75 @@ describe('ProjectsService', () => {
 
       expect(result).toEqual({ success: true });
       expect(prisma.projectCurriculum.create).not.toHaveBeenCalled();
+    });
+  });
+
+  // The ONE free video of a project. It is served to anyone (no login), so
+  // these tests pin down exactly which video qualifies.
+  describe('getPublicCurriculumVideoOtp() - the single free preview', () => {
+    const previewVideo = (overrides: Partial<Record<string, any>> = {}) => ({
+      id: '__spec__video-1',
+      vdoCipherId: '__spec__vdo-1',
+      videoStatus: 'READY',
+      isPreview: true,
+      order: 1,
+      curriculum: { id: '__spec__cur-1', projectId: '__spec__project-1', project: { status: 'ACTIVE' } },
+      ...overrides,
+    });
+
+    beforeEach(() => {
+      // by default: cur-1 is the first curriculum item and video-1 its first video
+      (prisma.projectCurriculum.findFirst as jest.Mock).mockResolvedValue({ id: '__spec__cur-1' });
+      (prisma.projectCurriculumVideo.findFirst as jest.Mock).mockResolvedValue({ id: '__spec__video-1' });
+      vdo.getPlaybackOtp.mockResolvedValue({ otp: 'otp', playbackInfo: 'info' });
+    });
+
+    it('plays the flagged first video of the first item of an ACTIVE project without any login', async () => {
+      (prisma.projectCurriculumVideo.findUnique as jest.Mock).mockResolvedValue(previewVideo());
+
+      const result = await service.getPublicCurriculumVideoOtp('__spec__video-1');
+
+      expect(result).toEqual({ otp: 'otp', playbackInfo: 'info' });
+      // watermarked as an anonymous preview, never as a real user
+      expect(vdo.getPlaybackOtp).toHaveBeenCalledWith('__spec__vdo-1', {
+        name: 'Preview User',
+        email: 'preview@futurestack.in',
+      });
+    });
+
+    it('refuses a paid video that is not flagged as the preview', async () => {
+      (prisma.projectCurriculumVideo.findUnique as jest.Mock).mockResolvedValue(
+        previewVideo({ isPreview: false }),
+      );
+
+      await expect(service.getPublicCurriculumVideoOtp('__spec__video-1')).rejects.toThrow(NotFoundException);
+      expect(vdo.getPlaybackOtp).not.toHaveBeenCalled();
+    });
+
+    it('refuses a flagged video that is not in the first curriculum item', async () => {
+      (prisma.projectCurriculumVideo.findUnique as jest.Mock).mockResolvedValue(
+        previewVideo({ curriculum: { id: '__spec__cur-2', projectId: '__spec__project-1', project: { status: 'ACTIVE' } } }),
+      );
+
+      await expect(service.getPublicCurriculumVideoOtp('__spec__video-1')).rejects.toThrow(NotFoundException);
+      expect(vdo.getPlaybackOtp).not.toHaveBeenCalled();
+    });
+
+    it('refuses a flagged video that is not the first video of its item', async () => {
+      (prisma.projectCurriculumVideo.findUnique as jest.Mock).mockResolvedValue(previewVideo());
+      (prisma.projectCurriculumVideo.findFirst as jest.Mock).mockResolvedValue({ id: '__spec__another-video' });
+
+      await expect(service.getPublicCurriculumVideoOtp('__spec__video-1')).rejects.toThrow(NotFoundException);
+      expect(vdo.getPlaybackOtp).not.toHaveBeenCalled();
+    });
+
+    it('refuses the preview of a project that is not ACTIVE', async () => {
+      (prisma.projectCurriculumVideo.findUnique as jest.Mock).mockResolvedValue(
+        previewVideo({ curriculum: { id: '__spec__cur-1', projectId: '__spec__project-1', project: { status: 'DRAFT' } } }),
+      );
+
+      await expect(service.getPublicCurriculumVideoOtp('__spec__video-1')).rejects.toThrow(NotFoundException);
+      expect(vdo.getPlaybackOtp).not.toHaveBeenCalled();
     });
   });
 });

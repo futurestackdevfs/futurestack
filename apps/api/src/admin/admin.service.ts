@@ -21,6 +21,7 @@ import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 import { UpdateTrainerShareDto } from './dto/update-trainer-share.dto';
 import { InvoicesService } from '../invoices/invoices.service';
 import { GIFT_CODE, GIFT_PAYMENT_METHOD, giftOrderRef, isGiftOrder } from '../common/gift.util';
+import { csvRow } from '../common/csv.util';
 
 @Injectable()
 export class AdminService {
@@ -1554,7 +1555,7 @@ export class AdminService {
       const student = o.user?.name ?? '—';
       const course = o.items[0]?.course?.title ?? '—';
       const salesperson = o.salesperson?.name ?? '—';
-      return `${date},${o.id},${student},${course},${o.totalAmount.toNumber()},${o.gstAmount.toNumber()},${salesperson}`;
+      return csvRow([date, o.id, student, course, o.totalAmount.toNumber(), o.gstAmount.toNumber(), salesperson]);
     }).join('\n');
 
     return header + rows;
@@ -1572,7 +1573,7 @@ export class AdminService {
     const rows = leads.map((l) => {
       const date = l.createdAt.toISOString().slice(0, 10);
       const salesperson = l.salesperson?.name ?? '—';
-      return `${date},${l.name},${l.email ?? ''},${l.phone ?? ''},${l.course ?? ''},${l.status},${l.source ?? ''},${l.score},${l.budget.toNumber()},${salesperson}`;
+      return csvRow([date, l.name, l.email, l.phone, l.course, l.status, l.source, l.score, l.budget.toNumber(), salesperson]);
     }).join('\n');
 
     return header + rows;
@@ -1595,7 +1596,7 @@ export class AdminService {
       const student = o.user?.name ?? '—';
       const course = o.items[0]?.course?.title ?? '—';
       const salesperson = o.salesperson?.name ?? '—';
-      return `${date},${student},${course},${o.totalAmount.toNumber()},${o.paymentMethod ?? '—'},${salesperson}`;
+      return csvRow([date, student, course, o.totalAmount.toNumber(), o.paymentMethod ?? '—', salesperson]);
     }).join('\n');
 
     return header + rows;

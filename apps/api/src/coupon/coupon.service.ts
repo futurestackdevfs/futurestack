@@ -4,12 +4,26 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Currency, Coupon, Prisma } from '@prisma/client';
+import { Currency, Coupon, OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { translatePrismaError } from '../common/prisma-errors';
 import { CreateCouponDto } from './dto/create-coupon.dto';
 import { UpdateCouponDto } from './dto/update-coupon.dto';
 import { ValidateCouponDto } from './dto/validate-coupon.dto';
+
+/**
+ * Order statuses that still hold a coupon use: an open order has been quoted the
+ * discount, a paid one has consumed it, and refunds don't give the use back.
+ */
+const COUNTED_ORDER_STATUSES: OrderStatus[] = [
+  OrderStatus.CREATED,
+  OrderStatus.PAID,
+  OrderStatus.REFUND_REQUESTED,
+  OrderStatus.REFUNDED,
+];
+
+/** Either the PrismaService or a transaction client. */
+type CouponUsageDb = Pick<Prisma.TransactionClient, 'order' | 'couponRedemption'>;
 
 /** Live-priced cart snapshot passed to CouponService.validate(). */
 export interface CouponValidationResult {
@@ -50,16 +64,7 @@ export class CouponService {
       throw new BadRequestException('This coupon has expired');
     }
 
-    if (coupon.maxUses != null && coupon.usedCount >= coupon.maxUses) {
-      throw new BadRequestException('This coupon has reached its usage limit');
-    }
-
-    const userRedemptions = await this.prisma.couponRedemption.count({
-      where: { couponId: coupon.id, userId: input.userId },
-    });
-    if (userRedemptions >= coupon.perUserLimit) {
-      throw new BadRequestException('You have already used this coupon');
-    }
+    await this.assertWithinUsageLimits(this.prisma, coupon, input.userId);
 
     if (coupon.applicableCourseIds.length > 0) {
       const allIds = [...input.courseIds, ...(input.projectIds ?? [])];
@@ -93,6 +98,55 @@ export class CouponService {
 
     const discountAmount = this.computeDiscount(coupon, input.subtotal);
     return { coupon, discountAmount };
+  }
+
+  /**
+   * Enforce `maxUses` and `perUserLimit`.
+   *
+   * Uses are counted from the ORDERS that carry the coupon, not from a counter
+   * that is bumped only at payment time. An order that is still CREATED already
+   * holds its use (it has been quoted the discount), and an order that ends up
+   * FAILED / CANCELLED / EXPIRED simply stops counting - so nothing has to be
+   * "released" and the number can't drift. Counting only paid orders (the old
+   * behaviour) let any number of buyers open discounted orders while the count
+   * was still below the cap and then pay them all.
+   *
+   * To make the limit hold under concurrency, checkout calls this inside the
+   * order-creation transaction after taking `lockCoupon()`.
+   */
+  async assertWithinUsageLimits(
+    db: CouponUsageDb,
+    coupon: Pick<Coupon, 'id' | 'maxUses' | 'usedCount' | 'perUserLimit'>,
+    userId: string,
+  ): Promise<void> {
+    if (coupon.maxUses != null) {
+      const used = await db.order.count({
+        where: { couponId: coupon.id, status: { in: COUNTED_ORDER_STATUSES } },
+      });
+      // usedCount (bumped when an order is paid) is kept as a conservative floor.
+      if (Math.max(used, coupon.usedCount) >= coupon.maxUses) {
+        throw new BadRequestException('This coupon has reached its usage limit');
+      }
+    }
+
+    const [userOrders, userRedemptions] = await Promise.all([
+      db.order.count({
+        where: { couponId: coupon.id, userId, status: { in: COUNTED_ORDER_STATUSES } },
+      }),
+      db.couponRedemption.count({ where: { couponId: coupon.id, userId } }),
+    ]);
+    if (Math.max(userOrders, userRedemptions) >= coupon.perUserLimit) {
+      throw new BadRequestException('You have already used this coupon');
+    }
+  }
+
+  /**
+   * Serialize concurrent order creations that use the same coupon, for the
+   * rest of the surrounding transaction (Postgres advisory transaction lock,
+   * released automatically on commit/rollback). Call inside `$transaction`.
+   */
+  async lockCoupon(tx: Prisma.TransactionClient, couponId: string): Promise<void> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${couponId}))`;
   }
 
   /** Compute discounted amount in major units. Works in minor units internally. */

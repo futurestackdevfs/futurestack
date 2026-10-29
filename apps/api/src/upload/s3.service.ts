@@ -17,6 +17,17 @@ export type S3Folder =
   | 'projects'
   | 'receipts';
 
+export const S3_FOLDERS: readonly S3Folder[] = [
+  'avatars',
+  'uploads',
+  'courses',
+  'banners',
+  'discussions',
+  'resources',
+  'projects',
+  'receipts',
+];
+
 @Injectable()
 export class S3Service implements OnModuleInit {
   private readonly logger = new Logger(S3Service.name);
@@ -81,21 +92,55 @@ export class S3Service implements OnModuleInit {
     return `${folder}/${unique}${ext}`;
   }
 
-  /** Extract the S3 key from a full URL (to use with delete) */
-  static keyFromUrl(url: string): string | null {
-    if (!url) return null;
+  /**
+   * Resolve a stored URL to an object key, but ONLY when the URL points into
+   * this deployment's own storage (same origin and path prefix as the public
+   * URL we hand out on upload) and the key sits under a known folder.
+   * Anything else returns null, so a user-supplied URL can never be turned
+   * into a key for an unrelated object. `allowedFolders` narrows this further
+   * (e.g. discussion attachments may only reference `discussions/`).
+   */
+  resolveOwnKey(
+    url: string,
+    allowedFolders: readonly S3Folder[] = S3_FOLDERS,
+  ): string | null {
+    if (!this.configured || !url) return null;
     try {
       const u = new URL(url);
-      const path = u.pathname.replace(/^\//, '');
-      // Handle Supabase URLs: storage/v1/object/public/{bucket}/{key} → {key}
-      const supabaseMatch = path.match(
-        /^storage\/v1\/object\/public\/[^/]+\/(.+)/,
+      const base = new URL(this.publicUrl);
+      if (u.origin !== base.origin || u.username || u.password) return null;
+
+      const basePath = base.pathname.replace(/\/+$/, '');
+      if (
+        basePath &&
+        u.pathname !== basePath &&
+        !u.pathname.startsWith(`${basePath}/`)
+      ) {
+        return null;
+      }
+
+      const key = decodeURIComponent(u.pathname.slice(basePath.length)).replace(
+        /^\/+/,
+        '',
       );
-      if (supabaseMatch) return supabaseMatch[1];
-      return path;
+      if (!key || key.includes('\0') || key.includes('\\')) return null;
+      const segments = key.split('/');
+      if (segments.some((s) => s === '' || s === '.' || s === '..')) {
+        return null;
+      }
+      if (segments.length < 2) return null;
+      if (!(allowedFolders as readonly string[]).includes(segments[0])) {
+        return null;
+      }
+      return key;
     } catch {
       return null;
     }
+  }
+
+  /** True when `url` is an object URL in our own storage under an allowed folder. */
+  isOwnUrl(url: string, allowedFolders?: readonly S3Folder[]): boolean {
+    return this.resolveOwnKey(url, allowedFolders) !== null;
   }
 
   /**
@@ -138,11 +183,18 @@ export class S3Service implements OnModuleInit {
   }
 
   /**
-   * Delete a file from S3 by its full URL.
+   * Delete a file from S3 by its full URL. URLs that do not point into our own
+   * storage (or are outside `allowedFolders`) are ignored, never deleted.
    */
-  async deleteByUrl(url: string): Promise<void> {
-    const key = S3Service.keyFromUrl(url);
-    if (!key) return;
+  async deleteByUrl(
+    url: string,
+    allowedFolders?: readonly S3Folder[],
+  ): Promise<void> {
+    const key = this.resolveOwnKey(url, allowedFolders);
+    if (!key) {
+      if (url) this.logger.warn('Refusing to delete a URL outside our storage');
+      return;
+    }
     await this.delete(key);
   }
 

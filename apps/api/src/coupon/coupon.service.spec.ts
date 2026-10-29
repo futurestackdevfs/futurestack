@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { Currency } from '@prisma/client';
+import { Currency, OrderStatus } from '@prisma/client';
 import { CouponService } from './coupon.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { decimal, makeCoupon } from '../test-utils/fixtures';
@@ -10,7 +10,8 @@ import { decimal, makeCoupon } from '../test-utils/fixtures';
 function makePrismaMock() {
   return {
     coupon: { findUnique: jest.fn() },
-    couponRedemption: { count: jest.fn() },
+    couponRedemption: { count: jest.fn().mockResolvedValue(0) },
+    order: { count: jest.fn().mockResolvedValue(0) },
   } as unknown as PrismaService;
 }
 
@@ -175,6 +176,93 @@ describe('CouponService', () => {
 
       // subtotal minor = 1000, 1000*33/100 = 330 minor units -> discountAmount 3.3
       expect(result.discountAmount).toBeCloseTo(3.3, 2);
+    });
+  });
+
+  describe('usage limits are counted from the orders that hold a coupon', () => {
+    const input = {
+      code: 'launch25',
+      userId: '__spec__student-1',
+      currency: Currency.INR,
+      subtotal: 4000,
+      courseIds: ['__spec__course-react'],
+      projectIds: [] as string[],
+    };
+
+    it('counts open (CREATED) and paid orders - not just paid ones - towards maxUses', async () => {
+      // 5 unpaid orders already hold the last uses of a 5-use coupon even though usedCount is still 0
+      (prisma.coupon.findUnique as jest.Mock).mockResolvedValue(makeCoupon({ maxUses: 5, usedCount: 0 }));
+      (prisma.order.count as jest.Mock).mockResolvedValue(5);
+
+      await expect(service.validate(input)).rejects.toThrow('This coupon has reached its usage limit');
+      expect(prisma.order.count).toHaveBeenCalledWith({
+        where: {
+          couponId: expect.any(String),
+          status: {
+            in: [OrderStatus.CREATED, OrderStatus.PAID, OrderStatus.REFUND_REQUESTED, OrderStatus.REFUNDED],
+          },
+        },
+      });
+    });
+
+    it('does not count FAILED / CANCELLED / EXPIRED orders', async () => {
+      (prisma.coupon.findUnique as jest.Mock).mockResolvedValue(makeCoupon({ maxUses: 5, usedCount: 0 }));
+      // global count = 4 (< maxUses 5), then this user has no orders
+      (prisma.order.count as jest.Mock).mockResolvedValueOnce(4).mockResolvedValueOnce(0);
+
+      await expect(service.validate(input)).resolves.toBeDefined();
+      const statuses = (prisma.order.count as jest.Mock).mock.calls[0][0].where.status.in;
+      expect(statuses).not.toContain(OrderStatus.FAILED);
+      expect(statuses).not.toContain(OrderStatus.CANCELLED);
+      expect(statuses).not.toContain(OrderStatus.EXPIRED);
+    });
+
+    it('still honours usedCount as a floor when it is higher than the order count', async () => {
+      (prisma.coupon.findUnique as jest.Mock).mockResolvedValue(makeCoupon({ maxUses: 5, usedCount: 5 }));
+      (prisma.order.count as jest.Mock).mockResolvedValue(0);
+
+      await expect(service.validate(input)).rejects.toThrow('This coupon has reached its usage limit');
+    });
+
+    it('blocks a second open order for a perUserLimit=1 coupon (no redemption exists yet)', async () => {
+      (prisma.coupon.findUnique as jest.Mock).mockResolvedValue(makeCoupon({ perUserLimit: 1 }));
+      (prisma.couponRedemption.count as jest.Mock).mockResolvedValue(0);
+      // maxUses is null so only this user's open order is counted
+      (prisma.order.count as jest.Mock).mockResolvedValue(1);
+
+      await expect(service.validate(input)).rejects.toThrow('You have already used this coupon');
+    });
+
+    it('enforces perUserLimit > 1 from orders, since CouponRedemption is unique per user', async () => {
+      (prisma.coupon.findUnique as jest.Mock).mockResolvedValue(makeCoupon({ perUserLimit: 3 }));
+      (prisma.couponRedemption.count as jest.Mock).mockResolvedValue(1); // the DB can only ever hold 1 row
+      (prisma.order.count as jest.Mock).mockResolvedValue(2);
+      await expect(service.validate(input)).resolves.toBeDefined();
+
+      (prisma.order.count as jest.Mock).mockResolvedValue(3);
+      await expect(service.validate(input)).rejects.toThrow('You have already used this coupon');
+    });
+
+    it('assertWithinUsageLimits() can run against a transaction client', async () => {
+      const tx = {
+        order: { count: jest.fn().mockResolvedValue(5) },
+        couponRedemption: { count: jest.fn().mockResolvedValue(0) },
+      };
+
+      await expect(
+        service.assertWithinUsageLimits(tx as any, { id: 'c1', maxUses: 5, usedCount: 0, perUserLimit: 1 }, 'u1'),
+      ).rejects.toThrow('This coupon has reached its usage limit');
+    });
+
+    it('lockCoupon() takes a Postgres advisory transaction lock keyed on the coupon', async () => {
+      const tx = { $executeRaw: jest.fn().mockResolvedValue(1) };
+
+      await service.lockCoupon(tx as any, '__spec__coupon-1');
+
+      expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+      const [strings, ...values] = tx.$executeRaw.mock.calls[0];
+      expect(strings.join('?')).toContain('pg_advisory_xact_lock');
+      expect(values).toEqual(['__spec__coupon-1']);
     });
   });
 });

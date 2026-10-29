@@ -19,7 +19,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { GoogleAuthGuard, readOAuthState } from './guards/google-auth.guard';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterTrainerDto } from './dto/register-trainer.dto';
@@ -175,8 +175,13 @@ export class AuthController {
     // /api/auth/refresh — so Google students had no refresh cookie on the
     // frontend domain and every expiry ended in "No refresh token found". The
     // callback page re-issues it as a frontend-domain HttpOnly cookie.
+    //
+    // `state` (when the website supplied one) is echoed back so the callback page
+    // can confirm this sign-in was started by the same browser (login-CSRF guard).
+    const state = readOAuthState(req);
     return res.redirect(
-      `${redirectUrl}#token=${accessToken}&refresh=${encodeURIComponent(rawRefreshToken)}`,
+      `${redirectUrl}#token=${accessToken}&refresh=${encodeURIComponent(rawRefreshToken)}` +
+        (state ? `&state=${encodeURIComponent(state)}` : ''),
     );
   }
 

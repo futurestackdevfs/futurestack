@@ -435,4 +435,78 @@ describe('AuthService', () => {
       expect(result.rawRefreshToken).toBeTruthy();
     });
   });
+
+  describe("validateOAuthUser() - linking Google to an existing account", () => {
+    const profile = {
+      googleId: "__spec__google-1",
+      email: "student@example.com",
+      name: "__spec__ Student",
+      avatarUrl: undefined,
+    } as any;
+
+    beforeEach(() => {
+      // 1st lookup (by googleId) finds nothing; 2nd (by email) is set per test
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      (prisma.user.update as jest.Mock).mockImplementation(({ data }: any) =>
+        Promise.resolve(makeUser(data)),
+      );
+      (prisma.refreshToken.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
+    });
+
+    it("wipes the password and every earlier session of an UNVERIFIED self-registered account (pre-hijacking)", async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(
+        makeUser({ emailVerified: false, password: "$2b$12$attackerpassword" }),
+      );
+
+      const result = await service.validateOAuthUser(profile);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: "__spec__user-1" },
+        data: {
+          googleId: "__spec__google-1",
+          emailVerified: true,
+          password: null,
+          passwordChangedAt: expect.any(Date),
+        },
+      });
+      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: "__spec__user-1" } });
+      expect((result as any).password).toBeUndefined();
+    });
+
+    it("keeps the password of an account whose email was already verified", async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(
+        makeUser({ emailVerified: true, password: "$2b$12$ownerpassword" }),
+      );
+
+      await service.validateOAuthUser(profile);
+
+      const { data } = (prisma.user.update as jest.Mock).mock.calls[0][0];
+      expect(data).toEqual({ googleId: "__spec__google-1", emailVerified: true });
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("does not wipe credentials of an admin-provisioned staff account", async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(
+        makeUser({ role: Role.COORDINATOR, emailVerified: false, password: "$2b$12$staffpassword" }),
+      );
+
+      await service.validateOAuthUser(profile);
+
+      const { data } = (prisma.user.update as jest.Mock).mock.calls[0][0];
+      expect(data).not.toHaveProperty("password");
+      expect(data).not.toHaveProperty("passwordChangedAt");
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("creates a verified STUDENT when the email is unknown", async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      (prisma.user.create as jest.Mock).mockResolvedValue(makeUser({ googleId: "__spec__google-1", password: null }));
+
+      await service.validateOAuthUser(profile);
+
+      expect(prisma.user.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ role: Role.STUDENT, emailVerified: true, googleId: "__spec__google-1" }),
+      });
+    });
+  });
 });

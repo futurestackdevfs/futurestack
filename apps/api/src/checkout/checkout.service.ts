@@ -297,6 +297,17 @@ export class CheckoutService {
     // order id below.
     const orderId = randomUUID();
     const order = await this.prisma.$transaction(async (tx) => {
+      if (couponId) {
+        // Hold this coupon's lock and re-check its limits INSIDE the transaction
+        // that creates the order. The validate() above is only a pre-check:
+        // without this, N concurrent checkouts could all pass it while the
+        // coupon still has room and then each create a discounted order.
+        await this.couponService.lockCoupon(tx, couponId);
+        const fresh = await tx.coupon.findUnique({ where: { id: couponId } });
+        if (!fresh) throw new BadRequestException('Coupon not found');
+        await this.couponService.assertWithinUsageLimits(tx, fresh, userId);
+      }
+
       const created = await tx.order.create({
         data: {
           id: orderId,
@@ -510,12 +521,21 @@ export class CheckoutService {
           where: { id: order.couponId },
           data: { usedCount: { increment: 1 } },
         });
-        await tx.couponRedemption.create({
-          data: {
-            couponId: order.couponId,
-            userId: order.userId,
-            orderId: order.id,
-          },
+        // skipDuplicates (INSERT ... ON CONFLICT DO NOTHING): the payment has
+        // already been captured, so coupon bookkeeping must never be able to
+        // abort this transaction and roll back the PAID status + enrollments.
+        // CouponRedemption is unique per (coupon, user); the per-user limit is
+        // enforced from the orders themselves (see CouponService), so a repeat
+        // use by the same user simply has no second redemption row.
+        await tx.couponRedemption.createMany({
+          data: [
+            {
+              couponId: order.couponId,
+              userId: order.userId,
+              orderId: order.id,
+            },
+          ],
+          skipDuplicates: true,
         });
       }
 

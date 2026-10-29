@@ -322,11 +322,34 @@ export class AuthService {
       });
 
       if (user) {
-        // Existing email/password account signing in with Google for the first time
+        // Existing account signing in with Google for the first time.
+        //
+        // Self-registration does not prove the email is the registrant's, so a
+        // STUDENT row that was never verified may have been created by someone
+        // else who only knows the address ("pre-hijacking"). Google has just
+        // proven the real owner, so the unproven credentials must not survive
+        // the link: drop the password, kill every earlier session (stamping
+        // passwordChangedAt invalidates old access + refresh tokens) and mark
+        // the email verified. The owner can set a password again through the
+        // normal "forgot password" flow. Staff accounts are provisioned by an
+        // admin, so their credentials are trusted and left untouched.
+        const unprovenLocalAccount =
+          user.role === Role.STUDENT && !user.emailVerified && !!user.password;
+
         user = await this.prisma.user.update({
           where: { id: user.id },
-          data: { googleId: profile.googleId },
+          data: {
+            googleId: profile.googleId,
+            emailVerified: true,
+            ...(unprovenLocalAccount
+              ? { password: null, passwordChangedAt: new Date() }
+              : {}),
+          },
         });
+
+        if (unprovenLocalAccount) {
+          await this.prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+        }
       } else {
         user = await this.prisma.user.create({
           data: {
