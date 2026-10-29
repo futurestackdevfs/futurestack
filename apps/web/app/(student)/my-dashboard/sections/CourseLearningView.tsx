@@ -187,16 +187,15 @@ export default function CourseLearningView({ courseId, enrolledCourse, onBack, o
   const category = detail?.course.techStack[0] ?? enrolledCourse.title;
 
   const handleComplete = useCallback(async () => {
-    // Fetch the fresh course detail (with recomputed isCompleted/isLocked for
-    // every item) and write it straight into the SWR cache ourselves, instead
-    // of firing a background `mutate()` revalidation and then a SECOND,
-    // separate fetch just to read the result. That double round-trip left a
-    // window where the UI could still be showing stale lock/completion state
-    // right after a video finished. Passing the data directly makes the
-    // sidebar (which reads this same cache key) unlock the next item and
-    // show "Done" the moment this resolves — no refresh needed.
-    const refreshed = await fetcher<StudentCourseDetail>(`/api/student/courses/${courseId}`);
+    let refreshed: StudentCourseDetail;
+    try {
+      refreshed = await fetcher<StudentCourseDetail>(`/api/student/courses/${courseId}`);
+    } catch (e) {
+      return;
+    }
     await mutate(`/api/student/courses/${courseId}`, refreshed, { revalidate: false });
+
+    if (!refreshed?.sections) return;
 
     // Auto-advance ONLY when the very next item is a quiz in the SAME
     // section — e.g. a video finishing right into its section's quiz. Never
