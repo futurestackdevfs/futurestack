@@ -1,5 +1,15 @@
 import LiveProjectsPageClient, { mapApiProject } from "./LiveProjectsPageClient";
 import type { Project } from "./LiveProjectsPageClient";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Live Projects",
+  description:
+    "Build portfolio-ready projects with step-by-step guidance and mentor reviews. Pick a live project and learn by shipping real software.",
+  path: "/live-projects",
+});
+
 
 const BACKEND = process.env.API_URL ?? "http://localhost:3002";
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { SafeImage } from "@/components/SafeImage";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import useSWR, { useSWRConfig } from "swr";
@@ -610,7 +611,7 @@ export default function CoursesPageClient({ initialData }: { initialData?: Cards
                           <span className="text-[11px] text-[var(--muted)]">({course.reviews})</span>
                         </span>
                       </div>
-                      <h3 className="font-['Syne',sans-serif] text-[15px] font-bold leading-[1.35] text-[var(--text)] line-clamp-2">{course.title}</h3>
+                      <h3 className="font-['Syne',sans-serif] text-[15px] font-bold leading-[1.35] text-[var(--text)] line-clamp-2"><Link href={`/courses/${course.slug}`} onClick={(e) => e.stopPropagation()} className="text-inherit no-underline hover:underline">{course.title}</Link></h3>
                       <p className="mt-1.5 line-clamp-2 text-[12px] leading-[1.55] text-[var(--muted)]">{course.description}</p>
 
                       {course.techStack.length > 0 && (

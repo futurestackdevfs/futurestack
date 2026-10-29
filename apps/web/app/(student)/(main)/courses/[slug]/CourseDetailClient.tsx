@@ -25,7 +25,7 @@ const fetcher = async (url: string) => {
   return r.json();
 };
 
-interface CourseDetail {
+export interface CourseDetail {
   id: string;
   slug: string;
   title: string;
@@ -303,7 +303,11 @@ function PreviewPlayer({ videoId, title, durationSeconds }: { videoId: string; t
   );
 }
 
-export default function CourseDetailPage() {
+/**
+ * `initialCourse` is fetched on the server (see page.tsx) so the first HTML a visitor — or a
+ * search engine — gets already contains the course, instead of a "Loading course…" shell.
+ */
+export default function CourseDetailClient({ initialCourse }: { initialCourse?: CourseDetail }) {
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -322,12 +326,15 @@ export default function CourseDetailPage() {
   const { data: course, isLoading: isLoadingCourse } = useSWR<CourseDetail>(
     slug ? `${API}/courses/public/slug/${slug}` : null,
     fetcher,
+    { fallbackData: initialCourse },
   );
   const { data: related } = useSWR<CourseCard[]>(
     course?.id ? `${API}/courses/public/related/${course.id}` : null,
     fetcher,
   );
-  const isLoading = isLoadingCourse;
+  // SWR does not count fallbackData as "loaded", so isLoading stays true during SSR; with the
+  // server-fetched course in hand there is nothing to wait for.
+  const isLoading = isLoadingCourse && !course;
 
   const { isAuthenticated: isAuthenticatedRaw } = useAuth();
   // `useAuth`'s state is a module-level singleton that persists for the whole
