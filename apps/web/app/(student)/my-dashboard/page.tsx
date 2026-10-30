@@ -79,41 +79,40 @@ function ProfileCompletionRibbon({ pct, onDismiss }: { pct: number; onDismiss: (
 
   return (
     <div
-      className="shrink-0 flex flex-wrap items-center gap-x-2 gap-y-1.5 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 text-white cursor-pointer transition-all bg-gradient-to-r from-[#f05a1a] via-[#ff6a1a] to-[#7c3aed] shadow-[0_4px_20px_rgba(240,90,26,.35)] relative overflow-hidden"
-      style={{ animation: "ribbonIn .45s cubic-bezier(.2,.9,.3,1.3) both" }}
+      className="shrink-0 flex flex-wrap items-center gap-x-2.5 gap-y-1 px-3 sm:px-5 py-1.5 cursor-pointer transition-all relative overflow-hidden border-b border-[var(--border)]"
+      style={{
+        background: "linear-gradient(90deg, rgba(240,90,26,.12), rgba(124,58,237,.08) 60%, var(--surface))",
+        animation: "ribbonIn .45s cubic-bezier(.2,.9,.3,1.3) both",
+      }}
       onClick={() => router.push('/profile')}
       role="button"
       tabIndex={0}
     >
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent)", backgroundSize: "200% 100%", animation: "shimmer 2.4s linear infinite" }}
-      />
-      <div className="relative z-[1] w-[26px] h-[26px] sm:w-[30px] sm:h-[30px] rounded-full bg-white/20 flex items-center justify-center shrink-0" style={{ animation: "pulseGlow 1.8s ease infinite" }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0">
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-[3px]" style={{ background: "linear-gradient(180deg,var(--orange),var(--purple))" }} />
+      <div className="relative z-[1] w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--orange-d)", color: "var(--orange)", animation: "pulseGlow 1.8s ease infinite" }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="shrink-0">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
       </div>
-      <div className="relative z-[1] flex flex-col gap-0.5 flex-1 min-w-[150px] sm:flex-none">
-        <span className="font-bold text-[13px] leading-tight">Complete your profile</span>
-        <span className="text-[10px] text-white/75 leading-tight">Unlock the full experience</span>
+      <div className="relative z-[1] flex items-baseline gap-2 flex-1 min-w-[150px] sm:flex-none">
+        <span className="font-bold text-[12.5px] leading-tight text-[var(--text)]">Complete your profile</span>
+        <span className="hidden sm:inline text-[10.5px] text-[var(--text3)] leading-tight">Unlock the full experience</span>
       </div>
-      <div className="relative z-[1] h-1.5 rounded-full bg-white/25 overflow-hidden flex-1 sm:flex-none basis-[80px] min-w-[80px] sm:w-[140px] sm:ml-2">
-        <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${pct}%`, boxShadow: "0 0 8px rgba(255,255,255,.8)" }} />
+      <div className="relative z-[1] h-1 rounded-full bg-[var(--border)] overflow-hidden flex-1 sm:flex-none basis-[70px] min-w-[70px] sm:w-[120px] sm:ml-2">
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: "linear-gradient(90deg,var(--orange),#ff9a5c)", boxShadow: "0 0 8px rgba(240,90,26,.5)" }} />
       </div>
-      <span className="relative z-[1] font-mono text-[12px] font-bold tabular-nums tracking-tight">{pct}%</span>
-      <span className="relative z-[1] font-semibold text-[12px] sm:text-[13px] underline decoration-dotted underline-offset-2 text-white sm:ml-auto whitespace-nowrap shrink-0">Complete Now →</span>
+      <span className="relative z-[1] font-mono text-[11px] font-bold tabular-nums tracking-tight text-[var(--orange)]">{pct}%</span>
+      <span className="relative z-[1] font-semibold text-[11.5px] sm:text-[12px] text-[var(--orange)] hover:underline sm:ml-auto whitespace-nowrap shrink-0">Complete now →</span>
       <button
         onClick={(e) => { e.stopPropagation(); onDismiss(); }}
-        className="relative z-[1] shrink-0 flex items-center justify-center w-6 h-6 rounded-full border-none cursor-pointer text-white/70 hover:text-white hover:bg-white/15 transition-colors bg-transparent"
+        className="relative z-[1] shrink-0 flex items-center justify-center w-5 h-5 rounded-full border-none cursor-pointer text-[var(--text3)] hover:text-[var(--text)] hover:bg-[var(--border)] transition-colors bg-transparent"
         aria-label="Dismiss"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
       </button>
       <style>{`
         @keyframes ribbonIn { from { opacity: 0; transform: translateY(-100%); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
-        @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(255,255,255,.5); } 50% { box-shadow: 0 0 0 6px rgba(255,255,255,0); } }
+        @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(240,90,26,.45); } 50% { box-shadow: 0 0 0 5px rgba(240,90,26,0); } }
       `}</style>
     </div>
   );
@@ -306,23 +305,23 @@ export default function MyDashboardPage() {
         </button>
 
         {/* LEFT SIDEBAR - desktop only */}
-        <aside className="hidden lg:flex sticky top-0 z-40 w-[210px] shrink-0 bg-white dark:bg-[#111520]
+        <aside className="hidden lg:flex sticky top-0 z-40 w-[228px] shrink-0 bg-white dark:bg-[#111520]
           border-r border-[#e2e6ef] dark:border-[#1e2535] flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Navigation */}
-          <div className="p-2.5">
+          <div className="p-2.5 flex flex-col gap-0.5">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => { selectTab(tab.id as TabId); if (tab.id !== "courses") setSelectedCourseId(null); }}
-                className={`flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] w-full text-left text-[13px] cursor-pointer transition-all no-underline border-none ${!comingSoon && activeTab === tab.id
+                className={`flex items-center gap-2.5 px-3 py-[8px] rounded-[8px] w-full text-left text-[13.5px] cursor-pointer transition-all no-underline border-none ${!comingSoon && activeTab === tab.id
                   ? "bg-[#f05a1a] dark:bg-[#ff6a1a] text-white font-semibold"
                   : "text-[#000000] dark:text-[#b0bac9] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0]"
                   }`}
               >
-                <span className="text-[14px] shrink-0 w-4 text-center">{tab.icon}</span>
+                <span className="text-[15px] shrink-0 w-5 text-center">{tab.icon}</span>
                 <span className="flex-1">{tab.label}</span>
                 {resolveBadge(tab, sectionCtx) && (
-                  <span className={`font-['JetBrains_Mono',monospace] text-[9px] font-semibold px-[4px] py-px rounded-[3px] ${tab.badgeCls || ""}`}>{resolveBadge(tab, sectionCtx)}</span>
+                  <span className={`font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold px-[5px] py-[1px] rounded-[4px] ${tab.badgeCls || ""}`}>{resolveBadge(tab, sectionCtx)}</span>
                 )}
               </button>
             ))}
@@ -343,33 +342,33 @@ export default function MyDashboardPage() {
           </div> */}
 
           {/* Explore */}
-          <div className="px-2.5 py-0.5">
-            <div className="text-[10px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-0.5 px-2">Explore</div>
-            <Link href="/courses?category=ai-ml" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[13px] shrink-0 w-4 text-center">🧠</span><span className="flex-1">AI / ML</span></Link>
-            <Link href="/courses?category=full-stack" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[13px] shrink-0 w-4 text-center">🌐</span><span className="flex-1">Full Stack</span></Link>
-            <Link href="/courses?category=devops" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[13px] shrink-0 w-4 text-center">🔧</span><span className="flex-1">DevOps</span></Link>
-            <Link href="/courses?category=data-science" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[13px] shrink-0 w-4 text-center">📊</span><span className="flex-1">Data Science</span></Link>
+          <div className="px-2.5 py-2 flex flex-col gap-0.5">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-1 px-3">Explore</div>
+            <Link href="/courses?category=ai-ml" className="flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[#000000] dark:text-[#b0bac9] text-[13px] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[14px] shrink-0 w-5 text-center">🧠</span><span className="flex-1">AI / ML</span></Link>
+            <Link href="/courses?category=full-stack" className="flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[#000000] dark:text-[#b0bac9] text-[13px] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[14px] shrink-0 w-5 text-center">🌐</span><span className="flex-1">Full Stack</span></Link>
+            <Link href="/courses?category=devops" className="flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[#000000] dark:text-[#b0bac9] text-[13px] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[14px] shrink-0 w-5 text-center">🔧</span><span className="flex-1">DevOps</span></Link>
+            <Link href="/courses?category=data-science" className="flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[#000000] dark:text-[#b0bac9] text-[13px] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[14px] shrink-0 w-5 text-center">📊</span><span className="flex-1">Data Science</span></Link>
           </div>
 
           {/* Community */}
-          <div className="px-2.5 py-0.5">
-            <div className="text-[10px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-0.5 px-2">Community</div>
-            <button onClick={() => { setComingSoon(null); setActiveTab("discussion"); setDiscussionCourseId(null); }} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[9px] font-semibold px-[3px] py-px rounded-[3px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
-            <button onClick={() => selectTab("skilltests")} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">🎯</span><span className="flex-1">Skill Tests</span></button>
-            <button onClick={() => openComingSoon("🏆", "Leaderboard")} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">🏆</span><span className="flex-1">Leaderboard</span></button>
-            <button onClick={() => openComingSoon("🤝", "Study Groups")} className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[13px] shrink-0 w-4 text-center">🤝</span><span className="flex-1">Study Groups</span></button>
+          <div className="px-2.5 py-2 flex flex-col gap-0.5">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-1 px-3">Community</div>
+            <button onClick={() => { setComingSoon(null); setActiveTab("discussion"); setDiscussionCourseId(null); }} className="flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[#000000] dark:text-[#b0bac9] text-[13px] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-5 text-center">💬</span><span className="flex-1">Discussion</span><span className="font-['JetBrains_Mono',monospace] text-[9.5px] font-semibold px-[5px] py-[1px] rounded-[4px] bg-blue-500/10 text-[#3b82f6] dark:text-[#60a5fa]">12</span></button>
+            <button onClick={() => selectTab("skilltests")} className="flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[#000000] dark:text-[#b0bac9] text-[13px] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-5 text-center">🎯</span><span className="flex-1">Skill Tests</span></button>
+            <button onClick={() => openComingSoon("🏆", "Leaderboard")} className="flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[#000000] dark:text-[#b0bac9] text-[13px] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-5 text-center">🏆</span><span className="flex-1">Leaderboard</span></button>
+            <button onClick={() => openComingSoon("🤝", "Study Groups")} className="flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[#000000] dark:text-[#b0bac9] text-[13px] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline w-full text-left cursor-pointer border-none bg-transparent"><span className="text-[14px] shrink-0 w-5 text-center">🤝</span><span className="flex-1">Study Groups</span></button>
           </div>
 
           {/* Account */}
-          <div className="px-2.5 py-0.5">
-            <div className="text-[10px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-0.5 px-2">Account</div>
-            <Link href="/profile" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[13px] shrink-0 w-4 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
-            <Link href="/support" className="flex items-center gap-2 px-2.5 py-[5px] rounded-[5px] text-[#000000] dark:text-[#b0bac9] text-[12.5px] mx-1 hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[13px] shrink-0 w-4 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
+          <div className="px-2.5 py-2 flex flex-col gap-0.5">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[.1em] text-[#000000] dark:text-[#7a859a] mb-1 px-3">Account</div>
+            <Link href="/profile" className="flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[#000000] dark:text-[#b0bac9] text-[13px] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[14px] shrink-0 w-5 text-center">⚙️</span><span className="flex-1">Settings</span></Link>
+            <Link href="/support" className="flex items-center gap-2.5 px-3 py-[7px] rounded-[7px] text-[#000000] dark:text-[#b0bac9] text-[13px] hover:bg-[#f4f6fa] dark:hover:bg-[#0b0e14] hover:text-[#000000] dark:hover:text-[#e8eaf0] transition-all no-underline"><span className="text-[14px] shrink-0 w-5 text-center">🆘</span><span className="flex-1">Help Center</span></Link>
           </div>
 
           {/* Sidebar Footer */}
-          <div className="mt-auto px-2.5 py-1.5 border-t border-[#e2e6ef] dark:border-[#1e2535] mx-2.5">
-            <div className="font-['JetBrains_Mono',monospace] text-[9px] text-[#000000] dark:text-[#7a859a]">v1.0.0 · <span className="font-semibold text-[#000000] dark:text-[#e8eaf0]">FutureStack</span></div>
+          <div className="mt-auto px-3 py-2 border-t border-[#e2e6ef] dark:border-[#1e2535] mx-2.5">
+            <div className="font-['JetBrains_Mono',monospace] text-[10px] text-[#000000] dark:text-[#7a859a]">v1.0.0 · <span className="font-semibold text-[#000000] dark:text-[#e8eaf0]">FutureStack</span></div>
           </div>
         </aside>
 

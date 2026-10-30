@@ -34,7 +34,7 @@ const SITEMAP_SECTIONS: SitemapSection[] = [
       { label: "Courses", href: "/courses", desc: "Full catalog" },
       { label: "Live Projects", href: "/live-projects", desc: "Hands-on builds" },
       { label: "About", href: "/about", desc: "Who we are" },
-      { label: "Articles", href: "/articles", desc: "Blog & guides" },
+      { label: "Articles", href: "/articles", desc: "Guides & engineering notes" },
     ],
   },
   {

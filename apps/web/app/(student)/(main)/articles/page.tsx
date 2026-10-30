@@ -1,7 +1,5 @@
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { articleMarkdownComponents, readingTime } from "@/lib/article-markdown";
+import { readingTime } from "@/lib/article-markdown";
 import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
 
@@ -11,7 +9,6 @@ export const metadata: Metadata = pageMetadata({
     "Practical guides and articles on web development, data, cloud and careers from the FutureStack team.",
   path: "/articles",
 });
-
 
 interface BlogPost {
   id: string;
@@ -28,12 +25,14 @@ interface BlogPost {
 interface ArticlesResponse {
   data: BlogPost[];
   total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
 }
 
+type PageProps = { searchParams: Promise<{ tag?: string }> };
+
 const BACKEND = process.env.API_URL ?? "http://localhost:3002";
+
+// Full-width shell: fluid with generous gutters instead of a narrow fixed column.
+const SHELL = "mx-auto w-full max-w-[1680px] px-4 sm:px-6 lg:px-10 2xl:px-14";
 
 const TAG_PALETTE = ["--orange", "--blue", "--purple", "--pink", "--amber", "--green"] as const;
 function tagColor(tag: string) {
@@ -46,11 +45,15 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
+function postDate(p: BlogPost) {
+  return formatDate(p.publishedAt ?? p.createdAt);
+}
+
 function TagChip({ tag }: { tag: string }) {
   const c = tagColor(tag);
   return (
     <span
-      className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold uppercase tracking-wide break-words max-w-full"
+      className="px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold uppercase tracking-wide break-words max-w-full"
       style={{ background: `var(${c}-d)`, color: `var(${c})` }}
     >
       {tag}
@@ -58,24 +61,44 @@ function TagChip({ tag }: { tag: string }) {
   );
 }
 
+function CalendarIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ClockIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="mx-auto max-w-[1240px] px-4 sm:px-5 md:px-8 py-16 sm:py-20 md:py-24 text-center">
+    <div className={`${SHELL} py-20 md:py-28 text-center`}>
       <div
-        className="mx-auto w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-xl sm:text-2xl mb-4"
+        className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center text-2xl mb-4"
         style={{ background: "var(--orange-d)" }}
       >
         📰
       </div>
-      <p className="text-[13.5px] sm:text-[14px] font-medium break-words" style={{ color: "var(--text2)" }}>{message}</p>
+      <p className="text-[14px] font-medium break-words" style={{ color: "var(--text2)" }}>{message}</p>
     </div>
   );
 }
 
-export default async function ArticlesPage() {
-  const res = await fetch(`${BACKEND}/articles?limit=20`, { next: { revalidate: 60 } });
+export default async function ArticlesPage({ searchParams }: PageProps) {
+  const { tag: activeTag } = await searchParams;
 
-  if (!res.ok) {
+  const res = await fetch(`${BACKEND}/articles?limit=100`, { next: { revalidate: 60 } }).catch(() => null);
+
+  if (!res || !res.ok) {
     return (
       <>
         <PageHero />
@@ -84,10 +107,10 @@ export default async function ArticlesPage() {
     );
   }
 
-  const body: ArticlesResponse = await res.json();
-  const data: BlogPost[] = Array.isArray(body) ? body : body?.data ?? [];
+  const body: ArticlesResponse | BlogPost[] = await res.json();
+  const all: BlogPost[] = Array.isArray(body) ? body : body?.data ?? [];
 
-  if (!data || data.length === 0) {
+  if (all.length === 0) {
     return (
       <>
         <PageHero />
@@ -96,138 +119,170 @@ export default async function ArticlesPage() {
     );
   }
 
-  const [latest, ...rest] = data;
-  const recent = rest.slice(0, 4);
+  // Tags sorted by popularity for the filter bar.
+  const tagCounts = new Map<string, number>();
+  for (const p of all) for (const t of p.tags ?? []) tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
+  const tags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
 
-  // The list endpoint doesn't return full body content (keeps the listing
-  // payload small) — fetch the latest article's full content separately so
-  // it can be read in full right here, instead of just a teaser + link.
-  const featuredRes = await fetch(`${BACKEND}/articles/${latest.slug}`, { next: { revalidate: 60 } });
-  const featured: BlogPost = featuredRes.ok ? await featuredRes.json() : latest;
-  const featuredDate = featured.publishedAt ? formatDate(featured.publishedAt) : formatDate(featured.createdAt);
-
-  // Full class strings (not built dynamically) so Tailwind can detect them.
-  // 1 col on mobile → 2 cols from sm → final column count depends on how many cards exist.
-  const recentGridCols =
-    recent.length >= 4
-      ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"
-      : recent.length === 3
-        ? "grid-cols-1 sm:grid-cols-2 md:grid-cols-3"
-        : "grid-cols-1 sm:grid-cols-2";
+  const filtered = activeTag ? all.filter((p) => p.tags?.includes(activeTag)) : all;
+  // The featured hero is only used on the unfiltered view.
+  const featured = activeTag ? null : filtered[0];
+  const grid = featured ? filtered.slice(1) : filtered;
 
   return (
     <>
-      <PageHero count={body.total ?? data.length} />
+      <PageHero count={all.length} />
 
-      <div className="mx-auto w-full max-w-[1240px] px-4 sm:px-5 md:px-8 pb-12 sm:pb-16 md:pb-20 overflow-x-hidden">
-        {/* ── Latest article, shown in full ────────────────────────── */}
-        <div
-          className="rounded-2xl sm:rounded-3xl overflow-hidden relative mb-8 sm:mb-10 md:mb-14 w-full max-w-full"
-          style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow)" }}
-        >
-          <div
-            className="h-2"
-            style={{ background: "linear-gradient(90deg, var(--orange), var(--orange2))" }}
-          />
-          <div className="p-4 sm:p-6 md:p-10 min-w-0">
-            <div className="flex items-center flex-wrap gap-2 mb-4">
-              <span
-                className="px-2.5 py-1 rounded-full text-[10.5px] font-bold uppercase tracking-wider text-white"
-                style={{ background: "var(--orange)" }}
-              >
-                Latest
-              </span>
-              {featured.tags?.slice(0, 3).map((tag) => <TagChip key={tag} tag={tag} />)}
-            </div>
+      <div className={`${SHELL} pb-14 sm:pb-20`}>
+        {/* ── Tag filter ───────────────────────────────────────────── */}
+        {tags.length > 0 && (
+          <nav aria-label="Filter by topic" className="hidden md:flex flex-wrap items-center gap-2 mt-4 sm:mt-6 mb-6 sm:mb-8">
+            <FilterPill href="/articles" label="All" active={!activeTag} />
+            {tags.slice(0, 14).map((t) => (
+              <FilterPill key={t} href={`/articles?tag=${encodeURIComponent(t)}`} label={t} active={activeTag === t} />
+            ))}
+          </nav>
+        )}
 
-            <h2
-              className="text-[22px] sm:text-[28px] md:text-[36px] font-bold leading-tight mb-4 break-words"
-              style={{ color: "var(--text)" }}
-            >
-              {featured.title}
-            </h2>
+        {/* ── Featured article ─────────────────────────────────────── */}
+        {featured && <FeaturedCard post={featured} />}
 
-            <div
-              className="flex items-center flex-wrap gap-x-4 gap-y-2 text-[12px] sm:text-[12.5px] font-medium pb-5 sm:pb-6 mb-6 sm:mb-8"
-              style={{ color: "var(--muted)", borderBottom: "1px solid var(--border)" }}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" />
-                </svg>
-                {featuredDate}
-              </span>
-              {featured.content && (
-                <>
-                  <span className="w-1 h-1 rounded-full" style={{ background: "var(--border2)" }} />
-                  <span className="inline-flex items-center gap-1.5">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    {readingTime(featured.content)} min read
-                  </span>
-                </>
-              )}
-            </div>
-
-            {featured.content ? (
-              <div className="min-w-0 max-w-full break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_img]:max-w-full [&_img]:h-auto [&_iframe]:max-w-full [&_video]:max-w-full">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={articleMarkdownComponents}>
-                  {featured.content}
-                </ReactMarkdown>
-              </div>
-            ) : (
-              <p className="text-[14px] md:text-[15.5px] leading-relaxed max-w-[720px] break-words" style={{ color: "var(--text2)" }}>
-                {featured.metaDescription}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* ── Recent: next 4 ───────────────────────────────────────── */}
-        {recent.length > 0 && (
+        {/* ── All articles grid ────────────────────────────────────── */}
+        {grid.length > 0 ? (
           <>
             <div className="flex items-center gap-3 mb-5 sm:mb-6">
-              <h3 className="text-[16px] sm:text-[18px] font-bold" style={{ color: "var(--text)" }}>Recent articles</h3>
+              <h2 className="text-[17px] sm:text-[20px] font-bold" style={{ color: "var(--text)" }}>
+                {activeTag ? `Articles tagged “${activeTag}”` : "More articles"}
+              </h2>
+              <span className="text-[12px] font-semibold" style={{ color: "var(--muted)" }}>{grid.length}</span>
               <div className="flex-1 h-px" style={{ background: "var(--border)" }} />
             </div>
 
-            <div className={`grid ${recentGridCols} gap-4 sm:gap-5`}>
-              {recent.map((post) => (
-                <Link
-                  key={post.id}
-                  href={`/articles/${post.slug}`}
-                  className="group flex flex-col min-w-0 rounded-2xl overflow-hidden transition-all hover:-translate-y-1"
-                  style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow)" }}
-                >
-                  <div className="h-1" style={{ background: `var(${tagColor(post.tags?.[0] ?? post.slug)})` }} />
-                  <div className="p-4 sm:p-5 flex flex-col gap-3 flex-1 min-w-0">
-                    <div className="flex flex-wrap gap-1.5">
-                      {post.tags?.slice(0, 2).map((tag) => <TagChip key={tag} tag={tag} />)}
-                    </div>
-                    <h4
-                      className="text-[15px] font-bold leading-snug line-clamp-2 break-words transition-colors group-hover:text-[var(--orange)]"
-                      style={{ color: "var(--text)" }}
-                    >
-                      {post.title}
-                    </h4>
-                    <p className="text-[12.5px] leading-relaxed line-clamp-2 break-words" style={{ color: "var(--text3)" }}>
-                      {post.metaDescription}
-                    </p>
-                    <div className="mt-auto pt-2 flex items-center gap-1.5 text-[11px] font-medium" style={{ color: "var(--muted)" }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" strokeLinecap="round" />
-                      </svg>
-                      {post.publishedAt ? formatDate(post.publishedAt) : formatDate(post.createdAt)}
-                    </div>
-                  </div>
-                </Link>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6">
+              {grid.map((post) => (
+                <PostCard key={post.id} post={post} />
               ))}
             </div>
           </>
+        ) : (
+          !featured && <EmptyState message={`No articles found for “${activeTag}”.`} />
         )}
       </div>
     </>
+  );
+}
+
+function FilterPill({ href, label, active }: { href: string; label: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      aria-current={active ? "page" : undefined}
+      className="px-3.5 py-1.5 rounded-full text-[12px] font-semibold transition-colors hover:opacity-85"
+      style={
+        active
+          ? { background: "var(--orange)", color: "#fff", border: "1px solid var(--orange)" }
+          : { background: "var(--card)", color: "var(--text2)", border: "1px solid var(--border)" }
+      }
+    >
+      {label}
+    </Link>
+  );
+}
+
+function FeaturedCard({ post }: { post: BlogPost }) {
+  const accent = tagColor(post.tags?.[0] ?? post.slug);
+  return (
+    <Link
+      href={`/articles/${post.slug}`}
+      className="group grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] rounded-2xl sm:rounded-3xl overflow-hidden mb-10 sm:mb-14 transition-all hover:-translate-y-1"
+      style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow)" }}
+    >
+      {/* Visual panel */}
+      <div
+        className="relative min-h-[180px] sm:min-h-[260px] lg:min-h-[340px] flex items-end p-6 sm:p-8 order-1 lg:order-2"
+        style={{
+          background: `radial-gradient(circle at 25% 20%, var(${accent}-d), transparent 60%), linear-gradient(135deg, var(${accent}-d), var(--card))`,
+        }}
+      >
+        <span
+          className="absolute top-5 right-5 sm:top-6 sm:right-6 text-[56px] sm:text-[88px] leading-none opacity-80 select-none"
+          aria-hidden
+        >
+          ✍️
+        </span>
+        <span
+          className="px-3 py-1 rounded-full text-[10.5px] font-bold uppercase tracking-wider text-white"
+          style={{ background: `var(${accent})` }}
+        >
+          Latest article
+        </span>
+      </div>
+
+      {/* Text panel */}
+      <div className="p-5 sm:p-8 lg:p-12 flex flex-col justify-center min-w-0 order-2 lg:order-1">
+        <div className="flex flex-wrap gap-2 mb-4">
+          {post.tags?.slice(0, 3).map((t) => <TagChip key={t} tag={t} />)}
+        </div>
+        <h2
+          className="text-[22px] sm:text-[30px] xl:text-[38px] font-bold leading-tight mb-4 break-words transition-colors group-hover:text-[var(--orange)]"
+          style={{ color: "var(--text)" }}
+        >
+          {post.title}
+        </h2>
+        <p
+          className="text-[14px] sm:text-[15.5px] leading-relaxed mb-6 line-clamp-4 break-words"
+          style={{ color: "var(--text2)" }}
+        >
+          {post.metaDescription}
+        </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] font-medium mb-6" style={{ color: "var(--muted)" }}>
+          <span className="inline-flex items-center gap-1.5"><CalendarIcon />{postDate(post)}</span>
+          {post.content && (
+            <span className="inline-flex items-center gap-1.5"><ClockIcon />{readingTime(post.content)} min read</span>
+          )}
+        </div>
+        <span className="inline-flex items-center gap-2 text-[13.5px] font-bold" style={{ color: "var(--orange)" }}>
+          Read article
+          <span className="transition-transform group-hover:translate-x-1">→</span>
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function PostCard({ post }: { post: BlogPost }) {
+  return (
+    <Link
+      href={`/articles/${post.slug}`}
+      className="group flex flex-col min-w-0 rounded-2xl overflow-hidden transition-all hover:-translate-y-1 hover:shadow-lg"
+      style={{ background: "var(--card)", border: "1px solid var(--border)", boxShadow: "var(--shadow)" }}
+    >
+      <div className="h-1.5" style={{ background: `var(${tagColor(post.tags?.[0] ?? post.slug)})` }} />
+      <div className="p-5 sm:p-6 flex flex-col gap-3 flex-1 min-w-0">
+        <div className="flex flex-wrap gap-1.5">
+          {post.tags?.slice(0, 2).map((t) => <TagChip key={t} tag={t} />)}
+        </div>
+        <h3
+          className="text-[16px] sm:text-[17px] font-bold leading-snug line-clamp-2 break-words transition-colors group-hover:text-[var(--orange)]"
+          style={{ color: "var(--text)" }}
+        >
+          {post.title}
+        </h3>
+        <p className="text-[13px] leading-relaxed line-clamp-3 break-words" style={{ color: "var(--text3)" }}>
+          {post.metaDescription}
+        </p>
+        <div
+          className="mt-auto pt-4 flex items-center justify-between text-[11.5px] font-medium"
+          style={{ color: "var(--muted)", borderTop: "1px solid var(--border)" }}
+        >
+          <span className="inline-flex items-center gap-1.5"><CalendarIcon size={12} />{postDate(post)}</span>
+          <span className="font-bold transition-transform group-hover:translate-x-1" style={{ color: "var(--orange)" }}>
+            Read →
+          </span>
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -236,22 +291,22 @@ function PageHero({ count }: { count?: number }) {
     <section className="relative overflow-hidden">
       <div
         className="absolute inset-0 -z-10"
-        style={{ background: "radial-gradient(ellipse 900px 400px at 50% -10%, var(--orange-d), transparent)" }}
+        style={{ background: "radial-gradient(ellipse 1200px 420px at 50% -10%, var(--orange-d), transparent)" }}
       />
-      <div className="mx-auto max-w-[1240px] px-4 sm:px-5 md:px-8 pt-10 pb-8 sm:pt-14 sm:pb-10 md:pt-20 md:pb-14 text-center">
+      <div className={`${SHELL} pt-5 pb-4 sm:pt-7 sm:pb-5 md:pt-8 md:pb-6 text-center`}>
         <span
-          className="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-4"
+          className="inline-block px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-2"
           style={{ background: "var(--orange-d)", color: "var(--orange)" }}
         >
-          FutureStack Blog
+          FutureStack Articles
         </span>
         <h1
-          className="text-[26px] sm:text-[30px] md:text-[44px] font-bold leading-tight mb-3 break-words"
+          className="text-[28px] sm:text-[36px] md:text-[52px] font-bold leading-tight mb-1.5 break-words"
           style={{ color: "var(--text)" }}
         >
           Articles &amp; Engineering Notes
         </h1>
-        <p className="text-[14px] md:text-[15.5px] max-w-[560px] mx-auto leading-relaxed" style={{ color: "var(--text2)" }}>
+        <p className="hidden md:block text-[14px] md:text-[16px] max-w-[640px] mx-auto leading-relaxed" style={{ color: "var(--text2)" }}>
           Practical, no-fluff writing on software engineering — for working and aspiring developers.
           {typeof count === "number" && count > 0 && (
             <span style={{ color: "var(--muted)" }}> {count} article{count === 1 ? "" : "s"} and counting.</span>
