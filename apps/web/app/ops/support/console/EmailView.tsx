@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import { showToast } from "@/lib/toast";
 import ClosedBanner from "../sections/ClosedBanner";
+import TicketRefund from "../sections/TicketRefund";
 import {
   CATEGORY_LABEL,
   PRIORITY_STYLE,
@@ -273,6 +274,15 @@ export default function EmailView({ meId, onOpenTicket }: { meId: string; onOpen
                   <option value="">Unassigned</option>
                   {agents.map((a) => <option key={a.id} value={a.id}>{a.name}{a.id === meId ? " (me)" : ""}</option>)}
                 </select>
+              </div>
+              <div className="mt-2">
+                <TicketRefund
+                  ticketId={thread.id}
+                  studentId={thread.student.id}
+                  studentName={thread.student.name}
+                  closed={thread.status === "CLOSED"}
+                  onChanged={refresh}
+                />
               </div>
             </div>
 

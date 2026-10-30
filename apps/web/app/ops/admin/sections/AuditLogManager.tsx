@@ -22,7 +22,7 @@ interface AuditRow {
 
 const PAGE_SIZE = 10;
 
-const ACTIONS = ["", "CREATE", "UPDATE", "DELETE", "DEACTIVATE", "APPROVE", "REJECT", "REFUND", "GENERATE"];
+const ACTIONS = ["", "CREATE", "UPDATE", "DELETE", "DEACTIVATE", "APPROVE", "REJECT", "CANCEL", "REFUND_REQUEST", "REFUND", "GENERATE"];
 const ENTITIES = ["", "Coupon", "Course", "BlogPost", "Track", "HeroSlide", "Enrollment", "Refund", "PaymentSettings", "Trainer", "Staff", "User"];
 
 const ACTION_COLOR: Record<string, { fg: string; bg: string }> = {
@@ -32,6 +32,8 @@ const ACTION_COLOR: Record<string, { fg: string; bg: string }> = {
   DEACTIVATE: { fg: "var(--orange)", bg: "var(--orange-d)" },
   APPROVE: { fg: "var(--green)", bg: "var(--green-d)" },
   REJECT: { fg: "var(--red)", bg: "var(--red-d)" },
+  CANCEL: { fg: "var(--text2)", bg: "var(--bg)" },
+  REFUND_REQUEST: { fg: "var(--amber, #b45309)", bg: "var(--amber-d, rgba(180,83,9,.12))" },
   REFUND: { fg: "var(--purple)", bg: "var(--purple-d)" },
   GENERATE: { fg: "var(--pink)", bg: "var(--pink-d)" },
 };
@@ -142,7 +144,7 @@ function AuditDetailModal({ row, onClose }: { row: AuditRow; onClose: () => void
 
         <div className="px-5 py-4">
           <div className="mb-3">
-            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: c.bg, color: c.fg }}>{row.action}</span>
+            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: c.bg, color: c.fg }}>{row.action.replace(/_/g, " ")}</span>
             <span className="text-[11px] ml-2" style={{ color: "var(--text2)" }}>
               {row.entityType ?? "—"}{row.entityId ? ` · ${row.entityId}` : ""}
             </span>
@@ -303,7 +305,7 @@ export default function AuditLogManager() {
                       <div className="font-mono text-[8.5px]" style={{ color: "var(--text3)" }}>{r.actorRole}</div>
                     </td>
                     <td className="px-2.5 py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
-                      <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: c.bg, color: c.fg }}>{r.action}</span>
+                      <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: c.bg, color: c.fg }}>{r.action.replace(/_/g, " ")}</span>
                     </td>
                     <td className="px-2.5 py-1.5 font-mono text-[9px]" style={{ color: "var(--text2)", borderBottom: "1px solid var(--border)" }}>
                       {r.entityType ?? "—"}

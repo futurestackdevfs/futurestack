@@ -2,6 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface RefundItem {
   id: string;
@@ -34,7 +35,21 @@ interface RefundItem {
   student: { id: string; name: string; email: string };
   course: { id: string; title: string } | null;
   project: { id: string; name: string } | null;
-  initiatedBy: { id: string; name: string };
+  initiatedBy: Person;
+  processedBy: Person | null;
+  rejectedBy: Person | null;
+  rejectedAt: string | null;
+  rejectReason: string | null;
+  cancelledBy: Person | null;
+  cancelledAt: string | null;
+  /** Support ticket the refund was raised from, if any. */
+  ticket: { id: string; ref: string; subject: string } | null;
+}
+
+interface Person {
+  id: string;
+  name: string;
+  role: string;
 }
 
 interface RefundSummary {
@@ -43,6 +58,7 @@ interface RefundSummary {
   pending: number;
   processed: number;
   rejected: number;
+  cancelled?: number;
 }
 
 interface Pagination {
@@ -60,17 +76,19 @@ interface RefundsData {
 
 const TABS = [
   { key: "all", label: "All", value: undefined },
+  { key: "pending", label: "Needs approval", value: "PENDING" },
   { key: "processed", label: "Processed", value: "PROCESSED" },
-  { key: "pending", label: "Pending", value: "PENDING" },
   { key: "rejected", label: "Rejected", value: "REJECTED" },
+  { key: "cancelled", label: "Cancelled", value: "CANCELLED" },
 ];
 
 const PER_PAGE = 10;
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; color: string; bg: string }> = {
-    PENDING: { label: "Pending review", color: "#d97706", bg: "rgba(217,119,6,.12)" },
-    PROCESSED: { label: "Sent to Razorpay", color: "var(--green)", bg: "var(--green-d)" },
+    PENDING: { label: "Awaiting approval", color: "#d97706", bg: "rgba(217,119,6,.12)" },
+    PROCESSED: { label: "Approved · sent to Razorpay", color: "var(--green)", bg: "var(--green-d)" },
+    CANCELLED: { label: "Cancelled by support", color: "var(--text3)", bg: "var(--bg2)" },
     REJECTED: { label: "Rejected", color: "var(--red)", bg: "var(--red-d)" },
   };
   const s = map[status?.toUpperCase()] ?? { label: status, color: "var(--text3)", bg: "var(--bg2)" };
@@ -82,6 +100,25 @@ function StatusBadge({ status }: { status: string }) {
       {s.label}
     </span>
   );
+}
+
+const ROLE_STYLE: Record<string, { color: string; bg: string }> = {
+  SUPPORT: { color: "var(--blue)", bg: "var(--blue-d)" },
+  ADMIN: { color: "var(--purple)", bg: "var(--purple-d)" },
+};
+
+function RoleBadge({ role }: { role: string }) {
+  const st = ROLE_STYLE[role] ?? { color: "var(--text3)", bg: "var(--bg2)" };
+  return (
+    <span className="font-mono text-[8px] font-bold px-1.5 py-[1px] rounded uppercase tracking-wide" style={{ color: st.color, background: st.bg }}>
+      {role}
+    </span>
+  );
+}
+
+function fmtDateTime(iso: string | null | undefined) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
 }
 
 function formatMoney(n: number | null | undefined, currency = "INR") {
@@ -96,8 +133,9 @@ function fmtDate(iso: string | null | undefined) {
 
 /** Where the refund is right now, in plain words, plus the date it should land. */
 function refundProgress(r: RefundItem) {
-  if (r.status === "REJECTED") return { text: "Rejected — nothing refunded", overdue: false };
-  if (r.status === "PENDING") return { text: "Waiting for admin approval", overdue: false };
+  if (r.status === "REJECTED") return { text: `Rejected${r.rejectedBy ? ` by ${r.rejectedBy.name}` : ""} — nothing refunded`, overdue: false };
+  if (r.status === "CANCELLED") return { text: `Request withdrawn${r.cancelledBy ? ` by ${r.cancelledBy.name}` : ""} — nothing refunded`, overdue: false };
+  if (r.status === "PENDING") return { text: `Requested by ${r.initiatedBy?.name ?? "—"} — waiting for admin approval`, overdue: false };
   const overdue = new Date(r.estimatedBy).getTime() < Date.now();
   return {
     text: overdue
@@ -126,6 +164,9 @@ export default function RefundsManager({ token, searchQuery = "" }: { token: str
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<{ id: number; msg: string; type: "success" | "danger" }[]>([]);
+  const [confirm, setConfirm] = useState<{ r: RefundItem; kind: "approve" | "reject" } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   function addToast(msg: string, type: "success" | "danger" = "success") {
     const id = Date.now();
@@ -160,6 +201,27 @@ export default function RefundsManager({ token, searchQuery = "" }: { token: str
   useEffect(() => {
     load(status, page);
   }, [token, status, page]);
+
+  async function decide(r: RefundItem, kind: "approve" | "reject", reason?: string) {
+    setConfirm(null);
+    setRejectReason("");
+    setBusyId(r.id);
+    try {
+      const res = await opsFetch(`/api/admin/refunds/${r.id}/${kind}`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+        ...(kind === "reject" ? { body: JSON.stringify({ reason: reason?.trim() || undefined }) } : {}),
+      });
+      const body = (await res.json().catch(() => ({}))) as { message?: string };
+      if (!res.ok) throw new Error(body.message || `Could not ${kind} this refund`);
+      addToast(kind === "approve" ? "Refund approved — sent to Razorpay" : "Refund rejected");
+      await load(status, page);
+    } catch (e: unknown) {
+      addToast(e instanceof Error ? e.message : `Could not ${kind} this refund`, "danger");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const pagination = data?.pagination;
   const totalPages = pagination?.totalPages ?? 1;
@@ -265,7 +327,7 @@ export default function RefundsManager({ token, searchQuery = "" }: { token: str
           <table className="w-full text-left min-w-[880px]" style={{ borderCollapse: "collapse", fontSize: 12 }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(148,163,184,.05)" }}>
-                {["Date", "Student", "Item", "Order", "Paid / Refund", "Status & expected by", "Reason", "Processed By"].map((h) => (
+                {["Date", "Student", "Item", "Order", "Paid / Refund", "Status & expected by", "Reason", "Raised by"].map((h) => (
                   <th
                     key={h}
                     className="font-mono text-[9px] font-bold uppercase tracking-[.08em] text-[var(--text3)] px-2.5 py-[7px]"
@@ -334,12 +396,40 @@ export default function RefundsManager({ token, searchQuery = "" }: { token: str
                         >
                           {progress.text}
                         </div>
+                        {r.status === "PENDING" && (
+                          <div className="flex gap-1.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              disabled={busyId === r.id}
+                              onClick={() => setConfirm({ r, kind: "approve" })}
+                              className="font-mono text-[9.5px] font-bold px-2.5 py-1 rounded cursor-pointer disabled:opacity-50"
+                              style={{ background: "var(--green)", color: "#fff", border: "none" }}
+                            >
+                              {busyId === r.id ? "…" : "✓ Approve"}
+                            </button>
+                            <button
+                              disabled={busyId === r.id}
+                              onClick={() => setConfirm({ r, kind: "reject" })}
+                              className="font-mono text-[9.5px] font-bold px-2.5 py-1 rounded cursor-pointer disabled:opacity-50"
+                              style={{ background: "transparent", color: "var(--red)", border: "1px solid var(--red)" }}
+                            >
+                              ✕ Reject
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td className="px-2.5 py-[7px]">
                         <div className="text-[11px] max-w-[180px] truncate" style={{ color: "var(--text2)" }}>{r.reason}</div>
                       </td>
                       <td className="px-2.5 py-[7px]">
-                        <div className="text-[11px] font-medium" style={{ color: "var(--text2)" }}>{r.initiatedBy?.name ?? "—"}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[11px] font-medium" style={{ color: "var(--text2)" }}>{r.initiatedBy?.name ?? "—"}</span>
+                          {r.initiatedBy?.role && <RoleBadge role={r.initiatedBy.role} />}
+                        </div>
+                        {r.ticket && (
+                          <div className="font-mono text-[9px] mt-0.5" style={{ color: "var(--blue)" }} title={r.ticket.subject}>
+                            🎫 {r.ticket.ref}
+                          </div>
+                        )}
                         <div className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>{open ? "▲ hide" : "▼ details"}</div>
                       </td>
                     </tr>
@@ -381,6 +471,65 @@ export default function RefundsManager({ token, searchQuery = "" }: { token: str
         )}
       </div>
 
+      <ConfirmDialog
+        open={confirm?.kind === "approve"}
+        title="Approve this refund?"
+        message={
+          confirm
+            ? `${formatMoney(confirm.r.amount, confirm.r.order?.currency ?? "INR")} will be sent back to ${confirm.r.student?.name ?? "the student"} through Razorpay and their access to ${confirm.r.course?.title ?? confirm.r.project?.name ?? "the item"} will be removed. This cannot be undone.`
+            : ""
+        }
+        confirmLabel="Approve & refund"
+        onConfirm={() => confirm && decide(confirm.r, "approve")}
+        onCancel={() => setConfirm(null)}
+      />
+
+      {confirm?.kind === "reject" && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-6" style={{ background: "var(--overlay)" }}>
+          <div
+            className="flex flex-col rounded-lg max-w-full"
+            style={{ width: 420, background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 20px 60px rgba(0,0,0,.35)" }}
+          >
+            <div className="px-4 py-3 text-[13px] font-bold" style={{ borderBottom: "1px solid var(--border)", color: "var(--text)" }}>
+              Reject this refund?
+            </div>
+            <div className="px-4 py-3 flex flex-col gap-2.5">
+              <div className="text-[11.5px] leading-relaxed" style={{ color: "var(--text2)" }}>
+                {confirm.r.student?.name ?? "The student"} will be emailed that the refund of {formatMoney(confirm.r.amount, confirm.r.order?.currency ?? "INR")} was not approved. No money moves.
+              </div>
+              <label className="flex flex-col gap-1">
+                <span className="font-mono text-[9px] font-bold uppercase tracking-wider" style={{ color: "var(--text3)" }}>Reason (shown to support)</span>
+                <textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  rows={3}
+                  maxLength={300}
+                  placeholder="e.g. Course already 80% completed — outside the refund policy"
+                  className="w-full text-[12px] rounded-md px-2.5 py-2 outline-none resize-none"
+                  style={{ background: "var(--bg)", border: "1px solid var(--border)", color: "var(--text)" }}
+                />
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3" style={{ borderTop: "1px solid var(--border)" }}>
+              <button
+                onClick={() => { setConfirm(null); setRejectReason(""); }}
+                className="text-[11.5px] font-semibold px-3.5 py-1.5 rounded cursor-pointer"
+                style={{ border: "1px solid var(--border)", color: "var(--text2)", background: "var(--surface)" }}
+              >
+                Go Back
+              </button>
+              <button
+                onClick={() => decide(confirm.r, "reject", rejectReason)}
+                className="text-[11.5px] font-bold px-3.5 py-1.5 rounded cursor-pointer text-white"
+                style={{ background: "var(--red)", border: "none" }}
+              >
+                Reject refund
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toasts */}
       <div className="fixed bottom-9 right-4 flex flex-col gap-2 z-[300]">
         {toasts.map((t) => (
@@ -409,18 +558,41 @@ function RefundDetail({ r }: { r: RefundItem }) {
   const b = r.breakdown;
   const progress = refundProgress(r);
   const rejected = r.status === "REJECTED";
+  const cancelled = r.status === "CANCELLED";
 
-  const steps: { label: string; when: string; state: "done" | "current" | "upcoming" | "failed" }[] = rejected
+  const who = (p: Person | null | undefined) => (p ? `${p.name} (${p.role})` : "—");
+  const requestedStep = {
+    label: `Refund requested by ${who(r.initiatedBy)}${r.ticket ? ` · ticket ${r.ticket.ref}` : ""}`,
+    when: fmtDateTime(r.createdAt),
+    state: "done" as const,
+  };
+  const steps: { label: string; when: string; state: "done" | "current" | "upcoming" | "failed" }[] = cancelled
     ? [
-        { label: "Refund requested", when: fmtDate(r.createdAt), state: "done" },
-        { label: "Rejected by admin", when: "No money was returned", state: "failed" },
+        requestedStep,
+        {
+          label: `Cancelled by ${r.cancelledBy ? who(r.cancelledBy) : "support"}`,
+          when: `${r.cancelledAt ? fmtDateTime(r.cancelledAt) + " · " : ""}Withdrawn before approval — no money moved`,
+          state: "failed",
+        },
+      ]
+    : rejected
+    ? [
+        requestedStep,
+        {
+          label: `Rejected by ${r.rejectedBy ? who(r.rejectedBy) : "admin"}`,
+          when: `${r.rejectedAt ? fmtDateTime(r.rejectedAt) + " · " : ""}No money was returned${r.rejectReason ? ` · Reason: ${r.rejectReason}` : ""}`,
+          state: "failed",
+        },
       ]
     : [
-        { label: r.status === "PENDING" ? "Refund requested" : "Refund approved", when: fmtDate(r.createdAt), state: "done" },
+        requestedStep,
+        r.status === "PENDING"
+          ? { label: "Admin approval", when: "Waiting — approve or reject this request", state: "current" }
+          : { label: `Approved by ${who(r.processedBy ?? r.initiatedBy)}`, when: fmtDateTime(r.processedAt), state: "done" },
         {
           label: "Sent to Razorpay / bank",
-          when: r.processedAt ? fmtDate(r.processedAt) : "Waiting for approval",
-          state: r.status === "PROCESSED" ? "done" : "current",
+          when: r.processedAt ? fmtDateTime(r.processedAt) : "After approval",
+          state: r.status === "PROCESSED" ? "done" : "upcoming",
         },
         {
           label: "Credited to student",

@@ -57,9 +57,10 @@ enum OrderStatus {
 }
 
 enum RefundStatus {
-  PENDING
+  PENDING // raised by support, waiting for an admin
   PROCESSED
   REJECTED
+  CANCELLED // support withdrew the request before an admin acted on it
 }
 
 enum GatewayType {
@@ -147,6 +148,9 @@ model User {
   salesTargets     SalesTarget[] @relation("SalesTargets")
   invoices         Invoice[]     @relation("Invoices")
   refundsInitiated Refund[]      @relation("RefundInitiator")
+  refundsProcessed Refund[]      @relation("RefundProcessor")
+  refundsRejected  Refund[]      @relation("RefundRejector")
+  refundsCancelled Refund[]      @relation("RefundCanceller")
   refunds          Refund[]      @relation("RefundStudent")
 
   // Escalations: about this student / raised by this user / owned by this staff member / actions taken
@@ -867,9 +871,24 @@ model Refund {
   processedAt      DateTime?
   createdAt        DateTime     @default(now())
 
+  // Support-desk flow: an agent raises the refund from a ticket (status PENDING);
+  // an admin then approves (-> PROCESSED, money sent) or rejects it.
+  ticket        SupportTicket? @relation("TicketRefunds", fields: [ticketId], references: [id], onDelete: SetNull)
+  ticketId      String?
+  processedBy   User?          @relation("RefundProcessor", fields: [processedById], references: [id], onDelete: SetNull)
+  processedById String? // admin who approved (or issued) it
+  rejectedBy    User?          @relation("RefundRejector", fields: [rejectedById], references: [id], onDelete: SetNull)
+  rejectedById  String?
+  rejectedAt    DateTime?
+  rejectReason  String? // why the admin turned it down (shown to the support agent)
+  cancelledBy   User?          @relation("RefundCanceller", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelledById String?
+  cancelledAt   DateTime?
+
   @@index([orderId])
   @@index([studentId])
   @@index([status])
+  @@index([ticketId])
 }
 
 // ─── ESCALATIONS ────────────────────────────────────────────────────
@@ -1043,6 +1062,7 @@ model SupportTicket {
   autoCloseReminderSentAt DateTime? // when the "closing soon" email went out; cleared on any new message so the next idle spell gets its own
 
   messages SupportTicketMessage[]
+  refunds  Refund[]               @relation("TicketRefunds")
 
   @@index([status])
   @@index([assigneeId])

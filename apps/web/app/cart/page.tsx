@@ -300,6 +300,7 @@ export default function CartPage() {
   const [success, setSuccess] = useState<SuccessData | null>(null);
   const [billing, setBilling] = useState<BillingDetails>(emptyBilling);
   const [billingError, setBillingError] = useState("");
+  const [movingId, setMovingId] = useState<string | null>(null);
 
   // Guards the Razorpay modal lifecycle: once a payment outcome has been
   // recorded (success, failed or dismissed) any later modal events are ignored.
@@ -413,6 +414,36 @@ export default function CartPage() {
     }
     const body = (await res.json().catch(() => ({}))) as { message?: string };
     showToast(body.message || "Could not move this course to your cart");
+  }
+
+  // No dedicated endpoint: save to the wishlist first (idempotent upsert), and
+  // only then drop it from the cart, so a failure never loses the course.
+  async function moveToWishlist(courseId: string) {
+    if (movingId) return;
+    setMovingId(courseId);
+    try {
+      const addRes = await authFetch(`${WISHLIST_KEY}/items`, {
+        method: "POST",
+        body: JSON.stringify({ courseId }),
+      });
+      const addBody = (await addRes.json().catch(() => ({}))) as { message?: string };
+      if (!addRes.ok) {
+        showToast(addBody.message || "Could not save this course for later");
+        return;
+      }
+      const delRes = await authFetch(`/api/cart/items/${courseId}`, { method: "DELETE" });
+      if (!delRes.ok) {
+        showToast("Saved for later, but we couldn't remove it from your cart");
+      } else {
+        showToast("Moved to wishlist");
+      }
+      mutate();
+      mutateWishlist();
+    } catch {
+      showToast("Could not save this course for later");
+    } finally {
+      setMovingId(null);
+    }
   }
 
   async function removeWishlistItem(courseId: string) {
@@ -681,6 +712,82 @@ export default function CartPage() {
     }
   }
 
+  const showCartGrid =
+    !authLoading && isAuthenticated && !(cartLoading && !cart) && !cartError && items.length > 0;
+
+  const savedForLater =
+    !authLoading && isAuthenticated ? (
+      <div>
+        <div className="flex items-baseline gap-2.5 mb-3">
+          <h2 className="font-['Inter_Tight',sans-serif] text-base font-extrabold text-[var(--text)] tracking-[-.01em]">Saved for Later</h2>
+          <span className="text-xs font-medium text-[var(--muted)]">{wishlistItems.length} {wishlistItems.length === 1 ? "course" : "courses"}</span>
+        </div>
+
+        {wishlistItems.length === 0 ? (
+          <Card className="flex flex-col items-center text-center py-8 px-5">
+            <div className="text-[32px] opacity-40 mb-2">🤍</div>
+            <div className="text-[13px] font-bold text-[var(--text)] mb-0.5">Your wishlist is empty</div>
+            <div className="text-[12px] text-[var(--muted)] max-w-[260px]">Tap the heart on any course to save it here for later.</div>
+          </Card>
+        ) : (
+          <Card className="overflow-hidden">
+            {cartFull && (
+              <div className="px-4 py-2.5 text-[11.5px] font-semibold text-[var(--orange)] bg-[var(--bg2)] border-b border-[var(--border)]">
+                Your cart is full ({maxItems} max) — remove a course to add another from here.
+              </div>
+            )}
+            {wishlistItems.map((item, i) => (
+              <div key={item.courseId} className={`p-4 flex flex-col gap-3 animate-[fadeUp_.3s_ease_both] ${i > 0 ? "border-t border-[var(--border)]" : ""}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    className="w-[44px] h-[40px] shrink-0 rounded-lg flex items-center justify-center text-[16px] font-extrabold text-white shadow-[0_3px_10px_rgba(0,0,0,.18)]"
+                    style={{ background: i % 2 === 0 ? "linear-gradient(135deg,#0d1f3c,#0a2a1a)" : "linear-gradient(135deg,#7a2a0a,#3a0a0a)" }}
+                  >
+                    {item.title.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-bold text-[var(--text)] leading-snug line-clamp-2">{item.title}</div>
+                    <div className="mt-0.5 text-[12px] font-semibold text-[var(--text2)]">
+                      {item.price != null ? (
+                        item.hasDiscount && item.originalPrice != null ? (
+                          <span className="flex items-center gap-1.5">
+                            <span className="text-[var(--muted)] line-through">{formatPrice(item.originalPrice, activeCurrency)}</span>
+                            <span className="text-[var(--green)]">{formatPrice(item.price, activeCurrency)}</span>
+                            <span className="text-[9px] font-extrabold text-[var(--green)] bg-[var(--green-d)] px-1 py-[1px] rounded-full">-{item.offPct ?? 0}%</span>
+                          </span>
+                        ) : (
+                          formatPrice(item.price, activeCurrency)
+                        )
+                      ) : "Price on enquiry"}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => moveToCart(item.courseId)}
+                    disabled={cartFull}
+                    title={cartFull ? `Your cart is full (${maxItems} max)` : undefined}
+                    className="flex-1 px-3.5 py-2 rounded-lg text-[11.5px] font-bold text-white border-none cursor-pointer transition-[opacity,transform] duration-150 hover:opacity-90 active:scale-[.97] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ background: "linear-gradient(135deg,var(--orange),var(--orange2))" }}
+                  >
+                    Add to Cart
+                  </button>
+                  <button
+                    onClick={() => removeWishlistItem(item.courseId)}
+                    className="flex items-center gap-1 px-2.5 py-2 text-[11.5px] font-bold text-[var(--muted)] hover:text-[var(--red)] bg-transparent border border-[var(--border)] cursor-pointer transition-colors duration-150 rounded-lg hover:bg-[var(--red-d)]"
+                    aria-label={`Remove ${item.title} from saved`}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </Card>
+        )}
+      </div>
+    ) : null;
+
   const steps = ["Cart", "Billing", "Confirmation"];
 
   return (
@@ -688,36 +795,55 @@ export default function CartPage() {
       <TopNav />
       <div className="h-[56px]" />
 
-      <div className="max-w-[1120px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 pt-7 sm:pt-8">
+      <div className={`${step === 1 ? "max-w-[1480px] lg:px-10" : "max-w-[1120px] lg:px-8"} relative mx-auto px-3.5 sm:px-6 pb-12 sm:pb-16 pt-5 sm:pt-10`}>
+        {/* soft ambient glow behind the header */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -z-10 top-0 left-1/2 -translate-x-1/2 w-screen h-[340px]"
+          style={{ background: "radial-gradient(ellipse 1000px 320px at 50% -10%, var(--orange-d), transparent)" }}
+        />
+
         {/* Stepper */}
-        <div className="flex items-center justify-center gap-2 sm:gap-3 mb-6">
+        <ol className="flex items-center justify-center gap-1.5 sm:gap-2 mb-5 sm:mb-10 list-none p-0 m-0">
           {steps.map((label, i) => {
             const n = i + 1;
             const done = n < step;
             const active = n === step;
             return (
-              <div key={label} className="flex items-center gap-2 sm:gap-3">
-                {i > 0 && <div className={`h-px w-8 sm:w-16 ${done || active ? "bg-[var(--orange)]" : "bg-[var(--border2)]"}`} />}
-                <div className="flex flex-col items-center gap-1.5">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-extrabold transition-all duration-250 ${active ? "bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white shadow-[0_3px_12px_rgba(240,90,26,.35)]" : done ? "bg-[var(--green)] text-white" : "bg-[var(--bg2)] border-[1.5px] border-[var(--border2)] text-[var(--text3)]"}`}>
+              <li key={label} className="flex items-center gap-1.5 sm:gap-2">
+                {i > 0 && <span className={`h-[2px] w-5 sm:w-12 rounded-full transition-colors ${done || active ? "bg-[var(--orange)]" : "bg-[var(--border2)]"}`} />}
+                <span
+                  className={`inline-flex items-center gap-2 pl-1.5 pr-2.5 sm:pr-4 py-1.5 rounded-full border text-[12px] font-semibold transition-all duration-200 ${
+                    active
+                      ? "bg-[var(--orange-d)] border-[var(--orange)] text-[var(--orange)]"
+                      : done
+                        ? "bg-[var(--green-d)] border-transparent text-[var(--green)]"
+                        : "bg-[var(--surface)] border-[var(--border)] text-[var(--text3)]"
+                  }`}
+                  aria-current={active ? "step" : undefined}
+                >
+                  <span
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-extrabold ${
+                      active ? "bg-[var(--orange)] text-white" : done ? "bg-[var(--green)] text-white" : "bg-[var(--bg2)] text-[var(--text3)]"
+                    }`}
+                  >
                     {done ? "✓" : n}
-                  </div>
-                  <span className={`hidden sm:block text-[11px] font-semibold whitespace-nowrap ${active ? "text-[var(--text)]" : done ? "text-[var(--green)]" : "text-[var(--text3)]"}`}>{label}</span>
-                </div>
-              </div>
+                  </span>
+                  <span className={active ? "inline" : "hidden sm:inline"}>{label}</span>
+                </span>
+              </li>
             );
           })}
-        </div>
+        </ol>
 
         {/* Step 1: Cart */}
         {step === 1 && (
           <>
-            <div className="flex items-center justify-between mb-5 gap-3">
-              <div className="flex items-baseline gap-3">
-                <h1 className="font-['Inter_Tight',sans-serif] text-2xl sm:text-3xl font-extrabold text-[var(--text)] tracking-[-.01em]">Your Cart</h1>
-                <span className="text-xs font-medium text-[var(--muted)]">{totalCount}{maxItems ? ` of ${maxItems}` : ""} {totalCount === 1 && !maxItems ? "course" : "courses"}</span>
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between mb-4 sm:mb-8 gap-3 sm:gap-4">
+              <div>
+                <h1 className="font-['Inter_Tight',sans-serif] text-[24px] sm:text-[36px] font-extrabold text-[var(--text)] tracking-[-.02em] leading-none m-0">Your Cart</h1>
               </div>
-              <div className="flex items-center gap-2.5 shrink-0">
+              <div className="flex items-center gap-3 shrink-0">
                 {showCurrencyToggle ? (
                   <div className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] p-1" title={`Auto-selected from ${countryName(billing.country)} — tap to change`}>
                     {(["INR", "USD"] as Currency[]).filter(c => enabledCurrencies.includes(c)).map(c => (
@@ -725,10 +851,10 @@ export default function CartPage() {
                         key={c}
                         type="button"
                         onClick={() => setCurrencyOverride(c === desiredCurrency ? null : c)}
-                        className={`px-3.5 py-1.5 rounded-full text-[11.5px] font-bold transition-all duration-150 cursor-pointer ${
+                        className={`px-3.5 py-1.5 rounded-full text-[11.5px] font-bold transition-all duration-150 cursor-pointer border-none ${
                           activeCurrency === c
-                            ? "bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white shadow-[0_3px_10px_rgba(240,90,26,.35)]"
-                            : "text-[var(--text2)] hover:text-[var(--text)] hover:bg-[var(--bg2)]"
+                            ? "bg-[var(--orange)] text-white shadow-[0_3px_10px_rgba(240,90,26,.35)]"
+                            : "bg-transparent text-[var(--text2)] hover:text-[var(--text)] hover:bg-[var(--bg2)]"
                         }`}
                       >
                         {c === "USD" ? "$ USD" : "₹ INR"}
@@ -736,52 +862,53 @@ export default function CartPage() {
                     ))}
                   </div>
                 ) : (
-                  <span className="text-[12px] font-semibold text-[var(--text2)] bg-[var(--bg2)] border border-[var(--border)] rounded-lg px-2.5 py-1.5">
+                  <span className="text-[12px] font-semibold text-[var(--text2)] bg-[var(--surface)] border border-[var(--border)] rounded-full px-3.5 py-1.5">
                     {activeCurrency === "USD" ? "$ USD" : "₹ INR"}
                     <span className="text-[var(--muted)] font-normal"> · {countryName(billing.country)}</span>
                   </span>
                 )}
-                <Link href="/courses" className="hidden sm:inline text-[13px] font-semibold text-[var(--blue)] hover:underline no-underline">Continue browsing →</Link>
+                <Link href="/courses" className="hidden sm:inline text-[13px] font-semibold text-[var(--text2)] hover:text-[var(--orange)] transition-colors no-underline">Continue browsing →</Link>
               </div>
             </div>
 
             {authLoading ? (
-              <Card className="flex flex-col items-center justify-center text-center py-16 px-6">
+              <Card className="flex flex-col items-center justify-center text-center py-20 px-6">
                 <div className="w-8 h-8 rounded-full border-2 border-[var(--border2)] border-t-[var(--orange)] animate-spin mb-4" />
                 <div className="text-[13px] text-[var(--muted)]">Loading…</div>
               </Card>
             ) : !isAuthenticated ? (
-              <Card className="flex flex-col items-center text-center py-14 px-6">
-                <div className="text-[56px] opacity-40 mb-4">🔒</div>
-                <div className="font-['Inter_Tight',sans-serif] text-lg font-bold text-[var(--text)] mb-1.5">Sign in to view your cart</div>
-                <div className="text-[13px] text-[var(--muted)] mb-6 max-w-[340px]">Log in (or create a free account) to add courses to your cart and check out — your cart is saved to your account, not this browser.</div>
+              <Card className="flex flex-col items-center text-center py-16 px-6">
+                <div className="w-16 h-16 rounded-2xl bg-[var(--orange-d)] flex items-center justify-center text-[28px] mb-5">🔒</div>
+                <div className="font-['Inter_Tight',sans-serif] text-xl font-bold text-[var(--text)] mb-1.5">Sign in to view your cart</div>
+                <div className="text-[13px] text-[var(--muted)] mb-7 max-w-[360px] leading-relaxed">Log in (or create a free account) to add courses to your cart and check out. Your cart is saved to your account, not this browser.</div>
                 <div className="flex flex-col sm:flex-row gap-3 w-full max-w-[360px]">
-                  <Link href="/" className="flex-1 px-6 py-2.5 rounded-xl bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13px] font-extrabold shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 no-underline text-center">Sign In</Link>
-                  <Link href="/courses" className="flex-1 px-6 py-2.5 rounded-xl bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)] text-[13px] font-bold no-underline text-center transition-colors duration-150 hover:text-[var(--text)] hover:border-[var(--border)]">Browse Courses</Link>
+                  <Link href="/" className="flex-1 px-6 py-3 rounded-xl bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13px] font-extrabold shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 no-underline text-center">Sign In</Link>
+                  <Link href="/courses" className="flex-1 px-6 py-3 rounded-xl bg-transparent text-[var(--text2)] border-[1.5px] border-[var(--border2)] text-[13px] font-bold no-underline text-center transition-colors duration-150 hover:text-[var(--text)] hover:border-[var(--text3)]">Browse Courses</Link>
                 </div>
               </Card>
             ) : cartLoading && !cart ? (
-              <Card className="flex flex-col items-center justify-center text-center py-16 px-6">
+              <Card className="flex flex-col items-center justify-center text-center py-20 px-6">
                 <div className="w-8 h-8 rounded-full border-2 border-[var(--border2)] border-t-[var(--orange)] animate-spin mb-4" />
                 <div className="text-[13px] text-[var(--muted)]">Loading your cart…</div>
               </Card>
             ) : cartError ? (
-              <Card className="flex flex-col items-center text-center py-14 px-6">
-                <div className="text-[48px] opacity-40 mb-4">⚠️</div>
-                <div className="font-['Inter_Tight',sans-serif] text-lg font-bold text-[var(--text)] mb-1.5">Could not load your cart</div>
-                <div className="text-[13px] text-[var(--muted)] mb-6 max-w-[320px]">{(cartError as Error).message}</div>
-                <Link href="/courses" className="px-6 py-2.5 rounded-xl bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13px] font-extrabold shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 no-underline">Browse Courses</Link>
+              <Card className="flex flex-col items-center text-center py-16 px-6">
+                <div className="w-16 h-16 rounded-2xl bg-[var(--red-d)] flex items-center justify-center text-[28px] mb-5">⚠️</div>
+                <div className="font-['Inter_Tight',sans-serif] text-xl font-bold text-[var(--text)] mb-1.5">Could not load your cart</div>
+                <div className="text-[13px] text-[var(--muted)] mb-7 max-w-[340px]">{(cartError as Error).message}</div>
+                <Link href="/courses" className="px-6 py-3 rounded-xl bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13px] font-extrabold shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 no-underline">Browse Courses</Link>
               </Card>
             ) : items.length === 0 ? (
-              <Card className="flex flex-col items-center text-center py-14 px-6">
-                <div className="text-[56px] opacity-40 mb-4">🛒</div>
-                <div className="font-['Inter_Tight',sans-serif] text-lg font-bold text-[var(--text)] mb-1.5">Your cart is empty</div>
-                <div className="text-[13px] text-[var(--muted)] mb-6 max-w-[320px]">Browse our courses and add something to get started.</div>
-                <Link href="/courses" className="px-6 py-2.5 rounded-xl bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13px] font-extrabold shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 no-underline">Browse Courses</Link>
+              <Card className="flex flex-col items-center text-center py-16 px-6">
+                <div className="w-16 h-16 rounded-2xl bg-[var(--orange-d)] flex items-center justify-center text-[28px] mb-5">🛒</div>
+                <div className="font-['Inter_Tight',sans-serif] text-xl font-bold text-[var(--text)] mb-1.5">Your cart is empty</div>
+                <div className="text-[13px] text-[var(--muted)] mb-7 max-w-[340px] leading-relaxed">Browse our courses and add something to get started.</div>
+                <Link href="/courses" className="px-6 py-3 rounded-xl bg-[linear-gradient(135deg,var(--orange),var(--orange2))] text-white text-[13px] font-extrabold shadow-[0_5px_18px_rgba(240,90,26,.35)] transition-all duration-200 hover:-translate-y-0.5 no-underline">Browse Courses</Link>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,720px)_360px] gap-5 items-start justify-center">
-                <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_340px_320px] gap-4 lg:gap-6 items-start">
+                {/* ── Cart items ── */}
+                <div className="flex flex-col gap-4 min-w-0 lg:col-start-1 lg:row-start-1 lg:row-span-2 xl:row-span-1">
                   <Card className="overflow-hidden">
                     {items.map((item, i) => {
                       const itemOff = coupon
@@ -792,28 +919,18 @@ export default function CartPage() {
                             : 0
                         : 0;
                       const finalPrice = Math.max(0, item.price - itemOff);
+                      const itemKey = item.courseId ?? item.projectId!;
                       return (
-                      <div key={item.courseId ?? item.projectId} className={`flex items-center gap-4 sm:gap-5 px-4 sm:px-6 py-4 sm:py-5 animate-[fadeUp_.3s_ease_both] ${i > 0 ? "border-t border-[var(--border)]" : ""}`}>
-                        <div
-                          className="w-[60px] h-[56px] sm:w-[68px] sm:h-[64px] shrink-0 rounded-xl flex items-center justify-center text-[20px] sm:text-[24px] font-extrabold text-white shadow-[0_3px_10px_rgba(0,0,0,.18)] overflow-hidden"
-                          style={{ background: item.thumbGradient || (i % 2 === 0 ? "linear-gradient(135deg,#0d1f3c,#0a2a1a)" : "linear-gradient(135deg,#7a2a0a,#3a0a0a)") }}
-                        >
-                          {item.image ? (
-                            <img src={item.image} alt={item.title} className="min-w-full min-h-full object-cover" />
-                          ) : (
-                            item.title.charAt(0).toUpperCase()
-                          )}
-                        </div>
-
+                      <div key={itemKey} className={`flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 px-3.5 sm:px-6 py-3.5 sm:py-5 animate-[fadeUp_.3s_ease_both] ${i > 0 ? "border-t border-[var(--border)]" : ""}`}>
                         <div className="flex-1 min-w-0 flex flex-col gap-2">
-                          <h3 className="font-['Inter_Tight',sans-serif] text-[15px] sm:text-[16px] font-bold text-[var(--text)] leading-snug line-clamp-2">{item.title}</h3>
+                          <h3 className="font-['Inter_Tight',sans-serif] text-[14px] sm:text-[16px] font-bold text-[var(--text)] leading-snug line-clamp-2">{item.title}</h3>
 
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-extrabold uppercase tracking-[.08em] text-[var(--orange)] bg-[var(--orange-d)] px-2 py-0.5 rounded-[6px]">{item.techLabel || item.category}</span>
                             {item.type === "project" && <span className="text-[9px] font-bold text-[var(--blue)] bg-[rgba(59,130,246,.1)] px-1.5 py-0.5 rounded-[4px]">PROJECT</span>}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11.5px] text-[var(--text2)] mt-0.5">
+                          <div className="flex flex-wrap items-center gap-x-2.5 sm:gap-x-3.5 gap-y-1 text-[11px] sm:text-[11.5px] text-[var(--text2)] mt-0.5">
                             {item.type === "project" ? (
                               <>
                                 {item.trainer && <span className="flex items-center gap-1">👨‍🏫 {item.trainer}</span>}
@@ -826,11 +943,11 @@ export default function CartPage() {
                                   <span className="font-bold text-[var(--text)]">{Number(item.rating).toFixed(1)}</span>
                                   <span className="text-[var(--muted)]">({item.reviews})</span>
                                 </span>
-                                <span className="w-px h-3.5 bg-[var(--border2)]" />
+                                <span className="hidden sm:block w-px h-3.5 bg-[var(--border2)]" />
                                 <span className="flex items-center gap-1">⏱ {item.hours} hrs</span>
-                                <span className="w-px h-3.5 bg-[var(--border2)]" />
+                                <span className="hidden sm:block w-px h-3.5 bg-[var(--border2)]" />
                                 <span className="flex items-center gap-1">▦ {item.modules} modules</span>
-                                <span className="w-px h-3.5 bg-[var(--border2)]" />
+                                <span className="hidden sm:block w-px h-3.5 bg-[var(--border2)]" />
                                 <span className="flex items-center gap-1">▶ {item.lessons} lessons</span>
                               </>
                             )}
@@ -839,12 +956,13 @@ export default function CartPage() {
                           {item.type === "course" && <span className="inline-flex items-center gap-1.5 mt-0.5 text-[10px] font-bold text-[var(--green)] bg-[var(--green-d)] px-2.5 py-1 rounded-full w-fit">🎓 Certificate included</span>}
                         </div>
 
-                        <div className="flex flex-col items-end gap-3 shrink-0">
+                        <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between gap-2 sm:gap-3 shrink-0 w-full sm:w-auto pt-3 sm:pt-0 border-t sm:border-t-0 border-[var(--border)]">
+                          <div className="flex flex-col items-start sm:items-end gap-1 sm:gap-3 sm:contents">
                           {item.hasDiscount && item.originalPrice != null && (
                             <span className="text-[9px] font-extrabold text-[var(--green)] bg-[var(--green-d)] px-2 py-0.5 rounded-full whitespace-nowrap">-{item.offPct}% off</span>
                           )}
                           {coupon && itemOff > 0 ? (
-                            <div className="flex flex-col items-end gap-1">
+                            <div className="flex flex-col items-start sm:items-end gap-1">
                               <span className="text-[10px] font-extrabold uppercase tracking-[.06em] text-[var(--green)] bg-[var(--green-d)] px-2 py-0.5 rounded-full whitespace-nowrap">🏷️ {discountLabel(coupon, activeCurrency)}</span>
                               <div className="flex items-baseline gap-1.5">
                                 <span className="text-[12px] text-[var(--muted)] line-through">{formatPrice(item.price, activeCurrency)}</span>
@@ -860,14 +978,28 @@ export default function CartPage() {
                           ) : (
                             <span className="font-['Inter_Tight',sans-serif] text-lg sm:text-xl font-extrabold text-[var(--text)] tracking-[-.01em]">{formatPrice(item.price, activeCurrency)}</span>
                           )}
+                          </div>
+                          <div className="flex items-center gap-2 sm:contents">
+                          {item.type === "course" && item.courseId && (
+                            <button
+                              onClick={() => moveToWishlist(item.courseId!)}
+                              disabled={movingId === item.courseId}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-[var(--border2)] bg-transparent text-[11px] font-semibold text-[var(--text2)] cursor-pointer whitespace-nowrap transition-colors duration-150 hover:text-[var(--orange)] hover:border-[var(--orange)] hover:bg-[var(--orange-d)] disabled:opacity-50 disabled:cursor-not-allowed"
+                              aria-label={`Move ${item.title} to wishlist`}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 000-7.8z" /></svg>
+                              {movingId === item.courseId ? "Moving…" : "Move to wishlist"}
+                            </button>
+                          )}
                           <button
-                            onClick={() => removeItem(item.courseId ?? item.projectId!)}
+                            onClick={() => removeItem(itemKey)}
                             className="flex items-center gap-1 text-[11px] font-bold text-[var(--muted)] hover:text-[var(--red)] bg-transparent border-none cursor-pointer transition-colors duration-150 p-1 -m-1 rounded-md hover:bg-[var(--red-d)]"
                             aria-label={`Remove ${item.title}`}
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
                             Remove
                           </button>
+                          </div>
                         </div>
                       </div>
                       );
@@ -875,175 +1007,118 @@ export default function CartPage() {
                   </Card>
                 </div>
 
-                {/* Order summary */}
-                <Card className="p-5 lg:sticky lg:top-[76px]">
-                  <div className="font-['Inter_Tight',sans-serif] text-base font-extrabold text-[var(--text)] mb-3.5">Order Summary</div>
+                {/* ── Order summary ── */}
+                <aside className="min-w-0 lg:col-start-2 lg:row-start-1 lg:sticky lg:top-[76px]">
+                  <Card className="overflow-hidden">
+                    <div className="h-1" style={{ background: "linear-gradient(90deg,var(--orange),var(--orange2))" }} />
+                    <div className="p-4 sm:p-6">
+                      <div className="font-['Inter_Tight',sans-serif] text-[17px] font-extrabold text-[var(--text)] mb-4">Order Summary</div>
 
-                  {(() => {
-                    const totalOriginal = items.reduce((sum, item) => sum + (item.originalPrice ?? item.price), 0);
-                    const courseDiscount = Math.max(0, totalOriginal - subtotal);
-                    return (
-                      <div className="flex flex-col gap-2.5 text-[13px]">
-                        {totalOriginal > subtotal && (
-                          <div className="flex justify-between">
-                            <span className="text-[var(--text2)]">Original Price</span>
-                            <span className="text-[var(--text)] font-semibold line-through">{formatPrice(totalOriginal, activeCurrency)}</span>
+                      {(() => {
+                        const totalOriginal = items.reduce((sum, item) => sum + (item.originalPrice ?? item.price), 0);
+                        const courseDiscount = Math.max(0, totalOriginal - subtotal);
+                        return (
+                          <div className="flex flex-col gap-3 text-[13px]">
+                            {totalOriginal > subtotal && (
+                              <div className="flex justify-between">
+                                <span className="text-[var(--text2)]">Original Price</span>
+                                <span className="text-[var(--muted)] font-semibold line-through">{formatPrice(totalOriginal, activeCurrency)}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between">
+                              <span className="text-[var(--text2)]">Subtotal ({totalCount} {totalCount === 1 ? "item" : "items"})</span>
+                              <span className="text-[var(--text)] font-semibold">{formatPrice(subtotal, activeCurrency)}</span>
+                            </div>
+                            {courseDiscount > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-[var(--green)]">Course Discount</span>
+                                <span className="text-[var(--green)] font-semibold">−{formatPrice(courseDiscount, activeCurrency)}</span>
+                              </div>
+                            )}
+                            {coupon && (
+                              <div className="flex justify-between">
+                                <span className="text-[var(--green)]">Promo ({coupon.code})</span>
+                                <span className="text-[var(--green)] font-semibold">−{formatPrice(discountAmount, activeCurrency)}</span>
+                              </div>
+                            )}
+                            {gstPercent > 0 && (
+                              <div className="flex justify-between">
+                                <span className="text-[var(--text2)]">{activeCurrency === "USD" ? "Tax" : "GST"} ({gstPercent}%)</span>
+                                <span className="text-[var(--text)] font-semibold">{formatPrice(gstAmount, activeCurrency)}</span>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        <div className="flex justify-between">
-                          <span className="text-[var(--text2)]">Subtotal ({totalCount} items)</span>
-                          <span className="text-[var(--text)] font-semibold">{formatPrice(subtotal, activeCurrency)}</span>
+                        );
+                      })()}
+
+                      {!coupon ? (
+                        <div className="flex flex-col gap-1.5 mt-5">
+                          <div className="flex gap-2">
+                            <input
+                              className="flex-1 min-w-0 h-10 rounded-lg bg-[var(--bg2)] border border-[var(--border)] px-3 text-[12.5px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--orange)] transition-colors"
+                              placeholder="Promo code"
+                              value={promoInput}
+                              onChange={e => setPromoInput(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter") applyPromo(); }}
+                            />
+                            <button className="px-4 rounded-lg bg-[var(--text)] text-[var(--surface)] text-[12px] font-bold whitespace-nowrap cursor-pointer border-none hover:opacity-90 transition-opacity" onClick={applyPromo}>Apply</button>
+                          </div>
+                          {promoError && <div className="text-[11px] text-[var(--red)]">{promoError}</div>}
                         </div>
-                        {courseDiscount > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-[var(--green)]">Course Discount</span>
-                            <span className="text-[var(--green)] font-semibold">−{formatPrice(courseDiscount, activeCurrency)}</span>
-                          </div>
-                        )}
-                        {coupon && (
-                          <div className="flex justify-between">
-                            <span className="text-[var(--green)]">Promo ({coupon.code})</span>
-                            <span className="text-[var(--green)] font-semibold">−{formatPrice(discountAmount, activeCurrency)}</span>
-                          </div>
-                        )}
-                        {gstPercent > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-[var(--text2)]">{activeCurrency === "USD" ? "Tax" : "GST"} ({gstPercent}%)</span>
-                            <span className="text-[var(--text)] font-semibold">{formatPrice(gstAmount, activeCurrency)}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
+                      ) : (
+                        <div className="flex items-center justify-between bg-[var(--green-d)] rounded-lg px-3 py-2.5 mt-5 text-[12px]">
+                          <span className="text-[var(--green)] font-bold flex items-center gap-1.5">✓ {coupon.code} applied</span>
+                          <button className="text-[var(--muted)] text-[11px] bg-transparent border-none cursor-pointer hover:text-[var(--red)]" onClick={removePromo}>Remove</button>
+                        </div>
+                      )}
 
-                  {!coupon ? (
-                    <div className="flex flex-col gap-1.5 mt-4">
-                      <div className="flex gap-2">
-                        <input
-                          className="flex-1 h-10 rounded-lg bg-[var(--bg2)] border border-[var(--border)] px-3 text-[12px] text-[var(--text)] outline-none placeholder:text-[var(--muted)] focus:border-[var(--blue)]"
-                          placeholder="Promo code"
-                          value={promoInput}
-                          onChange={e => setPromoInput(e.target.value)}
-                          onKeyDown={e => { if (e.key === "Enter") applyPromo(); }}
-                        />
-                        <button className="px-4 rounded-lg bg-[var(--text)] text-[var(--surface)] text-[12px] font-bold whitespace-nowrap cursor-pointer border-none" onClick={applyPromo}>Apply</button>
+                      <div className="h-px bg-[var(--border)] my-5" />
+                      <div className="flex justify-between items-baseline mb-1">
+                        <span className="font-['Inter_Tight',sans-serif] text-[15px] font-bold text-[var(--text)]">Total</span>
+                        <span className="font-['Inter_Tight',sans-serif] text-[30px] font-extrabold text-[var(--text)] tracking-[-.02em] leading-none">{formatPrice(total, activeCurrency)}</span>
                       </div>
-                      {promoError && <div className="text-[11px] text-[var(--red)]">{promoError}</div>}
+                      {(() => {
+                        const totalOriginal = items.reduce((sum, item) => sum + (item.originalPrice ?? item.price), 0);
+                        const totalSavings = Math.max(0, totalOriginal - subtotal) + discountAmount;
+                        return totalSavings > 0 ? (
+                          <div className="text-right text-[11.5px] font-bold text-[var(--green)] mb-4">You save {formatPrice(totalSavings, activeCurrency)} 🎉</div>
+                        ) : <div className="mb-4" />;
+                      })()}
+
+                      <button className={primaryBtnCls} onClick={() => goToStep(2)} disabled={processing}>
+                        Proceed to Checkout
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 12h12" /><path d="M13 5l7 7-7 7" /></svg>
+                      </button>
+                      <div className="flex items-center justify-center gap-1.5 text-[11px] text-[var(--muted)] mt-3">🔒 Secure checkout · 256-bit SSL encrypted</div>
+                      {payError && <div className="text-[11px] text-[var(--red)] text-center mt-2">{payError}</div>}
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-between bg-[var(--green-d)] border border-[var(--green-d)] rounded-lg px-3 py-2.5 mt-4 text-[12px]">
-                      <span className="text-[var(--green)] font-bold flex items-center gap-1.5">✓ {coupon.code} applied</span>
-                      <button className="text-[var(--muted)] text-[11px] bg-transparent border-none cursor-pointer hover:text-[var(--red)]" onClick={removePromo}>Remove</button>
-                    </div>
-                  )}
-
-                  <div className="h-px bg-[var(--border)] my-3.5" />
-                  <div className="flex justify-between items-baseline mb-1">
-                    <span className="font-['Inter_Tight',sans-serif] text-[15px] font-bold text-[var(--text)]">Total</span>
-                    <span className="font-['Inter_Tight',sans-serif] text-[28px] font-extrabold text-[var(--text)] tracking-[-.01em]">{formatPrice(total, activeCurrency)}</span>
-                  </div>
-                  {(() => {
-                    const totalOriginal = items.reduce((sum, item) => sum + (item.originalPrice ?? item.price), 0);
-                    const totalSavings = Math.max(0, totalOriginal - subtotal) + discountAmount;
-                    return totalSavings > 0 ? (
-                      <div className="text-right text-[11px] font-bold text-[var(--green)] mb-3">You save {formatPrice(totalSavings, activeCurrency)} 🎉</div>
-                    ) : <div className="mb-3" />;
-                  })()}
-
-                  <button className={primaryBtnCls} onClick={() => goToStep(2)} disabled={processing}>
-                    Proceed to Checkout
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 12h12" /><path d="M13 5l7 7-7 7" /></svg>
-                  </button>
-                  <div className="flex items-center justify-center gap-1.5 text-[11px] text-[var(--muted)] mt-2">🔒 Secure checkout · 256-bit SSL encrypted</div>
-                  {payError && <div className="text-[11px] text-[var(--red)] text-center mt-2">{payError}</div>}
-
-                  <div className="flex flex-col gap-2 mt-4 pt-3.5 border-t border-[var(--border)] text-[12px] text-[var(--text2)]">
-                    {["🛡️  7-day money-back guarantee", "🏅  Verified certificate on completion", "♾️  Lifetime access to course materials"].map(t => (
-                      <div key={t} className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-[var(--bg2)] flex items-center justify-center text-[13px] shrink-0">{t.slice(0, 2)}</div>
-                        <span>{t.slice(4)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </div>
-            )}
-
-            {/* Step 1b: Saved for Later */}
-            {!authLoading && isAuthenticated && (
-              <div className="mt-8">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-baseline gap-3">
-                    <h2 className="font-['Inter_Tight',sans-serif] text-lg sm:text-xl font-extrabold text-[var(--text)] tracking-[-.01em]">Saved for Later</h2>
-                    <span className="text-xs font-medium text-[var(--muted)]">{wishlistItems.length} {wishlistItems.length === 1 ? "course" : "courses"}</span>
-                  </div>
-                  <Link href="/courses" className="hidden sm:inline text-[13px] font-semibold text-[var(--blue)] hover:underline no-underline">Browse more courses →</Link>
-                </div>
-
-                {wishlistItems.length === 0 ? (
-                  <Card className="flex flex-col items-center text-center py-10 px-6">
-                    <div className="text-[40px] opacity-40 mb-3">🤍</div>
-                    <div className="font-['Inter_Tight',sans-serif] text-base font-bold text-[var(--text)] mb-1">Your wishlist is empty</div>
-                    <div className="text-[13px] text-[var(--muted)] max-w-[320px]">Tap the heart on any course to save it here for later.</div>
                   </Card>
-                ) : (
-                <Card className="overflow-hidden">
-                  {cartFull && (
-                    <div className="px-4 sm:px-6 py-2.5 text-[12px] font-semibold text-[var(--orange)] bg-[var(--bg2)] border-b border-[var(--border)]">
-                      Your cart is full ({maxItems} max) — remove a course to add another from here.
-                    </div>
-                  )}
-                  {wishlistItems.map((item, i) => (
-                    <div key={item.courseId} className={`flex items-center gap-4 sm:gap-5 px-4 sm:px-6 py-4 animate-[fadeUp_.3s_ease_both] ${i > 0 ? "border-t border-[var(--border)]" : ""}`}>
-                      <div
-                        className="w-[52px] h-[48px] shrink-0 rounded-xl flex items-center justify-center text-[18px] font-extrabold text-white shadow-[0_3px_10px_rgba(0,0,0,.18)]"
-                        style={{ background: i % 2 === 0 ? "linear-gradient(135deg,#0d1f3c,#0a2a1a)" : "linear-gradient(135deg,#7a2a0a,#3a0a0a)" }}
-                      >
-                        {item.title.charAt(0).toUpperCase()}
-                      </div>
+                </aside>
 
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[13.5px] sm:text-[15px] font-bold text-[var(--text)] leading-snug line-clamp-2">{item.title}</div>
-                        <div className="mt-1 text-[11.5px] font-semibold text-[var(--text2)]">
-                          {item.price != null ? (
-                            item.hasDiscount && item.originalPrice != null ? (
-                              <span className="flex items-center gap-1.5">
-                                <span className="text-[var(--muted)] line-through">{formatPrice(item.originalPrice, activeCurrency)}</span>
-                                <span className="text-[var(--green)]">{formatPrice(item.price, activeCurrency)}</span>
-                                <span className="text-[9px] font-extrabold text-[var(--green)] bg-[var(--green-d)] px-1 py-[1px] rounded-full">-{item.offPct ?? 0}%</span>
-                              </span>
-                            ) : (
-                              formatPrice(item.price, activeCurrency)
-                            )
-                          ) : "Price on enquiry"}
+                {/* ── Saved for later + trust badges: beside the summary on wide screens, below it otherwise ── */}
+                <aside className="flex flex-col gap-4 sm:gap-5 min-w-0 lg:col-start-2 lg:row-start-2 xl:col-start-3 xl:row-start-1 xl:sticky xl:top-[76px] xl:max-h-[calc(100vh-92px)] xl:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {savedForLater}
+
+                  <Card className="p-5">
+                    <div className="flex flex-col gap-3.5 text-[12.5px] text-[var(--text2)]">
+                      {([
+                        ["🛡️", "7-day money-back guarantee"],
+                        ["🏅", "Verified certificate on completion"],
+                        ["♾️", "Lifetime access to course materials"],
+                      ] as const).map(([icon, text]) => (
+                        <div key={text} className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-[var(--orange-d)] flex items-center justify-center text-[14px] shrink-0">{icon}</div>
+                          <span className="font-medium">{text}</span>
                         </div>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => moveToCart(item.courseId)}
-                          disabled={cartFull}
-                          title={cartFull ? `Your cart is full (${maxItems} max)` : undefined}
-                          className="px-3.5 py-2 rounded-lg text-[11px] font-bold text-white border-none cursor-pointer transition-[opacity,transform] duration-150 hover:opacity-90 active:scale-[.97] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                          style={{ background: "linear-gradient(135deg,var(--orange),var(--orange2))" }}
-                        >
-                          Add to Cart
-                        </button>
-                        <button
-                          onClick={() => removeWishlistItem(item.courseId)}
-                          className="flex items-center gap-1 text-[11px] font-bold text-[var(--muted)] hover:text-[var(--red)] bg-transparent border-none cursor-pointer transition-colors duration-150 p-1 -m-1 rounded-md hover:bg-[var(--red-d)]"
-                          aria-label={`Remove ${item.title} from saved`}
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" /><path d="M10 11v6M14 11v6" /></svg>
-                          Remove
-                        </button>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </Card>
-                )}
+                  </Card>
+                </aside>
               </div>
             )}
+
+            {/* Saved for Later: lives in the right column when the cart has items, otherwise here */}
+            {!showCartGrid && savedForLater && <div className="mt-8 max-w-[520px] mx-auto">{savedForLater}</div>}
           </>
         )}
 

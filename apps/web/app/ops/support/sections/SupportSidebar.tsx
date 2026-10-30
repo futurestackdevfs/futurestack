@@ -43,6 +43,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
       { icon: "🎓", label: "Enrollments", view: "enrollments" },
       { icon: "⭐", label: "Ratings & reviews", view: "ratings" },
       { icon: "💳", label: "Payments", view: "payments" },
+      { icon: "💸", label: "Refunds", view: "refunds" },
     ],
   },
   {

@@ -6,6 +6,7 @@ import { loadStaffToken } from "@/app/auth/lib/token-store";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import { showToast } from "@/lib/toast";
 import ClosedBanner from "./sections/ClosedBanner";
+import TicketRefund from "./sections/TicketRefund";
 import {
   CATEGORY_LABEL,
   PRIORITY_STYLE,
@@ -516,6 +517,15 @@ function TicketDetail({
               style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}>
               {["LOW", "NORMAL", "HIGH", "URGENT"].map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
+          </MetaBlock>
+          <MetaBlock label="Refund">
+            <TicketRefund
+              ticketId={thread.id}
+              studentId={thread.student.id}
+              studentName={thread.student.name}
+              closed={thread.status === "CLOSED"}
+              onChanged={onChanged}
+            />
           </MetaBlock>
           {ctxEntries.length > 0 && (
             <MetaBlock label="Context">
