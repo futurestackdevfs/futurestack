@@ -296,22 +296,27 @@ export class RefundService {
       return created;
     });
 
+    const etaDays = await this.getEtaDays();
+    const estimatedBy = estimateRefundBy(refund.processedAt ?? new Date(), etaDays);
+
     this.mailService
       .sendRefundProcessedEmail(order.user.email, {
         studentName: order.user.name,
         courseName: itemName,
         refundAmount: amount,
-        orderId: order.id,
+        orderId: `FS-${order.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+        currency: order.currency,
+        etaDays,
+        expectedBy: estimatedBy,
       })
       .catch((err) => this.logger.error(`Failed to send refund email: ${err}`));
 
-    const etaDays = await this.getEtaDays();
     return {
       refundId: refund.id,
       status: refund.status,
       razorpayRefundId: refund.razorpayRefundId,
       amount: refund.amount.toNumber(),
-      estimatedBy: estimateRefundBy(refund.processedAt ?? new Date(), etaDays),
+      estimatedBy,
     };
   }
 
@@ -452,7 +457,15 @@ export class RefundService {
   }
 
   async rejectRefund(id: string) {
-    const refund = await this.prisma.refund.findUnique({ where: { id } });
+    const refund = await this.prisma.refund.findUnique({
+      where: { id },
+      include: {
+        student: { select: { name: true, email: true } },
+        course: { select: { title: true } },
+        project: { select: { name: true } },
+        order: { select: { id: true, currency: true } },
+      },
+    });
     if (!refund) throw new NotFoundException('Refund not found');
     if (refund.status !== 'PENDING') {
       throw new BadRequestException(
@@ -464,6 +477,19 @@ export class RefundService {
       where: { id },
       data: { status: 'REJECTED' },
     });
+
+    // Tell the student — a silent rejection just looks like the request vanished.
+    this.mailService
+      .sendRefundRejectedEmail(refund.student.email, {
+        name: refund.student.name,
+        itemName: refund.course?.title ?? refund.project?.name ?? 'your purchase',
+        amount: refund.amount.toNumber(),
+        currency: refund.order?.currency ?? 'INR',
+        orderRef: refund.order
+          ? `FS-${refund.order.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`
+          : '—',
+      })
+      .catch((err) => this.logger.error(`Failed to send refund rejection email: ${err}`));
 
     return { refundId: updated.id, status: updated.status };
   }

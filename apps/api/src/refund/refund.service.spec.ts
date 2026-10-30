@@ -35,6 +35,7 @@ function setup() {
 
   const mailService = {
     sendRefundProcessedEmail: jest.fn().mockResolvedValue(undefined),
+    sendRefundRejectedEmail: jest.fn().mockResolvedValue(undefined),
   } as unknown as MailService;
 
   const service = new RefundService(prisma, razorpayClient, mailService);
@@ -93,7 +94,7 @@ describe('RefundService#createRefund — refunds what the student actually paid'
   }
 
   it('defaults to the amount paid after the coupon cut, GST included — not the list price', async () => {
-    const { service, prisma, razorpayClient, tx } = setup();
+    const { service, prisma, razorpayClient, tx, mailService } = setup();
     // ₹5000 course, ₹1000 coupon, 18% GST → paid (5000 − 1000) × 1.18 = ₹4720
     (prisma.order.findUnique as jest.Mock).mockResolvedValue(
       makeOrder({
@@ -125,6 +126,18 @@ describe('RefundService#createRefund — refunds what the student actually paid'
     expect(result.amount).toBe(4720);
     expect(client.payments.refund).toHaveBeenCalledWith('pay_abc123', expect.objectContaining({ amount: 472000 }));
     expect(result.estimatedBy).toBeInstanceOf(Date);
+
+    // the email carries the real expected date (from the admin's setting), not a hard-coded "5-7 days"
+    expect(mailService.sendRefundProcessedEmail).toHaveBeenCalledWith(
+      '__spec__asha@example.com',
+      expect.objectContaining({
+        refundAmount: 4720,
+        currency: 'INR',
+        etaDays: 7,
+        expectedBy: result.estimatedBy,
+        orderId: expect.stringMatching(/^FS-/),
+      }),
+    );
   });
 
   it('refuses to refund more than the student paid (list price when a coupon was used)', async () => {
@@ -354,5 +367,43 @@ describe('RefundService#createRefund', () => {
 
     expect(razorpayClient.getClient).not.toHaveBeenCalled();
     expect(tx.refund.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('RefundService#rejectRefund', () => {
+  const pending = (overrides: Record<string, unknown> = {}) => ({
+    id: 'ref-1',
+    status: 'PENDING',
+    amount: decimal(4720),
+    student: { name: 'Asha Rao', email: 'asha@example.com' },
+    course: { title: 'React Bootcamp' },
+    project: null,
+    order: { id: 'abcd1234-aaaa-bbbb-cccc-000000000001', currency: 'INR' },
+    ...overrides,
+  });
+
+  it('rejects a pending refund and tells the student', async () => {
+    const { service, prisma, mailService } = setup();
+    (prisma as any).refund.findUnique = jest.fn().mockResolvedValue(pending());
+    (prisma as any).refund.update = jest.fn().mockResolvedValue({ id: 'ref-1', status: 'REJECTED' });
+
+    const result = await service.rejectRefund('ref-1');
+
+    expect(result).toEqual({ refundId: 'ref-1', status: 'REJECTED' });
+    expect(mailService.sendRefundRejectedEmail).toHaveBeenCalledWith('asha@example.com', {
+      name: 'Asha Rao',
+      itemName: 'React Bootcamp',
+      amount: 4720,
+      currency: 'INR',
+      orderRef: 'FS-ABCD1234',
+    });
+  });
+
+  it('sends nothing when the refund cannot be rejected', async () => {
+    const { service, prisma, mailService } = setup();
+    (prisma as any).refund.findUnique = jest.fn().mockResolvedValue(pending({ status: 'PROCESSED' }));
+
+    await expect(service.rejectRefund('ref-1')).rejects.toThrow(/only PENDING/);
+    expect(mailService.sendRefundRejectedEmail).not.toHaveBeenCalled();
   });
 });

@@ -125,6 +125,21 @@ export const authApi = {
     });
   },
 
+  /** Confirms the email address from the link in the welcome email. */
+  async verifyEmail(token: string) {
+    return request<{ verified: true; alreadyVerified: boolean }>('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  /** Sends a fresh confirmation link to the signed-in user. */
+  async resendVerification() {
+    return request<{ sent: boolean; message: string }>('/auth/resend-verification', {
+      method: 'POST',
+    });
+  },
+
   async setPassword(newPassword: string) {
     // Setting a password stamps passwordChangedAt server-side, which
     // invalidates the token this call is authenticated with — the backend

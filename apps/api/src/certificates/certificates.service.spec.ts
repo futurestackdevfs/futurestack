@@ -1,5 +1,6 @@
 import { CertificatesService } from './certificates.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 
 function makePrismaMock() {
   return {
@@ -9,16 +10,19 @@ function makePrismaMock() {
     videoProgress: { count: jest.fn() },
     quizAttempt: { count: jest.fn(), findMany: jest.fn() },
     course: { findUnique: jest.fn() },
+    user: { findUnique: jest.fn() },
   } as unknown as PrismaService;
 }
 
 describe('CertificatesService#checkAndIssueCertificate', () => {
   let service: CertificatesService;
   let prisma: ReturnType<typeof makePrismaMock>;
+  let mail: { sendCertificateReadyEmail: jest.Mock };
 
   beforeEach(() => {
     prisma = makePrismaMock();
-    service = new CertificatesService(prisma);
+    mail = { sendCertificateReadyEmail: jest.fn().mockResolvedValue(undefined) };
+    service = new CertificatesService(prisma, mail as unknown as MailService);
   });
 
   const studentId = '__spec__student-9';
@@ -70,14 +74,23 @@ describe('CertificatesService#checkAndIssueCertificate', () => {
       { score: 100 },
     ]);
     (prisma.certificate.count as jest.Mock).mockResolvedValue(4); // rank -> 5th
-    (prisma.course.findUnique as jest.Mock).mockResolvedValue({ code: 'FSD101' });
+    (prisma.course.findUnique as jest.Mock).mockResolvedValue({ code: 'FSD101', title: 'Full-Stack Developer' });
     (prisma.certificate.create as jest.Mock).mockResolvedValue({});
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ name: 'Asha Rao', email: 'asha@example.com' });
 
     const result = await service.checkAndIssueCertificate(studentId, courseId);
+    await new Promise((r) => setImmediate(r));
 
     expect(result.issued).toBe(true);
     const year = new Date().getFullYear();
     expect(result.credentialId).toBe(`FS-${year}-FSD101-005`);
+    // the student is told their certificate is ready
+    expect(mail.sendCertificateReadyEmail).toHaveBeenCalledWith('asha@example.com', expect.objectContaining({
+      name: 'Asha Rao',
+      courseName: 'Full-Stack Developer',
+      credentialId: `FS-${year}-FSD101-005`,
+      score: 90,
+    }));
     expect(prisma.certificate.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         studentId,

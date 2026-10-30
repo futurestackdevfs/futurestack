@@ -215,13 +215,15 @@ export class AdminService {
       data: { approvalStatus: 'APPROVED' },
     });
 
+    void this.mailService.sendTrainerApprovedEmail(updated.email, { name: updated.name });
+
     return {
       message: `${updated.name} has been approved as a trainer.`,
       trainerId: updated.id,
     };
   }
 
-  async rejectTrainer(trainerId: string, _reason?: string) {
+  async rejectTrainer(trainerId: string, reason?: string) {
     const trainer = await this.findPendingTrainer(trainerId);
 
     const updated = await this.prisma.user.update({
@@ -229,8 +231,10 @@ export class AdminService {
       data: { approvalStatus: 'REJECTED' },
     });
 
-    // TODO: once a notification system exists, email the trainer with
-    // the rejection reason instead of silently dropping it.
+    void this.mailService.sendTrainerRejectedEmail(updated.email, {
+      name: updated.name,
+      reason,
+    });
 
     return {
       message: `${updated.name}'s trainer application has been rejected.`,
@@ -1446,6 +1450,15 @@ export class AdminService {
     } catch (e) {
       this.logger.error(`Gift ${result.id}: invoice for order ${orderId} failed`, e instanceof Error ? e.stack : e);
     }
+
+    // Tell the student about their gift. Never throws; not awaited.
+    void this.mailService.sendGiftEnrollmentEmail(student.email, {
+      name: student.name,
+      itemName: result.itemTitle,
+      kind: result.kind,
+      giftCode: GIFT_CODE,
+      invoiceNumber,
+    });
 
     return {
       id: result.id,

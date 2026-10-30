@@ -72,11 +72,12 @@ export function StaffLoginForm() {
     setError(null);
     try {
       const { accessToken, user } = await authApi.loginOps(email, password);
-      if (selectedRole !== user.role) {
-        const actualLabel = roles.find((r) => r.id === user.role)?.label ?? user.role;
-        setError(`This account is a ${actualLabel}. Please select "${actualLabel}" in "I am logging in as" above to continue.`);
-        return;
-      }
+      // Role picker is commented out: the account's own role decides the dashboard.
+      // if (selectedRole !== user.role) {
+      //   const actualLabel = roles.find((r) => r.id === user.role)?.label ?? user.role;
+      //   setError(`This account is a ${actualLabel}. Please select "${actualLabel}" in "I am logging in as" above to continue.`);
+      //   return;
+      // }
       const uid = decodeToken(accessToken).sub;
       await saveStaffToken(uid, accessToken);
       await fetch('/api/auth/set-token-staff', {
@@ -94,7 +95,7 @@ export function StaffLoginForm() {
     }
   }
 
-  const active = roleData[selectedRole];
+  // const active = roleData[selectedRole];
   const activeRole = roles.find((r) => r.id === selectedRole)!;
 
   return (
@@ -123,7 +124,7 @@ export function StaffLoginForm() {
             </h1>
 
             <p className="text-[15px] text-white/55 leading-[1.7] mb-10 max-w-[420px]">
-              One unified portal for Admins, Trainers, Coordinators, Support and Content — manage courses, students, batches, and revenue from a single dashboard.
+              One unified portal for Admins, Trainers, Coordinators, Support, Content and Sales — manage courses, students, batches, and revenue from a single dashboard.
             </p>
 
             <div className="grid grid-cols-2 gap-3">
@@ -133,6 +134,7 @@ export function StaffLoginForm() {
                 { icon: '📋', name: 'Coordinator',     desc: 'Batches & scheduling',      bg: 'rgba(22,163,74,.15)' },
                 { icon: '🎧', name: 'Support',         desc: 'Tickets & student help',    bg: 'rgba(8,145,178,.15)' },
                 { icon: '✍️', name: 'Content Manager', desc: 'Content & media publishing', bg: 'rgba(240,90,26,.15)' },
+                { icon: '💼', name: 'Sales',           desc: 'Leads, quotes & admissions', bg: 'rgba(234,179,8,.15)' },
               ].map((r) => (
                 <div key={r.name} className="flex items-center gap-3 px-4 py-3.5 rounded-xl bg-white/[0.04] border border-white/[0.08] backdrop-blur-sm hover:bg-white/[0.07] hover:border-white/[0.14] transition-all">
                   <div className="w-9 h-9 rounded-[10px] flex items-center justify-center text-lg shrink-0" style={{ background: r.bg }}>{r.icon}</div>
@@ -165,9 +167,10 @@ export function StaffLoginForm() {
               <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--orange)]">Staff Portal</span>
             </div>
             <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[var(--orange)] mb-3 hidden lg:block">Staff Portal</div>
-            <h2 className="font-['Inter_Tight',sans-serif] text-[22px] sm:text-[26px] font-extrabold text-[var(--text)] mb-1.5 tracking-[-0.01em]">{active.title}</h2>
-            <p className="text-[13px] text-[var(--muted)] mb-5 leading-[1.6]">{active.sub}</p>
+            <h2 className="font-['Inter_Tight',sans-serif] text-[22px] sm:text-[26px] font-extrabold text-[var(--text)] mb-1.5 tracking-[-0.01em]">Welcome back</h2>
+            <p className="text-[13px] text-[var(--muted)] mb-5 leading-[1.6]">Sign in with your work email to open your dashboard.</p>
 
+            {/* Role picker commented out — no need to choose a role to sign in.
             <div className="text-[11px] font-bold text-[var(--text2)] uppercase tracking-[0.06em] mb-3">I am logging in as</div>
             <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-5">
               {roles.map((r) => (
@@ -187,6 +190,7 @@ export function StaffLoginForm() {
                 </button>
               ))}
             </div>
+            */}
 
             <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
               <div className="flex flex-col gap-1.5">

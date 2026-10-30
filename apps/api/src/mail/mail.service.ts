@@ -1,6 +1,30 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AgentMailClient } from 'agentmail';
+import { EmailContext, EmailSpec, renderEmail } from './templates/render';
+import {
+  CertificateData,
+  GiftData,
+  OrderConfirmationData,
+  PaymentFailedData,
+  RefundRejectedData,
+  RefundProcessedData,
+  TicketMailData,
+  WelcomeData,
+  certificateReadyEmail,
+  giftEnrollmentEmail,
+  orderConfirmationEmail,
+  passwordChangedEmail,
+  paymentFailedEmail,
+  refundProcessedEmail,
+  refundRejectedEmail,
+  ticketClosedEmail,
+  ticketClosingSoonEmail,
+  trainerApprovedEmail,
+  trainerRejectedEmail,
+  verifyEmailEmail,
+  welcomeEmail,
+} from './templates/transactional';
 
 @Injectable()
 export class MailService {
@@ -574,60 +598,23 @@ export class MailService {
       courseName: string;
       refundAmount: number;
       orderId: string;
+      currency?: 'INR' | 'USD';
+      /** Days the refund takes (admin setting). Defaults to 7. */
+      etaDays?: number;
+      expectedBy?: Date;
     },
   ): Promise<void> {
-    try {
-      const text = [
-        `Hi ${data.studentName},`,
-        ``,
-        `Your refund has been processed.`,
-        ``,
-        `Course:       ${data.courseName}`,
-        `Refund amount: ₹${data.refundAmount.toLocaleString('en-IN')}`,
-        `Order ID:     ${data.orderId}`,
-        ``,
-        `The refund will be credited to your original payment method within 5-7 business days.`,
-        ``,
-        `If you have any questions, reply to this email.`,
-        ``,
-        `— Future Stack team`,
-      ].join('\n');
-
-      const html = this.fsShell(
-        'Your refund has been processed',
-        'Your refund has been initiated',
-        `
-        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${this.escapeHtml(data.studentName)}</strong>,</p>
-        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">Your refund for <strong>${this.escapeHtml(data.courseName)}</strong> has been processed successfully.</p>
-
-        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:18px 20px;margin:0 0 22px">
-          <div style="font-size:12px;font-weight:bold;color:#166534;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Refund Details</div>
-          <table style="border-collapse:collapse;font-size:14px">
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Course</td><td style="padding:4px 0;font-weight:600;color:#111827">${this.escapeHtml(data.courseName)}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Refund amount</td><td style="padding:4px 0;font-weight:700;color:#166534">₹${data.refundAmount.toLocaleString('en-IN')}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Order ID</td><td style="padding:4px 0;font-family:monospace;font-size:12px;color:#111827">${this.escapeHtml(data.orderId)}</td></tr>
-          </table>
-        </div>
-
-        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 18px">The refund will be credited to your original payment method within <strong>5-7 business days</strong>.</p>
-
-        <p style="font-size:14px;color:#374151;margin:0">If you have any questions, reply to this email.</p>
-        <p style="font-size:14px;color:#374151;margin:0">— <strong>Future Stack team</strong></p>
-      `,
-      );
-
-      await this.client.inboxes.messages.send(this.inboxId, {
-        to,
-        subject: `Refund processed for ${data.courseName} — ₹${data.refundAmount.toLocaleString('en-IN')}`,
-        text,
-        html,
-      });
-    } catch (error) {
-      this.logger.error(
-        `Failed to send refund processed email to ${to}`,
-        error,
-      );
-    }
+    const etaDays = data.etaDays ?? 7;
+    const payload: RefundProcessedData = {
+      name: data.studentName,
+      itemName: data.courseName,
+      amount: data.refundAmount,
+      currency: data.currency ?? 'INR',
+      orderRef: data.orderId,
+      etaDays,
+      expectedBy: data.expectedBy ?? new Date(Date.now() + etaDays * 24 * 60 * 60 * 1000),
+    };
+    await this.deliver(to, refundProcessedEmail(this.emailContext, payload), 'refund processed');
   }
 
   // ─── Support tickets ─────────────────────────────────────────────
@@ -812,6 +799,77 @@ export class MailService {
         error,
       );
     }
+  }
+
+  // ─── Transactional emails (see ./templates) ───────────────────────
+
+  /** What every template needs to draw the logo header and absolute links. */
+  private get emailContext(): EmailContext {
+    return {
+      siteUrl: this.frontendUrl.split(',')[0].trim().replace(/\/+$/, ''),
+      logoUrl: this.logoUrl,
+      supportEmail:
+        this.configService.get<string>('SUPPORT_EMAIL')?.trim() ||
+        'support@futurestack.co.in',
+    };
+  }
+
+  /** Renders and sends one templated email. Never throws — a mail hiccup must not break the action that triggered it. */
+  private async deliver(to: string, spec: EmailSpec, label: string): Promise<void> {
+    try {
+      const { subject, html, text } = renderEmail(spec, this.emailContext);
+      await this.client.inboxes.messages.send(this.inboxId, { to, subject, text, html });
+    } catch (error) {
+      this.logger.error(`Failed to send ${label} email to ${to}`, error);
+    }
+  }
+
+  sendOrderConfirmationEmail(to: string, data: OrderConfirmationData) {
+    return this.deliver(to, orderConfirmationEmail(this.emailContext, data), 'order confirmation');
+  }
+
+  sendWelcomeEmail(to: string, data: WelcomeData) {
+    return this.deliver(to, welcomeEmail(this.emailContext, data), 'welcome');
+  }
+
+  sendVerifyEmailEmail(to: string, data: { name: string; verifyUrl: string }) {
+    return this.deliver(to, verifyEmailEmail(this.emailContext, data), 'email verification');
+  }
+
+  sendPaymentFailedEmail(to: string, data: PaymentFailedData) {
+    return this.deliver(to, paymentFailedEmail(this.emailContext, data), 'payment failed');
+  }
+
+  sendRefundRejectedEmail(to: string, data: RefundRejectedData) {
+    return this.deliver(to, refundRejectedEmail(this.emailContext, data), 'refund rejected');
+  }
+
+  sendGiftEnrollmentEmail(to: string, data: GiftData) {
+    return this.deliver(to, giftEnrollmentEmail(this.emailContext, data), 'gift enrollment');
+  }
+
+  sendCertificateReadyEmail(to: string, data: CertificateData) {
+    return this.deliver(to, certificateReadyEmail(this.emailContext, data), 'certificate');
+  }
+
+  sendTrainerApprovedEmail(to: string, data: { name: string }) {
+    return this.deliver(to, trainerApprovedEmail(this.emailContext, data), 'trainer approved');
+  }
+
+  sendTrainerRejectedEmail(to: string, data: { name: string; reason?: string | null }) {
+    return this.deliver(to, trainerRejectedEmail(this.emailContext, data), 'trainer rejected');
+  }
+
+  sendTicketClosingSoonEmail(to: string, data: TicketMailData & { daysLeft: number }) {
+    return this.deliver(to, ticketClosingSoonEmail(this.emailContext, data), 'ticket closing soon');
+  }
+
+  sendTicketClosedEmail(to: string, data: TicketMailData & { auto: boolean }) {
+    return this.deliver(to, ticketClosedEmail(this.emailContext, data), 'ticket closed');
+  }
+
+  sendPasswordChangedEmail(to: string, data: { name: string; changedAt: Date }) {
+    return this.deliver(to, passwordChangedEmail(this.emailContext, data), 'password changed');
   }
 
   /**

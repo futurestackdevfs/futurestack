@@ -24,6 +24,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterTrainerDto } from './dto/register-trainer.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -240,6 +241,21 @@ export class AuthController {
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.newPassword);
+  }
+
+  /** Public — the link in the welcome email lands here (via the /auth/verify-email page). */
+  @Throttle({ default: { limit: 10, ttl: 900_000 } })
+  @Post('verify-email')
+  async verifyEmail(@Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmail(dto.token);
+  }
+
+  @Throttle({ default: { limit: 3, ttl: 900_000 } })
+  @UseGuards(JwtAuthGuard)
+  @Post('resend-verification')
+  async resendVerification(@Req() req: Request) {
+    const user = req.user as { id: string };
+    return this.authService.resendVerification(user.id);
   }
 
   @Throttle({ default: { limit: 5, ttl: 900_000 } })

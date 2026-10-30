@@ -21,6 +21,9 @@ import { InvoicesService } from '../invoices/invoices.service';
 import { RazorpayClientService } from './razorpay-client.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { gstPercentFor, resolveItemPrice } from '../common/pricing.util';
+import { MailService } from '../mail/mail.service';
+import { computeRefundBreakdown } from '../refund/refund-amount.util';
+import { paymentMethodLabel } from '../common/payment-mode.util';
 
 interface FinalizeMeta {
   razorpayPaymentId: string;
@@ -38,6 +41,7 @@ export class CheckoutService {
     private readonly couponService: CouponService,
     private readonly paymentSettings: PaymentSettingsService,
     private readonly invoices: InvoicesService,
+    private readonly mail: MailService,
   ) {}
 
   private round2(n: number): number {
@@ -602,8 +606,89 @@ export class CheckoutService {
           `Invoice creation failed for order ${orderId}: ${this.describeError(e)}`,
         );
       }
+      // Not awaited: the student's payment response must not wait on email.
+      void this.sendOrderConfirmation(orderId);
     }
     return enrollments;
+  }
+
+  /** "Payment received" email with the items, totals and invoice number. Best effort — never throws. */
+  private async sendOrderConfirmation(orderId: string): Promise<void> {
+    try {
+      const order = await this.loadOrderForMail(orderId);
+      // Gifts have their own email; cash sales (MANUAL-…) are mailed by the sales flow.
+      if (!order || order.razorpayOrderId.startsWith('MANUAL-')) return;
+      const total = order.totalAmount.toNumber();
+      if (total <= 0) return;
+
+      const math = {
+        subtotal: order.subtotal.toNumber(),
+        discountAmount: order.discountAmount.toNumber(),
+        gstPercent: order.gstPercent.toNumber(),
+      };
+      const coupon = order.couponId
+        ? await this.prisma.coupon.findUnique({ where: { id: order.couponId }, select: { code: true } })
+        : null;
+
+      await this.mail.sendOrderConfirmationEmail(order.user.email, {
+        name: order.user.name,
+        orderRef: `FS-${order.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+        invoiceNumber: order.invoices[0]?.invoiceNumber ?? null,
+        paidAt: new Date(),
+        items: order.items.map((i) => ({
+          name: i.course?.title ?? i.project?.name ?? 'Your purchase',
+          kind: i.projectId ? ('project' as const) : ('course' as const),
+          // List price, so the lines add up to the subtotal shown below them.
+          amount: computeRefundBreakdown(math, {
+            priceAtPurchase: i.priceAtPurchase.toNumber(),
+            projectId: i.projectId,
+          }).itemPrice,
+        })),
+        subtotal: math.subtotal,
+        discount: math.discountAmount,
+        couponCode: coupon?.code ?? null,
+        gstPercent: math.gstPercent,
+        gst: order.gstAmount.toNumber(),
+        total,
+        currency: order.currency,
+        paymentMethod: paymentMethodLabel(order.paymentMethod),
+      });
+    } catch (e) {
+      this.logger.error(`Order confirmation email failed for ${orderId}: ${this.describeError(e)}`);
+    }
+  }
+
+  /** "Your payment didn't go through" email. Best effort — never throws. */
+  private async sendPaymentFailed(orderId: string): Promise<void> {
+    try {
+      const order = await this.loadOrderForMail(orderId);
+      if (!order || order.razorpayOrderId.startsWith('MANUAL-')) return;
+      await this.mail.sendPaymentFailedEmail(order.user.email, {
+        name: order.user.name,
+        orderRef: `FS-${order.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+        items: order.items.map((i) => i.course?.title ?? i.project?.name ?? 'Your order'),
+        amount: order.totalAmount.toNumber(),
+        currency: order.currency,
+      });
+    } catch (e) {
+      this.logger.error(`Payment-failed email failed for ${orderId}: ${this.describeError(e)}`);
+    }
+  }
+
+  private loadOrderForMail(orderId: string) {
+    return this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: { select: { name: true, email: true } },
+        items: {
+          include: {
+            course: { select: { title: true } },
+            project: { select: { name: true } },
+          },
+        },
+        invoices: { select: { invoiceNumber: true }, take: 1 },
+      },
+    });
   }
 
   /**
@@ -687,10 +772,12 @@ export class CheckoutService {
           );
         }
       } else if (type === 'payment.failed') {
-        await this.prisma.order.updateMany({
+        const failed = await this.prisma.order.updateMany({
           where: { id: order.id, status: 'CREATED' },
           data: { status: 'FAILED' },
         });
+        // Only the webhook that actually flipped it — a retry of the same event stays quiet.
+        if (failed.count > 0) void this.sendPaymentFailed(order.id);
       } else if (type === 'payment.refunded') {
         // Razorpay refund webhook — idempotently mark the order as REFUNDED
         // if it was PAID. The actual Refund record may already exist from the
