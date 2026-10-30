@@ -30,7 +30,7 @@ export function Footer() {
           gap: 40px;
         }
         @media (min-width: 640px) { .footer-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (min-width: 900px) { .footer-grid { grid-template-columns: 1.35fr repeat(3, 1fr) 1fr; } }
+        @media (min-width: 900px) { .footer-grid { grid-template-columns: 1.35fr repeat(4, 1fr) 1fr; } }
         .footer-brand-col { grid-column: 1; }
         @media (min-width: 900px) { .footer-brand-col { grid-column: 1; } }
         .footer-link-col { }
@@ -45,7 +45,7 @@ export function Footer() {
         .footer-bottom-wrap { margin-top: 36px; border-top: 1px solid var(--border); }
         .footer-bottom-inner {
           padding: 16px 40px; display: flex; flex-direction: row; flex-wrap: wrap;
-          justify-content: space-between; align-items: center; gap: 10px; text-align: center;
+          justify-content: center; align-items: center; gap: 10px; text-align: center;
         }
         .footer-brand-logo { height: 46px; width: auto; margin-bottom: 12px; }
         .footer-brand-desc { color: var(--muted); font-size: 15px; line-height: 1.7; margin: 0; }
@@ -78,14 +78,15 @@ export function Footer() {
             <div className="footer-brand-col">
               <Image src="/images/logo.png" alt="FutureStack" width={140} height={46} className="footer-brand-logo" />
               <p className="footer-brand-desc">
-                Think. Create. Conquer. Build real-world skills with industry-certified courses and hands-on projects.
+                Think. Create. Conquer. Build real world skills with industry certified courses and hands on projects.
               </p>
             </div>
 
             {[
               { title: "Platform", links: [{ label: "Courses", href: "/courses" }, { label: "R&D Services", href: "/research-and-development" }, { label: "Certifications", href: "#" }, { label: "Live Projects", href: "/live-projects" }] },
-              { title: "Company", links: [{ label: "About Us", href: "/about" }, { label: "Careers", href: "/careers" }, { label: "Blog", href: "/articles" }, { label: "Contact", href: "#contact" }] },
-              { title: "Support", links: [{ label: "Help Center", href: "/support" }, { label: "FAQs", href: "/faq" }, { label: "Terms", href: "#legal:terms" }, { label: "Refund Policy", href: "#legal:refund-policy" }] },
+              { title: "Company", links: [{ label: "About Us", href: "/about" }, { label: "Careers", href: "/careers" }, { label: "Articles", href: "/articles" }, { label: "Contact", href: "#contact" }] },
+              { title: "Legal", links: [{ label: "Terms", href: "#legal:terms" }, { label: "Refund Policy", href: "#legal:refund-policy" }, { label: "Privacy Policy", href: "#legal:privacy-policy" }, { label: "Cookie Policy", href: "#legal:cookie-policy" }] },
+              { title: "Support", links: [{ label: "Help Center", href: "/support" }, { label: "FAQs", href: "/faq" }, { label: "Sitemap", href: "#legal:sitemap" }] },
             ].map((group) => (
               <div key={group.title} className="footer-link-col">
                 <h4 className="footer-col-title">{group.title}</h4>
@@ -98,7 +99,7 @@ export function Footer() {
             ))}
 
             <div className="footer-sub-col">
-              <h4 className="footer-col-title">Stay Updated</h4>
+              {/* <h4 className="footer-col-title">Stay Updated</h4>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <input
                   type="email"
@@ -135,7 +136,7 @@ export function Footer() {
                 >
                   Subscribe
                 </button>
-              </div>
+              </div> */}
 
               <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
                 <a href="#" className="footer-social-link" title="X (Twitter)"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg></a>
@@ -180,16 +181,6 @@ export function Footer() {
           <p className="footer-copy">
             &copy; {new Date().getFullYear()} FutureStack Inc. All rights reserved.
           </p>
-          <div className="footer-bottom-links">
-            {[
-              { label: "Privacy Policy", href: "#legal:privacy-policy" },
-              { label: "Terms", href: "#legal:terms" },
-              { label: "Cookie Policy", href: "#legal:cookie-policy" },
-              { label: "Sitemap", href: "#legal:sitemap" },
-            ].map((link) => (
-              <a key={link.label} href={link.href} className="footer-bottom-link">{link.label}</a>
-            ))}
-          </div>
         </div>
       </div>
     </footer>

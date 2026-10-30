@@ -49,7 +49,7 @@ function useBlogData() {
         const list: BlogPost[] = Array.isArray(result) ? result : result?.data ?? [];
         if (!cancelled) setPosts(list);
       } catch (e: any) {
-        if (!cancelled) showToast(`Failed to load blog posts: ${e.message}`);
+        if (!cancelled) showToast(`Failed to load articles: ${e.message}`);
       }
     }
     fetchData();
@@ -359,7 +359,7 @@ export default function BlogManager() {
       <EntityTable
         columns={COLUMNS}
         data={posts}
-        emptyMessage={`No blog posts found.`}
+        emptyMessage={`No articles found.`}
         onEdit={(row) => setEditingPost(row as BlogPost)}
         onDelete={handleDelete}
       />
