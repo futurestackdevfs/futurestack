@@ -21,4 +21,9 @@ export class CreateRefundDto {
 
   @IsString()
   reason: string;
+
+  /** Optional: the support ticket this refund resolves. */
+  @IsString()
+  @IsOptional()
+  ticketId?: string;
 }

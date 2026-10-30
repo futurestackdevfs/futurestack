@@ -9,6 +9,8 @@ export type AuditAction =
   | 'APPROVE'
   | 'REJECT'
   | 'REFUND'
+  | 'REFUND_REQUEST'
+  | 'CANCEL'
   | 'DEACTIVATE'
   | 'GENERATE';
 

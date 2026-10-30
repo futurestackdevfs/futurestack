@@ -17,6 +17,7 @@ import StudentsView from "./console/StudentsView";
 import EnrollmentsView from "./console/EnrollmentsView";
 import RatingsView from "./console/RatingsView";
 import PaymentsView from "./console/PaymentsView";
+import RefundsView from "./console/RefundsView";
 import type { Ticket, TicketStats } from "./lib/types";
 
 const BREADCRUMB: Record<string, string> = {
@@ -32,6 +33,7 @@ const BREADCRUMB: Record<string, string> = {
   enrollments: "enrollments",
   ratings: "ratings-reviews",
   payments: "payments",
+  refunds: "my-refunds",
 };
 
 const QUEUE_PRESETS: Record<string, { status?: string; scope?: "all" | "me" | "unassigned"; title: string }> = {
@@ -165,7 +167,7 @@ function SupportConsoleInner() {
           onClose={() => setSidebarOpen(false)}
         />
 
-        <main className="flex-1" style={{ background: "var(--bg)", overflow: ["email", "students", "enrollments", "ratings", "payments"].includes(view) || preset ? "hidden" : "auto" }}>
+        <main className="flex-1" style={{ background: "var(--bg)", overflow: ["email", "students", "enrollments", "ratings", "payments", "refunds"].includes(view) || preset ? "hidden" : "auto" }}>
           {view === "dashboard" && (
             <DashboardView
               stats={stats} tickets={sample} meId={user.id}
@@ -178,6 +180,7 @@ function SupportConsoleInner() {
           {view === "enrollments" && <EnrollmentsView onOpenTicket={openTicket} />}
           {view === "ratings" && <RatingsView />}
           {view === "payments" && <PaymentsView />}
+          {view === "refunds" && <RefundsView onOpenTicket={openTicket} />}
           {preset && (
             <SupportConsoleBody
               key={view + (openTicketId ?? "")}

@@ -389,7 +389,7 @@ describe('RefundService#rejectRefund', () => {
 
     const result = await service.rejectRefund('ref-1');
 
-    expect(result).toEqual({ refundId: 'ref-1', status: 'REJECTED' });
+    expect(result).toEqual({ id: 'ref-1', refundId: 'ref-1', status: 'REJECTED' });
     expect(mailService.sendRefundRejectedEmail).toHaveBeenCalledWith('asha@example.com', {
       name: 'Asha Rao',
       itemName: 'React Bootcamp',
@@ -405,5 +405,161 @@ describe('RefundService#rejectRefund', () => {
 
     await expect(service.rejectRefund('ref-1')).rejects.toThrow(/only PENDING/);
     expect(mailService.sendRefundRejectedEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('RefundService - support request, admin approval, cancel', () => {
+  function ticketSetup() {
+    const ctx = setup();
+    const rzp = {
+      payments: {
+        refund: jest.fn().mockResolvedValue({ id: 'rfnd_1' }),
+        fetch: jest.fn().mockResolvedValue({ amount: 499900 }),
+      },
+    };
+    (ctx.razorpayClient.getClient as jest.Mock).mockReturnValue(rzp);
+    (ctx.prisma.order.findUnique as jest.Mock).mockResolvedValue(makeOrder());
+    (ctx.prisma.refund.findFirst as jest.Mock).mockResolvedValue(null);
+    (ctx.mailService as any).sendTicketReplyEmail = jest.fn().mockResolvedValue(undefined);
+    const messages: any[] = [];
+    (ctx.prisma as any).supportTicket = {
+      findUnique: jest.fn().mockResolvedValue({ id: 't1', studentId: '__spec__student-1', status: 'OPEN', subject: 'Refund please' }),
+      update: jest.fn().mockResolvedValue({}),
+    };
+    (ctx.prisma as any).supportTicketMessage = {
+      create: jest.fn(async ({ data }: any) => { messages.push(data); return data; }),
+    };
+    return { ...ctx, rzp, messages };
+  }
+
+  const request = {
+    orderId: '__spec__order-1',
+    courseId: '__spec__course-react',
+    reason: 'Duplicate charge',
+    ticketId: 't1',
+  };
+
+  it('requestRefund saves a PENDING refund and never calls Razorpay', async () => {
+    const { service, prisma, razorpayClient } = ticketSetup();
+    (prisma as any).refund.create = jest.fn().mockResolvedValue({ id: 'ref-9', status: 'PENDING' });
+
+    const res = await service.requestRefund(request, { id: '__spec__support-1', role: 'SUPPORT' });
+
+    expect(res).toMatchObject({ id: 'ref-9', status: 'PENDING', amount: 4999 });
+    expect((prisma as any).refund.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ status: 'PENDING', initiatedById: '__spec__support-1', ticketId: 't1' }),
+    });
+    expect(razorpayClient.getClient).not.toHaveBeenCalled();
+  });
+
+  it('requestRefund leaves an internal note AND tells the customer (thread + email)', async () => {
+    const { service, prisma, messages, mailService } = ticketSetup();
+    (prisma as any).refund.create = jest.fn().mockResolvedValue({ id: 'ref-9', status: 'PENDING' });
+
+    await service.requestRefund(request, { id: '__spec__support-1', role: 'SUPPORT' });
+
+    expect(messages.find((m) => m.isInternalNote).body).toMatch(/Refund initiated/);
+    expect(messages.find((m) => !m.isInternalNote).body).toMatch(/initiated a refund/);
+    expect((mailService as any).sendTicketReplyEmail).toHaveBeenCalledWith(
+      '__spec__asha@example.com',
+      expect.objectContaining({ subject: 'Refund please' }),
+    );
+  });
+
+  it('requestRefund refuses a ticket that belongs to a different student', async () => {
+    const { service, prisma } = ticketSetup();
+    (prisma as any).supportTicket.findUnique = jest.fn().mockResolvedValue({ id: 't1', studentId: 'someone-else' });
+    await expect(service.requestRefund(request, { id: 's', role: 'SUPPORT' })).rejects.toThrow(/different student/);
+  });
+
+  it('requestRefund tells the agent when a request is already waiting', async () => {
+    const { service, prisma } = ticketSetup();
+    (prisma.refund.findFirst as jest.Mock).mockResolvedValue({ id: 'old', status: 'PENDING' });
+    await expect(service.requestRefund(request, { id: 's', role: 'SUPPORT' })).rejects.toThrow(/already waiting for admin approval/);
+  });
+
+  it('approveRefund sends the money, updates the same row to PROCESSED and says "confirmed" to the customer', async () => {
+    const { service, prisma, tx, rzp, messages } = ticketSetup();
+    (prisma as any).refund.findUnique = jest.fn().mockResolvedValue({
+      id: 'ref-9', status: 'PENDING', orderId: '__spec__order-1', courseId: '__spec__course-react', projectId: null,
+      amount: decimal(4999), reason: 'Duplicate charge', initiatedById: '__spec__support-1', ticketId: 't1',
+    });
+    (tx as any).refund.update = jest.fn().mockResolvedValue({
+      id: 'ref-9', status: 'PROCESSED', razorpayRefundId: 'rfnd_1', amount: decimal(4999), processedAt: new Date(),
+    });
+    (tx as any).enrollment.findMany = jest.fn().mockResolvedValue([{ status: 'refunded' }]);
+    (tx as any).orderItem.findMany = jest.fn().mockResolvedValue([]);
+
+    const res = await service.approveRefund('ref-9', '__spec__admin-1');
+
+    expect(rzp.payments.refund).toHaveBeenCalled();
+    expect((tx as any).refund.update).toHaveBeenCalledWith({
+      where: { id: 'ref-9' },
+      data: expect.objectContaining({ status: 'PROCESSED', processedById: '__spec__admin-1' }),
+    });
+    expect(tx.refund.create).not.toHaveBeenCalled();
+    expect(res).toMatchObject({ id: 'ref-9', status: 'PROCESSED' });
+    expect(messages.find((m) => !m.isInternalNote).body).toMatch(/has been confirmed/);
+  });
+
+  it('approveRefund only works on PENDING requests', async () => {
+    const { service, prisma } = ticketSetup();
+    (prisma as any).refund.findUnique = jest.fn().mockResolvedValue({ id: 'r', status: 'CANCELLED' });
+    await expect(service.approveRefund('r', 'a')).rejects.toThrow(/only PENDING/);
+  });
+
+  it('listRefunds with an agent id only returns the refunds that agent raised', async () => {
+    const { service, prisma } = ticketSetup();
+    (prisma as any).refund.count = jest.fn().mockResolvedValue(0);
+    (prisma as any).refund.findMany = jest.fn().mockResolvedValue([]);
+    (prisma as any).refund.groupBy = jest.fn().mockResolvedValue([]);
+    (prisma as any).coupon = { findMany: jest.fn().mockResolvedValue([]) };
+
+    await service.listRefunds(undefined, 1, 10, undefined, '__spec__support-1');
+
+    expect((prisma as any).refund.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { initiatedById: '__spec__support-1' } }),
+    );
+  });
+
+  describe('cancelRefund', () => {
+    const pendingRow = (status = 'PENDING') => ({
+      id: 'ref-9', status, ticketId: 't1',
+      student: { name: 'Asha Rao', email: 'asha@example.com' },
+      course: { title: 'React Bootcamp' }, project: null,
+    });
+
+    it('withdraws a pending request - no Razorpay, internal note + message to the customer', async () => {
+      const { service, prisma, razorpayClient, messages } = ticketSetup();
+      (prisma as any).refund.findUnique = jest.fn().mockResolvedValue(pendingRow());
+      (prisma as any).refund.update = jest.fn().mockResolvedValue({ id: 'ref-9', status: 'CANCELLED' });
+
+      const res = await service.cancelRefund('ref-9', { id: '__spec__support-1' });
+
+      expect(res).toEqual({ id: 'ref-9', refundId: 'ref-9', status: 'CANCELLED' });
+      expect((prisma as any).refund.update).toHaveBeenCalledWith({
+        where: { id: 'ref-9' },
+        data: expect.objectContaining({ status: 'CANCELLED', cancelledById: '__spec__support-1' }),
+      });
+      expect(razorpayClient.getClient).not.toHaveBeenCalled();
+      expect(messages.find((m) => m.isInternalNote).body).toMatch(/cancelled/);
+      expect(messages.find((m) => !m.isInternalNote).body).toMatch(/has been cancelled/);
+    });
+
+    it('refuses once the refund has been approved and sent', async () => {
+      const { service, prisma } = ticketSetup();
+      (prisma as any).refund.findUnique = jest.fn().mockResolvedValue(pendingRow('PROCESSED'));
+      await expect(service.cancelRefund('ref-9', { id: 's' })).rejects.toThrow(/already approved and sent/);
+    });
+
+    it('a cancelled request does not block a fresh one', async () => {
+      const { service, prisma } = ticketSetup();
+      (prisma as any).refund.create = jest.fn().mockResolvedValue({ id: 'ref-10', status: 'PENDING' });
+      // findFirst only looks at PENDING / PROCESSED - a CANCELLED row is not returned
+      await expect(service.requestRefund(request, { id: 's', role: 'SUPPORT' })).resolves.toMatchObject({ status: 'PENDING' });
+      expect(prisma.refund.findFirst).toHaveBeenCalledWith({
+        where: expect.objectContaining({ status: { in: ['PENDING', 'PROCESSED'] } }),
+      });
+    });
   });
 });
