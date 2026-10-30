@@ -82,7 +82,7 @@ export function PopularCourses() {
                   )}
                 </div>
                 <div className="p-3">
-                  <div className="text-[13px] font-bold text-[var(--text)] mb-[3px] truncate">{c.title}</div>
+                  <div className="text-[13px] font-bold text-[var(--text)] mb-[3px] truncate"><Link href={`/courses/${slugify(c.title)}`} onClick={(e) => e.stopPropagation()} className="text-inherit no-underline hover:underline">{c.title}</Link></div>
                   {c.comingSoon ? (
                     <div className="pt-2 mt-2 border-t border-[var(--border)] text-[11px] font-bold uppercase tracking-[.06em] text-[var(--orange)]">Coming Soon</div>
                   ) : (<>

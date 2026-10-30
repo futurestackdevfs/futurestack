@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { S3Service } from '../upload/s3.service';
+import { S3Folder, S3Service } from '../upload/s3.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { CreateReplyDto } from './dto/create-reply.dto';
@@ -18,25 +18,78 @@ export class DiscussionService {
     private readonly s3Service: S3Service,
   ) {}
 
-  private isStaff(role: Role): boolean {
-    return role !== Role.STUDENT;
+  /** Discussion attachments may only point at files we stored under discussions/. */
+  private readonly ATTACHMENT_FOLDERS: readonly S3Folder[] = ['discussions'];
+
+  private assertOwnAttachment(url?: string | null) {
+    if (url && !this.s3Service.isOwnUrl(url, this.ATTACHMENT_FOLDERS)) {
+      throw new BadRequestException(
+        'Attachment must be a file uploaded through the discussion upload.',
+      );
+    }
   }
 
+  /**
+   * Who may read/post in a course discussion:
+   *  - STUDENT: only with an active enrollment in that course.
+   *  - TRAINER: only an APPROVED trainer, and only for a course they teach.
+   *  - ADMIN / CONTENT_MANAGER: any course.
+   *  - every other role (SALES, SUPPORT, COORDINATOR, ...): no access.
+   */
   private async checkCourseAccess(
     courseId: string,
     userId: string,
     role: Role,
   ) {
-    if (this.isStaff(role)) return;
+    switch (role) {
+      case Role.ADMIN:
+      case Role.CONTENT_MANAGER:
+        return;
+      case Role.TRAINER:
+        await this.assertApprovedCourseTrainer(
+          courseId,
+          userId,
+          'You can only access discussions of courses you teach.',
+        );
+        return;
+      case Role.STUDENT: {
+        const enrollment = await this.prisma.enrollment.findUnique({
+          where: {
+            studentId_courseId: { studentId: userId, courseId },
+          },
+        });
 
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: {
-        studentId_courseId: { studentId: userId, courseId },
+        if (!enrollment || enrollment.status !== 'active') {
+          throw new ForbiddenException('You are not enrolled in this course.');
+        }
+        return;
+      }
+      default:
+        throw new ForbiddenException(
+          'You do not have access to course discussions.',
+        );
+    }
+  }
+
+  /** The caller must be the course's own trainer AND approved by an admin. */
+  private async assertApprovedCourseTrainer(
+    courseId: string,
+    userId: string,
+    message: string,
+  ) {
+    const course = await this.prisma.course.findUnique({
+      where: { id: courseId },
+      select: {
+        trainerId: true,
+        trainer: { select: { approvalStatus: true } },
       },
     });
-
-    if (!enrollment || enrollment.status !== 'active') {
-      throw new ForbiddenException('You are not enrolled in this course.');
+    if (!course) throw new NotFoundException('Course not found');
+    if (
+      course.trainerId !== userId ||
+      course.trainer?.approvalStatus !== 'APPROVED'
+    ) {
+      throw new ForbiddenException(message);
     }
   }
 
@@ -46,19 +99,14 @@ export class DiscussionService {
     userId: string,
   ) {
     // ADMIN/CONTENT_MANAGER can act in any course. TRAINERs are restricted to
-    // the courses they actually teach.
+    // the courses they actually teach (and must be approved).
     if (role !== Role.TRAINER) return;
 
-    const course = await this.prisma.course.findUnique({
-      where: { id: courseId },
-      select: { trainerId: true },
-    });
-    if (!course) throw new NotFoundException('Course not found');
-    if (course.trainerId !== userId) {
-      throw new ForbiddenException(
-        'You can only moderate your own course discussions.',
-      );
-    }
+    await this.assertApprovedCourseTrainer(
+      courseId,
+      userId,
+      'You can only moderate your own course discussions.',
+    );
   }
 
   async listMessages(
@@ -144,6 +192,7 @@ export class DiscussionService {
     ) {
       throw new ForbiddenException('Only staff can post announcements.');
     }
+    this.assertOwnAttachment(dto.attachmentUrl);
 
     const message = await this.prisma.courseDiscussion.create({
       data: {
@@ -187,10 +236,15 @@ export class DiscussionService {
     ) {
       throw new ForbiddenException('Only staff can post announcements.');
     }
+    if (dto.tag === MessageTag.ANNOUNCEMENT) {
+      // A trainer may only announce in a course they teach.
+      await this.checkTrainerCourseOwnership(message.courseId, role, userId);
+    }
+    this.assertOwnAttachment(dto.attachmentUrl);
 
     // Delete old attachment from S3 if replaced
     if (dto.attachmentUrl && dto.attachmentUrl !== message.attachmentUrl && message.attachmentUrl) {
-      try { await this.s3Service.deleteByUrl(message.attachmentUrl); } catch {}
+      try { await this.s3Service.deleteByUrl(message.attachmentUrl, this.ATTACHMENT_FOLDERS); } catch {}
     }
 
     return this.prisma.courseDiscussion.update({
@@ -220,7 +274,7 @@ export class DiscussionService {
 
     // Delete attachment from S3 if present
     if (message.attachmentUrl) {
-      try { await this.s3Service.deleteByUrl(message.attachmentUrl); } catch {}
+      try { await this.s3Service.deleteByUrl(message.attachmentUrl, this.ATTACHMENT_FOLDERS); } catch {}
     }
 
     return this.prisma.courseDiscussion.delete({
@@ -326,22 +380,28 @@ export class DiscussionService {
       );
     }
 
-    let targetCourseId = courseId;
-    if (!targetCourseId) {
-      const where = messageId ? { messageId } : { replyId };
-      const target = messageId
-        ? await this.prisma.courseDiscussion.findUnique({
-            where: { id: messageId },
-            select: { courseId: true },
-          })
-        : await this.prisma.courseDiscussionReply.findUnique({
-            where: { id: replyId },
-            select: { message: { select: { courseId: true } } },
-          });
-      if (!target) throw new NotFoundException('Discussion item not found');
-      targetCourseId = messageId
-        ? (target as { courseId: string }).courseId
-        : (target as { message: { courseId: string } }).message.courseId;
+    // The course that gates access must be the one the message/reply really
+    // belongs to - never the :courseId a caller put in the URL. Trusting the URL
+    // let a student enrolled in course A upvote items in a course B they have no
+    // access to (the real course was only looked up when no courseId was given).
+    const target = messageId
+      ? await this.prisma.courseDiscussion.findUnique({
+          where: { id: messageId },
+          select: { courseId: true },
+        })
+      : await this.prisma.courseDiscussionReply.findUnique({
+          where: { id: replyId },
+          select: { message: { select: { courseId: true } } },
+        });
+    if (!target) throw new NotFoundException('Discussion item not found');
+    const targetCourseId = messageId
+      ? (target as { courseId: string }).courseId
+      : (target as { message: { courseId: string } }).message.courseId;
+
+    // A URL that names a different course than the item's own is a bad request;
+    // answer exactly like a missing item so ids from other courses can't be probed.
+    if (courseId && courseId !== targetCourseId) {
+      throw new NotFoundException('Discussion item not found');
     }
 
     await this.checkCourseAccess(targetCourseId, userId, role);

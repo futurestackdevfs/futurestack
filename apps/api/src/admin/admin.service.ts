@@ -21,6 +21,7 @@ import { VdoCipherWebhookPayload } from './dto/vdocipher-webhook.dto';
 import { UpdateTrainerShareDto } from './dto/update-trainer-share.dto';
 import { InvoicesService } from '../invoices/invoices.service';
 import { GIFT_CODE, GIFT_PAYMENT_METHOD, giftOrderRef, isGiftOrder } from '../common/gift.util';
+import { csvRow } from '../common/csv.util';
 
 @Injectable()
 export class AdminService {
@@ -214,13 +215,15 @@ export class AdminService {
       data: { approvalStatus: 'APPROVED' },
     });
 
+    void this.mailService.sendTrainerApprovedEmail(updated.email, { name: updated.name });
+
     return {
       message: `${updated.name} has been approved as a trainer.`,
       trainerId: updated.id,
     };
   }
 
-  async rejectTrainer(trainerId: string, _reason?: string) {
+  async rejectTrainer(trainerId: string, reason?: string) {
     const trainer = await this.findPendingTrainer(trainerId);
 
     const updated = await this.prisma.user.update({
@@ -228,8 +231,10 @@ export class AdminService {
       data: { approvalStatus: 'REJECTED' },
     });
 
-    // TODO: once a notification system exists, email the trainer with
-    // the rejection reason instead of silently dropping it.
+    void this.mailService.sendTrainerRejectedEmail(updated.email, {
+      name: updated.name,
+      reason,
+    });
 
     return {
       message: `${updated.name}'s trainer application has been rejected.`,
@@ -1446,6 +1451,15 @@ export class AdminService {
       this.logger.error(`Gift ${result.id}: invoice for order ${orderId} failed`, e instanceof Error ? e.stack : e);
     }
 
+    // Tell the student about their gift. Never throws; not awaited.
+    void this.mailService.sendGiftEnrollmentEmail(student.email, {
+      name: student.name,
+      itemName: result.itemTitle,
+      kind: result.kind,
+      giftCode: GIFT_CODE,
+      invoiceNumber,
+    });
+
     return {
       id: result.id,
       kind: result.kind,
@@ -1554,7 +1568,7 @@ export class AdminService {
       const student = o.user?.name ?? '—';
       const course = o.items[0]?.course?.title ?? '—';
       const salesperson = o.salesperson?.name ?? '—';
-      return `${date},${o.id},${student},${course},${o.totalAmount.toNumber()},${o.gstAmount.toNumber()},${salesperson}`;
+      return csvRow([date, o.id, student, course, o.totalAmount.toNumber(), o.gstAmount.toNumber(), salesperson]);
     }).join('\n');
 
     return header + rows;
@@ -1572,7 +1586,7 @@ export class AdminService {
     const rows = leads.map((l) => {
       const date = l.createdAt.toISOString().slice(0, 10);
       const salesperson = l.salesperson?.name ?? '—';
-      return `${date},${l.name},${l.email ?? ''},${l.phone ?? ''},${l.course ?? ''},${l.status},${l.source ?? ''},${l.score},${l.budget.toNumber()},${salesperson}`;
+      return csvRow([date, l.name, l.email, l.phone, l.course, l.status, l.source, l.score, l.budget.toNumber(), salesperson]);
     }).join('\n');
 
     return header + rows;
@@ -1595,7 +1609,7 @@ export class AdminService {
       const student = o.user?.name ?? '—';
       const course = o.items[0]?.course?.title ?? '—';
       const salesperson = o.salesperson?.name ?? '—';
-      return `${date},${student},${course},${o.totalAmount.toNumber()},${o.paymentMethod ?? '—'},${salesperson}`;
+      return csvRow([date, student, course, o.totalAmount.toNumber(), o.paymentMethod ?? '—', salesperson]);
     }).join('\n');
 
     return header + rows;

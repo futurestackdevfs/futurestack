@@ -26,7 +26,8 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.futurestack.co.in"),
-  title: "FutureStack – Think . Create. Conquer",
+  // Pages set a short title and get " | FutureStack" appended.
+  title: { default: "FutureStack – Think . Create. Conquer", template: "%s | FutureStack" },
   description: "Your personalized learning platform. Build skills, earn certificates, and advance your career.",
   keywords: [
     "FutureStack",
@@ -37,14 +38,22 @@ export const metadata: Metadata = {
     "upskilling",
   ],
   robots: { index: true, follow: true },
-  alternates: { canonical: "/" },
+  // No site-wide canonical: a canonical of "/" here was inherited by EVERY page,
+  // telling Google each one is a duplicate of the homepage. Each page sets its own
+  // (see lib/seo.ts); the homepage sets "/" in app/(student)/page.tsx.
   openGraph: {
     type: "website",
-    url: "/",
     siteName: "FutureStack",
     title: "FutureStack – Think . Create. Conquer",
     description: "Your personalized learning platform. Build skills, earn certificates, and advance your career.",
-    locale: "en_US",
+    locale: "en_IN",
+    images: [{ url: "/images/logo.png" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "FutureStack – Think . Create. Conquer",
+    description: "Your personalized learning platform. Build skills, earn certificates, and advance your career.",
+    images: ["/images/logo.png"],
   },
 };
 

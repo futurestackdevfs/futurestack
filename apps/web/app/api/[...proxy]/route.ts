@@ -93,7 +93,10 @@ async function proxy(req: NextRequest) {
   // (or "Forbidden resource") on an expired/invalid session, which then surfaces
   // raw in every ops screen. Swap it for an actionable line. Scoped to staff by
   // decoding (not verifying — the token may be expired) the role claim.
-  if (backendRes.status === 401 || backendRes.status === 403) {
+  // Not for /auth/login: the proxy attaches any leftover staff cookie to every
+  // request, so a wrong-portal login ("Please use the staff login page") would
+  // otherwise be swallowed by this generic line.
+  if ((backendRes.status === 401 || backendRes.status === 403) && path !== '/auth/login') {
     const bearer = headers.get('authorization')?.replace(/^Bearer\s+/i, '');
     let role: string | undefined;
     if (bearer) {

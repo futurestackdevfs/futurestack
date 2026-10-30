@@ -317,3 +317,100 @@ describe('StudentService#submitQuiz — server-side scoring', () => {
     expect(certificatesService.checkAndIssueCertificate).not.toHaveBeenCalled();
   });
 });
+
+// ── Project videos: purchase gate ─────────────────────────────────────────
+// The single free preview video is served by a different, public endpoint
+// (ProjectsService.getPublicCurriculumVideoOtp). Everything here is the
+// logged-in, paid-content path and must require an active purchase.
+describe('StudentService project videos - purchase gate', () => {
+  const studentId = '__spec__student-1';
+  const otherProjectId = '__spec__project-other';
+  const projectId = '__spec__project-1';
+  const videoId = '__spec__pvideo-1';
+
+  function setupProjects() {
+    const prisma = {
+      projectCurriculumVideo: { findUnique: jest.fn() },
+      projectCurriculum: { findMany: jest.fn().mockResolvedValue([]) },
+      orderItem: { findFirst: jest.fn() },
+      videoProgress: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), upsert: jest.fn() },
+      user: { findUnique: jest.fn().mockResolvedValue({ name: 'Spec Student', email: 'spec@example.com' }) },
+    } as unknown as PrismaService;
+    const vdoCipherService = {
+      getPlaybackOtp: jest.fn().mockResolvedValue({ otp: 'otp', playbackInfo: 'info' }),
+    } as unknown as VdoCipherService;
+    const service = new StudentService(prisma, {} as CertificatesService, vdoCipherService, {} as S3Service);
+    (prisma.projectCurriculumVideo.findUnique as jest.Mock).mockResolvedValue({
+      id: videoId,
+      title: 'Lesson',
+      vdoCipherId: '__spec__vdo-1',
+      videoStatus: 'READY',
+      durationSeconds: 600,
+      curriculum: { projectId, project: { id: projectId } },
+    });
+    return { service, prisma, vdoCipherService };
+  }
+
+  it('refuses the playback OTP to a student who has not bought the project', async () => {
+    const { service, prisma, vdoCipherService } = setupProjects();
+    (prisma.orderItem.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(service.getProjectVideoOtp(studentId, videoId)).rejects.toThrow(ForbiddenException);
+    expect(vdoCipherService.getPlaybackOtp).not.toHaveBeenCalled();
+  });
+
+  it('checks for an ACTIVE order item of THIS project owned by THIS student', async () => {
+    const { service, prisma } = setupProjects();
+    (prisma.orderItem.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(service.getProjectVideoOtp(studentId, videoId)).rejects.toThrow(ForbiddenException);
+    expect(prisma.orderItem.findFirst).toHaveBeenCalledWith({
+      where: { projectId, status: 'active', order: { userId: studentId } },
+      select: { id: true },
+    });
+  });
+
+  it('issues the OTP, watermarked with the buyer, once the project is purchased', async () => {
+    const { service, prisma, vdoCipherService } = setupProjects();
+    (prisma.orderItem.findFirst as jest.Mock).mockResolvedValue({ id: '__spec__item-1' });
+
+    const result = await service.getProjectVideoOtp(studentId, videoId);
+
+    expect(result).toMatchObject({ otp: 'otp', playbackInfo: 'info', videoId });
+    expect(vdoCipherService.getPlaybackOtp).toHaveBeenCalledWith('__spec__vdo-1', {
+      name: 'Spec Student',
+      email: 'spec@example.com',
+    });
+  });
+
+  it('refuses to record progress on a project video the student has not bought', async () => {
+    const { service, prisma } = setupProjects();
+    (prisma.orderItem.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(service.updateProjectVideoProgress(studentId, videoId, 100)).rejects.toThrow(ForbiddenException);
+    expect(prisma.videoProgress.upsert).not.toHaveBeenCalled();
+  });
+
+  it('refuses the project progress/curriculum listing to a non-purchaser, for any project id', async () => {
+    const { service, prisma } = setupProjects();
+    (prisma.orderItem.findFirst as jest.Mock).mockResolvedValue(null);
+
+    await expect(service.getProjectProgress(studentId, otherProjectId)).rejects.toThrow(ForbiddenException);
+    expect(prisma.projectCurriculum.findMany).not.toHaveBeenCalled();
+  });
+
+  it('allows progress and the curriculum listing for a purchaser', async () => {
+    const { service, prisma } = setupProjects();
+    (prisma.orderItem.findFirst as jest.Mock).mockResolvedValue({ id: '__spec__item-1' });
+    (prisma.videoProgress.upsert as jest.Mock).mockResolvedValue({
+      projectCurriculumVideoId: videoId,
+      uniqueSecsWatched: 100,
+      lastPositionSec: 100,
+      isCompleted: false,
+      completedAt: null,
+    });
+
+    await expect(service.updateProjectVideoProgress(studentId, videoId, 100)).resolves.toMatchObject({ videoId });
+    await expect(service.getProjectProgress(studentId, projectId)).resolves.toBeDefined();
+  });
+});

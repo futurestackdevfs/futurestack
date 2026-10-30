@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterTrainerDto } from './dto/register-trainer.dto';
 import { MailService } from '../mail/mail.service';
+import { createEmailVerifyToken, readEmailVerifyToken } from './email-verify-token.util';
 
 type SafeUser = Omit<User, 'password'>;
 
@@ -39,6 +40,53 @@ export class AuthService {
 
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
+  }
+
+  private get frontendUrl(): string {
+    return (
+      this.configService.get<string>('FRONTEND_URL')?.split(',')[0].trim().replace(/\/+$/, '') ??
+      'http://localhost:3000'
+    );
+  }
+
+  private verifyUrlFor(user: { id: string; email: string }): string {
+    const token = createEmailVerifyToken(
+      this.configService.get<string>('JWT_SECRET') as string,
+      user.id,
+      user.email,
+    );
+    return `${this.frontendUrl}/auth/verify-email?token=${token}`;
+  }
+
+  /**
+   * Confirms an email address from the link we mailed. Always the same vague
+   * error for a bad/expired/mismatched link, so it can't be used to probe accounts.
+   */
+  async verifyEmail(token: string): Promise<{ verified: true; alreadyVerified: boolean }> {
+    const claim = readEmailVerifyToken(this.configService.get<string>('JWT_SECRET') as string, token);
+    const user = claim
+      ? await this.prisma.user.findUnique({ where: { id: claim.userId } })
+      : null;
+    if (!claim || !user || user.email.toLowerCase() !== claim.email) {
+      throw new BadRequestException('This confirmation link is invalid or has expired');
+    }
+    if (user.emailVerified) return { verified: true, alreadyVerified: true };
+
+    await this.prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } });
+    return { verified: true, alreadyVerified: false };
+  }
+
+  /** Sends a fresh confirmation link to a signed-in user who has not verified yet. */
+  async resendVerification(userId: string): Promise<{ sent: boolean; message: string }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    if (user.emailVerified) return { sent: false, message: 'Your email is already confirmed.' };
+
+    await this.mailService.sendVerifyEmailEmail(user.email, {
+      name: user.name,
+      verifyUrl: this.verifyUrlFor(user),
+    });
+    return { sent: true, message: 'We’ve sent a new confirmation link to your email.' };
   }
 
   private generateRawRefreshToken(): string {
@@ -184,6 +232,13 @@ export class AuthService {
 
     const rawRefreshToken = await this.createRefreshToken(user.id);
 
+    // Welcome + "confirm your email" in one message. Never throws, so a mail
+    // outage can't fail a signup; not awaited so signup doesn't wait on it.
+    void this.mailService.sendWelcomeEmail(user.email, {
+      name: user.name,
+      verifyUrl: this.verifyUrlFor(user),
+    });
+
     return {
       accessToken: this.signToken({
         id: user.id,
@@ -322,11 +377,34 @@ export class AuthService {
       });
 
       if (user) {
-        // Existing email/password account signing in with Google for the first time
+        // Existing account signing in with Google for the first time.
+        //
+        // Self-registration does not prove the email is the registrant's, so a
+        // STUDENT row that was never verified may have been created by someone
+        // else who only knows the address ("pre-hijacking"). Google has just
+        // proven the real owner, so the unproven credentials must not survive
+        // the link: drop the password, kill every earlier session (stamping
+        // passwordChangedAt invalidates old access + refresh tokens) and mark
+        // the email verified. The owner can set a password again through the
+        // normal "forgot password" flow. Staff accounts are provisioned by an
+        // admin, so their credentials are trusted and left untouched.
+        const unprovenLocalAccount =
+          user.role === Role.STUDENT && !user.emailVerified && !!user.password;
+
         user = await this.prisma.user.update({
           where: { id: user.id },
-          data: { googleId: profile.googleId },
+          data: {
+            googleId: profile.googleId,
+            emailVerified: true,
+            ...(unprovenLocalAccount
+              ? { password: null, passwordChangedAt: new Date() }
+              : {}),
+          },
         });
+
+        if (unprovenLocalAccount) {
+          await this.prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+        }
       } else {
         user = await this.prisma.user.create({
           data: {
@@ -338,6 +416,8 @@ export class AuthService {
             role: Role.STUDENT,
           },
         });
+        // Brand-new Google account: greet them (their email is already verified).
+        void this.mailService.sendWelcomeEmail(user.email, { name: user.name });
       }
     }
 
@@ -405,6 +485,11 @@ export class AuthService {
     });
 
     const rawRefreshToken = await this.createRefreshToken(user.id);
+
+    void this.mailService.sendPasswordChangedEmail(user.email, {
+      name: user.name,
+      changedAt: new Date(),
+    });
 
     return {
       accessToken: this.signToken({
@@ -505,6 +590,11 @@ export class AuthService {
         // JwtStrategy / refreshTokens). No rows are deleted.
         passwordChangedAt: new Date(),
       },
+    });
+
+    void this.mailService.sendPasswordChangedEmail(user.email, {
+      name: user.name,
+      changedAt: new Date(),
     });
 
     return { message: 'Password has been reset successfully' };

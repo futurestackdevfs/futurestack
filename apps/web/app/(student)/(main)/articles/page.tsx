@@ -2,6 +2,16 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { articleMarkdownComponents, readingTime } from "@/lib/article-markdown";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Articles",
+  description:
+    "Practical guides and articles on web development, data, cloud and careers from the FutureStack team.",
+  path: "/articles",
+});
+
 
 interface BlogPost {
   id: string;

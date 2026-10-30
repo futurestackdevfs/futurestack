@@ -1,5 +1,16 @@
 import HomeClient from "./HomeClient";
 import { HomeSeed } from "./HomeSeed";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "FutureStack – Think . Create. Conquer",
+  absoluteTitle: true,
+  description:
+    "Learn in-demand tech skills with industry-certified courses, hands-on live projects and expert mentors. Build real-world skills and earn certificates.",
+  path: "/",
+});
+
 
 const BACKEND = process.env.API_URL ?? "http://localhost:3002";
 

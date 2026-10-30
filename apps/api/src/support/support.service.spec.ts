@@ -61,6 +61,8 @@ describe('SupportService', () => {
       sendAgentNewTicketEmail: jest.fn().mockResolvedValue(undefined),
       sendTicketReplyEmail: jest.fn().mockResolvedValue(undefined),
       sendTicketResolvedEmail: jest.fn().mockResolvedValue(undefined),
+      sendTicketClosedEmail: jest.fn().mockResolvedValue(undefined),
+      sendTicketClosingSoonEmail: jest.fn().mockResolvedValue(undefined),
       getPrimaryInboxAddress: jest.fn().mockReturnValue('support@example.com'),
       listInboxThreads: jest.fn(),
       getInboxThread: jest.fn(),
@@ -326,48 +328,111 @@ describe('SupportService', () => {
   describe('autoCloseIdleTickets()', () => {
     const now = new Date('2026-10-28T12:00:00Z');
     const dayMs = 24 * 60 * 60 * 1000;
+    const idle = (over: Record<string, unknown> = {}) => ({
+      id: 't1',
+      number: 42,
+      subject: 'Cannot play video',
+      student: { name: 'Asha Rao', email: 'asha@example.com' },
+      ...over,
+    });
+    const setDays = (d: number | null) =>
+      (prisma.escalationSettings.findFirst as jest.Mock).mockResolvedValue(d === null ? null : { ticketAutoCloseDays: d });
 
-    it('closes tickets waiting on the student or resolved, with no message for 3 days by default', async () => {
-      (prisma.escalationSettings.findFirst as jest.Mock).mockResolvedValue(null);
-      (prisma.supportTicket.updateMany as jest.Mock).mockResolvedValue({ count: 2 });
+    beforeEach(() => {
+      setDays(null);
+      (prisma.supportTicket.findMany as jest.Mock).mockResolvedValue([]);
+      (prisma.supportTicket.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    });
+
+    it('closes tickets waiting on the student or resolved after 3 days of silence, and emails the student', async () => {
+      (prisma.supportTicket.findMany as jest.Mock).mockResolvedValueOnce([idle()]).mockResolvedValueOnce([]);
 
       const closed = await service.autoCloseIdleTickets(now);
 
-      expect(closed).toBe(2);
-      const arg = (prisma.supportTicket.updateMany as jest.Mock).mock.calls[0][0];
+      expect(closed).toBe(1);
       const cutoff = new Date(now.getTime() - 3 * dayMs);
-      expect(arg.where.OR).toEqual([
+      const find = (prisma.supportTicket.findMany as jest.Mock).mock.calls[0][0];
+      expect(find.where.OR).toEqual([
         { status: 'PENDING', lastMessageAt: { lt: cutoff } },
         { status: 'RESOLVED', lastMessageAt: { lt: cutoff }, resolvedAt: { lt: cutoff } },
       ]);
-      expect(arg.data).toEqual({ status: 'CLOSED', closedAt: now, closedReason: 'AUTO' });
+      expect((prisma.supportTicket.updateMany as jest.Mock).mock.calls[0][0]).toMatchObject({
+        where: { id: 't1' },
+        data: { status: 'CLOSED', closedAt: now, closedReason: 'AUTO' },
+      });
+      expect(mail.sendTicketClosedEmail).toHaveBeenCalledWith('asha@example.com', {
+        name: 'Asha Rao',
+        ref: 'FS-SUP-00042',
+        subject: 'Cannot play video',
+        ticketUrl: 'http://localhost:3000/support/tickets/t1',
+        auto: true,
+      });
     });
 
     it('never touches tickets that are waiting on an agent', async () => {
-      (prisma.escalationSettings.findFirst as jest.Mock).mockResolvedValue(null);
-      (prisma.supportTicket.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
-
       await service.autoCloseIdleTickets(now);
 
-      const statuses = (prisma.supportTicket.updateMany as jest.Mock).mock.calls[0][0].where.OR.map(
-        (c: { status: string }) => c.status,
-      );
-      expect(statuses).not.toContain('OPEN');
+      for (const call of (prisma.supportTicket.findMany as jest.Mock).mock.calls) {
+        const statuses = call[0].where.OR.map((c: { status: string }) => c.status);
+        expect(statuses).not.toContain('OPEN');
+      }
     });
 
     it('uses the number of days the admin configured', async () => {
-      (prisma.escalationSettings.findFirst as jest.Mock).mockResolvedValue({ ticketAutoCloseDays: 7 });
-      (prisma.supportTicket.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+      setDays(7);
 
       await service.autoCloseIdleTickets(now);
 
       const cutoff = new Date(now.getTime() - 7 * dayMs);
-      expect((prisma.supportTicket.updateMany as jest.Mock).mock.calls[0][0].where.OR[0].lastMessageAt).toEqual({ lt: cutoff });
+      expect((prisma.supportTicket.findMany as jest.Mock).mock.calls[0][0].where.OR[0].lastMessageAt).toEqual({ lt: cutoff });
+    });
+
+    it('skips (and does not email) a ticket that got a reply a moment before it was closed', async () => {
+      (prisma.supportTicket.findMany as jest.Mock).mockResolvedValueOnce([idle()]).mockResolvedValueOnce([]);
+      (prisma.supportTicket.updateMany as jest.Mock).mockResolvedValueOnce({ count: 0 });
+
+      expect(await service.autoCloseIdleTickets(now)).toBe(0);
+      expect(mail.sendTicketClosedEmail).not.toHaveBeenCalled();
+    });
+
+    it('sends one "still need help?" reminder a day before closing, and marks it sent', async () => {
+      (prisma.supportTicket.findMany as jest.Mock).mockResolvedValueOnce([]).mockResolvedValueOnce([idle()]);
+
+      await service.autoCloseIdleTickets(now);
+
+      const remind = (prisma.supportTicket.findMany as jest.Mock).mock.calls[1][0];
+      const remindCutoff = new Date(now.getTime() - 2 * dayMs); // 3-day limit → 1 day left
+      expect(remind.where.autoCloseReminderSentAt).toBeNull();
+      expect(remind.where.OR[0].lastMessageAt).toEqual({ lt: remindCutoff });
+      expect(prisma.supportTicket.updateMany).toHaveBeenCalledWith({
+        where: { id: 't1', autoCloseReminderSentAt: null },
+        data: { autoCloseReminderSentAt: now },
+      });
+      expect(mail.sendTicketClosingSoonEmail).toHaveBeenCalledWith(
+        'asha@example.com',
+        expect.objectContaining({ ref: 'FS-SUP-00042', daysLeft: 1 }),
+      );
+    });
+
+    it('does not remind twice (another run already claimed it)', async () => {
+      (prisma.supportTicket.findMany as jest.Mock).mockResolvedValueOnce([]).mockResolvedValueOnce([idle()]);
+      (prisma.supportTicket.updateMany as jest.Mock).mockResolvedValueOnce({ count: 0 });
+
+      await service.autoCloseIdleTickets(now);
+
+      expect(mail.sendTicketClosingSoonEmail).not.toHaveBeenCalled();
+    });
+
+    it('sends no reminder when the limit is a single day', async () => {
+      setDays(1);
+
+      await service.autoCloseIdleTickets(now);
+
+      expect(prisma.supportTicket.findMany).toHaveBeenCalledTimes(1); // only the close pass
     });
 
     it('does not throw if the sweep fails', async () => {
-      (prisma.escalationSettings.findFirst as jest.Mock).mockResolvedValue(null);
-      (prisma.supportTicket.updateMany as jest.Mock).mockRejectedValue(new Error('db down'));
+      (prisma.supportTicket.findMany as jest.Mock).mockRejectedValue(new Error('db down'));
 
       await expect(service.autoCloseIdleTickets(now)).resolves.toBe(0);
     });
@@ -398,6 +463,7 @@ describe('SupportService', () => {
         closedAt: null,
         resolvedAt: null,
         closedReason: null,
+        autoCloseReminderSentAt: null,
       });
     });
 

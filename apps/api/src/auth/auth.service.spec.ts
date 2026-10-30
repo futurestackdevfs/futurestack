@@ -51,13 +51,23 @@ describe('AuthService', () => {
   let service: AuthService;
   let prisma: ReturnType<typeof makePrismaMock>;
   let jwtService: { sign: jest.Mock };
-  let mailService: { sendPasswordResetEmail: jest.Mock };
+  let mailService: {
+    sendPasswordResetEmail: jest.Mock;
+    sendWelcomeEmail: jest.Mock;
+    sendVerifyEmailEmail: jest.Mock;
+    sendPasswordChangedEmail: jest.Mock;
+  };
   let configService: { get: jest.Mock };
 
   beforeEach(() => {
     prisma = makePrismaMock();
     jwtService = { sign: jest.fn().mockReturnValue('__spec__signed.jwt') };
-    mailService = { sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined) };
+    mailService = {
+      sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+      sendWelcomeEmail: jest.fn().mockResolvedValue(undefined),
+      sendVerifyEmailEmail: jest.fn().mockResolvedValue(undefined),
+      sendPasswordChangedEmail: jest.fn().mockResolvedValue(undefined),
+    };
     configService = { get: jest.fn().mockReturnValue('http://localhost:3000') };
 
     service = new AuthService(
@@ -88,6 +98,14 @@ describe('AuthService', () => {
       );
       expect(result.accessToken).toBe('__spec__signed.jwt');
       expect(result.rawRefreshToken).toBeTruthy();
+      // welcome + confirm-your-email link goes out with the signup
+      expect(mailService.sendWelcomeEmail).toHaveBeenCalledWith(
+        'student@example.com',
+        expect.objectContaining({
+          name: '__spec__ Student',
+          verifyUrl: expect.stringContaining('http://localhost:3000/auth/verify-email?token='),
+        }),
+      );
     });
 
     it('rejects registering with an email that already exists', async () => {
@@ -433,6 +451,141 @@ describe('AuthService', () => {
       );
       expect(result.accessToken).toBe('__spec__signed.jwt');
       expect(result.rawRefreshToken).toBeTruthy();
+    });
+  });
+
+  describe("validateOAuthUser() - linking Google to an existing account", () => {
+    const profile = {
+      googleId: "__spec__google-1",
+      email: "student@example.com",
+      name: "__spec__ Student",
+      avatarUrl: undefined,
+    } as any;
+
+    beforeEach(() => {
+      // 1st lookup (by googleId) finds nothing; 2nd (by email) is set per test
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      (prisma.user.update as jest.Mock).mockImplementation(({ data }: any) =>
+        Promise.resolve(makeUser(data)),
+      );
+      (prisma.refreshToken.deleteMany as jest.Mock).mockResolvedValue({ count: 1 });
+    });
+
+    it("wipes the password and every earlier session of an UNVERIFIED self-registered account (pre-hijacking)", async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(
+        makeUser({ emailVerified: false, password: "$2b$12$attackerpassword" }),
+      );
+
+      const result = await service.validateOAuthUser(profile);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: "__spec__user-1" },
+        data: {
+          googleId: "__spec__google-1",
+          emailVerified: true,
+          password: null,
+          passwordChangedAt: expect.any(Date),
+        },
+      });
+      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: "__spec__user-1" } });
+      expect((result as any).password).toBeUndefined();
+    });
+
+    it("keeps the password of an account whose email was already verified", async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(
+        makeUser({ emailVerified: true, password: "$2b$12$ownerpassword" }),
+      );
+
+      await service.validateOAuthUser(profile);
+
+      const { data } = (prisma.user.update as jest.Mock).mock.calls[0][0];
+      expect(data).toEqual({ googleId: "__spec__google-1", emailVerified: true });
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("does not wipe credentials of an admin-provisioned staff account", async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(
+        makeUser({ role: Role.COORDINATOR, emailVerified: false, password: "$2b$12$staffpassword" }),
+      );
+
+      await service.validateOAuthUser(profile);
+
+      const { data } = (prisma.user.update as jest.Mock).mock.calls[0][0];
+      expect(data).not.toHaveProperty("password");
+      expect(data).not.toHaveProperty("passwordChangedAt");
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("creates a verified STUDENT when the email is unknown", async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      (prisma.user.create as jest.Mock).mockResolvedValue(makeUser({ googleId: "__spec__google-1", password: null }));
+
+      await service.validateOAuthUser(profile);
+
+      expect(prisma.user.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ role: Role.STUDENT, emailVerified: true, googleId: "__spec__google-1" }),
+      });
+    });
+  });
+
+  describe('email verification', () => {
+    const tokenFor = async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(makeUser({ emailVerified: false }));
+      (prisma.user.create as jest.Mock).mockResolvedValue(makeUser({ emailVerified: false }));
+      (prisma.refreshToken.create as jest.Mock).mockResolvedValue({});
+      // registering mints the link; pull the token back out of the welcome email
+      (prisma.user.findUnique as jest.Mock).mockResolvedValueOnce(null);
+      await service.register({ email: 'student@example.com', name: 'S', password: 'Password123' } as any);
+      const url: string = mailService.sendWelcomeEmail.mock.calls[0][1].verifyUrl;
+      return decodeURIComponent(url.split('token=')[1]);
+    };
+
+    it('confirms the email when the link is valid', async () => {
+      const token = await tokenFor();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(makeUser({ emailVerified: false }));
+      (prisma.user.update as jest.Mock).mockResolvedValue({});
+
+      await expect(service.verifyEmail(token)).resolves.toEqual({ verified: true, alreadyVerified: false });
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: '__spec__user-1' },
+        data: { emailVerified: true },
+      });
+    });
+
+    it('is harmless to open the link twice', async () => {
+      const token = await tokenFor();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(makeUser({ emailVerified: true }));
+
+      await expect(service.verifyEmail(token)).resolves.toEqual({ verified: true, alreadyVerified: true });
+      expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a forged or expired link with one vague message', async () => {
+      await expect(service.verifyEmail('not-a-real-token-at-all-but-long-enough')).rejects.toThrow(
+        /invalid or has expired/,
+      );
+    });
+
+    it('rejects a link whose email no longer matches the account', async () => {
+      const token = await tokenFor();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(
+        makeUser({ emailVerified: false, email: 'someone-else@example.com' }),
+      );
+      await expect(service.verifyEmail(token)).rejects.toThrow(/invalid or has expired/);
+    });
+
+    it('resends a fresh link to an unverified user, and nothing to a verified one', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(makeUser({ emailVerified: false }));
+      await expect(service.resendVerification('__spec__user-1')).resolves.toMatchObject({ sent: true });
+      expect(mailService.sendVerifyEmailEmail).toHaveBeenCalledWith(
+        'student@example.com',
+        expect.objectContaining({ verifyUrl: expect.stringContaining('/auth/verify-email?token=') }),
+      );
+
+      mailService.sendVerifyEmailEmail.mockClear();
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue(makeUser({ emailVerified: true }));
+      await expect(service.resendVerification('__spec__user-1')).resolves.toMatchObject({ sent: false });
+      expect(mailService.sendVerifyEmailEmail).not.toHaveBeenCalled();
     });
   });
 });

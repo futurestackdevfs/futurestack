@@ -1,8 +1,16 @@
 import { type NextRequest, NextResponse } from 'next/server';
+import { isSameOriginJsonRequest, isSameOriginRequest } from '@/lib/same-origin';
 
+const JWT_SHAPE = /^[\w-]+\.[\w-]+\.[\w-]+$/;
+
+// Same-origin only - see app/api/auth/set-token/route.ts and lib/same-origin.ts.
 export async function POST(req: NextRequest) {
-  const { token } = await req.json();
-  if (!token || typeof token !== 'string') {
+  if (!isSameOriginJsonRequest({ headers: req.headers, urlHost: req.nextUrl.host })) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const { token } = await req.json().catch(() => ({}));
+  if (!token || typeof token !== 'string' || token.length > 4096 || !JWT_SHAPE.test(token)) {
     return NextResponse.json({ error: 'Invalid token' }, { status: 400 });
   }
 
@@ -17,7 +25,11 @@ export async function POST(req: NextRequest) {
   return res;
 }
 
-export async function DELETE() {
+export async function DELETE(req: NextRequest) {
+  if (!isSameOriginRequest({ headers: req.headers, urlHost: req.nextUrl.host })) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   const res = NextResponse.json({ ok: true });
   res.cookies.set('fs_token_staff', '', {
     httpOnly: true,

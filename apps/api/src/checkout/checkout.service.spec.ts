@@ -7,6 +7,7 @@ import { RazorpayClientService } from './razorpay-client.service';
 import { CouponService } from '../coupon/coupon.service';
 import { PaymentSettingsService } from '../payment-settings/payment-settings.service';
 import { InvoicesService } from '../invoices/invoices.service';
+import { MailService } from '../mail/mail.service';
 
 /*
  * The Razorpay SDK is never touched for real in this file — `orders.create`
@@ -17,6 +18,9 @@ function setup() {
   const tx = {
     order: { create: jest.fn() },
     orderItem: { createMany: jest.fn(), updateMany: jest.fn() },
+    coupon: {
+      findUnique: jest.fn().mockResolvedValue({ id: '__spec__coupon-1', maxUses: null, usedCount: 0, perUserLimit: 1 }),
+    },
   };
 
   const prisma = {
@@ -42,6 +46,8 @@ function setup() {
 
   const couponService = {
     validate: jest.fn(),
+    lockCoupon: jest.fn().mockResolvedValue(undefined),
+    assertWithinUsageLimits: jest.fn().mockResolvedValue(undefined),
   } as unknown as CouponService;
 
   const paymentSettings = {
@@ -59,8 +65,13 @@ function setup() {
     createInvoice: jest.fn().mockResolvedValue({}),
   } as unknown as InvoicesService;
 
-  const service = new CheckoutService(prisma, razorpayClient, couponService, paymentSettings, invoices);
-  return { service, prisma, razorpayClient, razorpayOrdersCreate, couponService, paymentSettings, invoices, tx };
+  const mail = {
+    sendOrderConfirmationEmail: jest.fn().mockResolvedValue(undefined),
+    sendPaymentFailedEmail: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const service = new CheckoutService(prisma, razorpayClient, couponService, paymentSettings, invoices, mail as unknown as MailService);
+  return { service, prisma, razorpayClient, razorpayOrdersCreate, couponService, paymentSettings, invoices, mail, tx };
 }
 
 function makeCart(overrides: Partial<Record<string, any>> = {}) {
@@ -195,6 +206,54 @@ describe('CheckoutService#createOrder — pricing, GST, coupons, currency', () =
         data: expect.objectContaining({ discountAmount: 1000, couponId: '__spec__coupon-1' }),
       }),
     );
+  });
+
+  it('locks the coupon and re-checks its limits inside the order-creation transaction', async () => {
+    const { service, prisma, tx, razorpayOrdersCreate, couponService } = setup();
+    const callOrder: string[] = [];
+    (prisma.cart.findUnique as jest.Mock).mockResolvedValue(makeCart({ couponId: '__spec__coupon-1' }));
+    (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.order.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.coupon.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__coupon-1', code: 'SAVE1000' });
+    (couponService.validate as jest.Mock).mockResolvedValue({ coupon: { id: '__spec__coupon-1' }, discountAmount: 1000 });
+    tx.coupon.findUnique.mockResolvedValue({ id: '__spec__coupon-1', maxUses: 1, usedCount: 0, perUserLimit: 1 });
+    (couponService.lockCoupon as jest.Mock).mockImplementation(async () => { callOrder.push('lock'); });
+    (couponService.assertWithinUsageLimits as jest.Mock).mockImplementation(async () => { callOrder.push('recheck'); });
+    tx.order.create.mockImplementation(async () => { callOrder.push('create'); return { id: '__spec__order-lock' }; });
+    tx.orderItem.createMany.mockResolvedValue({});
+    razorpayOrdersCreate.mockResolvedValue({ id: 'order_rzp_lock' });
+    (prisma.order.update as jest.Mock).mockResolvedValue({ razorpayOrderId: 'order_rzp_lock' });
+
+    await service.createOrder('__spec__student-1', { currency: Currency.INR } as any);
+
+    expect(callOrder).toEqual(['lock', 'recheck', 'create']);
+    expect(couponService.lockCoupon).toHaveBeenCalledWith(tx, '__spec__coupon-1');
+    expect(couponService.assertWithinUsageLimits).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ id: '__spec__coupon-1' }),
+      '__spec__student-1',
+    );
+  });
+
+  it('refuses to create the order (and never calls Razorpay) when the coupon ran out between the pre-check and the locked re-check', async () => {
+    const { service, prisma, tx, razorpayOrdersCreate, couponService } = setup();
+    (prisma.cart.findUnique as jest.Mock).mockResolvedValue(makeCart({ couponId: '__spec__coupon-1' }));
+    (prisma.enrollment.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.enrollment.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.order.findFirst as jest.Mock).mockResolvedValue(null);
+    (prisma.coupon.findUnique as jest.Mock).mockResolvedValue({ id: '__spec__coupon-1', code: 'SAVE1000' });
+    (couponService.validate as jest.Mock).mockResolvedValue({ coupon: { id: '__spec__coupon-1' }, discountAmount: 1000 });
+    tx.coupon.findUnique.mockResolvedValue({ id: '__spec__coupon-1', maxUses: 1, usedCount: 0, perUserLimit: 1 });
+    (couponService.assertWithinUsageLimits as jest.Mock).mockRejectedValue(
+      new BadRequestException('This coupon has reached its usage limit'),
+    );
+
+    await expect(
+      service.createOrder('__spec__student-1', { currency: Currency.INR } as any),
+    ).rejects.toThrow('This coupon has reached its usage limit');
+    expect(tx.order.create).not.toHaveBeenCalled();
+    expect(razorpayOrdersCreate).not.toHaveBeenCalled();
   });
 
   it('silently drops an expired/invalid coupon and charges full price instead of failing checkout', async () => {
@@ -347,5 +406,170 @@ describe('CheckoutService#finalizeOrder — idempotency', () => {
     expect(enrollments).toEqual([{ id: '__spec__enr-existing', courseId: '__spec__course-react' }]);
     expect((tx as any).enrollment?.create).toBeUndefined(); // never wired up, never called
     expect(invoices.createInvoice).not.toHaveBeenCalled(); // only the winning call issues the invoice
+  });
+});
+
+describe('CheckoutService#finalizeOrder - coupon bookkeeping can never undo a captured payment', () => {
+  it('records the redemption with skipDuplicates so a unique-key clash cannot roll back PAID + enrollments', async () => {
+    const { service, tx } = setup();
+    (tx as any).order.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    (tx as any).order.findUnique = jest.fn().mockResolvedValue({
+      id: '__spec__order-cpn',
+      userId: '__spec__student-1',
+      couponId: '__spec__coupon-1',
+      salespersonId: null,
+      items: [{ courseId: '__spec__course-react', priceAtPurchase: decimal(4999) }],
+    });
+    (tx as any).course = { findMany: jest.fn().mockResolvedValue([{ id: '__spec__course-react', trainer: null }]) };
+    (tx as any).enrollment = { create: jest.fn().mockResolvedValue({ id: '__spec__enr-new' }) };
+    (tx as any).orderItem.updateMany = jest.fn().mockResolvedValue({});
+    (tx as any).coupon = { update: jest.fn().mockResolvedValue({}) };
+    (tx as any).couponRedemption = { createMany: jest.fn().mockResolvedValue({ count: 0 }), create: jest.fn() };
+    (tx as any).cart = { upsert: jest.fn().mockResolvedValue({}) };
+    (tx as any).user = { findUnique: jest.fn().mockResolvedValue({ email: '__spec__student@example.com' }) };
+    (tx as any).lead = { findFirst: jest.fn().mockResolvedValue(null) };
+
+    const enrollments = await service.finalizeOrder('__spec__order-cpn', { razorpayPaymentId: 'pay_cpn' });
+
+    expect(enrollments).toHaveLength(1);
+    expect((tx as any).couponRedemption.createMany).toHaveBeenCalledWith({
+      data: [{ couponId: '__spec__coupon-1', userId: '__spec__student-1', orderId: '__spec__order-cpn' }],
+      skipDuplicates: true,
+    });
+    // the throwing variant must not be used any more
+    expect((tx as any).couponRedemption.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('CheckoutService — customer emails', () => {
+  const flush = () => new Promise((r) => setImmediate(r));
+
+  function paidOrder(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'abcd1234-aaaa-bbbb-cccc-000000000001',
+      couponId: 'c1',
+      razorpayOrderId: 'order_rzp_1',
+      paymentMethod: 'upi',
+      currency: 'INR',
+      subtotal: decimal(6498),
+      discountAmount: decimal(500),
+      gstPercent: decimal(18),
+      gstAmount: decimal(1079.64),
+      totalAmount: decimal(7077.64),
+      user: { name: 'Ram Warhekar', email: 'ram@example.com' },
+      invoices: [{ invoiceNumber: 'FS-202610-0042' }],
+      items: [
+        { courseId: 'crs', projectId: null, priceAtPurchase: decimal(4999), course: { title: 'React Fundamentals' }, project: null },
+        // projects store the price AFTER the coupon share (6498 → 5998 total ⇒ ratio ≈ 0.0769)
+        { courseId: null, projectId: 'prj', priceAtPurchase: decimal(1383.65), course: null, project: { name: 'Chat App' } },
+      ],
+      ...overrides,
+    };
+  }
+
+  function wireFinalize(setupResult: ReturnType<typeof setup>) {
+    const { tx } = setupResult;
+    (tx as any).order.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    (tx as any).order.findUnique = jest.fn().mockResolvedValue({
+      id: 'abcd1234-aaaa-bbbb-cccc-000000000001',
+      userId: '__spec__student-1',
+      couponId: null,
+      salespersonId: null,
+      items: [{ courseId: 'crs', priceAtPurchase: decimal(4999) }],
+    });
+    (tx as any).course = { findMany: jest.fn().mockResolvedValue([{ id: 'crs', trainer: null }]) };
+    (tx as any).enrollment = { create: jest.fn().mockResolvedValue({ id: 'enr' }) };
+    (tx as any).orderItem.updateMany = jest.fn().mockResolvedValue({});
+    (tx as any).cart = { upsert: jest.fn().mockResolvedValue({}) };
+    (tx as any).user = { findUnique: jest.fn().mockResolvedValue({ email: 'ram@example.com' }) };
+    (tx as any).lead = { findFirst: jest.fn().mockResolvedValue(null) };
+  }
+
+  it('emails an order confirmation (items, totals, invoice number) when an online payment lands', async () => {
+    const t = setup();
+    wireFinalize(t);
+    (t.prisma.order.findUnique as jest.Mock).mockResolvedValue(paidOrder());
+    (t.prisma.coupon.findUnique as jest.Mock).mockResolvedValue({ code: 'SAVE500' });
+
+    await t.service.finalizeOrder('abcd1234-aaaa-bbbb-cccc-000000000001', { razorpayPaymentId: 'pay_1' });
+    await flush();
+
+    expect(t.mail.sendOrderConfirmationEmail).toHaveBeenCalledTimes(1);
+    const [to, data] = t.mail.sendOrderConfirmationEmail.mock.calls[0];
+    expect(to).toBe('ram@example.com');
+    expect(data).toMatchObject({
+      name: 'Ram Warhekar',
+      orderRef: 'FS-ABCD1234',
+      invoiceNumber: 'FS-202610-0042',
+      couponCode: 'SAVE500',
+      total: 7077.64,
+      currency: 'INR',
+      paymentMethod: 'UPI',
+    });
+    // item lines are list prices, so they add up to the subtotal
+    const sum = data.items.reduce((a: number, i: { amount: number }) => a + i.amount, 0);
+    expect(Math.round(sum)).toBe(6498);
+    expect(data.items.map((i: { kind: string }) => i.kind)).toEqual(['course', 'project']);
+  });
+
+  it('does not email twice when the same payment is processed again', async () => {
+    const t = setup();
+    wireFinalize(t);
+    (t.tx as any).order.updateMany = jest.fn().mockResolvedValue({ count: 0 });
+    (t.tx as any).order.findUnique = jest.fn().mockResolvedValue({ id: 'x', userId: 'u', enrollments: [] });
+    (t.prisma.order.findUnique as jest.Mock).mockResolvedValue(paidOrder());
+
+    await t.service.finalizeOrder('abcd1234-aaaa-bbbb-cccc-000000000001', { razorpayPaymentId: 'pay_1' });
+    await flush();
+
+    expect(t.mail.sendOrderConfirmationEmail).not.toHaveBeenCalled();
+  });
+
+  it('leaves cash (MANUAL-) sales to the sales flow', async () => {
+    const t = setup();
+    wireFinalize(t);
+    (t.prisma.order.findUnique as jest.Mock).mockResolvedValue(paidOrder({ razorpayOrderId: 'MANUAL-abc' }));
+
+    await t.service.finalizeOrder('abcd1234-aaaa-bbbb-cccc-000000000001', { razorpayPaymentId: 'pay_1' });
+    await flush();
+
+    expect(t.mail.sendOrderConfirmationEmail).not.toHaveBeenCalled();
+  });
+
+  it('never fails the payment if the email step throws', async () => {
+    const t = setup();
+    wireFinalize(t);
+    (t.prisma.order.findUnique as jest.Mock).mockRejectedValue(new Error('db down'));
+
+    await expect(
+      t.service.finalizeOrder('abcd1234-aaaa-bbbb-cccc-000000000001', { razorpayPaymentId: 'pay_1' }),
+    ).resolves.toHaveLength(1);
+    await flush();
+  });
+
+  it('emails "payment didn’t go through" once, when the failure webhook flips the order', async () => {
+    const t = setup();
+    (t.prisma.order.findUnique as jest.Mock)
+      .mockResolvedValueOnce(paidOrder({ razorpayOrderId: 'order_rzp_1' })) // webhook lookup
+      .mockResolvedValue(paidOrder());
+    (t.prisma.order.updateMany as jest.Mock).mockResolvedValueOnce({ count: 1 });
+
+    const event = { event: 'payment.failed', payload: { payment: { entity: { order_id: 'order_rzp_1' } } } };
+    await t.service.handleWebhookEvent(event);
+    await flush();
+
+    expect(t.mail.sendPaymentFailedEmail).toHaveBeenCalledTimes(1);
+    expect(t.mail.sendPaymentFailedEmail.mock.calls[0][1]).toMatchObject({
+      name: 'Ram Warhekar',
+      items: ['React Fundamentals', 'Chat App'],
+      amount: 7077.64,
+    });
+
+    // Razorpay retries webhooks — the second delivery finds the order already FAILED.
+    (t.prisma.order.findUnique as jest.Mock).mockResolvedValue(paidOrder());
+    (t.prisma.order.updateMany as jest.Mock).mockResolvedValueOnce({ count: 0 });
+    await t.service.handleWebhookEvent(event);
+    await flush();
+    expect(t.mail.sendPaymentFailedEmail).toHaveBeenCalledTimes(1);
   });
 });

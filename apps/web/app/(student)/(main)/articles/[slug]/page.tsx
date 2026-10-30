@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { articleMarkdownComponents, readingTime } from "@/lib/article-markdown";
 
 interface BlogPost {
@@ -51,20 +52,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const post = await fetchPost(slug);
   if (!post) return {};
 
-  return {
+  return pageMetadata({
     title: post.title,
-    description: post.metaDescription,
-    openGraph: {
-      title: post.title,
-      description: post.metaDescription,
-      url: `${process.env.NEXT_PUBLIC_BASE_URL || "https://your-domain.com"}/articles/${post.slug}`,
-    },
-    twitter: {
-      card: "summary",
-      title: post.title,
-      description: post.metaDescription,
-    },
-  };
+    description: post.metaDescription || post.content.slice(0, 200),
+    path: `/articles/${post.slug}`,
+    ogType: "article",
+  });
 }
 
 export default async function BlogPostPage({ params }: PageProps) {

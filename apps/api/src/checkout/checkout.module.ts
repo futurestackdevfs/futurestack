@@ -3,13 +3,14 @@ import { CouponModule } from '../coupon/coupon.module';
 import { CartModule } from '../cart/cart.module';
 import { PaymentSettingsModule } from '../payment-settings/payment-settings.module';
 import { InvoicesModule } from '../invoices/invoices.module';
+import { MailModule } from '../mail/mail.module';
 import { CheckoutController } from './checkout.controller';
 import { WebhookController } from './webhook.controller';
 import { CheckoutService } from './checkout.service';
 import { RazorpayClientService } from './razorpay-client.service';
 
 @Module({
-  imports: [CartModule, CouponModule, PaymentSettingsModule, InvoicesModule],
+  imports: [CartModule, CouponModule, PaymentSettingsModule, InvoicesModule, MailModule],
   controllers: [CheckoutController, WebhookController],
   providers: [CheckoutService, RazorpayClientService],
   exports: [RazorpayClientService],

@@ -3,6 +3,7 @@ const API = '/api';
 import { reportSessionExpired } from './session-events';
 import { refreshSession } from './refresh-session';
 import { decodeClaims } from './token-claims';
+import { OAUTH_STATE_KEY, newOAuthState } from './oauth-state';
 
 export type User = {
   id?: string;
@@ -124,6 +125,21 @@ export const authApi = {
     });
   },
 
+  /** Confirms the email address from the link in the welcome email. */
+  async verifyEmail(token: string) {
+    return request<{ verified: true; alreadyVerified: boolean }>('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  /** Sends a fresh confirmation link to the signed-in user. */
+  async resendVerification() {
+    return request<{ sent: boolean; message: string }>('/auth/resend-verification', {
+      method: 'POST',
+    });
+  },
+
   async setPassword(newPassword: string) {
     // Setting a password stamps passwordChangedAt server-side, which
     // invalidates the token this call is authenticated with — the backend
@@ -135,7 +151,18 @@ export const authApi = {
   },
 
   loginWithGoogle() {
-    window.location.href = `/api/auth/google`;
+    // Bind this browser to the sign-in it starts: a random nonce kept only in
+    // this tab's sessionStorage, sent through Google as `state` and checked again
+    // on /auth/oauth/callback. A link that tries to push someone else's tokens
+    // into this browser can't carry the nonce, so the callback rejects it.
+    const nonce = newOAuthState();
+    try {
+      sessionStorage.setItem(OAUTH_STATE_KEY, nonce);
+    } catch {
+      // sessionStorage unavailable (blocked): the callback will then refuse to
+      // complete, which is the safe outcome.
+    }
+    window.location.href = `/api/auth/google?state=${encodeURIComponent(nonce)}`;
   },
 
   async logout() {

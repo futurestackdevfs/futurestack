@@ -1,6 +1,30 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AgentMailClient } from 'agentmail';
+import { EmailContext, EmailSpec, renderEmail } from './templates/render';
+import {
+  CertificateData,
+  GiftData,
+  OrderConfirmationData,
+  PaymentFailedData,
+  RefundRejectedData,
+  RefundProcessedData,
+  TicketMailData,
+  WelcomeData,
+  certificateReadyEmail,
+  giftEnrollmentEmail,
+  orderConfirmationEmail,
+  passwordChangedEmail,
+  paymentFailedEmail,
+  refundProcessedEmail,
+  refundRejectedEmail,
+  ticketClosedEmail,
+  ticketClosingSoonEmail,
+  trainerApprovedEmail,
+  trainerRejectedEmail,
+  verifyEmailEmail,
+  welcomeEmail,
+} from './templates/transactional';
 
 @Injectable()
 export class MailService {
@@ -45,7 +69,7 @@ export class MailService {
         <p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">We received a request to reset the password for your Future Stack account.</p>
         ${this.button('Reset my password', resetUrl)}
         <p style="margin:0 0 8px;font-size:13px;color:#64748b;line-height:1.7;">This link expires in <strong>1 hour</strong>. If you didn't request a reset, you can safely ignore this email — your password won't change.</p>
-        <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;line-height:1.6;">If the button doesn't work, copy and paste this link into your browser:<br/><span style="word-break:break-all;color:#2563eb;">${resetUrl}</span></p>
+        <p style="margin:16px 0 0;font-size:12px;color:#94a3b8;line-height:1.6;">If the button doesn't work, copy and paste this link into your browser:<br/><span style="word-break:break-all;color:#2563eb;">${this.escapeHtml(resetUrl)}</span></p>
       `,
       );
 
@@ -87,7 +111,7 @@ export class MailService {
     return `
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 20px;">
         <tr><td style="border-radius:10px;background:linear-gradient(135deg,#ff6b00,#2563eb);">
-          <a href="${url}" style="display:inline-block;padding:12px 26px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;">${label}</a>
+          <a href="${this.safeHref(url)}" style="display:inline-block;padding:12px 26px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;">${label}</a>
         </td></tr>
       </table>`;
   }
@@ -159,8 +183,8 @@ export class MailService {
           <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:18px 20px;margin:0 0 22px">
             <div style="font-size:12px;font-weight:bold;color:#c2410c;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Your account is ready</div>
             <table style="border-collapse:collapse;font-size:14px">
-              <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Login ID</td><td style="padding:4px 0;font-family:monospace;font-weight:700;color:#111827">${data.loginEmail}</td></tr>
-              <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Temporary password</td><td style="padding:4px 0;font-family:monospace;font-weight:700;color:#ff6b00">${data.tempPassword}</td></tr>
+              <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Login ID</td><td style="padding:4px 0;font-family:monospace;font-weight:700;color:#111827">${this.escapeHtml(data.loginEmail)}</td></tr>
+              <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Temporary password</td><td style="padding:4px 0;font-family:monospace;font-weight:700;color:#ff6b00">${this.escapeHtml(data.tempPassword)}</td></tr>
             </table>
             <p style="font-size:13px;color:#9a3412;font-weight:600;margin:12px 0 0">⚠️ This password is valid for 10 minutes only — log in right away and set a new password.</p>
           </div>`
@@ -206,7 +230,7 @@ export class MailService {
 
         <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 18px">Log in to Future Stack and open the course to get started:</p>
         <div style="text-align:center;margin:0 0 22px">
-          <a href="${data.courseLink}" style="display:inline-block;background:linear-gradient(135deg,#ff6b00,#2563eb);color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:10px">Open your course</a>
+          <a href="${this.safeHref(data.courseLink)}" style="display:inline-block;background:linear-gradient(135deg,#ff6b00,#2563eb);color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:10px">Open your course</a>
         </div>
 
         <p style="font-size:14px;color:#374151;margin:0">Happy learning!</p>
@@ -293,7 +317,7 @@ export class MailService {
         ${credsHtml}
 
         <div style="text-align:center;margin:0 0 22px">
-          <a href="${data.payLink}" style="display:inline-block;background:linear-gradient(135deg,#ff6b00,#2563eb);color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:10px">Pay Now</a>
+          <a href="${this.safeHref(data.payLink)}" style="display:inline-block;background:linear-gradient(135deg,#ff6b00,#2563eb);color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:10px">Pay Now</a>
         </div>
         <p style="font-size:12px;color:#9ca3af;margin:0 0 18px">You'll need to log in to complete this — this link is tied to your account only.</p>
 
@@ -350,23 +374,23 @@ export class MailService {
         'Payment confirmed',
         'Your enrollment is complete 🎉',
         `
-        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${data.studentName}</strong>,</p>
-        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">Your payment has been confirmed — you're officially enrolled in <strong>${data.courseName}</strong>. 🎉</p>
+        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${this.escapeHtml(data.studentName)}</strong>,</p>
+        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">Your payment has been confirmed — you're officially enrolled in <strong>${this.escapeHtml(data.courseName)}</strong>. 🎉</p>
 
         <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:18px 20px;margin:0 0 22px">
           <div style="font-size:12px;font-weight:bold;color:#166534;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Payment receipt</div>
           <table style="border-collapse:collapse;font-size:14px">
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Receipt no</td><td style="padding:4px 0;font-family:monospace;font-weight:700;color:#111827">${data.receiptNo}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Course</td><td style="padding:4px 0;font-weight:600;color:#111827">${data.courseName}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Receipt no</td><td style="padding:4px 0;font-family:monospace;font-weight:700;color:#111827">${this.escapeHtml(data.receiptNo)}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Course</td><td style="padding:4px 0;font-weight:600;color:#111827">${this.escapeHtml(data.courseName)}</td></tr>
             <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Amount paid</td><td style="padding:4px 0;font-weight:700;color:#166534">₹${data.finalAmt.toLocaleString('en-IN')}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Payment method</td><td style="padding:4px 0">${data.paymentMethod}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Batch mode</td><td style="padding:4px 0">${data.batchMode}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Payment method</td><td style="padding:4px 0">${this.escapeHtml(data.paymentMethod)}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Batch mode</td><td style="padding:4px 0">${this.escapeHtml(data.batchMode)}</td></tr>
           </table>
         </div>
 
         <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 18px">Your receipt is saved in your <strong>order history</strong>. Jump into the course and start learning:</p>
         <div style="text-align:center;margin:0 0 22px">
-          <a href="${data.courseLink}" style="display:inline-block;background:linear-gradient(135deg,#ff6b00,#2563eb);color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:10px">Open your course</a>
+          <a href="${this.safeHref(data.courseLink)}" style="display:inline-block;background:linear-gradient(135deg,#ff6b00,#2563eb);color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;padding:12px 28px;border-radius:10px">Open your course</a>
         </div>
 
         <p style="font-size:14px;color:#374151;margin:0">Happy learning!</p>
@@ -437,18 +461,18 @@ export class MailService {
 
       const html = this.fsShell(
         'Your staff account is ready',
-        `Staff portal · ${roleLabel}`,
+        `Staff portal · ${this.escapeHtml(roleLabel)}`,
         `
-        <p style="margin:0 0 12px;font-size:14px;color:#334155;line-height:1.7;">Hi <strong>${data.name}</strong>,</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#334155;line-height:1.7;">Hi <strong>${this.escapeHtml(data.name)}</strong>,</p>
         <p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">Welcome to the Future Stack team. An account has been created for you as a <strong>${roleLabel}</strong> — here are your sign-in details.</p>
 
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;margin:0 0 22px;">
           <tr><td style="padding:16px 20px;">
             <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Your login details</div>
             <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:13.5px;">
-              <tr><td style="padding:3px 16px 3px 0;color:#64748b;">Staff portal</td><td style="padding:3px 0;"><a href="${data.loginUrl}" style="color:#2563eb;">${data.loginUrl}</a></td></tr>
-              <tr><td style="padding:3px 16px 3px 0;color:#64748b;">Login ID</td><td style="padding:3px 0;font-family:'Courier New',monospace;font-weight:700;color:#0f172a;">${data.loginEmail}</td></tr>
-              <tr><td style="padding:3px 16px 3px 0;color:#64748b;">Temporary password</td><td style="padding:3px 0;font-family:'Courier New',monospace;font-weight:700;color:#ff6b00;">${data.tempPassword}</td></tr>
+              <tr><td style="padding:3px 16px 3px 0;color:#64748b;">Staff portal</td><td style="padding:3px 0;"><a href="${this.safeHref(data.loginUrl)}" style="color:#2563eb;">${this.escapeHtml(data.loginUrl)}</a></td></tr>
+              <tr><td style="padding:3px 16px 3px 0;color:#64748b;">Login ID</td><td style="padding:3px 0;font-family:'Courier New',monospace;font-weight:700;color:#0f172a;">${this.escapeHtml(data.loginEmail)}</td></tr>
+              <tr><td style="padding:3px 16px 3px 0;color:#64748b;">Temporary password</td><td style="padding:3px 0;font-family:'Courier New',monospace;font-weight:700;color:#ff6b00;">${this.escapeHtml(data.tempPassword)}</td></tr>
             </table>
           </td></tr>
         </table>
@@ -527,15 +551,15 @@ export class MailService {
         'Your password has been reset',
         'Account security',
         `
-        <p style="margin:0 0 12px;font-size:14px;color:#334155;line-height:1.7;">Hi <strong>${data.name}</strong>,</p>
+        <p style="margin:0 0 12px;font-size:14px;color:#334155;line-height:1.7;">Hi <strong>${this.escapeHtml(data.name)}</strong>,</p>
         <p style="margin:0 0 20px;font-size:14px;color:#334155;line-height:1.7;">An admin has generated a new temporary password for your Future Stack account.</p>
 
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;margin:0 0 20px;">
           <tr><td style="padding:16px 20px;">
             <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Your new password</div>
             <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:13.5px;">
-              <tr><td style="padding:3px 16px 3px 0;color:#64748b;">Login ID</td><td style="padding:3px 0;font-family:'Courier New',monospace;font-weight:700;color:#0f172a;">${data.loginEmail}</td></tr>
-              <tr><td style="padding:3px 16px 3px 0;color:#64748b;">New password</td><td style="padding:3px 0;font-family:'Courier New',monospace;font-weight:700;color:#ff6b00;">${data.tempPassword}</td></tr>
+              <tr><td style="padding:3px 16px 3px 0;color:#64748b;">Login ID</td><td style="padding:3px 0;font-family:'Courier New',monospace;font-weight:700;color:#0f172a;">${this.escapeHtml(data.loginEmail)}</td></tr>
+              <tr><td style="padding:3px 16px 3px 0;color:#64748b;">New password</td><td style="padding:3px 0;font-family:'Courier New',monospace;font-weight:700;color:#ff6b00;">${this.escapeHtml(data.tempPassword)}</td></tr>
             </table>
           </td></tr>
         </table>
@@ -574,60 +598,23 @@ export class MailService {
       courseName: string;
       refundAmount: number;
       orderId: string;
+      currency?: 'INR' | 'USD';
+      /** Days the refund takes (admin setting). Defaults to 7. */
+      etaDays?: number;
+      expectedBy?: Date;
     },
   ): Promise<void> {
-    try {
-      const text = [
-        `Hi ${data.studentName},`,
-        ``,
-        `Your refund has been processed.`,
-        ``,
-        `Course:       ${data.courseName}`,
-        `Refund amount: ₹${data.refundAmount.toLocaleString('en-IN')}`,
-        `Order ID:     ${data.orderId}`,
-        ``,
-        `The refund will be credited to your original payment method within 5-7 business days.`,
-        ``,
-        `If you have any questions, reply to this email.`,
-        ``,
-        `— Future Stack team`,
-      ].join('\n');
-
-      const html = this.fsShell(
-        'Your refund has been processed',
-        'Your refund has been initiated',
-        `
-        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${data.studentName}</strong>,</p>
-        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">Your refund for <strong>${data.courseName}</strong> has been processed successfully.</p>
-
-        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:18px 20px;margin:0 0 22px">
-          <div style="font-size:12px;font-weight:bold;color:#166534;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Refund Details</div>
-          <table style="border-collapse:collapse;font-size:14px">
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Course</td><td style="padding:4px 0;font-weight:600;color:#111827">${data.courseName}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Refund amount</td><td style="padding:4px 0;font-weight:700;color:#166534">₹${data.refundAmount.toLocaleString('en-IN')}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Order ID</td><td style="padding:4px 0;font-family:monospace;font-size:12px;color:#111827">${data.orderId}</td></tr>
-          </table>
-        </div>
-
-        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 18px">The refund will be credited to your original payment method within <strong>5-7 business days</strong>.</p>
-
-        <p style="font-size:14px;color:#374151;margin:0">If you have any questions, reply to this email.</p>
-        <p style="font-size:14px;color:#374151;margin:0">— <strong>Future Stack team</strong></p>
-      `,
-      );
-
-      await this.client.inboxes.messages.send(this.inboxId, {
-        to,
-        subject: `Refund processed for ${data.courseName} — ₹${data.refundAmount.toLocaleString('en-IN')}`,
-        text,
-        html,
-      });
-    } catch (error) {
-      this.logger.error(
-        `Failed to send refund processed email to ${to}`,
-        error,
-      );
-    }
+    const etaDays = data.etaDays ?? 7;
+    const payload: RefundProcessedData = {
+      name: data.studentName,
+      itemName: data.courseName,
+      amount: data.refundAmount,
+      currency: data.currency ?? 'INR',
+      orderRef: data.orderId,
+      etaDays,
+      expectedBy: data.expectedBy ?? new Date(Date.now() + etaDays * 24 * 60 * 60 * 1000),
+    };
+    await this.deliver(to, refundProcessedEmail(this.emailContext, payload), 'refund processed');
   }
 
   // ─── Support tickets ─────────────────────────────────────────────
@@ -662,14 +649,14 @@ export class MailService {
 
       const html = this.fsShell(
         'Support ticket created',
-        `Ticket ${shortId}`,
+        `Ticket ${this.escapeHtml(shortId)}`,
         `
-        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${data.studentName}</strong>,</p>
+        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${this.escapeHtml(data.studentName)}</strong>,</p>
         <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">We've received your support request. Our team will review it and reply as soon as possible — you'll get an email when there's an update.</p>
         <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;margin:0 0 22px">
           <table style="border-collapse:collapse;font-size:14px">
             <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Ticket</td><td style="padding:4px 0;font-family:monospace;color:#111827">${shortId}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Subject</td><td style="padding:4px 0;font-weight:600;color:#111827">${data.subject}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Subject</td><td style="padding:4px 0;font-weight:600;color:#111827">${this.escapeHtml(data.subject)}</td></tr>
           </table>
         </div>
         ${this.ticketButton('View ticket', data.url)}
@@ -712,11 +699,11 @@ export class MailService {
 
       const html = this.fsShell(
         'New reply on your ticket',
-        data.subject,
+        this.escapeHtml(data.subject),
         `
-        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${data.studentName}</strong>,</p>
-        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 16px">Our support team has replied to your ticket <strong>"${data.subject}"</strong>.</p>
-        <div style="background:#f9fafb;border-left:3px solid #2563eb;border-radius:8px;padding:14px 18px;margin:0 0 22px;font-size:14px;color:#374151;line-height:1.6">${data.preview}${data.preview.length >= 240 ? '…' : ''}</div>
+        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${this.escapeHtml(data.studentName)}</strong>,</p>
+        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 16px">Our support team has replied to your ticket <strong>"${this.escapeHtml(data.subject)}"</strong>.</p>
+        <div style="background:#f9fafb;border-left:3px solid #2563eb;border-radius:8px;padding:14px 18px;margin:0 0 22px;font-size:14px;color:#374151;line-height:1.6">${this.escapeHtml(data.preview)}${data.preview.length >= 240 ? '…' : ''}</div>
         ${this.ticketButton('Read & reply', data.url)}
       `,
       );
@@ -749,10 +736,10 @@ export class MailService {
 
       const html = this.fsShell(
         'Ticket resolved',
-        data.subject,
+        this.escapeHtml(data.subject),
         `
-        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${data.studentName}</strong>,</p>
-        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">Your ticket <strong>"${data.subject}"</strong> has been marked as <strong style="color:#166534">resolved</strong>.</p>
+        <p style="font-size:16px;color:#111827;margin:0 0 6px">Hi <strong>${this.escapeHtml(data.studentName)}</strong>,</p>
+        <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">Your ticket <strong>"${this.escapeHtml(data.subject)}"</strong> has been marked as <strong style="color:#166534">resolved</strong>.</p>
         <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 20px">If something is still not right, reply on the ticket and it will re-open automatically.</p>
         ${this.ticketButton('View ticket', data.url)}
       `,
@@ -786,14 +773,14 @@ export class MailService {
 
       const html = this.fsShell(
         'New support ticket',
-        `${data.category} · ${data.priority}`,
+        `${this.escapeHtml(data.category)} · ${this.escapeHtml(data.priority)}`,
         `
         <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 16px">A new support ticket needs attention.</p>
         <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;margin:0 0 22px">
           <table style="border-collapse:collapse;font-size:14px">
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Subject</td><td style="padding:4px 0;font-weight:600;color:#111827">${data.subject}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Category</td><td style="padding:4px 0;color:#111827">${data.category}</td></tr>
-            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Priority</td><td style="padding:4px 0;color:#111827">${data.priority}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Subject</td><td style="padding:4px 0;font-weight:600;color:#111827">${this.escapeHtml(data.subject)}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Category</td><td style="padding:4px 0;color:#111827">${this.escapeHtml(data.category)}</td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#6b7280">Priority</td><td style="padding:4px 0;color:#111827">${this.escapeHtml(data.priority)}</td></tr>
           </table>
         </div>
         ${this.ticketButton('Open in console', data.url)}
@@ -812,6 +799,77 @@ export class MailService {
         error,
       );
     }
+  }
+
+  // ─── Transactional emails (see ./templates) ───────────────────────
+
+  /** What every template needs to draw the logo header and absolute links. */
+  private get emailContext(): EmailContext {
+    return {
+      siteUrl: this.frontendUrl.split(',')[0].trim().replace(/\/+$/, ''),
+      logoUrl: this.logoUrl,
+      supportEmail:
+        this.configService.get<string>('SUPPORT_EMAIL')?.trim() ||
+        'support@futurestack.co.in',
+    };
+  }
+
+  /** Renders and sends one templated email. Never throws — a mail hiccup must not break the action that triggered it. */
+  private async deliver(to: string, spec: EmailSpec, label: string): Promise<void> {
+    try {
+      const { subject, html, text } = renderEmail(spec, this.emailContext);
+      await this.client.inboxes.messages.send(this.inboxId, { to, subject, text, html });
+    } catch (error) {
+      this.logger.error(`Failed to send ${label} email to ${to}`, error);
+    }
+  }
+
+  sendOrderConfirmationEmail(to: string, data: OrderConfirmationData) {
+    return this.deliver(to, orderConfirmationEmail(this.emailContext, data), 'order confirmation');
+  }
+
+  sendWelcomeEmail(to: string, data: WelcomeData) {
+    return this.deliver(to, welcomeEmail(this.emailContext, data), 'welcome');
+  }
+
+  sendVerifyEmailEmail(to: string, data: { name: string; verifyUrl: string }) {
+    return this.deliver(to, verifyEmailEmail(this.emailContext, data), 'email verification');
+  }
+
+  sendPaymentFailedEmail(to: string, data: PaymentFailedData) {
+    return this.deliver(to, paymentFailedEmail(this.emailContext, data), 'payment failed');
+  }
+
+  sendRefundRejectedEmail(to: string, data: RefundRejectedData) {
+    return this.deliver(to, refundRejectedEmail(this.emailContext, data), 'refund rejected');
+  }
+
+  sendGiftEnrollmentEmail(to: string, data: GiftData) {
+    return this.deliver(to, giftEnrollmentEmail(this.emailContext, data), 'gift enrollment');
+  }
+
+  sendCertificateReadyEmail(to: string, data: CertificateData) {
+    return this.deliver(to, certificateReadyEmail(this.emailContext, data), 'certificate');
+  }
+
+  sendTrainerApprovedEmail(to: string, data: { name: string }) {
+    return this.deliver(to, trainerApprovedEmail(this.emailContext, data), 'trainer approved');
+  }
+
+  sendTrainerRejectedEmail(to: string, data: { name: string; reason?: string | null }) {
+    return this.deliver(to, trainerRejectedEmail(this.emailContext, data), 'trainer rejected');
+  }
+
+  sendTicketClosingSoonEmail(to: string, data: TicketMailData & { daysLeft: number }) {
+    return this.deliver(to, ticketClosingSoonEmail(this.emailContext, data), 'ticket closing soon');
+  }
+
+  sendTicketClosedEmail(to: string, data: TicketMailData & { auto: boolean }) {
+    return this.deliver(to, ticketClosedEmail(this.emailContext, data), 'ticket closed');
+  }
+
+  sendPasswordChangedEmail(to: string, data: { name: string; changedAt: Date }) {
+    return this.deliver(to, passwordChangedEmail(this.emailContext, data), 'password changed');
   }
 
   /**
@@ -968,7 +1026,7 @@ export class MailService {
 
       const html = this.fsShell(
         'New contact inquiry',
-        `Contact form · ${typeLabel}`,
+        `Contact form · ${this.escapeHtml(typeLabel)}`,
         `
         <p style="margin:0 0 16px;font-size:14px;color:#334155;line-height:1.7;">Someone reached out through the <strong>Contact</strong> form.</p>
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
@@ -987,10 +1045,10 @@ export class MailService {
       const text = [
         `New contact inquiry — ${typeLabel}`,
         '',
-        `Name:    ${data.name}`,
-        `Email:   ${data.email}`,
-        data.phone ? `Phone:   ${data.phone}` : '',
-        data.company ? `Company: ${data.company}` : '',
+        `Name:    ${this.escapeHtml(data.name)}`,
+        `Email:   ${this.escapeHtml(data.email)}`,
+        data.phone ? `Phone:   ${this.escapeHtml(data.phone)}` : '',
+        data.company ? `Company: ${this.escapeHtml(data.company)}` : '',
         '',
         'Message:',
         data.message,
@@ -1008,19 +1066,30 @@ export class MailService {
       return true;
     } catch (error) {
       this.logger.error(
-        `Failed to send contact email (from ${data.email})`,
+        `Failed to send contact email (from ${this.escapeHtml(data.email)})`,
         error,
       );
       return false;
     }
   }
 
-  private escapeHtml(s: string): string {
-    return s
+  /**
+   * A value for an href="..." attribute: only http(s) links are allowed
+   * (anything else, e.g. javascript:, becomes "#"), and it is HTML-escaped so it
+   * can't break out of the attribute.
+   */
+  private safeHref(url: string): string {
+    const u = String(url ?? '').trim();
+    return this.escapeHtml(/^https?:\/\//i.test(u) ? u : '#');
+  }
+
+  private escapeHtml(s: string | null | undefined): string {
+    return String(s ?? '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   // ── Raw inbox reading — every real message in the support inbox, not just

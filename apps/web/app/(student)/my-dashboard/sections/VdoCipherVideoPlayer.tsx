@@ -57,6 +57,22 @@ function clampPosition(sec: number, duration: number): number {
   return Math.min(Math.max(0, Math.floor(sec)), duration)
 }
 
+// Progress writes that are still in flight. A lesson that has just finished is
+// only marked complete on the server once its final write lands, so anything that
+// reads "is the previous video done?" (e.g. opening the next lesson) must wait
+// for these first, or it races the write and sees the video as unfinished.
+const pendingProgressWrites = new Set<Promise<unknown>>()
+
+export async function waitForPendingProgressWrites(): Promise<void> {
+  if (pendingProgressWrites.size === 0) return
+  await Promise.allSettled([...pendingProgressWrites])
+}
+
+// If the write that completes a video fails (network blip right at the end),
+// retry a few times instead of leaving the lesson stuck as "not completed".
+const COMPLETION_RETRY_DELAY_MS = 3_000
+const COMPLETION_MAX_RETRIES = 3
+
 export default function VdoCipherVideoPlayer({
   videoId,
   title,
@@ -81,6 +97,11 @@ export default function VdoCipherVideoPlayer({
   const lastHeartbeatAtRef = useRef(0)
   const lastSentPositionRef = useRef(-1)
   const completedRef = useRef(false)
+  const completionPendingRef = useRef(false)
+  // Lets the completion-retry timer call the latest version of the sender.
+  const retrySendRef = useRef<
+    ((positionSec: number, opts?: { force?: boolean; attempt?: number }) => Promise<void>) | null
+  >(null)
 
   useEffect(() => {
     loadToken().then((t) => {
@@ -100,7 +121,7 @@ export default function VdoCipherVideoPlayer({
    * - `keepalive` lets force-flushes survive navigation/tab close.
    */
   const sendProgressHeartbeat = useCallback(
-    async (positionSec: number, opts?: { force?: boolean }) => {
+    async (positionSec: number, opts?: { force?: boolean; attempt?: number }): Promise<void> => {
       const authToken = tokenRef.current
       if (!authToken) return
 
@@ -111,36 +132,77 @@ export default function VdoCipherVideoPlayer({
       if (!opts?.force && now - lastHeartbeatAtRef.current < HEARTBEAT_INTERVAL_MS) return
       lastHeartbeatAtRef.current = now
 
+      // Only ONE "reached the end" write at a time. The player reports the end
+      // from several places (timeupdate near-end, 'ended', the position effect,
+      // unmount flush); without this they race each other.
+      const reachesEnd = durationSeconds > 0 && clamped >= durationSeconds
+      if (reachesEnd) {
+        if (completedRef.current || completionPendingRef.current) return
+        completionPendingRef.current = true
+      }
+
+      const write = (async () => {
+        let ok = false
+        try {
+          const progressEndpoint = type === "project"
+            ? `/api/student/project-videos/${videoId}/progress`
+            : `/api/student/videos/${videoId}/progress`;
+          const res = await fetch(progressEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ positionSec: clamped }),
+            keepalive: opts?.force ?? false,
+          })
+          if (res.ok) {
+            const data = await res.json()
+            ok = true
+            if (clamped > lastSentPositionRef.current) {
+              lastSentPositionRef.current = clamped
+            }
+
+            // Tell the parent a lesson is complete ONLY after the server has
+            // committed it, so the course-detail refresh it triggers sees the
+            // video as done. `isCompleted` (not just `justCompleted`) so that if
+            // an earlier write already completed it, we still notify exactly once.
+            if (data.isCompleted && !completedRef.current) {
+              completedRef.current = true
+              onComplete?.()
+            }
+          }
+        } catch {
+          // Progress heartbeat failed - handled below
+        } finally {
+          if (reachesEnd) completionPendingRef.current = false
+        }
+
+        if (!ok && reachesEnd && !completedRef.current) {
+          const attempt = opts?.attempt ?? 0
+          if (attempt < COMPLETION_MAX_RETRIES) {
+            window.setTimeout(() => {
+              if (!completedRef.current) {
+                void retrySendRef.current?.(durationSeconds, { force: true, attempt: attempt + 1 })
+              }
+            }, COMPLETION_RETRY_DELAY_MS)
+          }
+        }
+      })()
+
+      pendingProgressWrites.add(write)
       try {
-        const progressEndpoint = type === "project"
-          ? `/api/student/project-videos/${videoId}/progress`
-          : `/api/student/videos/${videoId}/progress`;
-        const res = await fetch(progressEndpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify({ positionSec: clamped }),
-          keepalive: opts?.force ?? false,
-        })
-        if (!res.ok) return
-
-        const data = await res.json()
-        if (clamped > lastSentPositionRef.current) {
-          lastSentPositionRef.current = clamped
-        }
-
-        if (data.justCompleted && onComplete && !completedRef.current) {
-          completedRef.current = true
-          onComplete()
-        }
-      } catch {
-        // Progress heartbeat failed - silently ignore
+        await write
+      } finally {
+        pendingProgressWrites.delete(write)
       }
     },
-    [videoId, durationSeconds, onComplete]
+    [videoId, durationSeconds, onComplete, type]
   )
+
+  useEffect(() => {
+    retrySendRef.current = sendProgressHeartbeat
+  }, [sendProgressHeartbeat])
 
   // Fetches the playback OTP once a token is available (and on Retry).
   // All state updates happen after `await`, so nothing fires synchronously
@@ -217,7 +279,16 @@ export default function VdoCipherVideoPlayer({
           // left the bar visibly stuck short of 100% and made completion depend
           // entirely on the 'ended' event firing (which iframe players sometimes
           // miss). Snap to "done" once we're within the epsilon instead.
-          const nearEnd = durationSeconds > 0 && positionSec >= durationSeconds - NEAR_END_EPSILON_SEC
+          // The stored duration can be a little longer than the real video, in
+          // which case the playhead never gets within the epsilon of it. Also
+          // compare against the duration the player itself reports.
+          const realDuration = typeof video.duration === "number" && Number.isFinite(video.duration) && video.duration > 0
+            ? video.duration
+            : 0
+          const nearEnd =
+            durationSeconds > 0 &&
+            (positionSec >= durationSeconds - NEAR_END_EPSILON_SEC ||
+              (realDuration > 0 && video.currentTime >= realDuration - NEAR_END_EPSILON_SEC))
           const effectivePosition = nearEnd ? durationSeconds : positionSec
           setPosition(effectivePosition)
           positionRef.current = effectivePosition
@@ -302,15 +373,16 @@ export default function VdoCipherVideoPlayer({
     }
   }, [position, playing, isCompleted, durationSeconds, sendProgressHeartbeat, onProgress])
 
-  // Mark complete as soon as playback reaches the end (force-flushes duration)
+  // Mark complete as soon as playback reaches the end (force-flushes duration).
+  // The parent is notified from inside sendProgressHeartbeat once the server has
+  // confirmed it - calling onComplete() here, before the write finished, made the
+  // parent re-fetch the course too early and show the video as still unfinished.
   useEffect(() => {
     if (!playing || isCompleted || completedRef.current) return
     if (position >= durationSeconds && durationSeconds > 0) {
-      completedRef.current = true
-      sendProgressHeartbeat(durationSeconds, { force: true })
-      if (onComplete) onComplete()
+      void sendProgressHeartbeat(durationSeconds, { force: true })
     }
-  }, [position, durationSeconds, isCompleted, playing, onComplete, sendProgressHeartbeat])
+  }, [position, durationSeconds, isCompleted, playing, sendProgressHeartbeat])
 
   // Flush the latest position on unmount, tab hide, and page unload
   useEffect(() => {

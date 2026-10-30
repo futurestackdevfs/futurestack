@@ -29,7 +29,7 @@ function makePrismaMock() {
   return {
     tx,
     prisma: {
-      user: { findUnique: jest.fn() },
+      user: { findUnique: jest.fn(), update: jest.fn() },
       course: { findUnique: jest.fn() },
       project: { findUnique: jest.fn() },
       enrollment: { findUnique: jest.fn() },
@@ -49,6 +49,7 @@ describe('AdminService — gift (manual) enrollment', () => {
   let prisma: PrismaService;
   let tx: ReturnType<typeof makePrismaMock>['tx'];
   let invoices: { createInvoice: jest.Mock };
+  let mail: { sendGiftEnrollmentEmail: jest.Mock; sendTrainerApprovedEmail: jest.Mock; sendTrainerRejectedEmail: jest.Mock };
 
   beforeEach(() => {
     const m = makePrismaMock();
@@ -59,10 +60,15 @@ describe('AdminService — gift (manual) enrollment', () => {
         .fn()
         .mockResolvedValue({ invoiceNumber: 'FS-202610-0042' }),
     };
+    mail = {
+      sendGiftEnrollmentEmail: jest.fn().mockResolvedValue(undefined),
+      sendTrainerApprovedEmail: jest.fn().mockResolvedValue(undefined),
+      sendTrainerRejectedEmail: jest.fn().mockResolvedValue(undefined),
+    };
     service = new AdminService(
       prisma,
       {} as never,
-      {} as never,
+      mail as never,
       {} as never,
       {} as never,
       {} as never,
@@ -285,6 +291,42 @@ describe('AdminService — gift (manual) enrollment', () => {
         /not found/,
       );
       expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('emails', () => {
+    it('tells the student about a gifted course (name, code, invoice number)', async () => {
+      await service.manualEnroll('stu', { courseId: 'crs' });
+
+      expect(mail.sendGiftEnrollmentEmail).toHaveBeenCalledWith('stu@example.com', {
+        name: 'Stu',
+        itemName: 'React',
+        kind: 'course',
+        giftCode: 'GIFT',
+        invoiceNumber: 'FS-202610-0042',
+      });
+    });
+
+    it('does not email when the gift is refused (already enrolled)', async () => {
+      (prisma.enrollment.findUnique as jest.Mock).mockResolvedValueOnce({ id: 'already' });
+      await expect(service.manualEnroll('stu', { courseId: 'crs' })).rejects.toThrow(ConflictException);
+      expect(mail.sendGiftEnrollmentEmail).not.toHaveBeenCalled();
+    });
+
+    it('emails the trainer when approved, and when rejected — with the reason', async () => {
+      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'tr', role: 'TRAINER', approvalStatus: 'PENDING', name: 'Tina', email: 'tina@example.com',
+      });
+      (prisma.user.update as jest.Mock).mockResolvedValue({ id: 'tr', name: 'Tina', email: 'tina@example.com' });
+
+      await service.approveTrainer('tr');
+      expect(mail.sendTrainerApprovedEmail).toHaveBeenCalledWith('tina@example.com', { name: 'Tina' });
+
+      await service.rejectTrainer('tr', 'Need more teaching experience');
+      expect(mail.sendTrainerRejectedEmail).toHaveBeenCalledWith('tina@example.com', {
+        name: 'Tina',
+        reason: 'Need more teaching experience',
+      });
     });
   });
 });

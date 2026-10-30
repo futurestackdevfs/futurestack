@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { authApi } from '../../lib/auth-api';
 import { saveToken } from '../../lib/token-store';
+import { oauthStateMatches, takeStoredOAuthState } from '../../lib/oauth-state';
 
 function decodeId(token: string) {
   return JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).sub as string;
@@ -17,18 +18,19 @@ import { emit } from '../../hooks/use-auth';
  * link, or `window.location` logging could pick it up. A fragment (unlike a
  * query string) is never sent to the server or leaked via Referer.
  */
-function takeTokenFromHash(): { token: string; refresh: string | null } | null {
+function takeTokenFromHash(): { token: string; refresh: string | null; state: string | null } | null {
   if (typeof window === 'undefined') return null;
   const raw = window.location.hash.replace(/^#/, '');
   if (!raw) return null;
   const params = new URLSearchParams(raw);
   const token = params.get('token');
   const refresh = params.get('refresh');
+  const state = params.get('state');
   if (token) {
     // Scrub the fragment without adding a history entry.
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
   }
-  return token ? { token, refresh } : null;
+  return token ? { token, refresh, state } : null;
 }
 
 function OAuthHandler() {
@@ -41,7 +43,16 @@ function OAuthHandler() {
       setError('No token received from OAuth provider.');
       return;
     }
-    const { token, refresh } = taken;
+    const { token, refresh, state } = taken;
+
+    // Login-CSRF guard: only accept tokens that belong to a sign-in THIS tab
+    // started. The nonce was stored by loginWithGoogle() and travelled through
+    // Google; a crafted link carrying someone else's tokens can't know it.
+    // The stored nonce is single use.
+    if (!oauthStateMatches(state, takeStoredOAuthState())) {
+      setError('This sign-in could not be verified. Please start again from the login page.');
+      return;
+    }
 
     authApi
       .me(token)

@@ -1,6 +1,16 @@
 import { Suspense } from "react";
 import CoursesPageClient from "./CoursesPageClient";
 import type { CardsResponse } from "./CoursesPageClient";
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Online Courses",
+  description:
+    "Browse job-ready online courses with hands-on projects, expert mentors and certificates: MERN, data analytics, DevOps, cloud, AI and more.",
+  path: "/courses",
+});
+
 
 const BACKEND = process.env.API_URL ?? "http://localhost:3002";
 

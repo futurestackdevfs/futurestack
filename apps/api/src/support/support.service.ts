@@ -277,7 +277,7 @@ export class SupportService {
     });
     await this.prisma.supportTicket.update({
       where: { id },
-      data: { status: 'OPEN', lastMessageAt: new Date() },
+      data: { status: 'OPEN', lastMessageAt: new Date(), autoCloseReminderSentAt: null },
     });
     return this.serializeMessage(message);
   }
@@ -294,10 +294,13 @@ export class SupportService {
   }
 
   /**
-   * Closes tickets the student has gone quiet on: waiting on the student
+   * Looks after tickets the student has gone quiet on: waiting on the student
    * (PENDING) or resolved, with no message for `ticketAutoCloseDays` days
-   * (admin setting, default 3). Tickets waiting on an AGENT are never closed
-   * here — the ball is in our court. Support can reopen any of them.
+   * (admin setting, default 3).
+   *   1. Those past the limit are closed, and the student is told.
+   *   2. Those one day from the limit get a single "still need help?" reminder.
+   * Tickets waiting on an AGENT are never touched — the ball is in our court.
+   * Support can reopen any closed ticket. Returns how many were closed.
    */
   @Cron('*/30 * * * *')
   async autoCloseIdleTickets(now: Date = new Date()): Promise<number> {
@@ -306,22 +309,77 @@ export class SupportService {
         select: { ticketAutoCloseDays: true },
       });
       const days = settings?.ticketAutoCloseDays ?? DEFAULT_AUTO_CLOSE_DAYS;
-      const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      const DAY = 24 * 60 * 60 * 1000;
 
-      const result = await this.prisma.supportTicket.updateMany({
-        where: {
-          OR: [
-            { status: 'PENDING', lastMessageAt: { lt: cutoff } },
-            // A resolved ticket's clock starts at the later of its last message and its resolution.
-            { status: 'RESOLVED', lastMessageAt: { lt: cutoff }, resolvedAt: { lt: cutoff } },
-          ],
-        },
-        data: { status: 'CLOSED', closedAt: now, closedReason: 'AUTO' },
+      // A resolved ticket's clock starts at the later of its last message and its resolution.
+      const idleSince = (cutoff: Date): Prisma.SupportTicketWhereInput => ({
+        OR: [
+          { status: 'PENDING', lastMessageAt: { lt: cutoff } },
+          { status: 'RESOLVED', lastMessageAt: { lt: cutoff }, resolvedAt: { lt: cutoff } },
+        ],
       });
-      if (result.count > 0) {
-        this.logger.log(`Auto-closed ${result.count} idle ticket(s) (no student reply for ${days} days)`);
+      const mailFields = {
+        id: true,
+        number: true,
+        subject: true,
+        student: { select: { name: true, email: true } },
+      } as const;
+
+      // 1 ── close
+      const toClose = await this.prisma.supportTicket.findMany({
+        where: idleSince(new Date(now.getTime() - days * DAY)),
+        select: mailFields,
+        take: 200,
+      });
+      let closed = 0;
+      for (const t of toClose) {
+        // Re-check in the UPDATE itself so a reply that landed a moment ago wins.
+        const r = await this.prisma.supportTicket.updateMany({
+          where: { id: t.id, ...idleSince(new Date(now.getTime() - days * DAY)) },
+          data: { status: 'CLOSED', closedAt: now, closedReason: 'AUTO' },
+        });
+        if (r.count === 0) continue;
+        closed++;
+        if (t.student.email) {
+          void this.mail.sendTicketClosedEmail(t.student.email, {
+            name: t.student.name,
+            ref: this.ref(t.number),
+            subject: t.subject,
+            ticketUrl: this.studentUrl(t.id),
+            auto: true,
+          });
+        }
       }
-      return result.count;
+      if (closed > 0) {
+        this.logger.log(`Auto-closed ${closed} idle ticket(s) (no student reply for ${days} days)`);
+      }
+
+      // 2 ── one day to go: remind once (skipped when the limit is a single day)
+      if (days >= 2) {
+        const toRemind = await this.prisma.supportTicket.findMany({
+          where: {
+            autoCloseReminderSentAt: null,
+            ...idleSince(new Date(now.getTime() - (days - 1) * DAY)),
+          },
+          select: mailFields,
+          take: 200,
+        });
+        for (const t of toRemind) {
+          const r = await this.prisma.supportTicket.updateMany({
+            where: { id: t.id, autoCloseReminderSentAt: null },
+            data: { autoCloseReminderSentAt: now },
+          });
+          if (r.count === 0 || !t.student.email) continue;
+          void this.mail.sendTicketClosingSoonEmail(t.student.email, {
+            name: t.student.name,
+            ref: this.ref(t.number),
+            subject: t.subject,
+            ticketUrl: this.studentUrl(t.id),
+            daysLeft: 1,
+          });
+        }
+      }
+      return closed;
     } catch (e) {
       // A failed sweep must never take anything down — it just runs again in 30 minutes.
       this.logger.error('Auto-closing idle tickets failed', e instanceof Error ? e.stack : e);
@@ -434,6 +492,7 @@ export class SupportService {
         data: {
           status: ticket.status === 'RESOLVED' ? 'RESOLVED' : 'PENDING',
           lastMessageAt: new Date(),
+          autoCloseReminderSentAt: null,
           ...claim,
         },
       });
@@ -474,6 +533,7 @@ export class SupportService {
         data.resolvedAt = null;
         data.closedAt = null;
         data.closedReason = null;
+        data.autoCloseReminderSentAt = null;
       }
     }
 

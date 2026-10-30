@@ -747,6 +747,26 @@ export class StudentService {
     });
   }
 
+  /**
+   * A student may use a project's videos/progress only with an active purchase
+   * of that project - the same predicate getStudentProjects() uses to list
+   * "my projects". The one free preview video is NOT served from here: it has
+   * its own public endpoint (ProjectsService.getPublicCurriculumVideoOtp).
+   */
+  private async assertProjectPurchased(studentId: string, projectId: string) {
+    const owned = await this.prisma.orderItem.findFirst({
+      where: {
+        projectId,
+        status: 'active',
+        order: { userId: studentId },
+      },
+      select: { id: true },
+    });
+    if (!owned) {
+      throw new ForbiddenException('You have not purchased this project.');
+    }
+  }
+
   async updateProjectVideoProgress(
     studentId: string,
     projectVideoId: string,
@@ -760,6 +780,8 @@ export class StudentService {
     if (!projectVideo) {
       throw new NotFoundException('Project video not found');
     }
+
+    await this.assertProjectPurchased(studentId, projectVideo.curriculum.projectId);
 
     const clampedPosition = Math.max(
       0,
@@ -814,6 +836,8 @@ export class StudentService {
 
     if (!projectVideo) throw new NotFoundException('Project video not found');
 
+    await this.assertProjectPurchased(studentId, projectVideo.curriculum.projectId);
+
     if (projectVideo.videoStatus !== 'READY') {
       throw new BadRequestException(
         'This video is not yet available for playback',
@@ -848,6 +872,8 @@ export class StudentService {
   }
 
   async getProjectProgress(studentId: string, projectId: string) {
+    await this.assertProjectPurchased(studentId, projectId);
+
     // Get all curriculum videos for the project
     const curriculum = await this.prisma.projectCurriculum.findMany({
       where: { projectId },

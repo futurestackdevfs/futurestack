@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 
 @Injectable()
 export class CertificatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+  ) {}
 
   async checkAndIssueCertificate(
     studentId: string,
@@ -66,7 +70,7 @@ export class CertificatesService {
     // Generate credential ID using the course code field
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
-      select: { code: true },
+      select: { code: true, title: true },
     });
 
     const year = new Date().getFullYear();
@@ -93,6 +97,33 @@ export class CertificatesService {
       throw err;
     }
 
+    // Tell the student their certificate is ready. Not awaited; never throws.
+    void this.notifyIssued(studentId, course?.title ?? 'your course', credentialId, score);
+
     return { issued: true, credentialId };
+  }
+
+  private async notifyIssued(
+    studentId: string,
+    courseName: string,
+    credentialId: string,
+    score: number | null,
+  ): Promise<void> {
+    try {
+      const student = await this.prisma.user.findUnique({
+        where: { id: studentId },
+        select: { name: true, email: true },
+      });
+      if (!student) return;
+      await this.mail.sendCertificateReadyEmail(student.email, {
+        name: student.name,
+        courseName,
+        credentialId,
+        score,
+        issuedOn: new Date(),
+      });
+    } catch {
+      // A notification failure must never undo a certificate that was just issued.
+    }
   }
 }
