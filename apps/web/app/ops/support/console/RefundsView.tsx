@@ -17,6 +17,7 @@ interface Row {
   course: { title: string } | null;
   project: { name: string } | null;
   ticket: { id: string; ref: string; subject: string } | null;
+  initiatedBy: { name: string; role: string };
 }
 
 interface Page {
@@ -26,7 +27,7 @@ interface Page {
 }
 
 const TABS = [
-  { key: "all", label: "All mine", value: undefined },
+  { key: "all", label: "All", value: undefined },
   { key: "pending", label: "Initiated", value: "PENDING" },
   { key: "processed", label: "Confirmed", value: "PROCESSED" },
   { key: "rejected", label: "Rejected", value: "REJECTED" },
@@ -42,6 +43,8 @@ function fmt(iso: string) {
 /** Every refund the logged-in agent raised, with live status. Admin decisions show up here on refresh. */
 export default function RefundsView({ onOpenTicket }: { onOpenTicket: (id: string) => void }) {
   const [tab, setTab] = useState<string | undefined>(undefined);
+  // Everyone's refunds by default; "Mine" narrows it to the ones this agent raised.
+  const [scope, setScope] = useState<"all" | "mine">("all");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Page | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,7 +52,8 @@ export default function RefundsView({ onOpenTicket }: { onOpenTicket: (id: strin
 
   const load = useCallback(async () => {
     try {
-      const p = new URLSearchParams({ mine: "true", page: String(page), perPage: String(PER_PAGE) });
+      const p = new URLSearchParams({ page: String(page), perPage: String(PER_PAGE) });
+      if (scope === "mine") p.set("mine", "true");
       if (tab) p.set("status", tab);
       const r = await opsFetch(`/api/admin/refunds?${p}`);
       if (r.ok) setData((await r.json()) as Page);
@@ -58,7 +62,7 @@ export default function RefundsView({ onOpenTicket }: { onOpenTicket: (id: strin
     } finally {
       setLoading(false);
     }
-  }, [tab, page]);
+  }, [tab, page, scope]);
 
   useEffect(() => {
     setLoading(true);
@@ -91,10 +95,25 @@ export default function RefundsView({ onOpenTicket }: { onOpenTicket: (id: strin
     <div className="h-full flex flex-col" style={{ background: "var(--bg)" }}>
       <div className="px-5 py-3 shrink-0 flex items-center gap-3 flex-wrap" style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
         <div>
-          <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>💸 My refunds</div>
-          <div className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>refunds you raised from tickets · updates every 30s</div>
+          <div className="text-[14px] font-bold" style={{ color: "var(--text)" }}>💸 Refunds</div>
+          <div className="font-mono text-[9px]" style={{ color: "var(--text3)" }}>every refund raised from tickets · updates every 30s</div>
         </div>
         <div className="ml-auto flex items-center gap-1 rounded-lg px-1 py-[3px]" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
+          {(["all", "mine"] as const).map((v) => {
+            const active = scope === v;
+            return (
+              <button
+                key={v}
+                onClick={() => { setPage(1); setScope(v); }}
+                className="px-2.5 py-1 rounded-md text-[10.5px] font-semibold cursor-pointer"
+                style={{ background: active ? "var(--blue)" : "transparent", color: active ? "#fff" : "var(--text2)", border: "none" }}
+              >
+                {v === "all" ? "All refunds" : "Mine"}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-1 rounded-lg px-1 py-[3px]" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
           {TABS.map((t) => {
             const active = tab === t.value;
             return (
@@ -124,7 +143,7 @@ export default function RefundsView({ onOpenTicket }: { onOpenTicket: (id: strin
             <table className="w-full text-left min-w-[760px]" style={{ borderCollapse: "collapse", fontSize: 12 }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(148,163,184,.05)" }}>
-                  {["Date", "Student", "Item", "Amount", "Ticket", "Status"].map((h) => (
+                  {["Date", "Student", "Item", "Amount", "Raised by", "Ticket", "Status"].map((h) => (
                     <th key={h} className="font-mono text-[9px] font-bold uppercase tracking-[.08em] px-3 py-2" style={{ color: "var(--text3)" }}>{h}</th>
                   ))}
                 </tr>
@@ -132,7 +151,7 @@ export default function RefundsView({ onOpenTicket }: { onOpenTicket: (id: strin
               <tbody>
                 {rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-3 py-10 text-center text-[11.5px]" style={{ color: "var(--text3)" }}>
+                    <td colSpan={7} className="px-3 py-10 text-center text-[11.5px]" style={{ color: "var(--text3)" }}>
                       {loading ? "Loading…" : "No refunds here yet. Raise one from a ticket with “+ Refund”."}
                     </td>
                   </tr>
@@ -151,6 +170,10 @@ export default function RefundsView({ onOpenTicket }: { onOpenTicket: (id: strin
                       </td>
                       <td className="px-3 py-2.5 font-mono text-[11.5px] font-bold tabular-nums whitespace-nowrap" style={{ color: "var(--text)" }}>
                         {money(r.amount, r.order?.currency)}
+                      </td>
+                      <td className="px-3 py-2.5 text-[11px]" style={{ color: "var(--text2)" }}>
+                        {r.initiatedBy.name}
+                        <span className="ml-1 font-mono text-[8px] font-bold" style={{ color: "var(--text3)" }}>{r.initiatedBy.role}</span>
                       </td>
                       <td className="px-3 py-2.5">
                         {r.ticket ? (

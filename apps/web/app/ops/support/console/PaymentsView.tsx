@@ -111,9 +111,19 @@ export default function PaymentsView() {
   const paidTotal = stats.PAID?.total ?? 0;
 
   return (
-    <div className="h-full flex" style={{ background: "var(--bg)" }}>
+    <div className="h-full flex flex-col" style={{ background: "var(--bg)" }}>
+      {selId && (
+        <button
+          onClick={() => setSelId(null)}
+          className="lg:hidden flex items-center gap-1.5 px-3 py-2 text-[11.5px] font-semibold shrink-0 cursor-pointer"
+          style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)", color: "var(--blue)", borderTop: "none", borderLeft: "none", borderRight: "none" }}
+        >
+          ← Back to list
+        </button>
+      )}
+      <div className="flex flex-1 min-h-0 min-w-0">
       {/* ── order list ── */}
-      <div className="shrink-0 flex flex-col" style={{ width: 400, borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
+      <div className={`${selId ? "hidden lg:flex" : "flex"} w-full lg:w-[400px] shrink-0 flex-col`} style={{ borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
         <div className="px-3.5 py-2.5 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
           <div className="text-[13px] font-extrabold" style={{ color: "var(--text)" }}>💳 Payments</div>
           <div className="font-mono text-[9px] mt-0.5" style={{ color: "var(--text3)" }}>
@@ -174,7 +184,7 @@ export default function PaymentsView() {
       </div>
 
       {/* ── order detail (read-only) ── */}
-      <div className="flex-1 overflow-y-auto">
+      <div className={`${selId ? "block" : "hidden lg:block"} flex-1 overflow-y-auto min-w-0`}>
         {!selId ? (
           <div className="h-full flex items-center justify-center text-[12px]" style={{ color: "var(--text3)" }}>
             Select an order to see full details.
@@ -206,7 +216,7 @@ export default function PaymentsView() {
             </div>
 
             <div className="p-4 mx-auto flex gap-5 flex-wrap" style={{ maxWidth: 820 }}>
-              <div className="flex-1 min-w-[320px]">
+              <div className="flex-1 min-w-[min(320px,100%)]">
                 {/* items */}
                 <SectionTitle>Items ({detail.items.length})</SectionTitle>
                 <div className="flex flex-col gap-2 mb-5">
@@ -271,7 +281,7 @@ export default function PaymentsView() {
                 )}
               </div>
 
-              <div className="w-[280px] shrink-0">
+              <div className="w-full sm:w-[280px] shrink-0">
                 {/* amount breakdown */}
                 <SectionTitle>Amount breakdown</SectionTitle>
                 <div className="rounded-lg p-3 mb-5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
@@ -307,6 +317,7 @@ export default function PaymentsView() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

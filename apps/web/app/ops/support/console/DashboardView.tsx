@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { KpiRow, Panel, ViewHeader, ActionBtn } from "@/app/ops/coordinator/sections/ui";
+import { SUPPORT_FROM_ADDRESS } from "../lib/mail-from";
 import {
   CATEGORY_LABEL,
   PRIORITY_STYLE,
@@ -46,9 +47,9 @@ export default function DashboardView({
   onOpenTicket: (id: string) => void;
   onGoView: (v: string) => void;
 }) {
+  const [now] = useState(() => Date.now());
   const d = useMemo(() => {
     const active = tickets.filter((t) => ACTIVE.has(t.status));
-    const now = Date.now();
     const unassigned = active.filter((t) => !t.assignee).length;
     const mine = active.filter((t) => t.assignee?.id === meId).length;
     const urgentOpen = active.filter((t) => t.priority === "URGENT" || t.priority === "HIGH").length;
@@ -81,7 +82,7 @@ export default function DashboardView({
       .slice(0, 6);
 
     return { active, unassigned, mine, urgentOpen, aging72, noReply, resolved24, priorityMix, categoryMix, emails, emailTotal, recent, oldest };
-  }, [tickets, meId]);
+  }, [tickets, meId, now]);
 
   const activeTotal = d.active.length || 1;
 
@@ -106,7 +107,7 @@ export default function DashboardView({
       ]} />
 
       <div className="flex gap-4 flex-wrap">
-        <div className="flex-1 min-w-[420px]">
+        <div className="flex-1 min-w-[min(420px,100%)]">
           <Panel
             title="Needs attention — oldest active"
             count={`${d.oldest.length}`}
@@ -176,7 +177,7 @@ export default function DashboardView({
           </Panel>
         </div>
 
-        <div className="w-[300px] shrink-0">
+        <div className="w-full md:w-[300px] shrink-0">
           <Panel title="Active by priority" count={`${d.active.length}`}>
             <div className="py-1.5">
               {d.priorityMix.map(({ p, n }) => (
@@ -199,7 +200,7 @@ export default function DashboardView({
             <div className="p-3 flex flex-col gap-2">
               <div className="flex items-center justify-between text-[9px] font-mono pb-1" style={{ color: "var(--text3)", borderBottom: "1px solid var(--border)" }}>
                 <span>from</span>
-                <span style={{ color: "var(--text2)" }}>futurestack@agentmail.to</span>
+                <span style={{ color: "var(--text2)" }}>{SUPPORT_FROM_ADDRESS}</span>
               </div>
               {[
                 { icon: "🎫", label: "Ticket confirmations", n: d.emails.opened, color: "var(--blue)" },

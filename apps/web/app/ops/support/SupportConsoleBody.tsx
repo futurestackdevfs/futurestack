@@ -7,6 +7,7 @@ import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import { showToast } from "@/lib/toast";
 import ClosedBanner from "./sections/ClosedBanner";
 import TicketRefund from "./sections/TicketRefund";
+import { SUPPORT_FROM_ADDRESS } from "./lib/mail-from";
 import {
   CATEGORY_LABEL,
   PRIORITY_STYLE,
@@ -52,7 +53,7 @@ export function SupportConsoleBody({
   const [meId, setMeId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  const [statusTab, setStatusTab] = useState<string>(preset?.status ?? "OPEN");
+  const [statusTab, setStatusTab] = useState<string>(preset?.status ?? "");
   const [scope, setScope] = useState<"all" | "me" | "unassigned">(preset?.scope ?? "all");
   const [q, setQ] = useState("");
   const [priority, setPriority] = useState("");
@@ -73,7 +74,7 @@ export function SupportConsoleBody({
   }, [initialTicketId]);
 
   useEffect(() => {
-    setStatusTab(preset?.status ?? "OPEN");
+    setStatusTab(preset?.status ?? "");
     setScope(preset?.scope ?? "all");
     if (!initialTicketId) setSelectedId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,10 +176,10 @@ export function SupportConsoleBody({
         )}
       </div>
 
-      <div className="flex" style={{ flex: 1, overflow: "hidden" }}>
+      <div className="flex min-h-0 min-w-0" style={{ flex: 1, overflow: "hidden" }}>
         {/* Ticket list */}
-        <div className="flex flex-col shrink-0"
-          style={{ width: embedded ? 340 : 380, borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
+        <div className={`${selectedId ? "hidden lg:flex" : "flex"} flex-col shrink-0 w-full ${embedded ? "lg:w-[340px]" : "lg:w-[380px]"}`}
+          style={{ borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
           <div className="flex gap-1.5 px-3 pt-3 pb-2 flex-wrap">
             {(["OPEN", "PENDING", "RESOLVED"] as TicketStatus[]).map((s) => (
               <div key={s} className="flex-1 min-w-[70px] rounded-lg px-2 py-1.5 text-center"
@@ -265,7 +266,7 @@ export function SupportConsoleBody({
         </div>
 
         {/* Detail */}
-        <div className="flex-1 overflow-hidden" style={{ background: "var(--bg)" }}>
+        <div className={`${selectedId ? "block" : "hidden lg:block"} flex-1 overflow-hidden min-w-0`} style={{ background: "var(--bg)" }}>
           {!selectedId ? (
             <div className="h-full flex items-center justify-center text-[12px]" style={{ color: "var(--text3)" }}>
               Select a ticket from the queue.
@@ -367,7 +368,7 @@ function TicketDetail({
   const ctx = thread.context ?? {};
   const ctxEntries = Object.entries(ctx).filter(([, v]) => v != null && v !== "");
 
-  // Notification emails the desk sends to the student (best-effort via AgentMail).
+  // Notification emails the desk sends to the student (best-effort over SMTP).
   // Derived from ticket state — internal notes, student replies and closes send nothing.
   const emailLog: { kind: string; label: string; at: string }[] = [
     { kind: "opened", label: "Ticket confirmation", at: thread.createdAt },
@@ -382,7 +383,7 @@ function TicketDetail({
       <div className="px-4 py-3 flex items-start gap-3" style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)" }}>
         <button onClick={onBack} className="text-[16px] leading-none mt-0.5 shrink-0" style={{ color: "var(--text3)" }}>←</button>
         <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-bold truncate" style={{ color: "var(--text)" }}>{thread.subject}</div>
+          <div className="text-[13px] sm:text-[14px] font-bold truncate" style={{ color: "var(--text)" }}>{thread.subject}</div>
           <div className="flex items-center gap-1.5 text-[10.5px] mt-0.5 flex-wrap" style={{ color: "var(--text3)" }}>
             <span className="font-mono">{thread.ref}</span>
             <span>·</span>
@@ -393,10 +394,10 @@ function TicketDetail({
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-y-auto lg:overflow-hidden">
         {/* ── LEFT: dedicated customer-email panel ── */}
-        <div className="shrink-0 flex flex-col overflow-hidden"
-          style={{ width: 268, borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
+        <div className="order-3 lg:order-1 w-full lg:w-[268px] shrink-0 flex flex-col lg:overflow-hidden border-t lg:border-t-0 lg:border-r border-[var(--border)]"
+          style={{ background: "var(--surface)" }}>
           <div className="px-3 py-2 flex items-center gap-2 shrink-0"
             style={{ background: "linear-gradient(90deg, var(--orange-d), transparent)", borderBottom: "1px solid var(--border)" }}>
             <span className="text-[14px]">📧</span>
@@ -410,7 +411,7 @@ function TicketDetail({
             <div className="rounded-md p-2 flex flex-col gap-1" style={{ background: "var(--panel)", border: "1px solid var(--border)" }}>
               {[
                 ["to", thread.student.email],
-                ["from", "futurestack@agentmail.to"],
+                ["from", SUPPORT_FROM_ADDRESS],
                 ["subject", `${thread.ref} · ${thread.subject}`],
               ].map(([k, v]) => (
                 <div key={k} className="flex items-start gap-2 text-[9.5px]">
@@ -459,7 +460,7 @@ function TicketDetail({
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="order-1 lg:order-2 flex-1 flex flex-col lg:overflow-hidden min-h-[380px] lg:min-h-0 min-w-0">
           <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
             {thread.messages.map((m) => (
               <div key={m.id} className="rounded-xl px-3.5 py-2.5"
@@ -502,8 +503,8 @@ function TicketDetail({
           </div>
         </div>
 
-        <div className="shrink-0 overflow-y-auto p-3 flex flex-col gap-3"
-          style={{ width: 220, borderLeft: "1px solid var(--border)", background: "var(--surface)" }}>
+        <div className="order-2 lg:order-3 w-full lg:w-[220px] shrink-0 lg:overflow-y-auto p-3 flex flex-col gap-3 border-t lg:border-t-0 lg:border-l border-[var(--border)]"
+          style={{ background: "var(--surface)" }}>
           <MetaBlock label="Status">
             <select value={thread.status} disabled={busy} onChange={(e) => patch({ status: e.target.value })}
               className="w-full text-[11px] rounded-md px-2 py-1.5 outline-none"

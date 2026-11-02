@@ -5,6 +5,7 @@ import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import { showToast } from "@/lib/toast";
 import ClosedBanner from "../sections/ClosedBanner";
 import TicketRefund from "../sections/TicketRefund";
+import { SUPPORT_FROM_ADDRESS } from "../lib/mail-from";
 import {
   CATEGORY_LABEL,
   PRIORITY_STYLE,
@@ -42,7 +43,7 @@ const FOLDERS = [
 
 type FolderKey = (typeof FOLDERS)[number]["key"];
 
-const FROM_ADDRESS = "futurestack@agentmail.to";
+const FROM_ADDRESS = SUPPORT_FROM_ADDRESS;
 
 /* ── component ───────────────────────────────────────────── */
 
@@ -110,7 +111,10 @@ export default function EmailView({ meId, onOpenTicket }: { meId: string; onOpen
   }, [selId, loadThread]);
 
   useEffect(() => {
-    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
+    // land on the start of the newest message (not the bottom of a long one) so it can be read from the top
+    const box = bodyRef.current;
+    const last = box?.lastElementChild as HTMLElement | null;
+    if (box && last) box.scrollTo({ top: Math.max(last.offsetTop - 16, 0) });
   }, [thread?.messages.length]);
 
   const refresh = useCallback(() => { loadList(); if (selId) loadThread(selId); }, [loadList, loadThread, selId]);
@@ -156,9 +160,19 @@ export default function EmailView({ meId, onOpenTicket }: { meId: string; onOpen
   const composerDisabled = thread?.status === "CLOSED";
 
   return (
-    <div className="h-full flex" style={{ background: "var(--bg)" }}>
+    <div className="h-full flex flex-col" style={{ background: "var(--bg)" }}>
+      {selId && (
+        <button
+          onClick={() => setSelId(null)}
+          className="lg:hidden flex items-center gap-1.5 px-3 py-2 text-[11.5px] font-semibold shrink-0 cursor-pointer"
+          style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)", color: "var(--blue)", borderTop: "none", borderLeft: "none", borderRight: "none" }}
+        >
+          ← Back to list
+        </button>
+      )}
+      <div className="flex flex-1 min-h-0 min-w-0">
       {/* ── folders ── */}
-      <div className="shrink-0 flex flex-col py-2" style={{ width: 150, borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
+      <div className="shrink-0 hidden lg:flex flex-col py-2" style={{ width: 150, borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
         {FOLDERS.map((f) => {
           const active = folder === f.key;
           const count = stats[f.statKey] ?? 0;
@@ -186,8 +200,16 @@ export default function EmailView({ meId, onOpenTicket }: { meId: string; onOpen
       </div>
 
       {/* ── conversation list ── */}
-      <div className="shrink-0 flex flex-col" style={{ width: 340, borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
+      <div className={`${selId ? "hidden lg:flex" : "flex"} w-full lg:w-[340px] shrink-0 flex-col`} style={{ borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
         <div className="px-3 py-2 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
+          <select
+            value={folder}
+            onChange={(e) => { setFolder(e.target.value as FolderKey); setSelId(null); }}
+            className="lg:hidden w-full mb-2 text-[11.5px] font-bold rounded px-2 py-1.5 outline-none"
+            style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }}
+          >
+            {FOLDERS.map((f) => <option key={f.key} value={f.key}>{f.icon} {f.label}{(stats[f.statKey] ?? 0) > 0 ? ` (${stats[f.statKey]})` : ""}</option>)}
+          </select>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search mail…"
             className="w-full text-[10.5px] rounded-md px-2 py-1.5 outline-none"
             style={{ background: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)" }} />
@@ -229,7 +251,7 @@ export default function EmailView({ meId, onOpenTicket }: { meId: string; onOpen
       </div>
 
       {/* ── reading pane ── */}
-      <div className="flex-1 overflow-hidden">
+      <div className={`${selId ? "block" : "hidden lg:block"} flex-1 overflow-hidden min-w-0`}>
         {!selId ? (
           <div className="h-full flex items-center justify-center text-[12px]" style={{ color: "var(--text3)" }}>
             Select a conversation.
@@ -287,12 +309,12 @@ export default function EmailView({ meId, onOpenTicket }: { meId: string; onOpen
             </div>
 
             {/* messages */}
-            <div ref={bodyRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+            <div ref={bodyRef} className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 flex flex-col gap-3">
               {thread.messages.map((m) => {
                 const agent = m.author.isAgent;
                 const note = m.isInternalNote;
                 return (
-                  <div key={m.id} className="rounded-lg overflow-hidden"
+                  <div key={m.id} className="rounded-lg overflow-hidden shrink-0"
                     style={{ border: `1px solid ${note ? "var(--amber, #b45309)" : "var(--border)"}`, background: "var(--surface)" }}>
                     <div className="flex items-center gap-2 px-3 py-2" style={{ background: note ? "var(--amber-d)" : agent ? "var(--blue-d)" : "var(--panel)", borderBottom: "1px solid var(--border)" }}>
                       <span className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0"
@@ -353,6 +375,7 @@ export default function EmailView({ meId, onOpenTicket }: { meId: string; onOpen
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

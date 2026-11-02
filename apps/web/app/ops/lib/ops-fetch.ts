@@ -34,7 +34,7 @@ export async function opsFetch(input: string, init: RequestInit = {}): Promise<R
   const doFetch = (t: string) => fetch(input, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(typeof FormData !== "undefined" && init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...(init.headers ?? {}),
       Authorization: `Bearer ${t}`,
     },

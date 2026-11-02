@@ -29,20 +29,20 @@ export function OpsStatusbar({ leftItems = ["SYS_SYNC: OK", "MASTER_DATA: EDITAB
   return (
     <div
       style={{ height: 24, background: "var(--panel)", borderTop: "1px solid var(--border)" }}
-      className="flex items-center px-3 gap-3.5 font-mono text-[9.5px] shrink-0"
+      className="flex items-center px-3 gap-3.5 font-mono text-[9.5px] shrink-0 overflow-hidden whitespace-nowrap"
     >
       <div className="flex items-center gap-1">
         <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--green)" }} />
         SYS_SYNC: OK
       </div>
-      <span style={{ color: "var(--border2)" }}>│</span>
+      <span className="hidden sm:inline" style={{ color: "var(--border2)" }}>│</span>
       {leftItems.slice(1).map((item, i) => (
-        <span key={i}>
+        <span key={i} className="hidden sm:inline">
           <span>{item}</span>
           <span style={{ color: "var(--border2)", margin: "0 12px" }}>│</span>
         </span>
       ))}
-      <div className="ml-auto flex gap-3">
+      <div className="ml-auto hidden md:flex gap-3">
         <span>SESSION: {sessionEmail}</span>
         <span style={{ color: "var(--border2)" }}>│</span>
         <span>{time}</span>

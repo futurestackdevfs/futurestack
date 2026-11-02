@@ -54,7 +54,7 @@ export class AdminService {
     const googleFields = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_CALLBACK_URL'].map(
       (name) => ({ name, present: has(name) }),
     );
-    const emailFields = ['AGENTMAIL_API_KEY', 'AGENTMAIL_INBOX_ID', 'CONTACT_EMAIL'].map((name) => ({
+    const emailFields = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'MAIL_FROM', 'CONTACT_EMAIL'].map((name) => ({
       name,
       present: has(name),
     }));
@@ -90,7 +90,7 @@ export class AdminService {
       },
       {
         key: 'email',
-        label: 'AgentMail (Email)',
+        label: 'Email (SMTP / Hostinger)',
         configured: emailFields.every((f) => f.present),
         fields: emailFields,
       },

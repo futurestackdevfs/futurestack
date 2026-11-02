@@ -1,7 +1,8 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import nextDynamic from "next/dynamic";
 import { useViewParam } from "@/lib/use-view-param";
 import { authApi } from "@/app/auth/lib/auth-api";
 import { loadStaffToken } from "@/app/auth/lib/token-store";
@@ -10,15 +11,24 @@ import { OpsStatusbar } from "@/app/ops/components/OpsStatusbar";
 import { RoleGate } from "@/app/ops/components/RoleGate";
 import { opsFetch } from "@/app/ops/lib/ops-fetch";
 import { SupportSidebar } from "./sections/SupportSidebar";
-import { SupportConsoleBody } from "./SupportConsoleBody";
-import DashboardView from "./console/DashboardView";
-import EmailView from "./console/EmailView";
-import StudentsView from "./console/StudentsView";
-import EnrollmentsView from "./console/EnrollmentsView";
-import RatingsView from "./console/RatingsView";
-import PaymentsView from "./console/PaymentsView";
-import RefundsView from "./console/RefundsView";
 import type { Ticket, TicketStats } from "./lib/types";
+
+function ViewLoading() {
+  return (
+    <div className="h-full flex items-center justify-center font-mono text-[11px]" style={{ color: "var(--text3)" }}>
+      Loading…
+    </div>
+  );
+}
+const SupportConsoleBody = nextDynamic(() => import("./SupportConsoleBody").then((m) => m.SupportConsoleBody), { loading: ViewLoading });
+const DashboardView = nextDynamic(() => import("./console/DashboardView"), { loading: ViewLoading });
+const EmailView = nextDynamic(() => import("./console/EmailView"), { loading: ViewLoading });
+const InboxView = nextDynamic(() => import("./console/InboxView"), { loading: ViewLoading });
+const StudentsView = nextDynamic(() => import("./console/StudentsView"), { loading: ViewLoading });
+const EnrollmentsView = nextDynamic(() => import("./console/EnrollmentsView"), { loading: ViewLoading });
+const RatingsView = nextDynamic(() => import("./console/RatingsView"), { loading: ViewLoading });
+const PaymentsView = nextDynamic(() => import("./console/PaymentsView"), { loading: ViewLoading });
+const RefundsView = nextDynamic(() => import("./console/RefundsView"), { loading: ViewLoading });
 
 const BREADCRUMB: Record<string, string> = {
   dashboard: "dashboard",
@@ -28,6 +38,7 @@ const BREADCRUMB: Record<string, string> = {
   mine: "my-tickets",
   resolved: "resolved",
   closed: "closed",
+  inbox: "inbox",
   email: "email-outbox",
   students: "students",
   enrollments: "enrollments",
@@ -37,10 +48,10 @@ const BREADCRUMB: Record<string, string> = {
 };
 
 const QUEUE_PRESETS: Record<string, { status?: string; scope?: "all" | "me" | "unassigned"; title: string }> = {
-  queue: { status: "OPEN", scope: "all", title: "live queue" },
+  queue: { scope: "all", title: "live queue" },
   pending: { status: "PENDING", scope: "all", title: "awaiting student" },
   unassigned: { status: "OPEN", scope: "unassigned", title: "unassigned" },
-  mine: { status: "OPEN", scope: "me", title: "my tickets" },
+  mine: { scope: "me", title: "my tickets" },
   resolved: { status: "RESOLVED", scope: "all", title: "resolved" },
   closed: { status: "CLOSED", scope: "all", title: "closed" },
 };
@@ -63,6 +74,7 @@ function SupportConsoleInner() {
   const [stats, setStats] = useState<TicketStats | null>(null);
   const [sample, setSample] = useState<Ticket[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const sampleLoaded = useRef(false);
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -87,38 +99,31 @@ function SupportConsoleInner() {
     })();
   }, []);
 
-  const loadData = useCallback(async () => {
+  // Stats + the sidebar badge counts: one cheap request, needed on every screen.
+  const loadStats = useCallback(async () => {
+    try {
+      const r = await opsFetch("/api/support/staff/stats");
+      if (r.ok) setStats(await r.json());
+    } catch {
+      addToast("Couldn't refresh support data");
+    }
+  }, [addToast]);
+
+  // The ticket sample feeds the Dashboard charts only, so it is fetched when the Dashboard is open
+  // (2 pages in parallel instead of 4 requests on every screen).
+  const loadSample = useCallback(async () => {
     setDataLoading(true);
     try {
-      const PAGE_LIMIT = 50, MAX_PAGES = 4;
-      // Stats and the ticket sample's first page are independent — fetch
-      // together. The first page also tells us the real total, so we know
-      // exactly how many more pages (if any) are worth fetching, and can
-      // fetch those concurrently instead of one page at a time.
-      const [statsRes, firstRes] = await Promise.all([
-        opsFetch("/api/support/staff/stats"),
-        opsFetch(`/api/support/staff/tickets?limit=${PAGE_LIMIT}&page=1`),
-      ]);
-      if (statsRes.ok) setStats(await statsRes.json());
-
-      const acc: Ticket[] = [];
-      if (firstRes.ok) {
-        const firstBody = await firstRes.json();
-        acc.push(...(firstBody.data ?? []));
-        const total = firstBody.total ?? 0;
-        const pagesNeeded = Math.min(MAX_PAGES, Math.ceil(total / PAGE_LIMIT));
-        if (pagesNeeded > 1 && (firstBody.data?.length ?? 0) >= PAGE_LIMIT) {
-          const rest = await Promise.all(
-            Array.from({ length: pagesNeeded - 1 }, (_, i) =>
-              opsFetch(`/api/support/staff/tickets?limit=${PAGE_LIMIT}&page=${i + 2}`)
-                .then((r) => (r.ok ? r.json() : null))
-                .catch(() => null),
-            ),
-          );
-          rest.forEach((body) => { if (body?.data) acc.push(...body.data); });
-        }
-      }
-      setSample(acc);
+      const PAGE_LIMIT = 50;
+      const pages = await Promise.all(
+        [1, 2].map((p) =>
+          opsFetch(`/api/support/staff/tickets?limit=${PAGE_LIMIT}&page=${p}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+        ),
+      );
+      setSample(pages.flatMap((body) => body?.data ?? []));
+      sampleLoaded.current = true;
     } catch {
       addToast("Couldn't refresh support data");
     } finally {
@@ -126,17 +131,25 @@ function SupportConsoleInner() {
     }
   }, [addToast]);
 
-  useEffect(() => { if (user) loadData(); }, [user, loadData]);
+  const loadData = useCallback(async () => {
+    await Promise.all([loadStats(), view === "dashboard" ? loadSample() : Promise.resolve()]);
+  }, [loadStats, loadSample, view]);
 
-  const badges = useMemo(() => {
-    const active = sample.filter((t) => t.status === "OPEN" || t.status === "PENDING");
-    return {
+  useEffect(() => { if (user) loadStats(); }, [user, loadStats]);
+  useEffect(() => {
+    if (user && view === "dashboard" && !sampleLoaded.current) loadSample();
+    else if (view !== "dashboard") setDataLoading(false);
+  }, [user, view, loadSample]);
+
+  const badges = useMemo(
+    () => ({
       open: stats?.OPEN ?? 0,
       pending: stats?.PENDING ?? 0,
-      unassigned: active.filter((t) => !t.assignee).length,
-      mine: active.filter((t) => t.assignee?.id === user?.id).length,
-    };
-  }, [sample, stats, user]);
+      unassigned: stats?.UNASSIGNED ?? 0,
+      mine: stats?.MINE ?? 0,
+    }),
+    [stats],
+  );
 
   function openTicket(id: string) {
     setOpenTicketId(id);
@@ -144,21 +157,21 @@ function SupportConsoleInner() {
   }
 
   if (sessionLoading) {
-    return <div style={{ height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", color: "var(--text3)" }} className="font-mono text-[11px]">Checking session…</div>;
+    return <div style={{ height: "100dvh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)", color: "var(--text3)" }} className="font-mono text-[11px]">Checking session…</div>;
   }
   if (!user) return null;
 
   const preset = QUEUE_PRESETS[view];
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ height: "100dvh", display: "flex", flexDirection: "column" }}>
       <OpsTopbar
         role={user}
         breadcrumb={{ title: "support", subtitle: BREADCRUMB[view] ?? "console" }}
         onMenuClick={() => setSidebarOpen(true)}
       />
 
-      <div className="flex" style={{ flex: 1, overflow: "hidden" }}>
+      <div className="flex min-h-0" style={{ flex: 1, overflow: "hidden" }}>
         <SupportSidebar
           activeView={view}
           onSwitchView={(v) => { setView(v); setOpenTicketId(null); }}
@@ -167,7 +180,7 @@ function SupportConsoleInner() {
           onClose={() => setSidebarOpen(false)}
         />
 
-        <main className="flex-1" style={{ background: "var(--bg)", overflow: ["email", "students", "enrollments", "ratings", "payments", "refunds"].includes(view) || preset ? "hidden" : "auto" }}>
+        <main className="flex-1 min-w-0 min-h-0" style={{ background: "var(--bg)", overflow: ["inbox", "email", "students", "enrollments", "ratings", "payments", "refunds"].includes(view) || preset ? "hidden" : "auto" }}>
           {view === "dashboard" && (
             <DashboardView
               stats={stats} tickets={sample} meId={user.id}
@@ -175,6 +188,7 @@ function SupportConsoleInner() {
               onOpenTicket={openTicket} onGoView={setView}
             />
           )}
+          {view === "inbox" && <InboxView />}
           {view === "email" && <EmailView meId={user.id} onOpenTicket={openTicket} />}
           {view === "students" && <StudentsView onOpenTicket={openTicket} />}
           {view === "enrollments" && <EnrollmentsView onOpenTicket={openTicket} />}
@@ -197,14 +211,14 @@ function SupportConsoleInner() {
           "SUPPORT_DESK: ONLINE",
           `OPEN: ${stats?.OPEN ?? 0}`,
           `UNASSIGNED: ${badges.unassigned}`,
-          dataLoading ? "SYNCING…" : "LIVE",
+          dataLoading && view === "dashboard" ? "SYNCING…" : "LIVE",
         ]}
         sessionEmail={user.email}
       />
 
-      <div className="fixed bottom-9 right-4 flex flex-col gap-2 z-[300]">
+      <div className="fixed bottom-9 right-3 left-3 sm:left-auto sm:right-4 flex flex-col gap-2 z-[300]">
         {toasts.map((t) => (
-          <div key={t.id} className="flex items-center gap-2 px-3.5 py-2.5 rounded text-[11.5px] font-semibold min-w-[220px]"
+          <div key={t.id} className="flex items-center gap-2 px-3.5 py-2.5 rounded text-[11.5px] font-semibold sm:min-w-[220px]"
             style={{ background: "var(--surface)", border: "1px solid var(--border)", boxShadow: "0 8px 24px rgba(0,0,0,.18)", color: "var(--text)", borderLeft: "3px solid var(--red)" }}>
             <span style={{ fontSize: 13 }}>✕</span>{t.msg}
           </div>

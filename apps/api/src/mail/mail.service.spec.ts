@@ -1,17 +1,18 @@
 import { ConfigService } from '@nestjs/config';
+
+// SMTP is stubbed: nothing is ever sent, the tests only look at what WOULD have been sent.
+jest.mock('nodemailer', () => ({ createTransport: jest.fn(() => ({ sendMail: jest.fn() })) }), { virtual: true });
 import { MailService } from './mail.service';
 
-// AgentMail is replaced by a stub: nothing is ever sent, the tests only look at
-// the html / text / subject that WOULD have been sent.
 function setup() {
   const config = {
     get: (key: string) =>
-      ({ AGENTMAIL_API_KEY: '__spec__key', AGENTMAIL_INBOX_ID: 'Spec <inbox@agentmail.to>', FRONTEND_URL: 'https://app.example.com' } as Record<string, string>)[key],
+      ({ SMTP_HOST: 'smtp.example.com', SMTP_USER: 'inbox@example.com', SMTP_PASS: '__spec__pass', MAIL_FROM: 'Spec <inbox@example.com>', FRONTEND_URL: 'https://app.example.com' } as Record<string, string>)[key],
   } as unknown as ConfigService;
   const service = new MailService(config);
   const send = jest.fn().mockResolvedValue({});
-  (service as any).client = { inboxes: { messages: { send } } };
-  const sent = () => send.mock.calls[0][1] as { to: string; subject: string; text: string; html: string };
+  (service as any).transporter = { sendMail: send };
+  const sent = () => send.mock.calls[0][0] as { to: string; subject: string; text: string; html: string; from: string };
   return { service, send, sent };
 }
 
@@ -22,7 +23,7 @@ describe('MailService - user-controlled values are HTML-escaped in email bodies'
   it('escapes a ticket subject, category and priority in the new-ticket email sent to staff', async () => {
     const { service, sent } = setup();
 
-    await service.sendAgentNewTicketEmail('inbox@agentmail.to', {
+    await service.sendAgentNewTicketEmail('inbox@example.com', {
       subject: LINK,
       category: 'Billing & <Refunds>',
       priority: 'HIGH',
@@ -38,7 +39,7 @@ describe('MailService - user-controlled values are HTML-escaped in email bodies'
   it('keeps the plain-text part and the Subject header as plain text (no HTML entities)', async () => {
     const { service, sent } = setup();
 
-    await service.sendAgentNewTicketEmail('inbox@agentmail.to', {
+    await service.sendAgentNewTicketEmail('inbox@example.com', {
       subject: 'Fish & chips <help>',
       category: 'General',
       priority: 'LOW',
@@ -110,7 +111,7 @@ describe('MailService - links in emails only ever use http(s)', () => {
   it('replaces a javascript: link with "#" instead of putting it in an href', async () => {
     const { service, sent } = setup();
 
-    await service.sendAgentNewTicketEmail('inbox@agentmail.to', {
+    await service.sendAgentNewTicketEmail('inbox@example.com', {
       subject: 's',
       category: 'c',
       priority: 'p',
@@ -146,5 +147,71 @@ describe('MailService - links in emails only ever use http(s)', () => {
     });
 
     expect(sent().html).toContain('href="https://app.example.com/support/tickets/9?x=1&amp;y=2"');
+  });
+
+  it('stamps every mail with an fs- Message-ID and X-FS-Source so the support Inbox can recognise site mail', async () => {
+    const { service, sent } = setup();
+
+    const id = await service.send({ to: 'a@example.com', subject: 'Hi', text: 't', html: '<p>t</p>' });
+
+    const mail = sent() as unknown as { messageId: string; headers: Record<string, string> };
+    expect(id).toMatch(/^<fs-[0-9a-f-]{36}@example\.com>$/);
+    expect(mail.messageId).toBe(id);
+    expect(mail.headers['X-FS-Source']).toBe('app');
+  });
+
+  describe('replyInInboxThread - reply with attachments, Cc and the quoted original', () => {
+    function replySetup() {
+      const ctx = setup();
+      const saveToSent = jest.fn().mockResolvedValue(undefined);
+      (ctx.service as any).inbox = {
+        replyContext: jest.fn().mockResolvedValue({
+          to: 'asha@example.org',
+          subject: 'Re: Refund please',
+          inReplyTo: '<orig@example.org>',
+          references: ['<orig@example.org>'],
+          sentPath: 'INBOX.Sent',
+          quoted: { from: { email: 'asha@example.org', displayName: 'Asha' }, date: new Date('2026-11-02T10:00:00Z'), text: 'Please refund me\n<b>thanks</b>' },
+        }),
+        saveToSent,
+      };
+      return { ...ctx, saveToSent };
+    }
+
+    it('sends the reply threaded, with Cc and every attachment, and keeps a copy in Sent', async () => {
+      const { service, sent, saveToSent } = replySetup();
+      const file = { filename: 'invoice.pdf', content: Buffer.from('pdf'), contentType: 'application/pdf' };
+
+      await service.replyInInboxThread('inbox-9', 'Done, see attached', { cc: ['boss@example.com'], attachments: [file] });
+
+      const mail = sent() as any;
+      expect(mail.to).toBe('asha@example.org');
+      expect(mail.cc).toEqual(['boss@example.com']);
+      expect(mail.attachments).toEqual([file]);
+      expect(mail.inReplyTo).toBe('<orig@example.org>');
+      expect(mail.subject).toBe('Re: Refund please');
+      expect(saveToSent).toHaveBeenCalledTimes(1);
+    });
+
+    it('can quote the original message (escaped) under the reply', async () => {
+      const { service, sent } = replySetup();
+
+      await service.replyInInboxThread('inbox-9', 'Sure', { quote: true });
+
+      const mail = sent() as any;
+      expect(mail.text).toContain('> Please refund me');
+      expect(mail.html).toContain('<blockquote');
+      expect(mail.html).toContain('&lt;b&gt;thanks&lt;/b&gt;');
+      expect(mail.html).not.toContain('<b>thanks</b>');
+    });
+
+    it('allows an attachment-only reply but refuses a completely empty one', async () => {
+      const { service, send } = replySetup();
+      await expect(service.replyInInboxThread('inbox-9', '   ', {})).rejects.toThrow('Reply is empty');
+      expect(send).not.toHaveBeenCalled();
+
+      await service.replyInInboxThread('inbox-9', '', { attachments: [{ filename: 'a.txt', content: Buffer.from('x') }] });
+      expect(send).toHaveBeenCalledTimes(1);
+    });
   });
 });

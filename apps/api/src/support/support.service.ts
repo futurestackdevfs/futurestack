@@ -433,11 +433,17 @@ export class SupportService {
     };
   }
 
-  async staffStats() {
-    const grouped = await this.prisma.supportTicket.groupBy({
-      by: ['status'],
-      _count: { _all: true },
-    });
+  async staffStats(userId?: string) {
+    const active = { status: { in: ['OPEN', 'PENDING'] as ('OPEN' | 'PENDING')[] } };
+    const [grouped, unassigned, mine] = await Promise.all([
+      this.prisma.supportTicket.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+      }),
+      // for the console sidebar badges - so it doesn't have to download every ticket just to count them
+      this.prisma.supportTicket.count({ where: { ...active, assigneeId: null } }),
+      userId ? this.prisma.supportTicket.count({ where: { ...active, assigneeId: userId } }) : Promise.resolve(0),
+    ]);
     const counts: Record<string, number> = {
       OPEN: 0,
       PENDING: 0,
@@ -446,7 +452,7 @@ export class SupportService {
     };
     for (const g of grouped) counts[g.status] = g._count._all;
     counts.TOTAL = Object.values(counts).reduce((a, b) => a + b, 0);
-    return counts;
+    return { ...counts, UNASSIGNED: unassigned ?? 0, MINE: mine ?? 0 };
   }
 
   async staffAgents() {
@@ -1142,7 +1148,7 @@ export class SupportService {
 
   // ── agent: raw support-inbox reader (every real email, ticket or not) ──
 
-  listInboxThreads(opts: { q?: string; limit: number; pageToken?: string }) {
+  listInboxThreads(opts: { q?: string; limit: number; pageToken?: string; folder?: string; refresh?: boolean }) {
     return this.mail.listInboxThreads(opts);
   }
 
@@ -1150,8 +1156,32 @@ export class SupportService {
     return this.mail.getInboxThread(threadId);
   }
 
-  async replyInInboxThread(threadId: string, body: string) {
-    await this.mail.replyInInboxThread(threadId, body);
+  async replyInInboxThread(
+    threadId: string,
+    input: { body?: string; cc?: string; quote?: string },
+    files: { originalname: string; buffer: Buffer; mimetype: string }[] = [],
+  ) {
+    const body = (input.body ?? '').trim();
+    if (!body && files.length === 0) {
+      throw new BadRequestException('Write a message or attach a file');
+    }
+    const cc = (input.cc ?? '')
+      .split(/[,;\s]+/)
+      .map((e) => e.trim())
+      .filter(Boolean);
+    if (cc.length > 5) throw new BadRequestException('At most 5 Cc addresses');
+    const bad = cc.find((e) => !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(e));
+    if (bad) throw new BadRequestException(`"${bad}" is not a valid email address`);
+
+    await this.mail.replyInInboxThread(threadId, body, {
+      cc,
+      quote: input.quote === 'true',
+      attachments: files.map((f) => ({ filename: f.originalname, content: f.buffer, contentType: f.mimetype })),
+    });
     return { sent: true };
+  }
+
+  getInboxAttachment(messageId: string, index: number) {
+    return this.mail.getInboxAttachment(messageId, index);
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import Link from "next/link";
@@ -433,7 +433,8 @@ function RefundPanel({ refund, order }: { refund: OrderRefund; order: OrderHisto
   const cur = order.currency;
   const b = refund.breakdown;
   const expected = formatDate(refund.estimatedBy);
-  const overdue = refund.status === "PROCESSED" && new Date(refund.estimatedBy).getTime() < Date.now();
+  const [nowMs] = useState(() => Date.now());
+  const overdue = refund.status === "PROCESSED" && new Date(refund.estimatedBy).getTime() < nowMs;
   const rejected = refund.status === "REJECTED";
 
   const chip =
@@ -547,6 +548,11 @@ function RefundPanel({ refund, order }: { refund: OrderRefund; order: OrderHisto
 
 export default function OrderHistoryPage() {
   const { user, isAuthenticated, isLoading } = useAuth();
+  // `useAuth` can already be resolved on the first client render while the server rendered the
+  // spinner (hydration mismatch) - treat auth as loading until after mount.
+  // false on the server and during hydration, true afterwards - without a setState-in-effect.
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const authLoading = !mounted || isLoading;
   const router = useRouter();
   const [animate] = useState(true);
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -577,7 +583,7 @@ export default function OrderHistoryPage() {
     router.push(`/courses/${slugify(courseTitle)}`);
   }, [router]);
 
-  if (isLoading || !user) {
+  if (authLoading || !user) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] bg-[var(--bg)]">
         <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />

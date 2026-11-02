@@ -33,6 +33,7 @@ const NAV_GROUPS: { group: string; items: NavItem[] }[] = [
   {
     group: "Email",
     items: [
+      { icon: "📥", label: "Inbox", view: "inbox" },
       { icon: "📧", label: "Email outbox", view: "email" },
     ],
   },

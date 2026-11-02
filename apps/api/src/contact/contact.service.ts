@@ -9,7 +9,7 @@ export class ContactService {
 
   constructor(private readonly mail: MailService) {}
 
-  // The visitor doesn't need to wait for the AgentMail round-trip (~1s) — it
+  // The visitor doesn't need to wait for the SMTP round-trip (~1s) — it
   // only notifies staff. Kick the send off in the background and return right
   // away; MailService already logs failures internally.
   private fireAndForget(label: string, send: Promise<unknown>) {

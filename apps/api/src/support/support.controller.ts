@@ -9,8 +9,14 @@ import {
   Post,
   Query,
   Req,
+  BadRequestException,
+  Res,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { PageSizePipe } from '../common/page-size.pipe';
 import { Role, TicketStatus } from '@prisma/client';
 import { Auth } from '../auth/decorators/auth.decorator';
@@ -19,6 +25,11 @@ import { CreateTicketDto } from './dto/create-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateAgentMessageDto } from './dto/create-agent-message.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+
+/** Outgoing attachments on an Inbox reply. */
+const REPLY_MAX_FILES = 5;
+const REPLY_MAX_FILE_BYTES = 10 * 1024 * 1024;
+const BLOCKED_ATTACHMENT = /\.(exe|bat|cmd|com|scr|msi|vbs|ps1|jar|sh|dll)$/i;
 
 interface ReqUser {
   id: string;
@@ -101,8 +112,8 @@ export class SupportController {
 
   @Auth(Role.SUPPORT, Role.ADMIN)
   @Get('staff/stats')
-  staffStats() {
-    return this.support.staffStats();
+  staffStats(@Req() req: Request) {
+    return this.support.staffStats((req.user as ReqUser).id);
   }
 
   @Auth(Role.SUPPORT, Role.ADMIN)
@@ -249,11 +260,15 @@ export class SupportController {
     @Query('q') q: string,
     @Query('limit', new PageSizePipe(30, 100)) limit: number,
     @Query('pageToken') pageToken: string,
+    @Query('folder') folder: string,
+    @Query('refresh') refresh: string,
   ) {
     return this.support.listInboxThreads({
       q,
       limit: Math.min(limit, 100),
       pageToken,
+      folder,
+      refresh: refresh === '1',
     });
   }
 
@@ -263,9 +278,42 @@ export class SupportController {
     return this.support.getInboxThread(id);
   }
 
+  /** multipart/form-data: body, cc (comma separated), quote ('true'), files[] */
   @Auth(Role.SUPPORT, Role.ADMIN)
   @Post('staff/inbox/threads/:id/reply')
-  replyInInboxThread(@Param('id') id: string, @Body('body') body: string) {
-    return this.support.replyInInboxThread(id, body);
+  @UseInterceptors(
+    FilesInterceptor('files', REPLY_MAX_FILES, {
+      storage: memoryStorage(),
+      limits: { fileSize: REPLY_MAX_FILE_BYTES, files: REPLY_MAX_FILES },
+      fileFilter: (_req, file, cb) => {
+        if (BLOCKED_ATTACHMENT.test(file.originalname)) {
+          return cb(new BadRequestException(`"${file.originalname}" is an executable file type and cannot be attached`), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  replyInInboxThread(
+    @Param('id') id: string,
+    @Body() input: { body?: string; cc?: string; quote?: string },
+    @UploadedFiles() files: Express.Multer.File[] = [],
+  ) {
+    return this.support.replyInInboxThread(id, input ?? {}, files);
+  }
+
+  /** Download one attachment of a mailbox message. */
+  @Auth(Role.SUPPORT, Role.ADMIN)
+  @Get('staff/inbox/messages/:id/attachments/:index')
+  async downloadInboxAttachment(
+    @Param('id') id: string,
+    @Param('index', ParseIntPipe) index: number,
+    @Res() res: Response,
+  ) {
+    const { filename, content } = await this.support.getInboxAttachment(id, index);
+    // Always a download, never rendered inline - an attachment from outside must not run in our origin.
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(content);
   }
 }

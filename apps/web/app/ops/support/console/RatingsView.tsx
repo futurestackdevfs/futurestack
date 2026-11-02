@@ -74,9 +74,19 @@ export default function RatingsView() {
   }, [selId, loadDetail]);
 
   return (
-    <div className="h-full flex" style={{ background: "var(--bg)" }}>
+    <div className="h-full flex flex-col" style={{ background: "var(--bg)" }}>
+      {selId && (
+        <button
+          onClick={() => setSelId(null)}
+          className="lg:hidden flex items-center gap-1.5 px-3 py-2 text-[11.5px] font-semibold shrink-0 cursor-pointer"
+          style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)", color: "var(--blue)", borderTop: "none", borderLeft: "none", borderRight: "none" }}
+        >
+          ← Back to list
+        </button>
+      )}
+      <div className="flex flex-1 min-h-0 min-w-0">
       {/* ── subject list (courses / projects) ── */}
-      <div className="shrink-0 flex flex-col" style={{ width: 340, borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
+      <div className={`${selId ? "hidden lg:flex" : "flex"} w-full lg:w-[340px] shrink-0 flex-col`} style={{ borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
         <div className="px-3.5 py-2.5 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
           <div className="text-[13px] font-extrabold" style={{ color: "var(--text)" }}>⭐ Ratings & reviews</div>
           <div className="font-mono text-[9px] mt-0.5" style={{ color: "var(--text3)" }}>{rows.length} {type === "course" ? "courses" : "projects"} with reviews</div>
@@ -136,7 +146,7 @@ export default function RatingsView() {
       </div>
 
       {/* ── individual reviews for the selected course/project ── */}
-      <div className="flex-1 overflow-y-auto">
+      <div className={`${selId ? "block" : "hidden lg:block"} flex-1 overflow-y-auto min-w-0`}>
         {!selId ? (
           <div className="h-full flex items-center justify-center text-[12px]" style={{ color: "var(--text3)" }}>
             Select a {type === "course" ? "course" : "project"} to see its individual reviews.
@@ -168,9 +178,9 @@ export default function RatingsView() {
                 style={{ background: "var(--blue-d)", color: "var(--blue)" }}>{detail.type}</span>
             </div>
 
-            <div className="p-4 mx-auto flex gap-5" style={{ maxWidth: 780 }}>
+            <div className="p-3 sm:p-4 mx-auto flex flex-wrap gap-4 sm:gap-5" style={{ maxWidth: 780 }}>
               {/* distribution */}
-              <div className="w-[220px] shrink-0">
+              <div className="w-full sm:w-[220px] shrink-0">
                 <div className="font-mono text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color: "var(--text3)" }}>Rating breakdown</div>
                 <div className="rounded-lg p-3 flex flex-col gap-1.5" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
                   {([5, 4, 3, 2, 1] as const).map((star) => (
@@ -206,6 +216,7 @@ export default function RatingsView() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

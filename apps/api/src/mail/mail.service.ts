@@ -1,6 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AgentMailClient } from 'agentmail';
+import { randomUUID } from 'crypto';
+import { createTransport, type Transporter } from 'nodemailer';
+import MailComposer from 'nodemailer/lib/mail-composer';
+import { ImapInbox } from './imap-inbox';
 import { EmailContext, EmailSpec, renderEmail } from './templates/render';
 import {
   CertificateData,
@@ -27,27 +30,82 @@ import {
 } from './templates/transactional';
 
 @Injectable()
-export class MailService {
-  private readonly client: AgentMailClient;
+export class MailService implements OnModuleInit, OnModuleDestroy {
+  private readonly transporter: Transporter | null;
+  private readonly inbox: ImapInbox;
   private readonly logger = new Logger(MailService.name);
 
   constructor(private readonly configService: ConfigService) {
-    this.client = new AgentMailClient({
-      apiKey: this.configService.get<string>('AGENTMAIL_API_KEY'),
-    });
+    // Outgoing mail goes through the business mailbox over SMTP (Hostinger by default).
+    const host = this.configService.get<string>('SMTP_HOST');
+    const user = this.configService.get<string>('SMTP_USER');
+    const pass = this.configService.get<string>('SMTP_PASS');
+    const port = Number(this.configService.get<string>('SMTP_PORT') ?? 465);
+    this.transporter =
+      host && user && pass
+        ? createTransport({ host, port, secure: port === 465, auth: { user, pass } })
+        : null;
+    if (!this.transporter) {
+      this.logger.warn('SMTP is not configured (SMTP_HOST / SMTP_USER / SMTP_PASS) - emails will not be sent.');
+    }
+    this.inbox = new ImapInbox(this.configService);
   }
 
-  private get inboxId(): string {
+  onModuleInit() {
+    this.inbox.warmUp();
+  }
+
+  async onModuleDestroy() {
+    await this.inbox.close();
+  }
+
+  /** `Future Stack <support@yourdomain.com>` - what recipients see in the From line. */
+  private get fromHeader(): string {
+    const user = this.configService.get<string>('SMTP_USER');
     return (
-      this.configService.get<string>('AGENTMAIL_INBOX_ID') ??
-      'Future Stack <onboarding@agentmail.to>'
+      this.configService.get<string>('MAIL_FROM') ??
+      (user ? `Future Stack <${user}>` : 'Future Stack <no-reply@localhost>')
     );
   }
 
-  /** The plain email address of the one configured inbox — everything (staff
-   * notifications, R&D inquiries, etc.) sends to this address only. */
+  /** The plain email address staff notifications (new tickets, escalations, R&D / contact forms) are sent to. */
   getPrimaryInboxAddress(): string {
-    return this.inboxId.replace(/^.*<([^>]+)>.*$/, '$1');
+    return (
+      this.configService.get<string>('STAFF_INBOX') ??
+      this.fromHeader.replace(/^.*<([^>]+)>.*$/, '$1')
+    );
+  }
+
+  /**
+   * Sends one email. Throws when SMTP is not configured or the server refuses it -
+   * every caller wraps this in try/catch and logs, so a mail hiccup never breaks the action.
+   */
+  async send(mail: {
+    to: string | string[];
+    subject: string;
+    text: string;
+    html: string;
+    replyTo?: string | string[];
+    cc?: string[];
+    attachments?: { filename: string; content: Buffer; contentType?: string }[];
+    inReplyTo?: string;
+    references?: string[];
+  }): Promise<string> {
+    if (!this.transporter) {
+      throw new Error('Email is not configured: set SMTP_HOST, SMTP_USER and SMTP_PASS');
+    }
+    // Every mail the site sends carries an `fs-` Message-ID and an X-FS-Source header. That is how the
+    // support Inbox recognises mails that came from the website: the alerts it sends to itself, and
+    // customers' replies to them (a reply's In-Reply-To / References point back at that Message-ID).
+    const domain = this.fromHeader.replace(/^.*@([^>\s]+)>?.*$/, '$1') || 'localhost';
+    const messageId = `<fs-${randomUUID()}@${domain}>`;
+    await this.transporter.sendMail({
+      from: this.fromHeader,
+      messageId,
+      headers: { 'X-FS-Source': 'app' },
+      ...mail,
+    });
+    return messageId;
   }
 
   async sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
@@ -73,7 +131,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: 'Reset your Future Stack password',
         text,
@@ -238,7 +296,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: `Enrollment recorded for ${data.courseName} — payment pending 🕒`,
         text,
@@ -325,7 +383,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: `Complete your payment for ${data.courseName} 💳`,
         text,
@@ -398,7 +456,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: `Payment confirmed — welcome to ${data.courseName} 🎉`,
         text,
@@ -502,7 +560,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: `Welcome to Future Stack, ${data.name} — your login details`,
         text,
@@ -573,7 +631,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: 'Your Future Stack password has been regenerated',
         text,
@@ -664,7 +722,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: `We've got your request — ticket ${shortId}`,
         text,
@@ -708,7 +766,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: `Re: ${data.subject} — support replied`,
         text,
@@ -745,7 +803,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: `Resolved: ${data.subject}`,
         text,
@@ -787,7 +845,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: `[Support] ${data.priority} · ${data.subject}`,
         text,
@@ -818,7 +876,7 @@ export class MailService {
   private async deliver(to: string, spec: EmailSpec, label: string): Promise<void> {
     try {
       const { subject, html, text } = renderEmail(spec, this.emailContext);
-      await this.client.inboxes.messages.send(this.inboxId, { to, subject, text, html });
+      await this.send({ to, subject, text, html });
     } catch (error) {
       this.logger.error(`Failed to send ${label} email to ${to}`, error);
     }
@@ -919,7 +977,7 @@ export class MailService {
       `,
       );
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         subject: `[Escalations] ${data.total} need attention`,
         text,
@@ -971,9 +1029,9 @@ export class MailService {
         data.details?.trim() || '(none provided)',
       ].join('\n');
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
-        // The From address can never be the visitor's own — AgentMail (like
+        // The From address can never be the visitor's own — the mail server (like
         // any provider) only lets you send from a verified inbox you own,
         // to stop spoofing. The visitor's identity travels in the subject,
         // the body, and replyTo (so hitting "reply" reaches them directly).
@@ -1056,7 +1114,7 @@ export class MailService {
         .filter(Boolean)
         .join('\n');
 
-      await this.client.inboxes.messages.send(this.inboxId, {
+      await this.send({
         to,
         replyTo: [data.email],
         subject: `[Contact · ${typeLabel}] ${data.name} <${data.email}>`,
@@ -1092,83 +1150,83 @@ export class MailService {
       .replace(/'/g, '&#39;');
   }
 
-  // ── Raw inbox reading — every real message in the support inbox, not just
+  // ── Raw inbox reading — every real message in the support mailbox, not just
   // ── ones tied to a SupportTicket (e.g. the R&D contact form, or anything
   // ── that lands here without going through the ticket system). ─────────
 
-  // AgentMail addresses are plain strings — `user@domain.com` or
-  // `Display Name <user@domain.com>` — never objects. Parse into a shape
-  // the frontend can render without guessing.
-  private parseAddress(raw: string): { email: string; displayName?: string } {
-    const match = raw.match(/^\s*(.*?)\s*<([^<>]+)>\s*$/);
-    if (match) {
-      const name = match[1].replace(/^["']|["']$/g, '').trim();
-      return name
-        ? { email: match[2], displayName: name }
-        : { email: match[2] };
+  listInboxThreads(opts: { q?: string; limit: number; pageToken?: string; folder?: string; refresh?: boolean }) {
+    return this.inbox.listMessages(opts);
+  }
+
+  getInboxThread(threadId: string) {
+    return this.inbox.getThread(threadId);
+  }
+
+  getInboxAttachment(messageId: string, index: number) {
+    return this.inbox.getAttachment(messageId, index);
+  }
+
+  /**
+   * Replies to a mailbox message: threaded (In-Reply-To / References), optionally quoting the
+   * original, with Cc and file attachments. A copy lands in the Sent folder.
+   */
+  async replyInInboxThread(
+    threadId: string,
+    body: string,
+    opts: {
+      cc?: string[];
+      quote?: boolean;
+      attachments?: { filename: string; content: Buffer; contentType?: string }[];
+    } = {},
+  ) {
+    const typed = (body ?? '').trim();
+    const attachments = opts.attachments ?? [];
+    if (!typed && attachments.length === 0) throw new Error('Reply is empty');
+    const ctx = await this.inbox.replyContext(threadId);
+
+    let text = typed;
+    let html = `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;white-space:pre-wrap">${this.escapeHtml(typed)}</div>`;
+    if (opts.quote && ctx.quoted.text.trim()) {
+      const who = ctx.quoted.from.displayName
+        ? `${ctx.quoted.from.displayName} <${ctx.quoted.from.email}>`
+        : ctx.quoted.from.email;
+      const when = ctx.quoted.date ? ctx.quoted.date.toUTCString() : 'earlier';
+      const original = ctx.quoted.text.trim();
+      text += `\n\nOn ${when}, ${who} wrote:\n${original.split('\n').map((l) => `> ${l}`).join('\n')}`;
+      html += `<blockquote style="margin:16px 0 0;padding:0 0 0 12px;border-left:3px solid #d1d5db;color:#6b7280;font-size:13px;line-height:1.5;white-space:pre-wrap;font-family:Arial,sans-serif">On ${this.escapeHtml(when)}, ${this.escapeHtml(who)} wrote:<br/>${this.escapeHtml(original)}</blockquote>`;
     }
-    return { email: raw.trim() };
-  }
 
-  async listInboxThreads(opts: {
-    q?: string;
-    limit: number;
-    pageToken?: string;
-  }) {
-    const inboxId = this.inboxId;
-    const body = opts.q?.trim()
-      ? await this.client.inboxes.threads.search(inboxId, {
-          q: opts.q.trim(),
-          limit: opts.limit,
-        })
-      : await this.client.inboxes.threads.list(inboxId, {
-          limit: opts.limit,
-          pageToken: opts.pageToken,
-        });
-    return {
-      threads: (body.threads ?? []).map((t) => ({
-        id: t.threadId,
-        subject: t.subject ?? '(no subject)',
-        preview: t.preview ?? '',
-        senders: (t.senders ?? []).map((s) => this.parseAddress(s)),
-        recipients: (t.recipients ?? []).map((r) => this.parseAddress(r)),
-        unread: (t.labels ?? []).includes('unread'),
-        messageCount: t.messageCount,
-        lastMessageId: t.lastMessageId,
-        updatedAt: t.updatedAt,
-        createdAt: t.createdAt,
-      })),
-      nextPageToken: 'nextPageToken' in body ? body.nextPageToken : undefined,
-    };
-  }
-
-  async getInboxThread(threadId: string) {
-    const t = await this.client.inboxes.threads.get(this.inboxId, threadId);
-    return {
-      id: t.threadId,
-      subject: t.subject ?? '(no subject)',
-      messages: t.messages.map((m) => ({
-        id: m.messageId,
-        from: this.parseAddress(m.from),
-        to: (m.to ?? []).map((a) => this.parseAddress(a)),
-        cc: (m.cc ?? []).map((a) => this.parseAddress(a)),
-        subject: m.subject,
-        text: m.text ?? m.extractedText ?? null,
-        html: m.html ?? null,
-        attachments: m.attachments ?? [],
-        createdAt: m.createdAt,
-      })),
-    };
-  }
-
-  async replyInInboxThread(threadId: string, body: string) {
-    const thread = await this.client.inboxes.threads.get(
-      this.inboxId,
-      threadId,
-    );
-    const lastMessageId = thread.lastMessageId;
-    await this.client.inboxes.messages.reply(this.inboxId, lastMessageId, {
-      text: body,
+    const messageId = await this.send({
+      to: ctx.to,
+      cc: opts.cc?.length ? opts.cc : undefined,
+      subject: ctx.subject,
+      text,
+      html,
+      attachments: attachments.length ? attachments : undefined,
+      inReplyTo: ctx.inReplyTo,
+      references: ctx.references,
     });
+
+    // SMTP doesn't file a copy anywhere - keep one in Sent so the reply shows in the conversation.
+    try {
+      const raw = await new MailComposer({
+        from: this.fromHeader,
+        messageId,
+        headers: { 'X-FS-Source': 'app' },
+        to: ctx.to,
+        cc: opts.cc?.length ? opts.cc : undefined,
+        subject: ctx.subject,
+        text,
+        html,
+        attachments: attachments.length ? attachments : undefined,
+        inReplyTo: ctx.inReplyTo,
+        references: ctx.references,
+      })
+        .compile()
+        .build();
+      await this.inbox.saveToSent(raw, ctx.sentPath);
+    } catch (e) {
+      this.logger.warn(`Reply sent, but could not be saved to the Sent folder: ${e}`);
+    }
   }
 }

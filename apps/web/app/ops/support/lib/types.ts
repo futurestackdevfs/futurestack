@@ -71,6 +71,9 @@ export interface TicketStats {
   RESOLVED: number;
   CLOSED: number;
   TOTAL: number;
+  /** Active (open / awaiting) tickets nobody owns / the signed-in agent owns. */
+  UNASSIGNED?: number;
+  MINE?: number;
 }
 
 export const CATEGORY_LABEL: Record<TicketCategory, string> = {

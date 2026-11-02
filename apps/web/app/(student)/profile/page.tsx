@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/auth/hooks/use-auth';
 import { showToast } from '@/lib/toast';
@@ -68,6 +68,12 @@ function AvatarDisplay({ currentUrl, initials }: { currentUrl?: string | null; i
 
 export default function ProfilePage() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
+  // `useAuth` reads a client-only shared singleton that can already be resolved on the
+  // first client render while the server rendered the spinner - a hydration mismatch.
+  // Treat auth as loading until after mount so server and client agree.
+  // false on the server and during hydration, true afterwards - without a setState-in-effect.
+  const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
+  const authLoading = !mounted || isLoading;
   const router = useRouter();
 
   const [form, setForm] = useState<ProfileForm>(emptyForm());
@@ -189,7 +195,7 @@ export default function ProfilePage() {
     }
   }
 
-  if (isLoading || !user) {
+  if (authLoading || !user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[var(--bg)]">
         <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
@@ -479,7 +485,7 @@ export default function ProfilePage() {
             </div>
             <div className="flex-1 min-w-0">
               <h2 className="text-sm font-semibold text-[var(--text)]">Reset Password</h2>
-              <p className="text-[11px] text-[var(--text3)] mt-0.5 truncate">We'll email you a secure reset link at {user.email}</p>
+              <p className="text-[11px] text-[var(--text3)] mt-0.5 truncate">We&apos;ll email you a secure reset link at {user.email}</p>
             </div>
             <button
               type="button"

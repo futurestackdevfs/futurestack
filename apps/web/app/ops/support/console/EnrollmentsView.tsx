@@ -94,9 +94,19 @@ export default function EnrollmentsView({ onOpenTicket }: { onOpenTicket: (id: s
   }, [selId, loadProfile]);
 
   return (
-    <div className="h-full flex" style={{ background: "var(--bg)" }}>
+    <div className="h-full flex flex-col" style={{ background: "var(--bg)" }}>
+      {selId && (
+        <button
+          onClick={() => setSelId(null)}
+          className="lg:hidden flex items-center gap-1.5 px-3 py-2 text-[11.5px] font-semibold shrink-0 cursor-pointer"
+          style={{ borderBottom: "1px solid var(--border)", background: "var(--surface)", color: "var(--blue)", borderTop: "none", borderLeft: "none", borderRight: "none" }}
+        >
+          ← Back to list
+        </button>
+      )}
+      <div className="flex flex-1 min-h-0 min-w-0">
       {/* ── student table (left) ── */}
-      <div className="shrink-0 flex flex-col" style={{ width: 420, borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
+      <div className={`${selId ? "hidden lg:flex" : "flex"} w-full lg:w-[420px] shrink-0 flex-col`} style={{ borderRight: "1px solid var(--border)", background: "var(--surface)" }}>
         <div className="px-3.5 py-2.5 shrink-0" style={{ borderBottom: "1px solid var(--border)" }}>
           <div className="text-[13px] font-extrabold" style={{ color: "var(--text)" }}>🎓 Enrollments</div>
           <div className="font-mono text-[9px] mt-0.5" style={{ color: "var(--text3)" }}>{rows.length} students — click a row for full details</div>
@@ -149,7 +159,7 @@ export default function EnrollmentsView({ onOpenTicket }: { onOpenTicket: (id: s
       </div>
 
       {/* ── 360° profile (right panel — like a ticket detail) ── */}
-      <div className="flex-1 overflow-y-auto">
+      <div className={`${selId ? "block" : "hidden lg:block"} flex-1 overflow-y-auto min-w-0`}>
         {!selId ? (
           <div className="h-full flex items-center justify-center text-[12px]" style={{ color: "var(--text3)" }}>
             Select a student from the table to see their full profile.
@@ -302,6 +312,7 @@ export default function EnrollmentsView({ onOpenTicket }: { onOpenTicket: (id: s
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

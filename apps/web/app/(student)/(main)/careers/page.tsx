@@ -46,7 +46,11 @@ const VALUES = [
   { icon: "⚡", title: "Bias for shipping", desc: "A rough thing in front of real users beats a perfect thing in a doc. Iterate from there." },
 ];
 
-const MAIL = "futurestack.work@gmail.com";
+// Applications and enquiries go to the support mailbox (same address the API sends from).
+const MAIL = process.env.NEXT_PUBLIC_MAIL_FROM || "support@futurestack.co.in";
+
+// Pre-filled in every "write to us" / apply email.
+const MAIL_BODY = "Write your content here, and please attach your resume as well.";
 
 interface JobPosting {
   id: string;
@@ -58,7 +62,7 @@ interface JobPosting {
   createdAt: string;
 }
 
-const gmailLink = (subject: string, body = "") =>
+const gmailLink = (subject: string, body = MAIL_BODY) =>
   `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(MAIL)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
 const toList = (text?: string | null) =>
@@ -75,9 +79,8 @@ function JobModal({ job, onClose }: { job: JobPosting; onClose: () => void }) {
 
   const requirements = toList(job.requirements);
   const skills = toList(job.skills);
-  const body = `Hi FutureStack team,\n\nI would like to apply for the "${job.title}" (${job.duration}) position.\n\nName:\nPhone:\nLinkedIn / Portfolio:\n\nPlease find my resume attached.\n\nThanks,`;
   const posted = new Date(job.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-  const applyHref = gmailLink(`Application: ${job.title}`, body);
+  const applyHref = gmailLink(`[Careers] Application: ${job.title}`);
 
   const heading = (text: string) => (
     <div className="flex items-center gap-2 text-[11.5px] font-bold uppercase tracking-[.12em] text-[var(--orange)] mb-3">
@@ -298,9 +301,9 @@ export default function CareersPage() {
                 <div className="text-[15px] font-bold text-[var(--text)]">No open positions right now</div>
                 <p className="text-[13px] text-[var(--muted)] mt-1.5 max-w-[440px] mx-auto">
                   Check back soon, or reach out at{" "}
-                  <a href={`mailto:${MAIL}`} className="font-semibold text-[var(--blue)] hover:underline">{MAIL}</a>.
+                  <a href={gmailLink("[Careers] FutureStack Careers")} target="_blank" rel="noopener noreferrer" className="font-semibold text-[var(--blue)] hover:underline">{MAIL}</a>.
                 </p>
-                <a href={`mailto:${MAIL}?subject=${encodeURIComponent("Looking for Opportunities — FutureStack Careers")}`}
+                <a href={gmailLink("[Careers] Looking for Opportunities — FutureStack Careers")} target="_blank" rel="noopener noreferrer"
                   className="mt-5 inline-block text-white text-[12.5px] font-bold px-5 py-2.5 rounded-xl bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] hover:-translate-y-0.5 transition-all">
                   Introduce yourself →
                 </a>
@@ -312,7 +315,7 @@ export default function CareersPage() {
             <p className="text-[12px] text-[var(--muted)] mt-6 text-center">
               Want to teach instead?{" "}
               <a
-                href={`mailto:${MAIL}?subject=${encodeURIComponent("Trainer Application — FutureStack Careers")}`}
+                href={gmailLink("[Careers] Trainer Application — FutureStack Careers")} target="_blank" rel="noopener noreferrer"
                 className="font-semibold text-[var(--blue)] hover:underline"
               >
                 Become a trainer on FutureStack →
@@ -330,7 +333,7 @@ export default function CareersPage() {
             <p className="text-[14px] text-[var(--muted)] mb-7 max-w-[480px] mx-auto">
               No fitting role today? Send us a note and we'll reach out when something opens up.
             </p>
-            <a href={`mailto:${MAIL}?subject=${encodeURIComponent("Keep Me in Mind — FutureStack Careers")}`}
+            <a href={gmailLink("[Careers] Keep Me in Mind — FutureStack Careers")} target="_blank" rel="noopener noreferrer"
               className="inline-block text-white text-[13.5px] font-bold px-7 py-3.5 rounded-[10px] bg-gradient-to-r from-[var(--orange)] to-[var(--orange2)] shadow-[0_10px_28px_-10px_rgba(255,106,26,.4)] hover:-translate-y-0.5 transition-all">
               Write to us
             </a>
